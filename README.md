@@ -18,7 +18,7 @@ TT-BUDA is the official Tenstorrent AI/ML compiler stack; however, PyBUDA is the
 
 ## First 5 Things To-Do
 
-For a simple, 5-step, starting guide on learning the basics of TT-BUDA please refer to the [first_5_steps/](https://github.com/tenstorrent/tt-buda/first_5_steps/) directory.
+For a simple, 5-step, starting guide on learning the basics of TT-BUDA please visit [first_5_steps](first_5_steps/).
 
 In that directory, you will find the following user guides:
 
@@ -30,7 +30,7 @@ In that directory, you will find the following user guides:
 
 ## Model Examples
 
-For additional example code for running some popular AI/ML models, please refer to the [model_examples/](https://github.com/tenstorrent/tt-buda/model_examples/) directory.
+For additional example code for running some popular AI/ML models, please visit [model_examples](model_examples/).
 
 ## Documentation
 
