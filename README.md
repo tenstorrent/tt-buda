@@ -1,0 +1,41 @@
+# TT-BUDA
+
+## Table of Contents
+
+- [Introduction](#introduction)
+- [First 5 Things To-Do](#first-5-things-to-do)
+- [Model Examples](#model-examples)
+- [Documentation](#documentation)
+- [Support and Community](#support-and-community)
+
+## Introduction
+
+The TT-BUDA software stack can compile AI/ML models from several different frameworks such as PyTorch and Tensorflow, and execute them in many different ways on Tenstorrent hardware.
+
+**Note on terminology:**
+
+TT-BUDA is the official Tenstorrent AI/ML compiler stack; however, PyBUDA is the Python interface for TT-BUDA. TT-BUDA is the core technology; however, PyBUDA allows users to access and utilize TT-BUDA's features directly from Python. This includes directly importing model architectures and weights from PyTorch, TensorFlow, ONNX, and TFLite.
+
+## First 5 Things To-Do
+
+For a simple, 5-step, starting guide on learning the basics of TT-BUDA please refer to the [first_5_steps/](https://github.com/tenstorrent/tt-buda/first_5_steps/) directory.
+
+In that directory, you will find the following user guides:
+
+- `1_install_ttbuda.md` -> Installation guide for TT-BUDA
+- `2_running_nlp_models.ipynb` -> Run your first NLP model with TT-BUDA
+- `3_running_cv_models.ipynb` -> Run your first CNN model with TT-BUDA
+- `4_batched_inputs.ipynb` -> Learn how to run with batched inputs and how to benchmark models on TT-BUDA
+- `5_serving_tt_models.ipynb` -> Use FastAPI to host a model running on Tenstorrent hardware to build custom APIs
+
+## Model Examples
+
+For additional example code for running some popular AI/ML models, please refer to the [model_examples/](https://github.com/tenstorrent/tt-buda/model_examples/) directory.
+
+## Documentation
+
+Please refer to the [official documentation website](https://docs.tenstorrent.com/tenstorrent/).
+
+## Support and Community
+
+Please access the Discord community forum for updates, tips, troubleshooting support, and more!
