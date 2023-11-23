@@ -14,7 +14,7 @@ The TT-BUDA software stack can compile AI/ML models from several different frame
 
 **Note on terminology:**
 
-TT-BUDA is the official Tenstorrent AI/ML compiler stack; however, PyBUDA is the Python interface for TT-BUDA. TT-BUDA is the core technology; however, PyBUDA allows users to access and utilize TT-BUDA's features directly from Python. This includes directly importing model architectures and weights from PyTorch, TensorFlow, ONNX, and TFLite.
+TT-BUDA is the official Tenstorrent AI/ML compiler stack and PyBUDA is the Python interface for TT-BUDA. PyBUDA allows users to access and utilize TT-BUDA's features directly from Python. This includes directly importing model architectures and weights from PyTorch, TensorFlow, ONNX, and TFLite.
 
 ## First 5 Things To-Do
 
