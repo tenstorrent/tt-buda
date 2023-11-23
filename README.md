@@ -38,4 +38,4 @@ Please refer to the [official documentation website](https://docs.tenstorrent.co
 
 ## Support and Community
 
-Please access the Discord community forum for updates, tips, troubleshooting support, and more!
+Please access the [Discord community](https://discord.gg/YkjMXthQ) forum for updates, tips, troubleshooting support, and more!
