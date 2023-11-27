@@ -51,7 +51,7 @@ Please navigate to [tt-kmd](https://github.com/tenstorrent/tt-kmd).
 
 ### Device Firmware Update
 
-Please navigate to [tt-firmware-gs](https://github.com/tenstorrent/tt-firmware-gs).
+Please navigate to [tt-flash](https://github.com/tenstorrent/tt-flash) and [tt-firmware-gs](https://github.com/tenstorrent/tt-firmware-gs).
 
 ### Backend Compiler Dependencies
 
