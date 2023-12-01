@@ -21,12 +21,10 @@ All contributions require:
 
 ## Setting up environment
 
-Ensure that you are contributing from the `model_demos` directory.
-
-Install all dependencies from [requriements.txt](requirements.txt) and install pre-commit hooks.
+Install all dependencies from [model_demos/requriements.txt](model_demos/requirements.txt) and install pre-commit hooks in a Python environment with PyBUDA installed.
 
 ```bash
-pip install -r requirements.txt
+pip install -r model_demos/requirements.txt
 pre-commit install
 ```
 
@@ -53,7 +51,7 @@ Also include a pytest marker for each model family and update the markers list i
 For example,
 
 ```python
-test_pytorch_bert.py
+model_demos/tests/test_pytorch_bert.py
 
 @pytest.mark.bert
 def test_bert_masked_lm_pytorch(clear_pybuda):
@@ -62,7 +60,7 @@ def test_bert_masked_lm_pytorch(clear_pybuda):
 
 ### Updating Models Table
 
-For new model demos, please include an entry in the [Models Table](README.md/#models-table) along with the supported hardware.
+For new model demos, please include an entry in the [Models Table](model_demos/README.md/#models-table) along with the supported hardware.
 
 ## Contribution standards
 

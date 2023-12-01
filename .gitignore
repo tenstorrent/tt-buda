@@ -1,0 +1,22 @@
+# IDE
+.vscode
+
+# Python
+*.pyc
+__pycache__
+*egg-info
+
+# Virtual Environment
+env
+
+# Output Files
+*netlist.yaml
+*.dump
+*.log
+.hlkc_cache
+tt_build/
+generated_modules/
+*.ipynb
+*.json
+*.pt
+archive/

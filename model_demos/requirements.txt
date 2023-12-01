@@ -1,0 +1,18 @@
+pytorchcv==0.0.67  # For Osmr Repo imported models ex: HRNet
+vgg_pytorch==0.3.0  # VGG - HF model
+timm==0.9.2  # PyTorch Image Models
+sentencepiece==0.1.96  # Text tokenizer and detokenizer for NLP models
+scikit-image==0.20.0  # For DenseNet 121 HF XRay model
+torchxrayvision==0.0.39  # For DenseNet
+yolov5==7.0.9  # For YOLOv5
+soundfile==0.12.1  # For Whisper
+librosa==0.10.0  # For Whisper
+numba==0.53.1  # For Whisper
+segmentation-models-pytorch==0.3.3  # For U-Net
+pylocron==0.2.1  # For U-Net
+diffusers==0.14.0  # For Stable Diffusion
+pytest==7.1.2
+black==22.3.0
+flake8==3.9.2
+isort==5.10.1
+pre-commit==2.19.0

@@ -36,6 +36,10 @@ For additional example code for running some popular AI/ML models, please visit 
 
 Please refer to the [official documentation website](https://docs.tenstorrent.com/tenstorrent/).
 
+## Contributing
+
+We are excited to move our development to the public, open-source domain. However, we are not adequately staffed to review contributions in an expedient and manageable time frame at this time. In the meantime, please review the [contributor's guide](CONTRIBUTING.md) for more information about contribution standards.
+
 ## Communication
 
 If you would like to formally propose a new feature, report a bug, or have issues with permissions, please file through [GitHub issues](https://github.com/tenstorrent/tt-buda/issues).
