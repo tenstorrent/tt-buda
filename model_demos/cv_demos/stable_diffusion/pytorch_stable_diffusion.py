@@ -236,7 +236,8 @@ def run_stable_diffusion_pytorch(variant="CompVis/stable-diffusion-v1-4"):
     available_devices = pybuda.detect_available_devices()
     if available_devices:
         if available_devices[0] == pybuda._C.backend_api.BackendDevice.Grayskull:
-            pytest.skip()
+            pytest.skip("Model not supported on Grayskull")
+            raise NotImplementedError("Model not supported on Grayskull")
     # Set inference steps
     num_inference_steps = 50
 

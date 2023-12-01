@@ -11,7 +11,8 @@ def run_falcon_pytorch():
     available_devices = pybuda.detect_available_devices()
     if available_devices:
         if available_devices[0] == BackendDevice.Grayskull:
-            pytest.skip()
+            pytest.skip("Model not supported on Grayskull")
+            raise NotImplementedError("Model not supported on Grayskull")
 
     # Load model from HuggingFace
     model = Falcon(
