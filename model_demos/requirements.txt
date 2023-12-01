@@ -11,8 +11,3 @@ numba==0.53.1  # For Whisper
 segmentation-models-pytorch==0.3.3  # For U-Net
 pylocron==0.2.1  # For U-Net
 diffusers==0.14.0  # For Stable Diffusion
-pytest==7.1.2
-black==22.3.0
-flake8==3.9.2
-isort==5.10.1
-pre-commit==2.19.0

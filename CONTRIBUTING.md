@@ -21,14 +21,20 @@ All contributions require:
 
 ## Setting up environment
 
-Install all dependencies from [model_demos/requriements.txt](model_demos/requirements.txt) and install pre-commit hooks in a Python environment with PyBUDA installed.
+Install all dependencies from [model_demos/dev_requriements.txt](model_demos/dev_requirements.txt) and install pre-commit hooks in a Python environment with PyBUDA installed.
 
 ```bash
-pip install -r model_demos/requirements.txt
+pip install -r model_demos/dev_requirements.txt
 pre-commit install
 ```
 
 ## Developing model_demos
+
+## Adding models
+
+Contribute to the model demos by include script files under the respective model type directories in `model_demos`. If it's a new model architecture, please create a directory for that model. The script should be self-contained and include pre/post-processing steps.
+
+If external dependencies are required, please add the dependencies to the [model_demos/requriements.txt](model_demos/requirements.txt) file.
 
 ### Cleaning the dev environment with `make clean` and `make clean_tt`
 
