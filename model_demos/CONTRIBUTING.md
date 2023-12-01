@@ -24,6 +24,7 @@ All contributions require:
 Install all dependencies from [dev_requriements.txt](dev_requirements.txt) and install pre-commit hooks in a Python environment with PyBUDA installed.
 
 ```bash
+cd model_demos
 pip install -r dev_requirements.txt
 pre-commit install
 ```
