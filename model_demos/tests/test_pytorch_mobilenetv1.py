@@ -1,6 +1,6 @@
 import pytest
-from cv_demos.mobilenet_v1.pytorch_mobilenet_v1_basic import \
-    run_mobilenetv1_basic
+
+from cv_demos.mobilenet_v1.pytorch_mobilenet_v1_basic import run_mobilenetv1_basic
 from cv_demos.mobilenet_v1.pytorch_mobilenet_v1_hf import run_mobilenetv1_hf
 
 variants = [

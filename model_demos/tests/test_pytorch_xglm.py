@@ -1,4 +1,5 @@
 import pytest
+
 from nlp_demos.xglm.pytorch_xglm_causal_lm import run_xglm_causal_lm
 
 variants = ["facebook/xglm-564M", "facebook/xglm-1.7B"]

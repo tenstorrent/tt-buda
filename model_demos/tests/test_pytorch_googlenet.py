@@ -1,4 +1,5 @@
 import pytest
+
 from cv_demos.googlenet.pytorch_googlenet_torchhub import run_googlenet_pytorch
 
 

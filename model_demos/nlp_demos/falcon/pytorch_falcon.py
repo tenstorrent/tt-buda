@@ -2,8 +2,9 @@
 
 import pybuda
 import pytest
-from nlp_demos.falcon.utils.model import Falcon
 from pybuda._C.backend_api import BackendDevice
+
+from nlp_demos.falcon.utils.model import Falcon
 
 
 def run_falcon_pytorch():

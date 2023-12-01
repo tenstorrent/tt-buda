@@ -1,9 +1,8 @@
 import pytest
+
 from nlp_demos.opt.pytorch_opt_causal_lm import run_opt_casual_lm
-from nlp_demos.opt.pytorch_opt_question_answering import \
-    run_opt_question_answering
-from nlp_demos.opt.pytorch_opt_sequence_classification import \
-    run_opt_sequence_classification
+from nlp_demos.opt.pytorch_opt_question_answering import run_opt_question_answering
+from nlp_demos.opt.pytorch_opt_sequence_classification import run_opt_sequence_classification
 
 variants = ["facebook/opt-125m", "facebook/opt-350m", "facebook/opt-1.3b"]
 

@@ -8,7 +8,6 @@ from typing import Optional, Tuple, Union
 
 import torch
 import torch.utils.checkpoint
-from nlp_demos.falcon.utils.configuration_RW import RWConfig
 from torch import nn
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, LayerNorm, MSELoss
 from torch.nn import functional as F
@@ -21,6 +20,8 @@ from transformers.modeling_outputs import (
 )
 from transformers.modeling_utils import PreTrainedModel
 from transformers.utils import logging
+
+from nlp_demos.falcon.utils.configuration_RW import RWConfig
 
 logger = logging.get_logger(__name__)
 

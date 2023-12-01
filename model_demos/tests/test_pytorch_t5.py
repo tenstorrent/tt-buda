@@ -1,4 +1,5 @@
 import pytest
+
 from nlp_demos.t5.pytorch_t5_generation import run_t5_pybuda_pipeline
 
 variants = ["t5-small", "t5-base", "t5-large"]

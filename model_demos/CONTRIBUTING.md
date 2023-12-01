@@ -34,7 +34,7 @@ pre-commit install
 
 Contribute to the model demos by include script files under the respective model type directories in `model_demos`. If it's a new model architecture, please create a directory for that model. The script should be self-contained and include pre/post-processing steps.
 
-If external dependencies are required, please add the dependencies to the [model_demos/requriements.txt](model_demos/requirements.txt) file.
+If external dependencies are required, please add the dependencies to the [requriements.txt](requirements.txt) file.
 
 ### Cleaning the dev environment with `make clean` and `make clean_tt`
 
@@ -66,7 +66,7 @@ def test_bert_masked_lm_pytorch(clear_pybuda):
 
 ### Updating Models Table
 
-For new model demos, please include an entry in the [Models Table](model_demos/README.md/#models-table) along with the supported hardware.
+For new model demos, please include an entry in the [Models Table](README.md/#models-table) along with the supported hardware.
 
 ## Contribution standards
 

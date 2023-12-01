@@ -1,4 +1,5 @@
 import pytest
+
 from cv_demos.resnet.pytorch_resnet import run_resnet_pytorch
 from cv_demos.resnet.timm_resnet import run_resnet_timm
 

@@ -1,6 +1,6 @@
 import pytest
-from cv_demos.deit.pytorch_deit_classify_16_224_hf import \
-    run_deit_classify_224_hf_pytorch
+
+from cv_demos.deit.pytorch_deit_classify_16_224_hf import run_deit_classify_224_hf_pytorch
 
 variants = [
     "facebook/deit-base-patch16-224",

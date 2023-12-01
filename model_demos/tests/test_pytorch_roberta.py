@@ -1,7 +1,7 @@
 import pytest
+
 from nlp_demos.roberta.pytorch_roberta_masked_lm import run_roberta_mlm_pytorch
-from nlp_demos.roberta.pytorch_roberta_sentiment import \
-    run_roberta_sentiment_pytorch
+from nlp_demos.roberta.pytorch_roberta_sentiment import run_roberta_sentiment_pytorch
 
 
 @pytest.mark.roberta

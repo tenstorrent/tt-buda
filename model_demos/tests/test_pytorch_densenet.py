@@ -1,7 +1,7 @@
 import pytest
+
 from cv_demos.densenet.pytorch_densenet import run_densenet_pytorch
-from cv_demos.densenet.pytorch_densenet_121_hf_xray import \
-    run_densenet_121_hf_xray_pytorch
+from cv_demos.densenet.pytorch_densenet_121_hf_xray import run_densenet_121_hf_xray_pytorch
 
 variants = ["densenet121", "densenet161", "densenet169", "densenet201"]
 

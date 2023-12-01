@@ -1,4 +1,5 @@
 import pytest
+
 from cv_demos.resnext.pytorch_resnext import run_resnext_pytorch
 
 variants = [

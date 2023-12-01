@@ -1,4 +1,5 @@
 import pytest
+
 from nlp_demos.falcon.pytorch_falcon import run_falcon_pytorch
 
 

@@ -1,8 +1,7 @@
 import pytest
-from nlp_demos.dpr.pytorch_dpr_context_encoder import \
-    run_dpr_context_encoder_pytorch
-from nlp_demos.dpr.pytorch_dpr_question_encoder import \
-    run_dpr_question_encoder_pytorch
+
+from nlp_demos.dpr.pytorch_dpr_context_encoder import run_dpr_context_encoder_pytorch
+from nlp_demos.dpr.pytorch_dpr_question_encoder import run_dpr_question_encoder_pytorch
 from nlp_demos.dpr.pytorch_dpr_reader import run_dpr_reader_pytorch
 
 variants_ctx = [

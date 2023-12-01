@@ -6,12 +6,13 @@ import os
 
 import pybuda
 import torch
-from nlp_demos.falcon.utils.configuration_RW import RWConfig
-from nlp_demos.falcon.utils.pybudify import PyBudify
-from nlp_demos.falcon.utils.tt_modeling_RW_pad_masked_odkv import RWForCausalLM as RWForCausalLMPaddedMaskedODKV
 from torch.nn import functional as F
 from transformers import AutoTokenizer
 from transformers.generation.utils import top_k_top_p_filtering
+
+from nlp_demos.falcon.utils.configuration_RW import RWConfig
+from nlp_demos.falcon.utils.pybudify import PyBudify
+from nlp_demos.falcon.utils.tt_modeling_RW_pad_masked_odkv import RWForCausalLM as RWForCausalLMPaddedMaskedODKV
 
 MODEL_CKPT = "tiiuae/falcon-7b-instruct"
 MAX_SEQUENCE_LENGTH = os.environ.get("MAX_SEQUENCE_LENGTH", 2048)

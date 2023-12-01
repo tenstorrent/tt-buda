@@ -1,6 +1,6 @@
 import pytest
-from audio_demos.whisper.pytorch_whisper_generation import \
-    run_whisper_generation
+
+from audio_demos.whisper.pytorch_whisper_generation import run_whisper_generation
 
 variants = [
     "openai/whisper-tiny",

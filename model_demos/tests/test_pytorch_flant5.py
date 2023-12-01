@@ -1,6 +1,6 @@
 import pytest
-from nlp_demos.flan_t5.pytorch_flan_t5_generation import \
-    run_flan_t5_pybuda_pipeline
+
+from nlp_demos.flan_t5.pytorch_flan_t5_generation import run_flan_t5_pybuda_pipeline
 
 variants = ["google/flan-t5-small", "google/flan-t5-base", "google/flan-t5-large"]
 

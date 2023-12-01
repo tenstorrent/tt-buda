@@ -6,7 +6,6 @@
 - [First 5 Things To-Do](#first-5-things-to-do)
 - [Model Demos](#model-demos)
 - [Documentation](#documentation)
-- [Contributing](#contributing)
 - [Communication](#communication)
 
 ## Introduction
@@ -36,10 +35,6 @@ For additional example code for running some popular AI/ML models, please visit 
 ## Documentation
 
 Please refer to the [official documentation website](https://docs.tenstorrent.com/tenstorrent/).
-
-## Contributing
-
-We are excited to move our development to the public, open-source domain. However, we are not adequately staffed to review contributions in an expedient and manageable time frame at this time. In the meantime, please review the [contributor's guide](CONTRIBUTING.md) for more information about contribution standards.
 
 ## Communication
 

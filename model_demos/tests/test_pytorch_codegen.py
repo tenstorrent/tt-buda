@@ -1,4 +1,5 @@
 import pytest
+
 from nlp_demos.codegen.pytorch_codegen_causal_lm import run_codegen_causal_lm
 
 # Variants: Salesforce/codegen-350M-mono, Salesforce/codegen-350M-multi, Salesforce/codegen-350M-nl

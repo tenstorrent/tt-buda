@@ -1,4 +1,5 @@
 import pytest
+
 from cv_demos.hrnet.pytorch_hrnet_osmr import run_hrnet_osmr_pytorch
 from cv_demos.hrnet.pytorch_hrnet_timm import run_hrnet_timm_pytorch
 

@@ -1,4 +1,5 @@
 import pytest
+
 from cv_demos.clip.pytorch_clip import run_clip_pytorch
 
 variants = ["openai/clip-vit-base-patch32"]

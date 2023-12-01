@@ -6,9 +6,10 @@ import sys
 import pybuda
 import requests
 import torch
-from cv_demos.yolo_v5.utils.processing import data_postprocessing, data_preprocessing
 from PIL import Image
 from pybuda._C.backend_api import BackendDevice
+
+from cv_demos.yolo_v5.utils.processing import data_postprocessing, data_preprocessing
 
 
 def run_pytorch_yolov5_320(variant="yolov5s"):

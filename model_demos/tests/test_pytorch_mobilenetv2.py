@@ -1,9 +1,8 @@
 import pytest
-from cv_demos.mobilenet_v2.pytorch_mobilenet_v2_basic import \
-    run_mobilenetv2_basic
+
+from cv_demos.mobilenet_v2.pytorch_mobilenet_v2_basic import run_mobilenetv2_basic
 from cv_demos.mobilenet_v2.pytorch_mobilenet_v2_hf import run_mobilenetv2_hf
-from cv_demos.mobilenet_v2.pytorch_mobilenet_v2_timm import \
-    run_mobilenetv2_timm
+from cv_demos.mobilenet_v2.pytorch_mobilenet_v2_timm import run_mobilenetv2_timm
 
 variants = [
     "google/mobilenet_v2_0.35_96",

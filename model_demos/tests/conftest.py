@@ -70,9 +70,7 @@ def pytest_addoption(parser):
         default=False,
         help="run silicon tests only, skip golden/model",
     )
-    parser.addoption(
-        "--no-silicon", action="store_true", default=False, help="skip silicon tests"
-    )
+    parser.addoption("--no-silicon", action="store_true", default=False, help="skip silicon tests")
     parser.addoption(
         "--no-skips",
         action="store_true",

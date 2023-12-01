@@ -1,12 +1,9 @@
 import pytest
-from cv_demos.mobilenet_v3.pytorch_mobilenet_v3_large_basic import \
-    run_mobilenetv3_large_basic
-from cv_demos.mobilenet_v3.pytorch_mobilenet_v3_large_timm import \
-    run_mobilenetv3_large_timm
-from cv_demos.mobilenet_v3.pytorch_mobilenet_v3_small_basic import \
-    run_mobilenetv3_small_basic
-from cv_demos.mobilenet_v3.pytorch_mobilenet_v3_small_timm import \
-    run_mobilenetv3_small_timm
+
+from cv_demos.mobilenet_v3.pytorch_mobilenet_v3_large_basic import run_mobilenetv3_large_basic
+from cv_demos.mobilenet_v3.pytorch_mobilenet_v3_large_timm import run_mobilenetv3_large_timm
+from cv_demos.mobilenet_v3.pytorch_mobilenet_v3_small_basic import run_mobilenetv3_small_basic
+from cv_demos.mobilenet_v3.pytorch_mobilenet_v3_small_timm import run_mobilenetv3_small_timm
 
 
 @pytest.mark.mobilenetv3

@@ -62,3 +62,7 @@ python cv_demos/resnet/pytorch_resnet.py
 |   [Whisper](audio_demos/whisper/)          |     GS, WH   |
 |   [XGLM](nlp_demos/xglm/)                |     GS, WH   |
 |   [YOLOv5](cv_demos/yolov5/)            |     GS, WH   |
+
+## Contributing
+
+We are excited to move our development to the public, open-source domain. However, we are not adequately staffed to review contributions in an expedient and manageable time frame at this time. In the meantime, please review the [contributor's guide](CONTRIBUTING.md) for more information about contribution standards.

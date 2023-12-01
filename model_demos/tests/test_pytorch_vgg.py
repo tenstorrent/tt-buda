@@ -1,4 +1,5 @@
 import pytest
+
 from cv_demos.vgg.pytorch_vgg_hf import run_vgg_19_hf_pytorch
 from cv_demos.vgg.pytorch_vgg_osmr import run_vgg_osmr_pytorch
 from cv_demos.vgg.pytorch_vgg_timm import run_vgg_bn19_timm_pytorch

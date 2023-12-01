@@ -1,12 +1,11 @@
 import pytest
-from nlp_demos.distilbert.pytorch_distilbert_masked_lm import \
-    run_distilbert_masked_lm_pytorch
-from nlp_demos.distilbert.pytorch_distilbert_question_answering import \
-    run_distilbert_question_answering_pytorch
-from nlp_demos.distilbert.pytorch_distilbert_sequence_classification import \
-    run_distilbert_sequence_classification_pytorch
-from nlp_demos.distilbert.pytorch_distilbert_token_classification import \
-    run_distilbert_token_classification_pytorch
+
+from nlp_demos.distilbert.pytorch_distilbert_masked_lm import run_distilbert_masked_lm_pytorch
+from nlp_demos.distilbert.pytorch_distilbert_question_answering import run_distilbert_question_answering_pytorch
+from nlp_demos.distilbert.pytorch_distilbert_sequence_classification import (
+    run_distilbert_sequence_classification_pytorch,
+)
+from nlp_demos.distilbert.pytorch_distilbert_token_classification import run_distilbert_token_classification_pytorch
 
 variants = [
     "distilbert-base-uncased",
