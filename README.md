@@ -6,6 +6,7 @@
 - [First 5 Things To-Do](#first-5-things-to-do)
 - [Model Demos](#model-demos)
 - [Documentation](#documentation)
+- [Contributing](#contributing)
 - [Communication](#communication)
 
 ## Introduction
