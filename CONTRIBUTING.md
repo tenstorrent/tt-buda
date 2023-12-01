@@ -21,10 +21,10 @@ All contributions require:
 
 ## Setting up environment
 
-Install all dependencies from [model_demos/dev_requriements.txt](model_demos/dev_requirements.txt) and install pre-commit hooks in a Python environment with PyBUDA installed.
+Install all dependencies from [dev_requriements.txt](dev_requirements.txt) and install pre-commit hooks in a Python environment with PyBUDA installed.
 
 ```bash
-pip install -r model_demos/dev_requirements.txt
+pip install -r dev_requirements.txt
 pre-commit install
 ```
 
