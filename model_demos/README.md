@@ -21,6 +21,7 @@ pip install -r requirements.txt
 With an activate Python environment and all dependencies installed, run:
 
 ```bash
+export PYTHONPATH=.
 python cv_demos/resnet/pytorch_resnet.py
 ```
 
