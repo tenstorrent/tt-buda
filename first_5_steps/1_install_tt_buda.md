@@ -35,6 +35,12 @@ Once you have identified the release version you would like to install, you can 
 
 ## Installation Instructions
 
+PyBUDA can be installed using two methods: Docker or Python virtualenv.
+
+If you would like to run PyBUDA in a Docker container, then follow the instructions for [PCI Driver Installation](#pci-driver-installation) and [Device Firmware Update](#device-firmware-update) and followed by [Docker Container Installation](#docker-container-installation).
+
+If you would like to run PyBUDA in a Python virtualenv, then follow the instructions for the [Setup HugePages](#setup-hugepages), [PCI Driver Installation](#pci-driver-installation), [Device Firmware Update](#device-firmware-update), and [Backend Compiler Dependencies](#backend-compiler-dependencies), followed by the [Tenstorrent Software Package](#tenstorrent-software-package).
+
 ### Setup HugePages
 
 ```bash

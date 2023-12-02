@@ -1,14 +1,10 @@
 # Whisper Demo - Conditional Generation
 
-import subprocess
-import sys
-
-subprocess.check_call([sys.executable, "-m", "pip", "install", "soundfile==0.12.1", "librosa==0.10.0", "numba==0.53.1"])
-
 import os
 
 import pybuda
 from datasets import load_dataset
+from pybuda._C.backend_api import BackendDevice
 from pybuda.transformers.pipeline import pipeline as pybuda_pipeline
 from transformers import WhisperForConditionalGeneration, WhisperProcessor
 
@@ -25,22 +21,52 @@ def run_whisper_generation(variant="openai/whisper-small"):
     if "small" in variant:
         os.environ["PYBUDA_NLP_MANUAL_TARGET"] = "35000"
 
-    softmax_ops_to_override = [57, 143, 229, 315, 401,
-                               487, 573, 659, 745, 831,
-                               917, 1003, 1089, 1175, 1261,
-                               1347, 1433, 1519, 1615, 1691,
-                               1777, 1863, 1949, 2035, 1605,
-                               2121, 2207, 2293, 2379, 2465,
-                               2551, 2637, 2723]
-    for op_id in softmax_ops_to_override:
-        pybuda.config.override_op_size(f"softmax_{op_id}.dc.exp.2", (4, 1))
-        pybuda.config.override_t_stream_shape(
-            f"softmax_{op_id}.dc.exp.2", (1, 47)
-        )
+    available_devices = pybuda.detect_available_devices()
+    if available_devices[0] == BackendDevice.Grayskull:
+        softmax_ops_to_override = [
+            57,
+            143,
+            229,
+            315,
+            401,
+            487,
+            573,
+            659,
+            745,
+            831,
+            917,
+            1003,
+            1089,
+            1175,
+            1261,
+            1347,
+            1433,
+            1519,
+            1615,
+            1691,
+            1777,
+            1863,
+            1949,
+            2035,
+            1605,
+            2121,
+            2207,
+            2293,
+            2379,
+            2465,
+            2551,
+            2637,
+            2723,
+        ]
+        for op_id in softmax_ops_to_override:
+            pybuda.config.override_op_size(f"softmax_{op_id}.dc.exp.2", (4, 1))
+            pybuda.config.override_t_stream_shape(f"softmax_{op_id}.dc.exp.2", (1, 47))
 
     # Load processor and model from HuggingFace
-    model = WhisperForConditionalGeneration.from_pretrained(variant)
-    processor = WhisperProcessor.from_pretrained(variant)
+    # Variants: openai/whisper-tiny, openai/whisper-base, openai/whisper-small, openai/whisper-medium, openai/whisper-large-v2
+    model_ckpt = variant
+    model = WhisperForConditionalGeneration.from_pretrained(model_ckpt)
+    processor = WhisperProcessor.from_pretrained(model_ckpt)
 
     # Load sample from datasets
     ds = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")

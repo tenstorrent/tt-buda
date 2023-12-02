@@ -4,9 +4,9 @@
 
 - [Introduction](#introduction)
 - [First 5 Things To-Do](#first-5-things-to-do)
-- [Model Examples](#model-examples)
+- [Model Demos](#model-demos)
 - [Documentation](#documentation)
-- [Support and Community](#support-and-community)
+- [Communication](#communication)
 
 ## Introduction
 
@@ -28,14 +28,16 @@ In that directory, you will find the following user guides:
 - `4_batched_inputs.ipynb` -> Learn how to run with batched inputs and how to benchmark models on TT-BUDA
 - `5_serving_tt_models.ipynb` -> Use FastAPI to host a model running on Tenstorrent hardware to build custom APIs
 
-## Model Examples
+## Model Demos
 
-For additional example code for running some popular AI/ML models, please visit [model_examples](model_examples/).
+For additional example code for running some popular AI/ML models, please visit [model_demos](model_demos/).
 
 ## Documentation
 
 Please refer to the [official documentation website](https://docs.tenstorrent.com/tenstorrent/).
 
-## Support and Community
+## Communication
+
+If you would like to formally propose a new feature, report a bug, or have issues with permissions, please file through [GitHub issues](https://github.com/tenstorrent/tt-buda/issues).
 
 Please access the [Discord community](https://discord.gg/YkjMXthQ) forum for updates, tips, troubleshooting support, and more!

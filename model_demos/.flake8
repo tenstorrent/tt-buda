@@ -1,0 +1,14 @@
+[flake8]
+exclude = env, generated_modules, tt_build, .hlkc_cache
+ignore = E501, W503, E226, F401, W605, F403, F405, F841
+extend-ignore = E203
+max-line-length = 120
+
+# E501: Line too long
+# W503: Line break occurred before binary operator
+# E226: Missing white space around arithmetic operator
+# F401: imported but unused
+# W605: invalid escape sequence '\_'
+# F403: 'from module import *' used; unable to detect undefined names
+# F405: Name may be undefined, or defined from star imports: module
+# F841: local variable '' is assigned to but never used

@@ -1,20 +1,21 @@
-# BERT Demo Script - SQuADv1.1 QA
+# ALBERT Demo Script - SQuADv1.1 QA
 
 import pybuda
-from transformers import BertForQuestionAnswering, BertTokenizer
+from transformers import AlbertForQuestionAnswering, AlbertTokenizer
 
 
-def run_bert_question_answering_pytorch():
+def run_albert_question_answering_pytorch():
 
-    # Set PyBuda configurations
-    compiler_cfg = pybuda.config._get_global_compiler_config()
-    compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
-    compiler_cfg.default_dram_parameters = False
+    # Set PyBUDA configuration parameters
+    pybuda.config.set_configuration_options(
+        default_df_override=pybuda.DataFormat.Float16,
+        amp_level=2,
+    )
 
-    # Load Bert tokenizer and model from HuggingFace
-    model_ckpt = "bert-large-cased-whole-word-masking-finetuned-squad"
-    tokenizer = BertTokenizer.from_pretrained(model_ckpt)
-    model = BertForQuestionAnswering.from_pretrained(model_ckpt)
+    # Load ALBERT tokenizer and model from HuggingFace
+    model_ckpt = "twmkn9/albert-base-v2-squad2"
+    tokenizer = AlbertTokenizer.from_pretrained(model_ckpt)
+    model = AlbertForQuestionAnswering.from_pretrained(model_ckpt)
 
     # Load data sample from SQuADv1.1
     context = """Super Bowl 50 was an American football game to determine the champion of the National Football League
@@ -32,7 +33,7 @@ def run_bert_question_answering_pytorch():
     input_tokens = tokenizer(
         question,
         context,
-        max_length=384,
+        max_length=128,
         padding="max_length",
         truncation=True,
         return_tensors="pt",
@@ -40,7 +41,7 @@ def run_bert_question_answering_pytorch():
 
     # Run inference on Tenstorrent device
     output_q = pybuda.run_inference(
-        pybuda.PyTorchModule("pt_bert_question_answering", model),
+        pybuda.PyTorchModule("pt_albert_question_answering", model),
         inputs=[input_tokens],
     )
     output = output_q.get()
@@ -48,9 +49,7 @@ def run_bert_question_answering_pytorch():
     # Data postprocessing
     answer_start = output[0].value().argmax().item()
     answer_end = output[1].value().argmax().item()
-    answer = tokenizer.decode(
-        input_tokens["input_ids"][0, answer_start : answer_end + 1]
-    )
+    answer = tokenizer.decode(input_tokens["input_ids"][0, answer_start : answer_end + 1])
 
     # Answer - "Denver Broncos"
     print(f"Context: {context}")
@@ -59,4 +58,4 @@ def run_bert_question_answering_pytorch():
 
 
 if __name__ == "__main__":
-    run_bert_question_answering_pytorch()
+    run_albert_question_answering_pytorch()

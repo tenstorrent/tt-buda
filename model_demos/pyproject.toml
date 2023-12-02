@@ -1,0 +1,70 @@
+# Black formatting
+[tool.black]
+line-length = 120
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+      .eggs         # exclude a few common directories in the
+    | .git          # root of the project
+    | .hg
+    | .mypy_cache
+    | .tox
+    | env
+    | _build
+    | buck-out
+    | build
+    | dist
+    | model_demos/tests
+  )/
+'''
+
+# iSort
+[tool.isort]
+skip = ["env", "model_demos/tests"]
+skip_gitignore = true
+profile = "black"
+line_length = 120
+multi_line_output = 3
+include_trailing_comma = true
+virtual_env = "env"
+
+# Pytest
+[tool.pytest.ini_options]
+testpaths = ["model_demos/tests"]
+python_files = "test_*.py"
+addopts = "--strict-markers --disable-pytest-warnings"
+markers = [
+    "bert: tests that involve BERT",
+    "codegen: tests that involve Codegen",
+    "resnet: tests that involve ResNet",
+    "googlenet: tests that involve GoogLeNet",
+    "gpt2: tests that involve GPT-2",
+    "gptneo: tests that involve GPT Neo",
+    "mobilenetv1: tests that involve MobileNetV1",
+    "mobilenetv2: tests that involve MobileNetV2",
+    "mobilenetv3: tests that involve MobileNetV3",
+    "roberta: tests that involve RoBERTa",
+    "squeezebert: tests that involve SqueezeBERT",
+    "t5: tests that involve T5",
+    "flant5: tests that involve FLAN-T5",
+    "hrnet: tests that involve HRNet",
+    "dpr: tests that involve DPR",
+    "autoencoder: tests that involve Autoencoder",
+    "densenet: tests that involve DenseNet",
+    "vovnet: tests that involve VoVNet",
+    "vgg: tests that involve VGG",
+    "opt: tests that involve OPT",
+    "xglm: tests that involve XGLM",
+    "distilbert: tests that involve DistilBERT",
+    "albert: tests that involve ALBERT",
+    "vit: tests that involve ViT",
+    "deit: tests that involve DeiT",
+    "resnext: tests that involve ResNeXt",
+    "yolov5: tests that involve YOLOv5",
+    "whisper: tests that involve Whisper",
+    "clip: tests that involve CLIP",
+    "inceptionv4: tests that involve Inception-v4",
+    "unet: tests that involve U-Net",
+    "falcon: tests that involve Falcon",
+    "stablediffusion: tests that involve Stable Diffusion",
+]

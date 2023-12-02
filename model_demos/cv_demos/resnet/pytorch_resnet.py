@@ -33,10 +33,8 @@ def run_resnet_pytorch(variant="microsoft/resnet-50"):
     pixel_values = inputs["pixel_values"]
 
     # Run inference on Tenstorrent device
-    output_q = pybuda.run_inference(
-        pybuda.PyTorchModule("pt_resnet50", model), inputs=[(pixel_values,)]
-    )
-    output = output_q.get()
+    output_q = pybuda.run_inference(pybuda.PyTorchModule("pt_resnet50", model), inputs=[(pixel_values,)])
+    output = output_q.get()  # return last queue object
 
     # Data postprocessing
     predicted_value = output[0].value().argmax(-1).item()
