@@ -10,7 +10,7 @@ First, create either a Python virtual environment with PyBUDA installed or execu
 
 Installation instructions can be found at [Install TT-BUDA](../first_5_steps/1_install_tt_buda.md).
 
-Then on the machine running the install:
+Next, install the model requirements:
 
 ```bash
 pip install -r requirements.txt
@@ -25,7 +25,19 @@ export PYTHONPATH=.
 python cv_demos/resnet/pytorch_resnet.py
 ```
 
-## Models Table
+## Hardware troubleshooting
+
+### Resetting an accelerator board
+
+If a Tenstorrent chip seems to hang and/or is producing unexpected behaviour,
+you may try a software reset of the board.
+
+For Grayskull: `tt-smi -tr all`
+
+If the software reset does not work, unfortunately you will have to power cycle
+the board. This usually means rebooting the host of a board.
+
+## Models Support Table
 
 | **Model** | **Supported Hardware** <br /> GS - Grayskull <br /> WH - Wormhole |
 |-------------------------------------------|:--------:|
