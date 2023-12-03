@@ -6,6 +6,7 @@
 - [First 5 Things To-Do](#first-5-things-to-do)
 - [Model Demos](#model-demos)
 - [Documentation](#documentation)
+- [FAQ & Troubleshooting](#faq--troubleshooting)
 - [Communication](#communication)
 
 ## Introduction
@@ -36,8 +37,12 @@ For additional example code for running some popular AI/ML models, please visit 
 
 Please refer to the [official documentation website](https://docs.tenstorrent.com/tenstorrent/).
 
+## FAQ & Troubleshooting
+
+We keep a running FAQ & troubleshoot guide to help you quickly resolve some of the most common issues at [FAQ & Troubleshooting](FAQ.md).
+
 ## Communication
 
 If you would like to formally propose a new feature, report a bug, or have issues with permissions, please file through [GitHub issues](https://github.com/tenstorrent/tt-buda/issues).
 
-Please access the [Discord community](https://discord.gg/YkjMXthQ) forum for updates, tips, troubleshooting support, and more!
+Please access the [Discord community](https://discord.gg/YkjMXthQ) forum for updates, tips, live troubleshooting support, and more!

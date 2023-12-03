@@ -25,18 +25,6 @@ export PYTHONPATH=.
 python cv_demos/resnet/pytorch_resnet.py
 ```
 
-## Hardware troubleshooting
-
-### Resetting an accelerator board
-
-If a Tenstorrent chip seems to hang and/or is producing unexpected behaviour,
-you may try a software reset of the board.
-
-For Grayskull: `tt-smi -tr all`
-
-If the software reset does not work, unfortunately you will have to power cycle
-the board. This usually means rebooting the host of a board.
-
 ## Models Support Table
 
 | **Model** | **Supported Hardware** <br /> GS - Grayskull <br /> WH - Wormhole |
