@@ -25,6 +25,9 @@ def run_vgg_19_hf_pytorch(variant="vgg19"):
     if available_devices:
         if available_devices[0] == BackendDevice.Grayskull:
             os.environ["PYBUDA_FORCE_EMULATE_HARVESTED"] = "1"
+        else:
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "65536"
+            os.environ["PYBUDA_FORCE_SEQUENTIAL"] = "1"
 
     """
     # https://pypi.org/project/vgg-pytorch/

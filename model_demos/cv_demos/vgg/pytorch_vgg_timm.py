@@ -1,5 +1,6 @@
 # VGG
 
+import os
 import urllib
 
 import pybuda
@@ -7,6 +8,7 @@ import requests
 import timm
 import torch
 from PIL import Image
+from pybuda._C.backend_api import BackendDevice
 from timm.data import resolve_data_config
 from timm.data.transforms_factory import create_transform
 
@@ -48,6 +50,13 @@ def run_vgg_bn19_timm_pytorch(variant="vgg19_bn"):
     compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
+
+    # Device specific configurations
+    available_devices = pybuda.detect_available_devices()
+    if available_devices:
+        if available_devices[0] == BackendDevice.Wormhole_B0:
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "65536"
+            os.environ["PYBUDA_FORCE_SEQUENTIAL"] = "1"
 
     # Create PyBuda module from PyTorch model
     tt_model = pybuda.PyTorchModule(model_name + "_timm_pt", model)

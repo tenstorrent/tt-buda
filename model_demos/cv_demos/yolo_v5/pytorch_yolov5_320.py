@@ -20,9 +20,7 @@ def run_pytorch_yolov5_320(variant="yolov5s"):
     compiler_cfg.enable_conv_prestride = True
     compiler_cfg.enable_tvm_constant_prop = True
     os.environ["PYBUDA_DECOMPOSE_SIGMOID"] = "1"
-
-    if variant == "yolov5m":
-        os.environ["PYBUDA_FORK_JOIN_SKIP_EXPANDING_BUFFERS"] = "1"
+    os.environ["PYBUDA_LEGACY_UBLOCK_SHAPE"] = "1"
 
     # Load YOLOv5 model
     # Variants: yolov5n, yolov5s, yolov5m, yolov5l, yolov5x
@@ -49,7 +47,7 @@ def run_pytorch_yolov5_320(variant="yolov5s"):
                 os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
                 os.environ["PYBUDA_BALANCER_PREPASS_DISABLED"] = "1"
                 compiler_cfg.enable_auto_fusing = False
-            elif model_ckpt in ["yolov5n", "yolov5s"]:
+            elif model_ckpt in ["yolov5n", "yolov5s", "yolov5m"]:
                 compiler_cfg.enable_auto_fusing = False
         else:
             print("not a supported device!")

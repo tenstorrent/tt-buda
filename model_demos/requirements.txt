@@ -11,3 +11,4 @@ numba==0.53.1  # For Whisper
 segmentation-models-pytorch==0.3.3  # For U-Net
 pylocron==0.2.1  # For U-Net
 diffusers==0.14.0  # For Stable Diffusion
+transformers==4.35.2 # For Fuyu8B

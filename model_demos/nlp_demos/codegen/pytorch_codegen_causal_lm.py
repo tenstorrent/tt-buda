@@ -24,6 +24,7 @@ def run_codegen_causal_lm(variant="Salesforce/codegen-350M-mono"):
     if available_devices:
         if available_devices[0] == BackendDevice.Grayskull:
             compiler_cfg.default_dram_parameters = False
+            compiler_cfg.balancer_policy = "Ribbon"
     # DRAM stream limit
     compiler_cfg.balancer_op_override("matmul_1829", "grid_shape", (2, 8))
 

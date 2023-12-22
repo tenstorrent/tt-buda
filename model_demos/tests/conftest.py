@@ -65,15 +65,9 @@ def archive_files(src_directory=Path("./"), dest_directory=Path("archive")):
 
 def pytest_addoption(parser):
     parser.addoption(
-        "--silicon-only",
-        action="store_true",
-        default=False,
-        help="run silicon tests only, skip golden/model",
+        "--silicon-only", action="store_true", default=False, help="run silicon tests only, skip golden/model"
     )
     parser.addoption("--no-silicon", action="store_true", default=False, help="skip silicon tests")
     parser.addoption(
-        "--no-skips",
-        action="store_true",
-        default=False,
-        help="ignore pytest.skip() calls, and continue on with test",
+        "--no-skips", action="store_true", default=False, help="ignore pytest.skip() calls, and continue on with test"
     )

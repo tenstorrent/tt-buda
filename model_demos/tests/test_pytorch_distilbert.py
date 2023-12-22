@@ -7,11 +7,7 @@ from nlp_demos.distilbert.pytorch_distilbert_sequence_classification import (
 )
 from nlp_demos.distilbert.pytorch_distilbert_token_classification import run_distilbert_token_classification_pytorch
 
-variants = [
-    "distilbert-base-uncased",
-    "distilbert-base-cased",
-    "distilbert-base-multilingual-cased",
-]
+variants = ["distilbert-base-uncased", "distilbert-base-cased", "distilbert-base-multilingual-cased"]
 
 
 @pytest.mark.parametrize("variant", variants, ids=variants)

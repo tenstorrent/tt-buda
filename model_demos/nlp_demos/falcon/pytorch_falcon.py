@@ -1,7 +1,6 @@
 # Falcon-7B Demo Script
 
 import pybuda
-import pytest
 from pybuda._C.backend_api import BackendDevice
 
 from nlp_demos.falcon.utils.model import Falcon
@@ -11,7 +10,6 @@ def run_falcon_pytorch():
     available_devices = pybuda.detect_available_devices()
     if available_devices:
         if available_devices[0] == BackendDevice.Grayskull:
-            pytest.skip("Model not supported on Grayskull")
             raise NotImplementedError("Model not supported on Grayskull")
 
     # Load model from HuggingFace
