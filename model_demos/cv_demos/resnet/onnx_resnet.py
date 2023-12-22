@@ -65,7 +65,7 @@ def postprocess(predictions: torch.tensor) -> tuple:
 def run_resnet_onnx():
 
     # Download model weights
-    url = "https://github.com/onnx/models/blob/main/archive/vision/classification/resnet/model/resnet50-v1-7.onnx"
+    url = "https://github.com/onnx/models/raw/main/archive/vision/classification/resnet/model/resnet50-v1-7.onnx?download="
     load_path = "cv_demos/resnet/" + url.split("/")[-1]
     response = requests.get(url, stream=True)
     with open(load_path, "wb") as f:
