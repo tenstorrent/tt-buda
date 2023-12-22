@@ -47,7 +47,7 @@ python cv_demos/resnet/pytorch_resnet.py
 |   [GoogLeNet](cv_demos/googlenet/)      |     GS, WH   |
 |   [GPT-2](nlp_demos/gpt2/)               |     GS, WH   |
 |   [GPT Neo](nlp_demos/gptneo/)           |     GS, WH   |
-|   [Hand Landmark)](nlp_demos/landmark/)  |    WH   |
+|   [Hand Landmark](nlp_demos/landmark/)  |    WH   |
 |   [HRNet](cv_demos/hrnet/)              |     GS, WH   |
 |   [Inception-v4](cv_demos/inceptionv4/) |    GS, WH   |
 |   [MLP-Mixer](cv_demos/mlpmixer/)  |     GS, WH   |
@@ -57,7 +57,7 @@ python cv_demos/resnet/pytorch_resnet.py
 |   [MobileNetV3](cv_demos/mobilenet_v3/)  |     GS, WH   |
 |   [OpenPose](nlp_demos/openpose/)          |     GS, WH   |
 |   [OPT](nlp_demos/opt/)                  |     GS, WH   |
-|   [Pose Landmark)](nlp_demos/landmark/)  |    WH   |
+|   [Pose Landmark](nlp_demos/landmark/)  |    WH   |
 |   [ResNet](cv_demos/resnet/)            |     GS, WH   |
 |   [ResNeXt](cv_demos/resnext/)          |     GS, WH   |
 |   [RetinaNet](cv_demos/retinanet/)      |     GS, WH   |
