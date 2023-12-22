@@ -1,6 +1,6 @@
 import pytest
 
-from model_demos.cv_demos.resnet.onnx_resnet import run_resnet_onnx
+from cv_demos.resnet.onnx_resnet import run_resnet_onnx
 
 
 @pytest.mark.resnet

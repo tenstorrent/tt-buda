@@ -1,6 +1,6 @@
 import pytest
 
-from model_demos.cv_demos.mobilenet_ssd.tflite_mobilenet_v2_ssd_1x1 import run_mobilenetv2_ssd_1x1_tflite
+from cv_demos.mobilenet_ssd.tflite_mobilenet_v2_ssd_1x1 import run_mobilenetv2_ssd_1x1_tflite
 
 
 @pytest.mark.mobilenetssd
