@@ -3,7 +3,6 @@
 import os
 
 import pybuda
-import pytest
 import requests
 import torch
 import torch.nn as nn
@@ -101,7 +100,7 @@ def run_fuyu8b_past_cache():
     # Skip tests for GS
     available_devices = pybuda.detect_available_devices()
     if available_devices[0] == BackendDevice.Grayskull:
-        pytest.skip("Still under development")
+        raise NotImplementedError("Model not supported on Grayskull")
 
     # Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()
