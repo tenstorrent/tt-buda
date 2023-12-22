@@ -44,4 +44,5 @@ clean_tt:
 	@find . -type f -name "*.onnx" | xargs rm -f
 	@find . -type f -name "*.tflite" | xargs rm -f
 	@find . -type f -name "*.h5" | xargs rm -f
+	@find . -type f -name "*.png" | xargs rm -f
 	@echo "All done cleaning TT files!"
