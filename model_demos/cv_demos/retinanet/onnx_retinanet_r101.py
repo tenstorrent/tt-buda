@@ -53,7 +53,7 @@ def run_retinanet_r101_640x480_onnx():
     compiler_cfg.conv_multi_op_fracture_factor_override["conv2d_356"] = 3
 
     # Download model weights
-    url = "https://github.com/onnx/models/raw/main/archive/vision/object_detection_segmentation/retinanet/model/retinanet-9.onnx?download="
+    url = "https://github.com/onnx/models/raw/main/validated/vision/object_detection_segmentation/retinanet/model/retinanet-9.onnx?download="
     load_path = "cv_demos/retinanet/" + url.split("/")[-1]
     response = requests.get(url, stream=True)
     with open(load_path, "wb") as f:
