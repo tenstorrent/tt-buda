@@ -69,6 +69,7 @@ python cv_demos/resnet/pytorch_resnet.py
 |   [ViT](cv_demos/vit/)                  |     GS, WH   |
 |   [ViLT](cv_demos/vilt/)                  |     GS, WH   |
 |   [VoVNet](cv_demos/vovnet/)            |     GS, WH   |
+|   [WideResNet](audio_demos/wideresnet/) |     GS, WH   |
 |   [Whisper](audio_demos/whisper/)          |     GS, WH   |
 |   [XGLM](nlp_demos/xglm/)                |     GS, WH   |
 |   [YOLOv3](cv_demos/yolo_v3/)            |     GS, WH   |

@@ -77,4 +77,5 @@ markers = [
     "yolov3: tests that involve YOLOv3",
     "efficientnetlite: tests that involve EfficientNet-Lite",
     "mobilenetssd: tests that involve MobileNet-SSD",
+    "wideresnet: tests that involve WideResNet",
 ]
