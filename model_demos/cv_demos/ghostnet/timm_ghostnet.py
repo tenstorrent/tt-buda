@@ -2,9 +2,9 @@
 
 import os
 import urllib
-from urllib.request import urlopen
 
 import pybuda
+import requests
 import timm
 import torch
 from PIL import Image
@@ -26,7 +26,8 @@ def run_ghostnet_timm():
     data_config = timm.data.resolve_data_config({}, model=model)
     transforms = timm.data.create_transform(**data_config)
 
-    img = Image.open(urlopen("https://github.com/pytorch/hub/raw/master/images/dog.jpg"))
+    url = "https://raw.githubusercontent.com/pytorch/hub/master/images/dog.jpg"
+    img = Image.open(requests.get(url, stream=True).raw).convert("RGB")
     img_tensor = transforms(img).unsqueeze(0)
 
     # Run inference on Tenstorrent device
@@ -36,14 +37,10 @@ def run_ghostnet_timm():
     top5_probabilities, top5_class_indices = torch.topk(output.softmax(dim=1) * 100, k=5)
 
     # Get imagenet class mappings
-    url, filename = (
-        "https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt",
-        "imagenet_classes.txt",
-    )
-    urllib.request.urlretrieve(url, filename)
+    url = "https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt"
+    image_classes = urllib.request.urlopen(url)
+    categories = [s.decode("utf-8").strip() for s in image_classes.readlines()]
 
-    with open("imagenet_classes.txt", "r") as f:
-        categories = [s.strip() for s in f.readlines()]
     for i in range(top5_probabilities.size(1)):
         class_idx = top5_class_indices[0, i].item()
         class_prob = top5_probabilities[0, i].item()

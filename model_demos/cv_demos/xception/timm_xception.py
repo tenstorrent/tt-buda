@@ -4,6 +4,7 @@ import os
 import urllib
 
 import pybuda
+import requests
 import timm
 import torch
 from PIL import Image
@@ -41,12 +42,8 @@ def run_xception_timm(variant="xception"):
     # preprocessing
     config = resolve_data_config({}, model=model)
     transform = create_transform(**config)
-    url, filename = (
-        "https://github.com/pytorch/hub/raw/master/images/dog.jpg",
-        "dog.jpg",
-    )
-    urllib.request.urlretrieve(url, filename)
-    img = Image.open(filename).convert("RGB")
+    url = "https://raw.githubusercontent.com/pytorch/hub/master/images/dog.jpg"
+    img = Image.open(requests.get(url, stream=True).raw).convert("RGB")
     tensor = transform(img).unsqueeze(0)  # transform and add batch dimension
 
     # Create PyBuda module from PyTorch model
@@ -60,15 +57,9 @@ def run_xception_timm(variant="xception"):
     probabilities = torch.nn.functional.softmax(output[0], dim=0)
 
     # Get imagenet class mappings
-    url, filename = (
-        "https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt",
-        "imagenet_classes.txt",
-    )
-    urllib.request.urlretrieve(url, filename)
-
-    # Get imagenet class mappings
-    with open("imagenet_classes.txt", "r") as f:
-        categories = [s.strip() for s in f.readlines()]
+    url = "https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt"
+    image_classes = urllib.request.urlopen(url)
+    categories = [s.decode("utf-8").strip() for s in image_classes.readlines()]
 
     # Print top categories per image
     top5_prob, top5_catid = torch.topk(probabilities, 5)

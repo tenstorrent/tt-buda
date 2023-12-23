@@ -4,6 +4,7 @@ import os
 import urllib
 
 import pybuda
+import requests
 import torch
 from PIL import Image
 from torchvision import transforms
@@ -24,14 +25,10 @@ def run_wideresnet_torchhub_pytorch(variant="wide_resnet50_2"):
 
     tt_model = pybuda.PyTorchModule(model_name, model)
 
-    url, filename = (
-        "https://github.com/pytorch/hub/raw/master/images/dog.jpg",
-        "dog.jpg",
-    )
-    urllib.request.urlretrieve(url, filename)
+    url = "https://raw.githubusercontent.com/pytorch/hub/master/images/dog.jpg"
+    input_image = Image.open(requests.get(url, stream=True).raw).convert("RGB")
 
     # preprocessing
-    input_image = Image.open(filename)
     preprocess = transforms.Compose(
         [
             transforms.Resize(256),
@@ -51,14 +48,9 @@ def run_wideresnet_torchhub_pytorch(variant="wide_resnet50_2"):
     probabilities = torch.nn.functional.softmax(output[0], dim=0)
 
     # Get imagenet class mappings
-    url, filename = (
-        "https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt",
-        "imagenet_classes.txt",
-    )
-    urllib.request.urlretrieve(url, filename)
-
-    with open("imagenet_classes.txt", "r") as f:
-        categories = [s.strip() for s in f.readlines()]
+    url = "https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt"
+    image_classes = urllib.request.urlopen(url)
+    categories = [s.decode("utf-8").strip() for s in image_classes.readlines()]
 
     # Print top categories per image
     top5_prob, top5_catid = torch.topk(probabilities, 5)
