@@ -30,7 +30,6 @@ class Yolov3Tiny(Yolov3Base):
                             0,
                         ),
                     ),
-                    # ('16_yolo',         YoloLayer()),
                 ]
             )
         )
@@ -63,7 +62,6 @@ class Yolov3Tiny(Yolov3Base):
                             0,
                         ),
                     ),
-                    # ('21_yolo',         YoloLayer()),
                 ]
             )
         )
@@ -118,7 +116,6 @@ class Yolov3TinyBackbone(nn.Module):
                 ("7_max", nn.MaxPool2d(2, 2)),
                 ("8_convbatch", ConvBN(128, 256, 3, 1, 1)),
                 ("9_max", nn.MaxPool2d(2, 2)),
-                # ('9_max',           nn.MaxPool2d(2, 2, ceil_mode=True)),
                 ("10_convbatch", ConvBN(256, 512, 3, 1, 1)),
                 ("11_max", MaxPoolStride1()),
                 ("12_convbatch", ConvBN(512, 1024, 3, 1, 1)),

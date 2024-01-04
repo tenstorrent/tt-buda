@@ -196,7 +196,6 @@ def plot_img_boxes(
         width = img.width
         height = img.height
     elif type(img) in [torch.Tensor, np.ndarray]:
-        # if len(img.shape)>3: img = img[0]
         if type(img) == torch.Tensor:
             img = img.clone().cpu().numpy()
         width = img.shape[2]

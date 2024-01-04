@@ -31,10 +31,6 @@ class YoloLayer(nn.Module):
 
         assert output.size(1) == (5 + nC) * nA
 
-        # if you want to debug this is how you get the indexes where objectness is high
-        # output = output.view(nB, nA, 5+nC, nH, nW)
-        # inds = torch.nonzero((torch.sigmoid(output.view(nB, nA, 5+nC, nH, nW)[:,:,4,:,:]) > conf_thresh))
-
         output = output.view(nB * nA, 5 + nC, nH * nW).transpose(0, 1).contiguous().view(5 + nC, cls_anchor_dim)
 
         grid_x = torch.linspace(0, nW - 1, nW).repeat(nB * nA, nH, 1).view(cls_anchor_dim).to(device)
@@ -72,7 +68,6 @@ class YoloLayer(nn.Module):
             bcy = ys[ind]
             bw = ws[ind]
             bh = hs[ind]
-            # box = [bcx/nW, bcy/nH, bw/nW, bh/nH, det_confs[ind], cls_max_confs[ind], cls_max_ids[ind]]
             box = [
                 bcx / nW,
                 bcy / nH,
@@ -99,7 +94,6 @@ class YoloLayer(nn.Module):
         target = target.to(devi)
         anchors = anchors.to(devi)
 
-        # max_targets = target[0].view(-1,5).size(0) # 50
         nB = target.size(0)
         nA = len(anchors)
 
@@ -110,7 +104,6 @@ class YoloLayer(nn.Module):
         tcoord = torch.zeros(4, nB, nA, nH, nW)
         tconf = torch.zeros(nB, nA, nH, nW)
         tcls = torch.zeros(nB, nA, nH, nW)
-        # twidth, theight = self.net_width/self.stride, self.net_height/self.stride
         twidth, theight = nW, nH
         nAnchors = nA * nH * nW
 
@@ -137,7 +130,6 @@ class YoloLayer(nn.Module):
             for t in range(tbox.size(0)):
                 if tbox[t][1] == 0:
                     break
-                # nGT += 1
                 gx, gy = tbox[t][1] * nW, tbox[t][2] * nH
                 gw, gh = tbox[t][3] * twidth, tbox[t][4] * theight
                 gw, gh = gw.float(), gh.float()
@@ -228,7 +220,6 @@ class YoloLayer(nn.Module):
         if math.isnan(loss.item()):
             print(conf, tconf)
             raise ValueError("YoloLayer has isnan in loss")
-            # sys.exit(0)
 
         if return_single_value:
             return loss

@@ -75,22 +75,12 @@ class Yolov3Base(nn.Module, metaclass=ABCMeta):
                 skipped_layers.append(k)
                 del state_new[k]
 
-        # for k in list(state_dict.keys()):
-        #     if k.startswith(('yolo_0_pre.15', 'yolo_1_pre.20')):
-        #         del state_dict[k]
-
-        # Renaming some keys if needed for compatibility
-        # state_dict = type(state_dict_org)()
-        # for k_old in list(state_dict.keys()):
-        #     k_new = k_old.replace('backend', 'backbone')
-        #     state_dict[k_new] = state_dict_org[k_old]
-
         return self.load_state_dict(state_new, strict=False), skipped_layers
 
 
 # Common helper modules
 
-# from fastai.models.darknet import ConvBN
+
 class ConvBN(nn.Module):
     "convolutional layer then batchnorm"
 
