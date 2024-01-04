@@ -42,7 +42,7 @@ python cv_demos/resnet/pytorch_resnet.py
 |   [EfficientNet-Lite](cv_demos/efficientnet_lite/) |     WH   |
 |   [Falcon-7B](nlp_demos/falcon/)               |    WH   |
 |   [FLAN-T5](nlp_demos/flant5/)           |     GS, WH   |
-|   [Fuyu-8B](nlp_demos/fuyu8b/)          |    WH   |
+|   [Fuyu-8B](nlp_demos/fuyu8b/)          |       |
 |   [GhostNet](cv_demos/ghostnet/)         |     GS, WH   |
 |   [GoogLeNet](cv_demos/googlenet/)      |     GS, WH   |
 |   [GPT-2](nlp_demos/gpt2/)               |     GS, WH   |

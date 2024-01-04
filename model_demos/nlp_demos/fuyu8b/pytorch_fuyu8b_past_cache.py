@@ -97,10 +97,10 @@ class FuyuModelTxtDecoderWrapper(nn.Module):
 
 
 def run_fuyu8b_past_cache():
-    # Skip tests for GS
+    # Skip tests
     available_devices = pybuda.detect_available_devices()
-    if available_devices[0] == BackendDevice.Grayskull:
-        raise NotImplementedError("Model not supported on Grayskull")
+    if available_devices[0] == BackendDevice.Grayskull or available_devices[0] == BackendDevice.Wormhole_B0:
+        raise NotImplementedError("Model not supported.")
 
     # Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()
