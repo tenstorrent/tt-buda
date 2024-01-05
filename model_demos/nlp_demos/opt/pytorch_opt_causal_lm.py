@@ -23,6 +23,8 @@ def run_opt_casual_lm(variant="facebook/opt-350m"):
 
             # Disable expanding output buffer of fork nodes - causes out of memory issue in blobgen.
             os.environ["PYBUDA_FORK_JOIN_EXPAND_FORK_OUTPUT_BUF"] = "0"
+        if variant == "facebook/opt-350m":
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "65536"
 
     # Set model configurations
     config = OPTConfig.from_pretrained(model_ckpt)

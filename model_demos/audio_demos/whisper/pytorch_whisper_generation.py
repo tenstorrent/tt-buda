@@ -18,9 +18,11 @@ def run_whisper_generation(variant="openai/whisper-small"):
     compiler_cfg.amp_level = 2
     compiler_cfg.enable_enumerate_u_kt = False
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
+    os.environ["PYBUDA_LEGACY_UBLOCK_SHAPE"] = "1"
     if "small" in variant:
         os.environ["PYBUDA_NLP_MANUAL_TARGET"] = "35000"
-
+    elif "medium" in variant or "large" in variant:
+        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "65536"
     available_devices = pybuda.detect_available_devices()
     if available_devices[0] == BackendDevice.Grayskull:
         softmax_ops_to_override = [

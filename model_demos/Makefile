@@ -41,4 +41,8 @@ clean_tt:
 	@find . | grep -E ".pkl_memoize_py3" | xargs rm -rf
 	@find . | grep -E "generated_modules" | xargs rm -rf
 	@find . | grep -E "tt_build" | xargs rm -rf
+	@find . -type f -name "*.onnx" | xargs rm -f
+	@find . -type f -name "*.tflite" | xargs rm -f
+	@find . -type f -name "*.h5" | xargs rm -f
+	@find . -type f -name "*.png" | xargs rm -f
 	@echo "All done cleaning TT files!"

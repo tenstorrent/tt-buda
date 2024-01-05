@@ -22,10 +22,13 @@ def run_vgg_osmr_pytorch(variant="vgg11"):
 
     # Device specific configurations
     available_devices = pybuda.detect_available_devices()
-    if variant in ["vgg11", "vgg13", "vgg16", "vgg19", "bn_vgg19", "bn_vgg19b"]:
-        if available_devices:
-            if available_devices[0] == BackendDevice.Grayskull:
+    if available_devices:
+        if available_devices[0] == BackendDevice.Grayskull:
+            if variant in ["vgg11", "vgg13", "vgg16", "vgg19", "bn_vgg19", "bn_vgg19b"]:
                 os.environ["PYBUDA_FORCE_EMULATE_HARVESTED"] = "1"
+        else:
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "65536"
+            os.environ["PYBUDA_FORCE_SEQUENTIAL"] = "1"
 
     # Create PyBuda module from PyTorch model
     model_ckpt = variant

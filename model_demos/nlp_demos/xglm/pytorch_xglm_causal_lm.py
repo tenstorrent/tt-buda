@@ -2,6 +2,7 @@
 import os
 
 import pybuda
+from pybuda import BackendDevice
 from pybuda.transformers.pipeline import pipeline as pybuda_pipeline
 from transformers import AutoTokenizer, XGLMConfig, XGLMForCausalLM
 
@@ -17,9 +18,18 @@ def run_xglm_causal_lm(variant="facebook/xglm-564M"):
 
     # Variants: "facebook/xglm-564M", "facebook/xglm-1.7B"
     model_ckpt = variant
-    if model_ckpt == "facebook/xglm-1.7B":
-        os.environ["PYBUDA_FORK_JOIN_SKIP_EXPANDING_BUFFERS"] = "1"
-        compiler_cfg.amp_level = 1
+    available_devices = pybuda.detect_available_devices()
+    if available_devices:
+        if model_ckpt == "facebook/xglm-1.7B":
+            compiler_cfg.amp_level = 1
+            if available_devices[0] == BackendDevice.Grayskull:
+                os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{16*1024}"
+        if (available_devices[0] == BackendDevice.Grayskull and model_ckpt == "facebook/xglm-564M") or (
+            available_devices[0] == BackendDevice.Wormhole_B0
+        ):
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "65536"
+        if available_devices[0] == BackendDevice.Grayskull and model_ckpt == "facebook/xglm-564M":
+            compiler_cfg.default_dram_parameters = True
 
     # set model configurations
     config = XGLMConfig.from_pretrained(model_ckpt)

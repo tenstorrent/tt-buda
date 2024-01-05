@@ -50,14 +50,13 @@ def run_densenet_pytorch(variant="densenet121"):
             if available_devices[0] == BackendDevice.Wormhole_B0:
                 compiler_cfg.default_dram_parameters = False
                 compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
-            elif available_devices[0] == BackendDevice.Grayskull:
-                os.environ["PYBUDA_RIBBON2"] = "1"
 
     elif variant == "densenet161":
         compiler_cfg.balancer_policy = "CNN"
         compiler_cfg.enable_t_streaming = True
         compiler_cfg.place_on_new_epoch("concatenate_131.dc.sparse_matmul.7.lc2")
         os.environ["PYBUDA_DISABLE_CONSTANT_FOLDING"] = "1"
+        os.environ["PYBUDA_LEGACY_UBLOCK_SHAPE"] = "1"
         os.environ["PYBUDA_GRAPHSOLVER_SELF_CUT_TYPE"] = "ConsumerOperandDataEdgesFirst"
         # Device specific configurations
         available_devices = pybuda.detect_available_devices()

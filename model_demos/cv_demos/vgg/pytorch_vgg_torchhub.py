@@ -24,6 +24,9 @@ def run_vgg_bn19_torchhub_pytorch(variant="vgg19_bn"):
     if available_devices:
         if available_devices[0] == BackendDevice.Grayskull:
             os.environ["PYBUDA_FORCE_EMULATE_HARVESTED"] = "1"
+        else:
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "65536"
+            os.environ["PYBUDA_FORCE_SEQUENTIAL"] = "1"
 
     # Create PyBuda module from PyTorch model
     model = torch.hub.load("pytorch/vision:v0.10.0", variant, pretrained=True)

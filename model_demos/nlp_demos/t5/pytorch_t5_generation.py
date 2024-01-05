@@ -3,11 +3,13 @@
 import os
 
 import pybuda
+from pybuda._C.backend_api import BackendDevice
 from pybuda.transformers.pipeline import pipeline as pybuda_pipeline
 from transformers import T5Config, T5ForConditionalGeneration, T5Tokenizer
 
 
 def run_t5_pybuda_pipeline(variant="t5-small"):
+    available_devices = pybuda.detect_available_devices()
 
     # Add PyBUDA configurations
     os.environ["PYBUDA_DISABLE_STREAM_OUTPUT"] = "1"
@@ -26,6 +28,11 @@ def run_t5_pybuda_pipeline(variant="t5-small"):
     compiler_cfg.enable_auto_fusing = False
     compiler_cfg.enable_enumerate_u_kt = False
     compiler_cfg.enable_amp_light()
+    if "large" in variant:
+        os.environ["PYBUDA_LEGACY_UBLOCK_SHAPE"] = "1"
+    if available_devices[0] == BackendDevice.Grayskull:
+        if "base" in variant:
+            os.environ["PYBUDA_LEGACY_UBLOCK_SHAPE"] = "1"
 
     # Variants: t5-small, t5-base, t5-large
     model_ckpt = variant

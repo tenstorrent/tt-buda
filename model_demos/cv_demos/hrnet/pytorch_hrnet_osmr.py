@@ -1,5 +1,6 @@
 # HRNet Demo Script
 
+import os
 import urllib
 
 import pybuda
@@ -22,6 +23,7 @@ def run_hrnet_osmr_pytorch(variant="hrnet_w18_small_v1"):
     compiler_cfg.balancer_policy = "CNN"
     compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
+    os.environ["PYBUDA_LEGACY_UBLOCK_SHAPE"] = "1"
 
     # Variant specific configurations
     if variant in ["hrnetv2_w44", "hrnetv2_w48"]:
