@@ -68,7 +68,7 @@ You may need to append each `apt-get` command with `sudo` if you do not have roo
 ```bash
 apt-get update -y && apt-get upgrade -y --no-install-recommends
 apt-get install -y software-properties-common
-apt-get install -y python3.8-venv libboost-all-dev libgoogle-glog-dev libgl1-mesa-glx ruby
+apt-get install -y python3.8-venv libboost-all-dev libgoogle-glog-dev libgl1-mesa-glx libyaml-cpp-dev ruby
 apt-get install -y build-essential clang-6.0 libhdf5-serial-dev libzmq3-dev
 ```
 
