@@ -419,6 +419,12 @@ def add_op(graph, node, name, pybuda_node, subgraph_idx):
     dtype = pytorch_dtype_to_buda_dataformat(node.meta['tensor_meta'].dtype) if pybuda_node.dtype is None else pybuda_node.dtype
 
     add_constants_if_necessary(graph, pybuda_node.args, subgraph_idx)
+    tags = {
+        "layer": list(node.meta["nn_module_stack"].values())[-1][0],
+        "stack_trace": "-->".join([str(v) for v in node.meta["nn_module_stack"].values()])
+    }
+    if len(shape) == 0:
+        shape = [1]
     nid = create_op_node(
             graph,
             f"{name}_{subgraph_idx}",
@@ -426,7 +432,7 @@ def add_op(graph, node, name, pybuda_node, subgraph_idx):
             [int(dim) for dim in shape],
             pytorch_dtype_to_buda_dataformat(dtype),
             subgraph_idx,
-            {})
+            tags)
     
     for i, input_node in enumerate(pybuda_node.args):
         create_data_edge(graph, node_to_id[input_node], 0, nid, i, [])

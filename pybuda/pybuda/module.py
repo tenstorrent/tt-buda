@@ -185,6 +185,28 @@ class PyTorchModule(Module):
         outputs = tuple(a[0].backward(a[1]) for a in args)
         return outputs
 
+    def add_parameter(self, name: str, parameter: Parameter):
+        """
+        Adds a new parameter. 
+
+        Parameters
+        ----------
+        name: str
+            Parameter name
+
+        parameter: Parameter
+            Parameter to add
+
+        prepend_name: Bool
+            Whether to prepend module name to parameter name
+        """
+
+        if isinstance(parameter, pybuda.parameter.Parameter):
+            parameter = torch.nn.Parameter(parameter.value(), requires_grad=False)
+        if name in self.module._parameters:
+            raise RuntimeError(f"Module {self.name} already has parameter '{name}'")
+        self.module._parameters[name] = parameter
+
     def set_parameters(self, **kwargs):
         """
         Set parameters (weights) in this module, by name.
@@ -215,7 +237,7 @@ class PyTorchModule(Module):
         """
         params = []
         recorded_names = []
-        all_params = [self.module.named_parameters(), self.module.named_buffers(), self.module.state_dict().items()]
+        all_params = [self.module.named_parameters(), self.module.named_buffers(), self.module.state_dict().items(), self.module._parameters.items()]
         for name, param in itertools.chain(*all_params):
             if name in recorded_names:
                 continue

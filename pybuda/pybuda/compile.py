@@ -318,6 +318,7 @@ def pybuda_compile(
 
     """
 
+    inputs = list(inputs)
     if verify_cfg is None:
         verify_cfg = VerifyConfig.disabled() # no verification config provided, disable by default
 
@@ -590,7 +591,7 @@ def generate_initial_graph(context: CompileContext) -> CompileDepth:
         new_params = link_past_cache_ios(context.graph)
         inputs_to_remove = []
         for k, v in new_params.items():
-            module.add_parameter(k, Parameter(context.inputs[v].value(), requires_grad=False, name=k))
+            context.dev.modules[-1].add_parameter(k, Parameter(context.inputs[v].value(), requires_grad=False, name=k))
             inputs_to_remove.append(context.inputs[v])
         for i in inputs_to_remove:
             context.inputs.remove(i)
