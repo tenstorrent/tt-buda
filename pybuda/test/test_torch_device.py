@@ -115,13 +115,12 @@ def test_gpt2():
     assert pybuda.op.eval.compare_tensor_to_golden(f"gpt2", golden[0], res, is_buda=True, pcc=0.99)
     
 def test_gen():
-    pytest.skip()   # Working on it
     config = GPT2Config.from_pretrained("gpt2")
     config.num_hidden_layers = 1
 
     os.environ["PYBUDA_DEVMODE"] = "1"
     compile_cfg = pybuda.config._get_global_compiler_config()
-    # compile_cfg.enable_link_past_cache_ios = True
+    compile_cfg.enable_link_past_cache_ios = True
     compile_cfg.cpu_fallback_ops = set()
     compile_cfg.default_df_override = pybuda._C.Float16_b
 
@@ -129,17 +128,11 @@ def test_gen():
     gpt2.to("tt")
 
     input_ids = torch.randint(0, 10000, (1, 32)).int().to("tt")
-    # past_cache_shape = (1, 12, 96, 64)
-    # past_cache = []
-    # for _ in range(config.num_hidden_layers):
-    #     past_cache.append((torch.zeros(past_cache_shape).to("tt"), torch.zeros(past_cache_shape).to("tt")))
-    # past_cache = tuple(past_cache)
 
     pybuda_mod = torch.compile(gpt2, backend=compile_torch, dynamic=False)
     result = pybuda_mod(input_ids)
 
     res = result[0].to("cpu")
-    breakpoint()
     inp2 = torch.randint(0, 10000, (1, 32)).int()
     inp2 = inp2.to("tt")
     result = pybuda_mod(inp2, result[1])
