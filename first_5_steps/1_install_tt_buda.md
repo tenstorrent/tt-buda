@@ -173,6 +173,7 @@ def test_module_direct_pytorch():
     # Run single inference pass on a PyTorch module, using a wrapper to convert to PyBUDA first
     output = pybuda.PyTorchModule("direct_pt", PyTorchTestModule()).run(input1, input2)
     print(output)
+    print("PyBuda installation was a success!")
 
 
 if __name__ == "__main__":
