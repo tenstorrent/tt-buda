@@ -100,6 +100,8 @@ class CompiledGraphState:
         default=None
     )
 
+    has_cache_buffers: bool = False
+
     @staticmethod
     def from_compiled_graph(device: "TTDevice", compile_results: CompileResults) -> "CompiledGraphState":
         graph = compile_results.lowered_graph
@@ -165,6 +167,10 @@ class CompiledGraphState:
                 optimizer_param_info[param_name].append((input_node.name, param_key))
 
         consteval_trace = compile_results.pass_specific_output_kwargs["consteval_trace"]
+        has_cache_buffers = False
+        for _, placement in compile_results.pass_specific_output_kwargs["placer_solution"].name_to_queue_placement.items():
+            if placement.write_only:
+                has_cache_buffers = True
         device_inputs = get_device_constant_and_parameters(
             device, constant_to_tensor=constant_to_tensor
         )
@@ -218,6 +224,7 @@ class CompiledGraphState:
             constant_to_tile_dims=constant_to_tile_dims,
             post_const_eval_constants=post_const_eval_constants,
             post_const_eval_parameters=post_const_eval_parameters,
+            has_cache_buffers=has_cache_buffers,
         )
 
     def get_tensor(self, name_to_tensor, name):

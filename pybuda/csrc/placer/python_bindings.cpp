@@ -126,6 +126,10 @@ void PlacerModule(py::module &m_placer) {
         .def_readonly("chip_id", &placer::OpPlacement::chip_id)
         .def_property_readonly("epoch_id", &placer::OpPlacement::epoch_id);
 
+    py::class_<placer::QueuePlacement>(m_placer, "QueuePlacement")
+        .def_readonly("read_only", &placer::QueuePlacement::read_only)
+        .def_readonly("write_only", &placer::QueuePlacement::write_only);
+
     py::class_<placer::PlacerSolution>(m_placer, "PlacerSolution")
         .def("chip_id", &placer::PlacerSolution::chip_id)
         .def("epoch_id", &placer::PlacerSolution::epoch_id)
@@ -133,7 +137,8 @@ void PlacerModule(py::module &m_placer) {
         .def("temporal_epoch", py::overload_cast<const std::string &>(&placer::PlacerSolution::temporal_epoch_id, py::const_))
         .def_readonly("epoch_id_to_chip", &placer::PlacerSolution::epoch_id_to_chip)
         .def_readonly("is_pipelined", &placer::PlacerSolution::is_pipelined)
-        .def_readonly("name_to_op_placement", &placer::PlacerSolution::name_to_op_placement);
+        .def_readonly("name_to_op_placement", &placer::PlacerSolution::name_to_op_placement)
+        .def_readonly("name_to_queue_placement", &placer::PlacerSolution::name_to_queue_placement);
     
     py::enum_<tt::placer::DRAMPlacementAlgorithm>(m_placer, "DRAMPlacementAlgorithm")
         .value("ROUND_ROBIN", tt::placer::DRAMPlacementAlgorithm::ROUND_ROBIN)

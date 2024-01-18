@@ -277,7 +277,16 @@ class compiledModel(torch.nn.Module):
                 )
 
         loop_count = 1
-        program_params = {"$p_loop_count": str(loop_count)}
+        if not self.compiled_graph_state.has_cache_buffers:
+            program_params = {"$p_loop_count": str(loop_count)}
+        else:
+            program_params = {
+            "$p_cache_write_index": str(0),
+            "$p_inner_loop_count": str(1),
+            "$p_inner_increment": str(1),
+            "$p_outer_loop_count": str(1),
+            "$p_outer_increment": str(1),
+        }
         program = Program(f"run_fwd_{self.index}", program_params)
         logger.info(f"Running run_fwd_{self.index}")
 
