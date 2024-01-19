@@ -520,6 +520,7 @@ torch::Tensor view(const torch::Tensor &self, const c10::IntArrayRef size)
         self.strides(),
         size);
 
+    PyGILState_Release(gstate);
     at::DimVector inferred_size = at::infer_size_dv(size, self.numel());
     c10::optional<at::DimVector>  stride = at::detail::computeStride(self.sizes(),
                                             self.strides(),
@@ -536,7 +537,6 @@ torch::Tensor view(const torch::Tensor &self, const c10::IntArrayRef size)
     else
         TT_ASSERT(false, "Unhandled");
 
-    PyGILState_Release(gstate);
     return ret;
 }
 }  // namespace tt
@@ -554,7 +554,7 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
     m.impl("aten::_reshape_alias", &tt::_reshape_alias);
     m.impl("aten::as_strided", &tt::as_strided);
     m.impl("aten::index.Tensor_out", &tt::index_outf);
-    // m.impl("aten::view", &tt::view);
+    m.impl("aten::view", &tt::view);
 }
 
 bool fallback_registered = false;

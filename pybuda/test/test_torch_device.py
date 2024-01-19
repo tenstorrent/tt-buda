@@ -115,16 +115,19 @@ def test_gpt2():
     assert pybuda.op.eval.compare_tensor_to_golden(f"gpt2", golden[0], res, is_buda=True, pcc=0.99)
     
 def test_gen():
+    torch.set_num_threads(1)
+    torch.set_num_interop_threads(1)
     config = GPT2Config.from_pretrained("gpt2")
     config.num_hidden_layers = 1
+    config.return_dict = False
 
     os.environ["PYBUDA_DEVMODE"] = "1"
     compile_cfg = pybuda.config._get_global_compiler_config()
-    compile_cfg.enable_link_past_cache_ios = True
+    # compile_cfg.enable_link_past_cache_ios = True
     compile_cfg.cpu_fallback_ops = set()
     compile_cfg.default_df_override = pybuda._C.Float16_b
 
-    gpt2 = GPT2LMHeadModel(config).eval()
+    gpt2 = GPT2Model(config).eval()
     gpt2.to("tt")
 
     input_ids = torch.randint(0, 10000, (1, 32)).int().to("tt")
@@ -132,10 +135,15 @@ def test_gen():
     pybuda_mod = torch.compile(gpt2, backend=compile_torch, dynamic=False)
     result = pybuda_mod(input_ids)
 
+    print("first exec done")
     res = result[0].to("cpu")
+    print("Res on CPU")
     inp2 = torch.randint(0, 10000, (1, 32)).int()
     inp2 = inp2.to("tt")
+    print("Input on TT")
     result = pybuda_mod(inp2, result[1])
+    rs2 = result[0].to("cpu")
+    print("Res on CPU")
     
 def test_add():
     class Add(nn.Module):
