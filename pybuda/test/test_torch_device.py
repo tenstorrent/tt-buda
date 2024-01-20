@@ -123,7 +123,7 @@ def test_gen():
 
     os.environ["PYBUDA_DEVMODE"] = "1"
     compile_cfg = pybuda.config._get_global_compiler_config()
-    # compile_cfg.enable_link_past_cache_ios = True
+    compile_cfg.enable_link_past_cache_ios = True
     compile_cfg.cpu_fallback_ops = set()
     compile_cfg.default_df_override = pybuda._C.Float16_b
 

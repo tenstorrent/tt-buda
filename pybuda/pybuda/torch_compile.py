@@ -13,7 +13,7 @@ import json
 from contextlib import redirect_stdout
 from pybuda._C.graph import get_constant_input_value, Graph
 from pybuda._C.backend_api import translate_addresses
-from pybuda._C.torch_device import get_default_device, push_tensor, is_created_on_device, original_shape, PyBudaTensorDesc, CompileRequest, Program 
+from pybuda._C.torch_device import get_default_device, push_tensor, is_created_on_device, original_shape, unique_id, PyBudaTensorDesc, CompileRequest, Program 
 from loguru import logger
 from pybuda.capture_fx_graph import append_to_graph
 from pybuda.tensor import const_eval_tensor, do_runtime_transform
@@ -24,6 +24,7 @@ _compile_cache_dir = os.environ.get("PYBUDA_COMPILE_CACHE_DIR", "tt_build")
 _graph = None
 _subgraph_index = 0
 _module_index = 0
+_tensor_to_unique_id = {}
 """
 There are dummy enums defined in pytorch, like PrivateUse1 that can be used
 for bringing up new device types.  Eventually we should mainline an enum for
@@ -256,13 +257,14 @@ def _compile_cached(module, aten_module, module_name, sample_inputs, device, com
     return workload, compiled_graph_state
 
 class compiledModel(torch.nn.Module):
-    def __init__(self, module, device, workload, compiled_graph_state, index):
+    def __init__(self, module, device, workload, compiled_graph_state, index, device_tensors_to_output):
         super().__init__()
         self.module = module
         self.device = device
         self.workload = workload
         self.compiled_graph_state = compiled_graph_state
         self.index = index
+        self.device_tensors_to_output = device_tensors_to_output
 
     # Submit work to device
     def forward(self, *inputs, **kwargs):
@@ -291,6 +293,13 @@ class compiledModel(torch.nn.Module):
         logger.info(f"Running run_fwd_{self.index}")
 
         outputs = self.device.dispatch(self.workload, [program], list(inputs), self.compiled_graph_state.output_host_tms, self.index)
+
+        for out in outputs:
+            _tensor_to_unique_id[unique_id(out)] = out
+
+        for index, out_id in self.device_tensors_to_output:
+            outputs.insert(index, _tensor_to_unique_id[out_id])
+
         return outputs
     
     def to(self, dev):
@@ -380,7 +389,12 @@ def _torch_compile(
         module, aten_module, module_name, rand_inputs, device, compiler_cfg, cache
     )
 
-    compiled_model = compiledModel(module, device, workload, compiled_graph_state, _subgraph_index-1)
+    device_tensors_to_output = []
+    for idx, inp in enumerate(sample_inputs):
+        if unique_id(inp) != -1:
+            device_tensors_to_output.append((idx, unique_id(inp)))
+
+    compiled_model = compiledModel(module, device, workload, compiled_graph_state, _subgraph_index-1, device_tensors_to_output)
     # Push parameters and constants to device
     compiled_model.to(device.torch_device())
     logger.info("Done Torch Compile")

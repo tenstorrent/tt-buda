@@ -68,6 +68,8 @@ class TorchDeviceImpl : public c10::impl::DeviceGuardImplInterface
     }
     std::int64_t get_index() { return current_device.index(); }
 
+    int get_next_unique_id() { return next_id++; }
+
     TTDevice getTTDevice() const
     {
         TT_ASSERT(current_device.index() < (int)tt_devices.size());
@@ -90,6 +92,7 @@ class TorchDeviceImpl : public c10::impl::DeviceGuardImplInterface
     mutable c10::Device current_device = c10::Device(TT, 0);
     mutable c10::Stream current_stream = c10::Stream(c10::Stream::UNSAFE, c10::Device(TT, 0), 0);
     std::vector<TTDevice> tt_devices;
+    int next_id = 0;
 };
 
 // register backend
@@ -241,6 +244,7 @@ torch::Tensor from_pytorch_tensor_desc(
     TTMetaData *tt_meta = dynamic_cast<TTMetaData*>(backend_meta.get());
     tt_meta->runtime_transformed = false;
     tt_meta->created_on_device = true;
+    tt_meta->unique_output_id = TorchDeviceImpl::get().get_next_unique_id();
     impl->set_backend_meta(backend_meta);
 
     return torch::Tensor::wrap_tensor_impl(impl);;

@@ -33,6 +33,7 @@ struct TTMetaData : public c10::BackendMeta {
     torch::IntArrayRef original_shape;
     bool runtime_transformed = false;
     bool created_on_device = false;
+    int unique_output_id = -1;
 };
 
 struct PyBudaTensorDesc
@@ -189,6 +190,7 @@ torch::Device torch_device(TTDevice const& d);
 
 std::tuple<torch::Tensor, tt_dram_io_desc> eval_runtime_transform(const torch::Tensor& tensor, std::string transform, std::vector<int> &tile_bcast_dims, tt_dram_io_desc q);
 bool is_created_on_device(const torch::Tensor& tensor);
+int unique_id(const torch::Tensor& tensor);
 torch::Tensor narrow_to_pytorch(const torch::Tensor& tensor, torch::IntArrayRef original_shape);
 std::vector<size_t> original_shape(const torch::Tensor& tensor);
 

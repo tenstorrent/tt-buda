@@ -385,5 +385,12 @@ std::vector<size_t> original_shape(const torch::Tensor& tensor)
 
     return shape;
 }
+int unique_id(const torch::Tensor& tensor)
+{
+    auto impl = tensor.unsafeGetTensorImpl();
+    TTMetaData* meta = dynamic_cast<TTMetaData*>(impl->get_backend_meta());
+    TT_ASSERT(meta != nullptr);
+    return meta->unique_output_id;
+}
 
 }  // namespace tt
