@@ -18,7 +18,7 @@ import json
 
 from .pybudaglobal import TILE_DIM, align_up_tile, round_up_div
 from pybuda._C import DataFormat
-from pybuda._C.backend_api import PytorchTensorDesc, TilizedTensorDesc
+from pybuda._C.backend_api import PytorchTensorDesc, TilizedTensorDesc, StrideDescriptor
 from pybuda._C.graph import OpType, RuntimeTensorTransform, RuntimeTensorTransformType, get_constant_input_value
 from pybuda._C.backend_api import DramIODesc
 from pybuda.utils import detach_tensors
@@ -1388,23 +1388,38 @@ def _embedding_index(tensor: torch.Tensor, original_shape: Tuple[int, ...], queu
     assert tensor.shape[3] == (queue.bufq_grid_dim_c * queue.mblock_n * queue.ublock_ct * TILE_DIM), "_embedding_index: tensor dims mismatch q dims"
     return tensor
 
-def _reinterpret_shape(tensor: torch.Tensor, shape: List[int]):
-    breakpoint()
+def _reinterpret_shape(tensor: torch.Tensor, shape: List[int], queue: DramIODesc, tile_bcast_dims: List[int]):
+    tensor = tensor.contiguous().view(shape)
+    tile_r = queue.tile_height
+    tile_c = queue.tile_width
+    microbatch = queue.input_count
+    tensor = pad_pytorch_tensor_to_buda(tensor, tile_bcast_dims, squeeze=True, microbatch=microbatch, tile_r=tile_r, tile_c=tile_c)
+    return tensor, queue
 
-def do_runtime_transform(transform, tensor, q):
+def _prestride_shape(tensor: torch.Tensor, stride_height: int, stride_width: int, queue: DramIODesc):
+    assert stride_height == stride_width, "Backend supports only square strides for prestriding transform"
+    stride = stride_height
+    stride_desc = StrideDescriptor()
+    stride_desc.stride = stride
+    stride_desc.xy_offsets = [(x, y) for y in range(stride) for x in range(stride)]
+    queue.s_descriptor = stride_desc 
+    return tensor, queue
+
+def do_runtime_transform(transform, tensor, q, tile_bcast_dims):
     if transform.type == RuntimeTensorTransformType.EmbeddingIndex:
-        return _embedding_index(tensor, transform.original_shape, q)
+        return _embedding_index(tensor, transform.original_shape, q), q
     elif transform.type == RuntimeTensorTransformType.ReinterpretShape:
-        return _reinterpret_shape(tensor, transform.reinterpreted_shape.as_list())
+        return _reinterpret_shape(tensor, transform.reinterpreted_shape.as_list(), q, tile_bcast_dims)
     elif transform.type == RuntimeTensorTransformType.NoTransform:
-        return tensor
+        return tensor, q
+    elif transform.type == RuntimeTensorTransformType.Prestride:
+        return _prestride_shape(tensor, transform.stride_height, transform.stride_width, q)
     else:
-        assert False, "Unsupported runtime transform type"
+        assert False, f"Unsupported runtime transform type: {transform.type}"
 
-
-def eval_runtime_transform(transform, inp, q):
+def eval_runtime_transform(transform, inp, q, tile_bcast_dims):
     if isinstance(transform, str):
         transform = json.loads(transform)
         transform = RuntimeTensorTransform.from_json(transform)
     logger.info(f"Aplying runtime transform {transform}")
-    return do_runtime_transform(transform, inp, q)
+    return do_runtime_transform(transform, inp, q, tile_bcast_dims)

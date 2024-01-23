@@ -118,6 +118,7 @@ op_to_module_map = {
         "mask": "mask",
         "layernorm": "nn",
         "layernorm_bw": "nn",
+        "batchnorm" : "nn", 
 
         "quantize"            : "quantize",
         "buda_quantize"       : "quantize",

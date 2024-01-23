@@ -42,6 +42,21 @@ def process_dummy_attr_in_args(node, pybuda_op_name):
 def process_expand(node, pybuda_op_name):
     return PyBudaNode(OpType(pybuda_op_name, []), [node.args[0], ])
 
+def process_clamp(node, pybuda_op_name):
+    assert len(node.args) == 3
+    inputs = [node.args[0],]
+    min_ = node.args[1]
+    max_ = node.args[2]
+
+    if min_ is None:
+        assert max_ is not None, "Both min and max attributes for clmap are empty"
+        return PyBudaNode(OpType("relu", [max_, "max"]), inputs)
+    elif max_ is None:
+        assert min_ is not None, "Both min and max attributes for clmap are empty"
+        return PyBudaNode(OpType("relu", [min_, "min"]), inputs)
+    else:
+        return PyBudaNode(OpType(pybuda_op_name, [min_, max_]), inputs)
+
 def process_flatten(node, pybuda_op_name):
     return PyBudaNode(OpType(pybuda_op_name, [-1, ]), [node.args[0], ])
 
@@ -49,7 +64,6 @@ def process_gelu(node, pybuda_op_name):
     return PyBudaNode(OpType(pybuda_op_name, ["none", ]), node.args)
 
 def process_getitem(node, pybuda_op_name):
-    breakpoint()
     num_dims = sum([(isinstance(dim, slice) and (dim.start is not None or dim.stop is not None)) or (not isinstance(dim, slice) and dim is not None) for dim in node.args[1]])
     if num_dims == 0:
         return PyBudaNode(OpType("nop", []), [node.args[0], ])
@@ -75,6 +89,22 @@ def process_getitem(node, pybuda_op_name):
         stop += node.args[0].meta['tensor_meta'].shape[dim]
     
     return PyBudaNode(OpType(pybuda_op_name, [dim, start, stop, stride]), [node.args[0], ])
+
+def process_interpolate(node, pybuda_op_name):
+    assert all([arg in node.kwargs for arg in ["size", "mode", "align_corners"]])
+
+    output_size = node.kwargs["size"]
+    align_corners = int(node.kwargs["align_corners"])
+    mode_str = node.kwargs["mode"]
+    if mode_str == "bilinear":
+        mode = 1
+    elif mode_str == "nearest":
+        mode = 0
+    else:
+        assert False, f"Unsupported interpolate mode: {mode_str}"
+
+    attrs = [output_size, output_size, mode, align_corners, 0] # channel-last is false for pt
+    return PyBudaNode(OpType(pybuda_op_name, attrs), [node.args[0], ])
 
 def process_transpose(node, pybuda_op_name):
     torch_op_name = node.target.__name__
@@ -119,6 +149,66 @@ def process_softmax(node, pybuda_op_name):
     attrs = [dim, stable]
     return PyBudaNode(OpType(pybuda_op_name, attrs), [node.args[0], ])
 
+def process_conv2d(node, pybuda_op_name):
+    assert len(node.args) == 9
+
+    inputs = [node.args[0], node.args[1]]
+    if node.args[2]: # bias
+        inputs.append(node.args[2])
+
+    strides = node.args[3]
+    if isinstance(node.args[4], list):
+        if len(node.args[4]) == 2:
+            padding = [node.args[4][1], node.args[4][1], node.args[4][0], node.args[4][0]]
+        else:
+            padding = node.args[4]
+    else:
+        padding = [node.args[4]] * 4 
+    dilation = node.args[5]
+    group = node.args[8]
+    assert all([d == dilation[0] for d in dilation]), "Dilation is not same for all-dim, not supported"
+    attrs = strides + [dilation[0], group] + padding + [False, 0, 0, 0, False] # channel-last = false for pt 
+
+    return PyBudaNode(OpType(pybuda_op_name, attrs), inputs)
+
+def process_maxpool2d(node, pybuda_op_name):
+    assert len(node.args) >= 2 and len(node.args) <= 7, f"Maxpool-2d supposed to have 2~7 args: #args = {len(node.args)}" 
+    inputs = [node.args[0],] 
+    kernel_size = node.args[1]
+    strides = node.args[1]
+    padding = [0] * 4
+    dilation = 1
+    ceil_mode = False
+
+    if len(node.args) >= 3:
+        strides = node.args[2]
+
+    if len(node.args) >= 4:
+        if isinstance(node.args[3], list):
+            if len(node.args[3]) == 2:
+                padding = [node.args[3][1], node.args[3][1], node.args[3][0], node.args[3][0]]
+            else:
+                padding = node.args[3]
+        else:
+            padding = [node.args[3]] * 4
+
+    if len(node.args) >= 5:
+        dilation = node.args[4]
+
+    if len(node.args) >= 6:
+        ceil_mode = node.args[5]
+
+    compiler_cfg = pybuda.config._get_global_compiler_config()
+    add_sub_surround = compiler_cfg.max_pool_add_sub_surround
+    add_sub_surround_value = compiler_cfg.max_pool_add_sub_surround_value
+    attrs = kernel_size + strides + [dilation, ceil_mode] + padding + [add_sub_surround, add_sub_surround_value, False] # channel-last = False for pt
+
+    pybuda_node = PyBudaNode(OpType(pybuda_op_name, attrs), inputs)
+    pybuda_node.shape = node.meta['tensor_meta'][0].shape
+    pybuda_node.dtype = pytorch_dtype_to_buda_dataformat(node.meta['tensor_meta'][0].dtype)
+    pybuda_node.wrap_tuple = True
+    return pybuda_node
+
 def process_matmul(node, pybuda_op_name):
     assert len(node.args) == 2 or len(node.args) == 3
     if len(node.args) == 3:
@@ -136,6 +226,13 @@ def process_embedding(node, pybuda_op_name):
     args = [node.args[0], node.args[1]]
     return PyBudaNode(OpType(pybuda_op_name, []), args)
 
+def process_mean(node, pybuda_op_name):
+    assert len(node.args) >= 2
+    dim = node.args[1]
+    attrs = [dim,]
+    args = [node.args[0],]
+    return PyBudaNode(OpType(pybuda_op_name, attrs), args)
+
 def process_layernorm(node, pybuda_op_name):
     assert len(node.args) == 5
     dim = -1
@@ -144,6 +241,18 @@ def process_layernorm(node, pybuda_op_name):
 
     args = [node.args[0], node.args[2], node.args[3]]
     pybuda_node = PyBudaNode(OpType(pybuda_op_name, attrs), args)
+    pybuda_node.shape = node.meta['tensor_meta'][0].shape
+    pybuda_node.dtype = pytorch_dtype_to_buda_dataformat(node.meta['tensor_meta'][0].dtype)
+    pybuda_node.wrap_tuple = True
+    return pybuda_node
+
+def process_batchnorm(node, pybuda_op_name):
+    assert len(node.args) == 7
+    epsilon = node.args[-1]
+    attrs = [epsilon]
+    args = [node.args[0], node.args[1], node.args[2], node.args[3], node.args[4]] 
+    pybuda_node = PyBudaNode(OpType(pybuda_op_name, attrs), args)
+
     pybuda_node.shape = node.meta['tensor_meta'][0].shape
     pybuda_node.dtype = pytorch_dtype_to_buda_dataformat(node.meta['tensor_meta'][0].dtype)
     pybuda_node.wrap_tuple = True
@@ -177,13 +286,13 @@ def process_slice(node, pybuda_op_name):
         pybuda_node = PyBudaNode(OpType(pybuda_op_name, attrs), args)
     return pybuda_node
 
-def process_usqueeze(node, pybuda_op_name):
+def process_unsqueeze(node, pybuda_op_name):
     assert len(node.args) == 2
     dim = node.args[1]
-    input_ndim = len(node.meta['tensor_meta'].shape)
+    input_ndim = len(node.meta['tensor_meta'].shape) - 1 # supopsed to feed input ndim
 
     if dim >= 0:
-        dim -= input_ndim
+        dim -= len(node.meta['tensor_meta'].shape)
     
     attrs = [dim, input_ndim]
     return PyBudaNode(OpType(pybuda_op_name, attrs), [node.args[0], ])
@@ -229,38 +338,48 @@ def process_cat(node, pybuda_op_name):
 
 
 dynamo_to_pybuda_function = {
-    "_softmax"                      : (process_softmax, "softmax"),
-    "add"                           : (process_dummy_no_attr, "add"),
-    "addmm"                         : (process_matmul, "matmul"),
-    "bmm"                           : (process_matmul, "matmul"),
-    "cat"                           : (process_cat, "concatenate"),
-    "clone"                         : (process_dummy_no_attr, "nop"),
-    "contiguous"                    : (process_dummy_no_attr, "nop"),
-    "div"                           : (process_matmul, "divide"),
-    "embedding"                     : (process_embedding, "embedding"),
-    "expand"                        : (process_expand, "nop"),
-    "flatten"                       : (process_flatten, "reshape"),
-    "gelu"                          : (process_gelu, "gelu"),
-    "getitem"                       : (process_getitem, "index"),
-    "iadd"                          : (process_dummy_no_attr, "add"),
-    "matmul"                        : (process_dummy_no_attr, "matmul"),
-    "mm"                            : (process_matmul, "matmul"),
-    "mul"                           : (process_dummy_no_attr, "multiply"),
-    "native_layer_norm"             : (process_layernorm, "layernorm"),
-    "permute"                       : (process_transpose, "transpose"),
-    "select"                        : (process_select, "index"),
-    "slice"                         : (process_slice, "index"),
-    "softmax"                       : (process_softmax, "softmax"),
-    "sub"                           : (process_dummy_no_attr, "subtract"),
-    "tanh"                          : (process_dummy_no_attr, "tanh"),
-    "to"                            : (process_dummy_no_attr, "nop"), #TODO
-    "_to_copy"                      : (process_dummy_no_attr, "nop"), #TODO
-    "transpose"                     : (process_transpose, "transpose"),
-    "truediv"                       : (process_dummy_no_attr, "divide"),
-    "unsqueeze"                     : (process_usqueeze, "unsqueeze"),
-    "view"                          : (process_reshape, "reshape"),
-    "where"                         : (process_dummy_no_attr, "where"),
-    "pow"                           : (process_power, ""),
+    "_softmax"                             : (process_softmax, "softmax"),
+    "add"                                  : (process_dummy_no_attr, "add"),
+    "add_"                                 : (process_dummy_no_attr, "add"),
+    "addmm"                                : (process_matmul, "matmul"),
+    "_native_batch_norm_legit_no_training" : (process_batchnorm, "batchnorm"), 
+    "bmm"                                  : (process_matmul, "matmul"),
+    "cat"                                  : (process_cat, "concatenate"),
+    "clamp"                                : (process_clamp, "clip"),
+    "clone"                                : (process_dummy_no_attr, "nop"),
+    "contiguous"                           : (process_dummy_no_attr, "nop"),
+    "convolution"                          : (process_conv2d, "conv2d"), #TODO: check if conv3d is also mapped to 'convolution'
+    "div"                                  : (process_matmul, "divide"),
+    "embedding"                            : (process_embedding, "embedding"),
+    "expand"                               : (process_expand, "nop"),
+    "flatten"                              : (process_flatten, "reshape"),
+    "gelu"                                 : (process_gelu, "gelu"),
+    "getitem"                              : (process_getitem, "index"),
+    "iadd"                                 : (process_dummy_no_attr, "add"),
+    "interpolate"                          : (process_interpolate, "resize2d"),
+    "matmul"                               : (process_dummy_no_attr, "matmul"),
+    "max_pool2d_with_indices"              : (process_maxpool2d, "max_pool2d"),
+    "mean"                                 : (process_mean, "reduce_avg"),
+    "mm"                                   : (process_matmul, "matmul"),
+    "mul"                                  : (process_dummy_no_attr, "multiply"),
+    "native_layer_norm"                    : (process_layernorm, "layernorm"),
+    "permute"                              : (process_transpose, "transpose"),
+    "relu"                                 : (process_dummy_no_attr, "relu"),
+    "relu_"                                : (process_dummy_no_attr, "relu"),
+    "select"                               : (process_select, "index"),
+    "slice"                                : (process_slice, "index"),
+    "softmax"                              : (process_softmax, "softmax"),
+    "sub"                                  : (process_dummy_no_attr, "subtract"),
+    "tanh"                                 : (process_dummy_no_attr, "tanh"),
+    "to"                                   : (process_dummy_no_attr, "nop"), #TODO
+    "_to_copy"                             : (process_dummy_no_attr, "nop"), #TODO
+    "transpose"                            : (process_transpose, "transpose"),
+    "truediv"                              : (process_dummy_no_attr, "divide"),
+    "unsqueeze"                            : (process_unsqueeze, "unsqueeze"),
+    "view"                                 : (process_reshape, "reshape"),
+    "_unsafe_view"                         : (process_reshape, "reshape"),
+    "where"                                : (process_dummy_no_attr, "where"),
+    "pow"                                  : (process_power, ""),
 }
 
 torch_constant_ops = {
@@ -268,6 +387,7 @@ torch_constant_ops = {
     "zeros"                          : torch.zeros,
     "arange"                         : torch.arange,
     "full"                           : torch.full,
+    "empty"                           : torch.empty,
 }
 
 # graph = None
@@ -384,9 +504,55 @@ def add_constants_if_necessary(graph, ops, subgraph_idx):
             node_to_id[op] = add_constant(graph, f"{op}", tensor, subgraph_idx)
             id_to_intermed[node_to_id[op]] = tensor
 
-def append_to_graph(graph, module, aten_module, rand_atan_inputs, activations, subgraph_idx):
-    torch.fx.passes.shape_prop.ShapeProp(aten_module).propagate(*rand_atan_inputs)
-    # aten_module.graph.print_tabular()
+
+def map_node_name_to_org_name(module, aten_module):
+    ret = dict()
+
+    # param nodes
+    aten_params = dict()
+    for itm in aten_module.named_parameters():
+        aten_name = itm[0]
+        aten_tensor = itm[1]
+        aten_params[id(aten_tensor)] = aten_name
+    module_params = dict()
+    for itm in module.named_parameters():
+        module_name = itm[0]
+        mod = itm[1]
+        module_params[id(mod)] = module_name
+    if len(module_params) == len(aten_params):
+        for tensor_id in module_params.keys():
+            ret[aten_params[tensor_id]] = module_params[tensor_id]
+
+    # buffers
+    aten_buffers = dict()
+    for itm in aten_module.named_buffers():
+        aten_name = itm[0]
+        aten_tensor = itm[1]
+        if len(aten_tensor.shape) == 0:
+            continue
+        aten_buffers[id(aten_tensor)] = aten_name
+    module_buffers = dict()
+    for itm in module.named_buffers():
+        mod_name = itm[0]
+        mod_tensor = itm[1]
+        if len(mod_tensor.shape) == 0:
+            continue
+        module_buffers[id(mod_tensor)] = mod_name
+    if len(module_buffers) == len(aten_buffers):
+        for tensor_id in module_buffers.keys():
+            ret[aten_buffers[tensor_id]] = module_buffers[tensor_id]
+
+    return ret
+
+
+def append_to_graph(graph, module, aten_module, activations, subgraph_idx):
+    param_name_map = map_node_name_to_org_name(module, aten_module)
+    aten_module.graph.print_tabular()
+
+    tt_act = [a.to("tt") for a in activations]
+    torch.fx.passes.shape_prop.ShapeProp(aten_module).propagate(*tt_act)
+    aten_module = aten_module.to("cpu")
+    aten_module.graph.print_tabular()
 
     module_inputs = []
     output_nids = []
@@ -396,6 +562,7 @@ def append_to_graph(graph, module, aten_module, rand_atan_inputs, activations, s
     def process_function(node):
         global node_to_id
         op_name = node.target.__name__
+
         if op_name in torch_constant_ops:
             kwargs = {k:v for k, v in node.kwargs.items() if k != "device"}
             tensor = torch_constant_ops[op_name](*node.args, **kwargs)
@@ -405,36 +572,43 @@ def append_to_graph(graph, module, aten_module, rand_atan_inputs, activations, s
             id_to_intermed[node_to_id[node]] = tensor
         elif op_name == "getitem":
             assert isinstance(node_to_id[node.args[0]], (list, tuple))
+            assert node.args[1] == 0, "currently getitem only supported for index = 0"
             node_to_id[node] = node_to_id[node.args[0]][node.args[1]]
             id_to_intermed[node_to_id[node]] = id_to_intermed[node_to_id[node]][node.args[1]]
         else:
             pybuda_node = get_pybuda_node(op_name, node)
             node_to_id[node] = add_op(graph, node, node.name, pybuda_node, subgraph_idx)
 
-    params = list(module.named_parameters(remove_duplicate=False)) + list(module.named_buffers(remove_duplicate=False))
-    assert len(params) == len(torch._guards.TracingContext.get().params_flat)
+    consumed = set()
+    for node in aten_module.graph.nodes:
+        for arg in node.args:
+            if isinstance(arg, torch.fx.node.Node):
+                consumed.add(arg)
+            elif isinstance(arg, (list, tuple)):
+                for a in arg:
+                    if isinstance(a, torch.fx.node.Node):
+                        consumed.add(a)
+        if node.op == "output":
+            consumed.add(node)
 
     for index, node in enumerate(aten_module.graph.nodes):
-        if index < len(params):
-            # params are located first in the args list
-            assert node.op == "placeholder"
-            assert node.meta['val'].size() == rand_atan_inputs[index].shape
-            node_to_id[node] = add_param(graph, params[index][0], params[index][1].data, subgraph_idx)
-            id_to_intermed[node_to_id[node]] = params[index][1].data
+        if node not in consumed:
+            logger.debug(f"Skipping {node} because it was not consumed")
             continue
+
         if node.op == "placeholder":
             node_to_id[node] = add_input(graph, node, subgraph_idx, module_inputs)
-            id_to_intermed[node_to_id[node]] = activations[index - len(params)]
+            id_to_intermed[node_to_id[node]] = activations[index]
         elif node.op == "get_attr":
-            assert False #TODO
-            node_to_id[node] = add_param(graph, node.target, module.state_dict()[node.target], subgraph_idx)
+            assert node.target in param_name_map, f"Weight node is not mapped to original names: {node.target}"
+            node_to_id[node] = add_param(graph, param_name_map[node.target], aten_module.state_dict()[node.target], subgraph_idx)
+            id_to_intermed[node_to_id[node]] = aten_module.state_dict()[node.target]
         elif node.op == "call_function":
             process_function(node)
         elif node.op == "output":
             add_outputs(graph, node, subgraph_idx, output_nids, output_requires_grad, output_tensors)
         else:
             assert False, f"Unsupported op {node.op}"
-
 
     graph.register_module_inputs(module_inputs)
     graph.register_module_outputs(output_nids, output_requires_grad)

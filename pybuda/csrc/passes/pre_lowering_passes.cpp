@@ -424,8 +424,12 @@ void duplicate_embedding_table_if_needed(Graph *graph)
                 }
                 else
                 {
-                    non_embedding_users_table = clone_param(param);
-                    params.push_back(non_embedding_users_table);
+                    // possibly the param is already cloned once and #users decrease, check the condition again
+                    if (graph->data_users(param).size() != 1)
+                    {
+                        non_embedding_users_table = clone_param(param);
+                        params.push_back(non_embedding_users_table);
+                    }
                 }
             }
         }

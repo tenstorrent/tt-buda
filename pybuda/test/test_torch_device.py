@@ -6,9 +6,90 @@ import pybuda
 import torch
 import torch.nn as nn
 import os
-from transformers import BertModel, GPT2LMHeadModel, GPT2Config, GPT2Model
+import requests
+from PIL import Image
+from datasets import load_dataset
+from pytorchcv.model_provider import get_model as ptcv_get_model
+from transformers import BertModel, GPT2LMHeadModel, GPT2Config, GPT2Model, AutoFeatureExtractor, ResNetForImageClassification
 from pybuda.torch_compile import compile_torch
 from typing import Tuple
+
+
+def test_unet_osmr_cityscape_pytorch():
+    # STEP 1: Set PyBuda configuration parameters
+    compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
+    compiler_cfg.cpu_fallback_ops = set()
+    compiler_cfg.enable_t_streaming = True
+    compiler_cfg.enable_auto_fusing = False
+    compiler_cfg.enable_enumerate_u_kt = False
+    compiler_cfg.default_dram_parameters = False
+    compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
+    os.environ["PYBUDA_FORCE_RESIZE_DENSE_MM"] = "1"
+    os.environ["PYBUDA_RIBBON2"] = "1"
+    #if test_device.arch == BackendDevice.Wormhole_B0:
+    compiler_cfg.balancer_policy = "Ribbon"
+    os.environ["PYBUDA_BALANCER_PREPASS_DISABLED"] = "1"
+    #elif test_device.arch == BackendDevice.Grayskull:
+    #    compiler_cfg.balancer_policy = "CNN"
+
+    # STEP 2: Create PyBuda module from PyTorch model
+    unet_osmr = ptcv_get_model("unet_cityscapes", pretrained=False)
+    unet_osmr.eval()
+
+    # STEP 3: Run inference on Tenstorrent device
+    img_tensor = torch.randn(1, 3, 224, 224)
+
+    # Run the model on cpu
+    golden = unet_osmr(img_tensor)
+
+    # Run the model on TT device
+    unet_osmr.to("tt")
+    img_tensor = img_tensor.to("tt")
+    pybuda_mod = torch.compile(unet_osmr, backend=compile_torch, dynamic=False)
+    result = pybuda_mod(img_tensor)
+    output = result[0].to("cpu")
+
+    # Compare the result
+    assert pybuda.op.eval.compare_tensor_to_golden(f"pt_unet_osmr_cityscape", golden[0], output, is_buda=True, pcc=0.99)
+
+
+def test_resnet(): 
+    compiler_cfg = pybuda.config._get_global_compiler_config()
+    compiler_cfg.cpu_fallback_ops = set()
+    compiler_cfg.balancer_policy = "Ribbon"
+    compiler_cfg.enable_t_streaming = True
+    compiler_cfg.enable_training = False
+    compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
+    os.environ["PYBUDA_DISABLE_STREAM_OUTPUT"] = "1"  # Disable streaming for output queue (perf)
+    os.environ["PYBUDA_PAD_OUTPUT_BUFFER"] = "1"
+
+    # Load ResNet feature extractor and model checkpoint from HuggingFace
+    feature_extractor = AutoFeatureExtractor.from_pretrained("microsoft/resnet-50", torchscript=True)
+    resnet = ResNetForImageClassification.from_pretrained("microsoft/resnet-50", torchscript=True)
+    resnet.eval()
+ 
+    # Load data sample
+    # url = "https://datasets-server.huggingface.co/assets/imagenet-1k/--/default/train/18/image/image.jpg"
+    # image = Image.open(requests.get(url, stream=True).raw)
+    image = torch.rand(1, 3, 256, 256)
+
+    # Data preprocessing
+    inputs = feature_extractor(image, return_tensors="pt")
+    pixel_values = inputs["pixel_values"]
+    
+    # Run the model on cpu
+    resnet_cpu = ResNetForImageClassification.from_pretrained("microsoft/resnet-50", torchscript=True)
+    golden = resnet_cpu(pixel_values)
+
+    # Run the model on TT device
+    resnet.to("tt")
+    pixel_values = pixel_values.to("tt") 
+    pybuda_mod = torch.compile(resnet, backend=compile_torch, dynamic=False)
+    result = pybuda_mod(pixel_values)
+    output = result[0].to("cpu")
+    
+    # Compare the result
+    assert pybuda.op.eval.compare_tensor_to_golden(f"pt_resnet50", golden[0], output, is_buda=True, pcc=0.99)
 
 def test_gpt2():
     config = GPT2Config.from_pretrained("gpt2")
@@ -81,6 +162,63 @@ def test_add():
     result = [r.to("cpu") for r in result]
 
     assert [torch.allclose(g, r) for g, r in zip(golden, result)]
+
+def test_conv2d():
+    class Conv2d(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.conv = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1)
+
+        def forward(self, x):
+            x = self.conv(x)
+            return x
+
+    os.environ["PYBUDA_DEVMODE"] = "1"
+    model = Conv2d()
+    inputs = torch.rand(1, 3, 32, 32)
+    golden = model(inputs) 
+
+    if True:
+        pybuda_mod = torch.compile(model, backend=compile_torch, dynamic=False)
+        result = pybuda_mod(inputs)
+        result = result.to("cpu")
+        assert pybuda.op.eval.compare_tensor_to_golden(f"conv2d", golden, result, is_buda=True, pcc=0.99)
+    else: 
+        from pybuda.verify.backend import verify_module
+        mod = pybuda.PyTorchModule("conv", model)
+        verify_module(
+            mod,
+            ([1,3,32,32],),
+            verify_cfg=pybuda.VerifyConfig(
+                arch=pybuda.BackendDevice.Wormhole_B0,
+                devtype=pybuda.BackendType.Golden,
+                test_kind=pybuda.verify.TestKind.INFERENCE,
+                pcc=0.99
+            ), 
+        )
+
+def test_bn():
+    class BN(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.bn = nn.BatchNorm2d(64)
+
+        def forward(self, x):
+            x = self.bn(x)
+            return x
+
+    os.environ["PYBUDA_DEVMODE"] = "1"
+    model = BN()
+    model.eval()
+
+    inputs = torch.rand(1, 64, 32, 32)
+    golden = model(inputs)
+    # inputs = [i.to("tt") for i in inputs]
+    pybuda_mod = torch.compile(model, backend=compile_torch)
+    result = pybuda_mod(inputs)
+    result = result.to("cpu")
+
+    assert pybuda.op.eval.compare_tensor_to_golden(f"linear", golden, result, is_buda=True, pcc=0.99)
 
 def test_linear():
     class Linear(nn.Module):

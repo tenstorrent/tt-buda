@@ -158,24 +158,29 @@ def Batchnorm(
         Buda tensor
     """
 
+    # NOTE: the decomposition below does not assume training context (running_mean/var update is not included)
+    batchnorm_flag = True
     if name == "":
         name = f"batchnorm_{get_unique_node_id()}"
 
-    running_mean = Unsqueeze(name + "_mean_unsqueeze_1", running_mean, 1)
-    running_mean = Unsqueeze(name + "_mean_unsqueeze_2", running_mean, 1)
-    running_var = Unsqueeze(name + "_var_unsqueeze_1", running_var, 1)
-    running_var = Unsqueeze(name + "_var_unsqueeze_2", running_var, 1)
+    if batchnorm_flag:
+        return op("batchnorm", name, operandA, weights, bias, running_mean, running_var, attrs=(epsilon,)).get_tensor()
+    else:
+        running_mean = Unsqueeze(name + "_mean_unsqueeze_1", running_mean, 1)
+        running_mean = Unsqueeze(name + "_mean_unsqueeze_2", running_mean, 1)
+        running_var = Unsqueeze(name + "_var_unsqueeze_1", running_var, 1)
+        running_var = Unsqueeze(name + "_var_unsqueeze_2", running_var, 1)
 
-    weights = Unsqueeze(name + "_weights_unsqueeze_1", weights, 1)
-    weights = Unsqueeze(name + "_weights_unsqueeze_2", weights, 1)
-    bias = Unsqueeze(name + "_bias_unsqueeze_1", bias, 1)
-    bias = Unsqueeze(name + "_bias_unsqueeze_2", bias, 1)
-    epsilon_constant = Constant(name + "_eps", constant=epsilon)
-    x_minus_mean = Subtract(name + "_sub", operandA, running_mean)
-    var_plus_eps = Add(name + "_var_plus_eps", running_var, epsilon_constant)
-    recip = Reciprocal(name + "_recip", Sqrt(name + "_sqrt", var_plus_eps))
-    out = Multiply(name + "_output", x_minus_mean, recip)
-    return Add(name + "_bias", Multiply(name + "_weights", out, weights), bias)
+        weights = Unsqueeze(name + "_weights_unsqueeze_1", weights, 1)
+        weights = Unsqueeze(name + "_weights_unsqueeze_2", weights, 1)
+        bias = Unsqueeze(name + "_bias_unsqueeze_1", bias, 1)
+        bias = Unsqueeze(name + "_bias_unsqueeze_2", bias, 1)
+        epsilon_constant = Constant(name + "_eps", constant=epsilon)
+        x_minus_mean = Subtract(name + "_sub", operandA, running_mean)
+        var_plus_eps = Add(name + "_var_plus_eps", running_var, epsilon_constant)
+        recip = Reciprocal(name + "_recip", Sqrt(name + "_sqrt", var_plus_eps))
+        out = Multiply(name + "_output", x_minus_mean, recip)
+        return Add(name + "_bias", Multiply(name + "_weights", out, weights), bias)
 
 
 class Linear(PyBudaModule):

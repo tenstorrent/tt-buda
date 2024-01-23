@@ -71,6 +71,7 @@ struct CompileRequest
     tt::tt_backend_config backend_config;
     std::vector<PyBudaTensorDesc> inputs;
     std::vector<std::string> input_runtime_transforms;
+    std::vector<std::vector<int>> input_tile_bcast_dims;
     std::vector<PyBudaTensorDesc> constants;
     std::vector<PyBudaTensorDesc> parameters;
     std::vector<PyBudaTensorDesc> outputs;
@@ -82,6 +83,7 @@ struct CompileRequest
         tt::tt_backend_config const& backend_config,
         std::vector<PyBudaTensorDesc> const& inputs,
         std::vector<std::string> const& input_runtime_transforms,
+        std::vector<std::vector<int>> const& input_tile_bcast_dims,
         std::vector<PyBudaTensorDesc> const& constants,
         std::vector<PyBudaTensorDesc> const& parameters,
         std::vector<PyBudaTensorDesc> const& outputs,
@@ -91,6 +93,7 @@ struct CompileRequest
         backend_config(backend_config),
         inputs(inputs),
         input_runtime_transforms(input_runtime_transforms),
+        input_tile_bcast_dims(input_tile_bcast_dims),
         constants(constants),
         parameters(parameters),
         outputs(outputs),
@@ -155,6 +158,7 @@ struct TTDevice
     int index;
     std::shared_ptr<TTContext> context;
     std::vector<std::string> input_runtime_transforms;
+    std::vector<std::vector<int>> input_tile_bcast_dims;
     std::vector<std::string> output_runtime_transforms;
 
     TTDevice(
@@ -179,7 +183,8 @@ torch::Device torch_device_at_index(std::int64_t index);
 std::vector<const void*> get_copied_inputs();
 std::shared_ptr<Workload> compile(TTDevice& device, CompileRequest const& compile_request);
 void push_tensor(
-    tt_backend& backend,
+    //tt_backend& backend,
+    tt_dram_io_desc queue_desc,
     PyBudaTensorDesc const& desc,
     torch::Tensor const& tensor,
     std::string const& info = "");
@@ -193,7 +198,7 @@ std::string get_device_cluster_yaml(TTDevice const&);
 std::string to_string(TTDevice const& d);
 torch::Device torch_device(TTDevice const& d);
 
-torch::Tensor eval_runtime_transform(const torch::Tensor& tensor, std::string transform, tt_dram_io_desc q);
+std::tuple<torch::Tensor, tt_dram_io_desc> eval_runtime_transform(const torch::Tensor& tensor, std::string transform, std::vector<int> &tile_bcast_dims, tt_dram_io_desc q);
 bool is_created_on_device(const torch::Tensor& tensor);
 std::vector<size_t> original_shape(const torch::Tensor& tensor);
 

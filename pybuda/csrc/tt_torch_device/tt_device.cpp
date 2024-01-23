@@ -51,6 +51,7 @@ std::shared_ptr<Workload> compile(TTDevice& device, CompileRequest const& compil
 
     register__ordered_input_runtime_transforms(compile_request.input_runtime_transforms);
     device.input_runtime_transforms = compile_request.input_runtime_transforms;
+    device.input_tile_bcast_dims = compile_request.input_tile_bcast_dims;
     device.output_runtime_transforms = compile_request.output_runtime_transforms;
     
     tt::tt_compile_result result;
@@ -137,7 +138,8 @@ static tt_PytorchTensorDesc to_pytorch_tensor_desc(torch::Tensor const& tensor)
 }
 
 void push_tensor(
-    tt_backend& backend,
+    //tt_backend& backend,
+    tt_dram_io_desc queue_desc,
     PyBudaTensorDesc const& desc,
     torch::Tensor const& tensor,
     std::string const& info)
@@ -159,7 +161,7 @@ void push_tensor(
     //         tensor.device(),
     //         info);
 
-    tt_dram_io_desc queue_desc = backend.get_queue_descriptor(desc.name);
+    //tt_dram_io_desc queue_desc = backend.get_queue_descriptor(desc.name);
     backend::translate_addresses(queue_desc);
     tt_PytorchTensorDesc tensor_desc = to_pytorch_tensor_desc(tensor);
     constexpr int kDefaultTimeoutSec = 10;
@@ -225,13 +227,14 @@ std::vector<torch::Tensor> dispatch(
         if (!input_meta->runtime_transformed)
         {
             std::string runtime_transform = device.input_runtime_transforms.at(input_idx);
-            torch::Tensor transformed_input = eval_runtime_transform(input.to(torch::kCPU), runtime_transform, workload->backend->get_queue_descriptor(desc.name));
+            std::vector<int> tile_bcast_dims = device.input_tile_bcast_dims.at(input_idx);
+            auto [transformed_input, q_updated] = eval_runtime_transform(input.to(torch::kCPU), runtime_transform, tile_bcast_dims, workload->backend->get_queue_descriptor(desc.name));
             input_meta->runtime_transformed = true;
-            push_tensor(*workload->backend, desc, transformed_input, fmt::format("input[{}]", input_idx));
+            push_tensor(q_updated, desc, transformed_input, fmt::format("input[{}]", input_idx));
         }
         else
         {
-            push_tensor(*workload->backend, desc, input, fmt::format("input[{}]", input_idx));
+            push_tensor(workload->backend->get_queue_descriptor(desc.name), desc, input, fmt::format("input[{}]", input_idx));
         }
         // TT_ASSERT(copied_inputs.at(input_idx) == input.const_data_ptr(), "Incorrect input pointer, input tensors need to be copied to device in the same order as they'll be consumed");
         ++input_idx;
@@ -265,7 +268,7 @@ std::vector<TTDevice> query_available_tt_devices()
 {
     static std::shared_ptr<TTContext> context = std::make_shared<TTContext>();
     std::vector<TTDevice> d;
-    if (true)//(env_as<bool>("PYBUDA_DEVMODE"))
+    if (env_as<bool>("PYBUDA_DEVMODE"))
     {
         constexpr bool mmio = true;
         ARCH arch = env_as<bool>("GOLDEN_WORMHOLE_B0") ? ARCH::WORMHOLE_B0 : ARCH::GRAYSKULL;
@@ -305,17 +308,22 @@ TTContext::~TTContext()
         backend::finish_child_process();
 }
 
-torch::Tensor eval_runtime_transform(const torch::Tensor& tensor, std::string transform, tt_dram_io_desc q)
+std::tuple<torch::Tensor, tt_dram_io_desc> eval_runtime_transform(
+    const torch::Tensor& tensor,
+    std::string transform,
+    std::vector<int> &tile_bcast_dims,
+    tt_dram_io_desc q)
 {
     py::object py_tensor = py::reinterpret_steal<py::object>(THPVariable_Wrap(tensor));
 
     PyGILState_STATE gstate=PyGILState_Ensure();
     auto module = py::module_::import("pybuda.tensor");
     py::function eval_transform = module.attr("eval_runtime_transform");
-    py::object py_result = eval_transform(transform, py_tensor, q);
+    py::tuple py_result = eval_transform(transform, py_tensor, q, tile_bcast_dims);
     PyGILState_Release(gstate);
-    torch::Tensor torch_tensor = THPVariable_Unpack(static_cast<PyObject *>(py_result.ptr()));
-    return torch_tensor;
+    torch::Tensor torch_tensor = THPVariable_Unpack(static_cast<PyObject *>(py_result[0].ptr()));
+    tt_dram_io_desc q_updated = py_result[1].cast<tt_dram_io_desc>();
+    return std::make_pair(torch_tensor, q_updated);
 }
 
 torch::Tensor narrow_to_pytorch(const torch::Tensor& tensor, std::string transform)
@@ -325,7 +333,7 @@ torch::Tensor narrow_to_pytorch(const torch::Tensor& tensor, std::string transfo
 
     PyGILState_STATE gstate=PyGILState_Ensure();
     auto module = py::module_::import("pybuda.tensor");
-    py::function eval_transform = module.attr("eval_runtime_transform");
+    py::function eval_transform = module.attr("eval_runtime_transform"); //TODO: update
     py::object py_result = eval_transform(transform, py_tensor);
     PyGILState_Release(gstate);
     torch::Tensor torch_tensor = THPVariable_Unpack(static_cast<PyObject *>(py_result.ptr()));

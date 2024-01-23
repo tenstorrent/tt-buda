@@ -367,6 +367,18 @@ struct OpType
                     ret += std::to_string(std::get<float>(attr[i])) + ",";
                 } else if (std::holds_alternative<std::string>(attr[i])) {
                     ret += std::get<std::string>(attr[i]) + ",";
+                } else if (std::holds_alternative<std::vector<int>>(attr[i])) {
+                    auto attr_val = std::get<std::vector<int>>(attr[i]);
+                    size_t num_items = attr_val.size();
+
+                    ret += "[";
+                    for (size_t j = 0 ; j < num_items; ++j)
+                    {
+                        ret += std::to_string(attr_val[j]);
+                        if (j < num_items-1)
+                            ret += ", ";
+                    }
+                    ret += "], ";
                 } else {
                     TT_ASSERT(false, "Unknown alternative in Attr");
                 }

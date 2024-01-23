@@ -76,7 +76,7 @@ def torch_device(index=0):
 def _build_backend_compile_request(device, compiler_cfg, compiled_graph_state):
     soc_desc_yaml = (
         compiler_cfg.backend_device_descriptor_path
-        if compiler_cfg.backend_cluster_descriptor_path == ""
+        if compiler_cfg.backend_device_descriptor_path == ""
         else device.soc_desc_yaml
     )
 
@@ -107,6 +107,8 @@ def _build_backend_compile_request(device, compiler_cfg, compiled_graph_state):
     input_runtime_transforms = [
         json.dumps(transform.to_json()) for transform in compiled_graph_state.ordered_input_runtime_tensor_transforms
     ]
+
+    input_tile_bcast_dims = compiled_graph_state.ordered_input_tile_broadcast_dims
 
     constants = [
         PyBudaTensorDesc(
@@ -139,6 +141,7 @@ def _build_backend_compile_request(device, compiler_cfg, compiled_graph_state):
         bcfg,
         inputs,
         input_runtime_transforms,
+        input_tile_bcast_dims,
         constants,
         parameters,
         outputs,
@@ -146,7 +149,7 @@ def _build_backend_compile_request(device, compiler_cfg, compiled_graph_state):
     )
 
 
-def _compile(module, aten_module, module_name, sample_inputs, aten_sample_inputs, device, compiler_cfg):
+def _compile(module, aten_module, module_name, sample_inputs, device, compiler_cfg):
     global _tt0
     global _subgraph_index
     global _graph
@@ -156,8 +159,6 @@ def _compile(module, aten_module, module_name, sample_inputs, aten_sample_inputs
     else:
         _tt0.remove_modules()
 
-    torch_device = list(module.parameters())[0].device if len(list(module.parameters())) > 0 else "tt"
-    module = module.to("cpu")   # PyBuda compile on CPU
     _tt0.place_module(pybuda.module.PyTorchModule(module_name, module))
 
     if _graph is None:
@@ -173,17 +174,18 @@ def _compile(module, aten_module, module_name, sample_inputs, aten_sample_inputs
 
     # Frontend Compile
     logger.debug("Appending to Graph")
-    _graph, intermediate_tensors, output_tensors = append_to_graph(_graph, module, aten_module, aten_sample_inputs, sample_inputs, _subgraph_index)
+    _graph, intermediate_tensors, output_tensors = append_to_graph(_graph, module, aten_module, sample_inputs, _subgraph_index)
     logger.debug(f"Appending to graph done, captured {len(_graph.nodes())} nodes")
     _subgraph_index += 1
     _tt0.graph = _graph.clone()
     _tt0.intermediate_tensors = intermediate_tensors
     _tt0.output_tensors = [pybuda.Tensor.create_from_torch(output_tensor) for output_tensor in output_tensors]
     logger.debug("Frontend Compile")
+    module = module.to("cpu")
     fe_compile_result = pybuda.compile.pybuda_compile(
         _tt0,
         module_name,
-        *list(map(pybuda.Tensor.create_from_torch, sample_inputs)),
+        *[pybuda.Tensor.create_from_torch(sample_input.to("cpu")) for sample_input in sample_inputs],
         compiler_cfg=compiler_cfg,
         microbatch_size=sample_inputs[0].shape[0],
         # TODO: support all arguments
@@ -196,7 +198,6 @@ def _compile(module, aten_module, module_name, sample_inputs, aten_sample_inputs
         _build_backend_compile_request(device, compiler_cfg, compiled_graph_state)
     )
 
-    module = module.to(torch_device)   # PyBuda compile on CPU
     return workload, compiled_graph_state
 
 
@@ -218,7 +219,7 @@ def _populate_compile_cache():
     return compile_cache
 
 
-def _compile_cached(module, aten_module, module_name, sample_inputs, aten_sample_inputs, device, compiler_cfg, cache):
+def _compile_cached(module, aten_module, module_name, sample_inputs, device, compiler_cfg, cache):
     global _compile_cache
     global _tt0
 
@@ -242,7 +243,7 @@ def _compile_cached(module, aten_module, module_name, sample_inputs, aten_sample
     else:
         compiler_cfg.backend_output_dir = pybuda.utils.resolve_output_build_directory()
 
-    workload, compiled_graph_state = _compile(module, aten_module, module_name, sample_inputs, aten_sample_inputs, device, compiler_cfg)
+    workload, compiled_graph_state = _compile(module, aten_module, module_name, sample_inputs, device, compiler_cfg)
 
     if key is not None:
         _compile_cache[key] = workload
@@ -282,74 +283,50 @@ class compiledModel(torch.nn.Module):
         for desc in self.workload.parameters:
             name = desc.name
             value = self.compiled_graph_state.post_const_eval_parameters[name]
-            # value = self.compiled_graph_state.post_const_eval_parameters[name].to(dev)
-            # value = const_eval_tensor({name: self.module.state_dict()[name]}, self.consteval_trace, self.parameter_to_tile_dims, name).to(dev)
-            push_tensor(self.workload.backend, desc, value, "")
+            push_tensor(self.workload.backend.get_queue_descriptor(desc.name), desc, value, "")
 
         for desc in self.workload.constants:
             name = desc.name
             value = self.compiled_graph_state.post_const_eval_constants[name]
-            # value = self.compiled_graph_state.post_const_eval_constants[name].to(dev)
-            # value = const_eval_tensor({name: get_constant_input_value(constant, True)}, self.consteval_trace, self.constant_to_tile_dims, name).to(dev)
-            push_tensor(self.workload.backend, desc, value, "")
+            push_tensor(self.workload.backend.get_queue_descriptor(desc.name), desc, value, "")
         # self.module.to(dev)
 
-from typing import Any, Tuple
-def decompose_split(self: torch.Tensor, split_size: int, dim: int = 0) -> Tuple[torch.Tensor, ...]:
-    starts = list(range(0, self.size(dim), split_size))
-    stops = starts[1:] + [self.size(dim)]
-    slices = []
-    for start, stop in zip(starts, stops):
-        slices.append(self.narrow(dim, start, stop - start))
-    return slices
-
-def decompose_matmul(bias, input, weight) -> torch.Tensor:
-    res = torch.matmul(input, weight)
-    res = torch.add(res, bias)
-    return res
-
 from torch._decomp import core_aten_decompositions, get_decompositions
-from torch._functorch.aot_autograd import aot_module_simplified
+from torch._functorch.aot_autograd import aot_module_simplified, aot_function, aot_module
+from torch._dynamo.backends.common import aot_autograd
 from torch.fx.experimental.proxy_tensor import make_fx
 from torch.fx.experimental.proxy_tensor import DecompositionInterpreter
 from torch.fx.interpreter import Interpreter
+from torch.fx import subgraph_rewriter
 
 from torch._functorch.compile_utils import strip_overloads
 
-pybuda_decompositions = {
-                    torch.ops.aten.split.Tensor: decompose_split,
-                    torch.ops.aten.addmm.default: decompose_matmul,
-                  }
+from pybuda.torch_decomp_reconstruct import get_pybuda_decompositions, apply_torch_reconstruct_patterns
+
 def compile_torch(
     module,
     sample_inputs,
     options=None,
 ):
-    class ATENStorer:
-        def __init__(self):
-            self.aten_module = None
-            self.sample_inputs = None
-        
-        def __call__(self, *args: Any, **kwds: Any) -> Any:
-            self.aten_module = args[0]
-            self.sample_inputs = args[1]
-
+    torch_device = list(module.parameters())[0].device if len(list(module.parameters())) > 0 else "tt"
     with torch.no_grad():
+        pybuda_decompositions = get_pybuda_decompositions()
         decompositions = {**core_aten_decompositions(), **pybuda_decompositions}
-        aten_storer = ATENStorer()
-        aot_module_simplified(module, sample_inputs, fw_compiler=aten_storer, decompositions=decompositions, keep_inference_input_mutations=True)
-        return _torch_compile(module, sample_inputs, aten_storer.aten_module, aten_storer.sample_inputs)
-        
-        
+        fake_tensor_mode = torch._dynamo.utils.detect_fake_mode(sample_inputs)
+        fake_tensor_mode.allow_non_fake_inputs = True
+        aten = make_fx(module, tracing_mode="symbolic", decomposition_table=decompositions, _allow_non_fake_inputs=True)(*sample_inputs)
+        apply_torch_reconstruct_patterns(aten)
+        return _torch_compile(module, sample_inputs, aten, original_torch_device=torch_device)
+
 def _torch_compile(
     module,
     sample_inputs,
     aten_module,
-    aten_sample_inputs,
     device=None,
     compiler_cfg=None,
     module_name=None,
     cache=False,  # Disabled for now
+    original_torch_device=None,
 ):
     """
     Ideally we can remove having to pass in tt0 (the ttdevice.py) object here,
@@ -360,6 +337,7 @@ def _torch_compile(
     """
     logger.info("Torch Compile")
     strip_overloads(aten_module)
+
     if device is None:
         device = get_default_device()
 
@@ -378,14 +356,18 @@ def _torch_compile(
 
     cache &= not bool(os.environ.get("PYBUDA_DISABLE_COMPILE_CACHE", "0"))
 
-    rand_inputs = [torch.rand(sample_input.shape).to(sample_input.dtype) for sample_input in sample_inputs]
-    rand_atan_inputs = [torch.rand(aten_sample_input.shape).to(aten_sample_input.dtype).to(aten_sample_input.device) for aten_sample_input in aten_sample_inputs]
+    rand_inputs = [torch.rand(sample_input.shape).to(sample_input.dtype).to("cpu") for sample_input in sample_inputs]
 
     workload, compiled_graph_state = _compile_cached(
-        module, aten_module, module_name, rand_inputs, rand_atan_inputs, device, compiler_cfg, cache
+        module, aten_module, module_name, rand_inputs, device, compiler_cfg, cache
     )
 
     compiled_model = compiledModel(module, device, workload, compiled_graph_state, _subgraph_index-1)
     # Push parameters and constants to device
     compiled_model.to(device.torch_device())
+    logger.info("Done Torch Compile")
+    if original_torch_device is not None:
+        module = module.to(original_torch_device)
     return compiled_model
+
+# compile_torch = aot_autograd(fw_compiler=_torch_compile, decompositions={**core_aten_decompositions(), **pybuda_decompositions})

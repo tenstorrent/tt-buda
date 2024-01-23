@@ -163,9 +163,38 @@ def eval(op_type, attr, ops):
         if operand == 2:
             return beta__.grad.reshape(beta__.shape)
 
+    if op_type == "batchnorm":
+        
+        assert len(ops) == 5, "batchnorm should have five operands."
+        assert len(attr) == 1, "batchnorm should have one attributes."
+
+        t_ops = to_torch_operands(*ops)
+
+        input_ = t_ops[0]   # Input tensor
+        weight = t_ops[1]   # weights, weight re-scaling parameter
+        bias = t_ops[2]      # bias, weight re-centering parameter
+        running_mean = t_ops[3]
+        running_var = t_ops[4] 
+        epsilon = attr[0]
+ 
+        #assert gamma.shape[-1] == input_.shape[-1], "Weights shape must be the same as normalized shape."
+        #for gdim in gamma.shape[:-1]:
+        #    assert gdim == 1, "All dimensions but the last one must be 1"
+        #assert beta.shape[-1] == input_.shape[-1], "Bias shape must be the same as normalized shape."
+        #for bdim in beta.shape[:-1]:
+        #    assert bdim == 1, "All dimensions but the last one must be 1"
+
+        return F.batch_norm(
+                    input=input_,
+                    running_mean=running_mean.shape[-1:],
+                    running_var=running_var.shape[-1:],
+                    normalized_shape=input_.shape[-1:],
+                    weight=weight.reshape(gamma.shape[-1:]),
+                    bias=bias.reshape(beta.shape[-1:]),
+                    eps=epsilon
+                )
+
     assert False, f"{op_type} is not defined in nn eval."
-
-
 
 
 def shape(op_type, attr, ops):
@@ -229,6 +258,13 @@ def shape(op_type, attr, ops):
         assert operand in range(3), "Operand index out of range"
         
         return ops[operand], []
+
+    if op_type == "batchnorm":
+        
+        assert len(ops) == 5, "Layernorm should have five operands."
+        assert len(attr) == 1, "Layernorm should have one attributes."
+
+        return ops[0], []
 
     assert False, f"{op_type} is not defined in nn shape."
 
@@ -323,6 +359,9 @@ def backward(op_type, attr, ac, operand, inputs, output, grad):
 
         return ac.op("layernorm_bw", inputs, attr)
 
+    if op_type == "batchnorm":
+        raise NotImplementedError("Back propagation for Batchnorm op is not implemented yet")
+
     assert False, f"{op_type} is not defined in nn backward. "
 
 def decompose(op_type, attr, dc, inputs):
@@ -360,7 +399,38 @@ def decompose(op_type, attr, dc, inputs):
         result = dc.op("log", (result, ))
         dc.fuse(result)
         return
-        
+
+    if op_type == "batchnorm": 
+        assert len(inputs) == 5, "Batchnorm should have five operands."
+        assert len(attr) == 1, "Layernorm should have one attributes."
+
+        input_ = inputs[0]
+        weight = inputs[1]
+        bias = inputs[2]
+        running_mean = inputs[3]
+        running_var = inputs[4]
+        epsilon = attr[0]
+
+        # const tensor
+        eps_tensor = dc.tensor(torch.zeros(running_var.shape.as_list()) + epsilon)
+        neg_one = dc.tensor(torch.zeros(running_mean.shape.as_list()) - 1.0)
+
+        # decompose
+        var_eps = dc.op("add", (running_var, eps_tensor), ())
+        sqrt = dc.op("sqrt", (var_eps,), ())
+        recipro = dc.op("reciprocal", (sqrt,), ())
+        weighted = dc.op("multiply", (recipro, weight), ())
+        neg_mean = dc.op("multiply", (neg_one, running_mean), ())
+        weighted_mean = dc.op("multiply", (weighted, neg_mean), ())
+        weighted_bias = dc.op("add", (weighted_mean, bias), ())
+        weighted_bias = dc.op("unsqueeze", [weighted_bias], (1, len(weighted_bias.shape),))
+        weighted_bias = dc.op("unsqueeze", [weighted_bias], (1, len(weighted_bias.shape),))
+        weighted_var = dc.op("unsqueeze", [weighted], (1, len(weighted.shape),))
+        weighted_var = dc.op("unsqueeze", [weighted_var], (1, len(weighted_var.shape),))
+        scaled = dc.op("multiply", (input_, weighted_var), ())
+        biased = dc.op("add", (scaled, weighted_bias), ())
+        dc.fuse(biased)
+        return
 
 def decompose_post_autograd(op_type, attr, dc, inputs):
     """

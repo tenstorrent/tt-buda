@@ -62,7 +62,11 @@ def shape(type, attr, ops):
         if not attr[2]:
             ret[attr[0]] = attr[1]
     else:
-        ret[attr[0]] = 1
+        if isinstance(attr[0], list):
+            for dim in attr[0]:
+                ret[dim] = 1
+        else:
+            ret[attr[0]] = 1
 
     return tuple(ret), []
 
@@ -333,6 +337,13 @@ def decompose(type, attr, dc, inputs):
     assert len(inputs) == 1, "Reduce should have one input"
     assert len(attr) == 1 or len(attr) == 2 and type == "reduce_max" or len(attr) == 3 and type == "grouped_reduce_avg", "Reduce should have one dim parameter, and optional stride attr OR mandatory groups attr for grouped reduce."
 
+    if isinstance(attr[0], list):
+        x = inputs[0]
+        for dim in attr[0]:
+            x = dc.op("reduce_avg", [x], (dim,))
+        dc.fuse(x)
+        return
+
     inp_shape = inputs[0].shape.as_list()
     if inp_shape[attr[0]] == 1:
         # This is a NOP
@@ -340,6 +351,7 @@ def decompose(type, attr, dc, inputs):
         dc.fuse(result)
     elif (type == "reduce_sum" or type == "reduce_avg"):
         dim = attr[0]
+
         if dim >= 0:
             dim -= len(inputs[0].shape)
 
