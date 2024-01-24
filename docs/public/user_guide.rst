@@ -417,29 +417,40 @@ This device-descriptor will be used to configure the device during the TTI-loadi
 Embedded TTI Loading
 ********************
 
-Here's an example of loading a TTI model from c++ for environments that do not have a packaged python interpreter.
+Here's an example of loading a generic TTI model from C++ for environments that do not have a packaged Python interpreter.
 
 .. code-block:: cpp
 
   #include <iostream>
   #include <memory>
   #include <vector>
+  #include <experimental/filesystem>
 
   #include "tt_backend.hpp"
   #include "tt_backend_api.hpp"
   #include "tt_backend_api_types.hpp"
+  #include "io_utils.h"
 
-  // Populate a queue descriptor from a queue name
-  tt::tt_dram_io_desc get_queue_descriptor(const std::shared_ptr<tt_backend> &backend, const std::string &queue_name);
+  namespace fs = std::experimental::filesystem; 
 
-  // Populate a tensor descriptor from a queue name
-  tt::tt_PytorchTensorDesc get_tensor_descriptor(const std::string &name);
+  int main(int argc, char **argv) {
 
-  int main(int argc, char** argv)
-  {
+      if (argc <= 1) {
+          throw std::runtime_error("TTI path not specified on the command line");
+      }
+      else if (argc > 3) {
+          throw std::runtime_error("Incorrect number of arguments specified to inference harness. Supported args: TTI_PATH NUM_INFERENCE_LOOPS");
+      }
+
       // Define path to pre-compiled model and output artifacts
-      std::string output_path = "tt_build/base_encoders";
-      std::string model_path = "base_encoders.tti";
+      std::string output_path = "tt_build/test_standalone_runtime";
+      fs::create_directories(output_path);
+      uint32_t inference_loops = 1;
+      std::string model_path = argv[1];  // eg. "/home_mnt/software/spatial2/backend/binaries/CI_TTI_TEST_BINARIES_WH/bert.tti"
+
+      if (argc == 3) {
+          inference_loops = std::stoi(argv[2]);
+      }
 
       // Create a pre-compiled model object and a backend object from it using default config
       std::shared_ptr<tt::tt_device_image> model = std::make_shared<tt::tt_device_image>(model_path, output_path);
@@ -454,23 +465,32 @@ Here's an example of loading a TTI model from c++ for environments that do not h
       }
 
       // The following code must execute between initialize() and finish()
-      {
+      for (uint32_t i = 0; i < inference_loops; i++) {
           // <io process> - Push a microbatch of inputs to device
           for (const std::string &name : model->get_graph_input_names()) {
-              tt::tt_dram_io_desc io_desc = get_queue_descriptor(backend, name);
-              tt::tt_PytorchTensorDesc tensor_desc = get_tensor_descriptor(name);
-
+              tt::tt_dram_io_desc io_desc = tt::io::utils::get_queue_descriptor(backend, name);
+              tt::tt_PytorchTensorDesc tensor_desc = tt::io::utils::get_tensor_descriptor(name, model, io_desc);
+              // Fill the tensor descriptor with data. We choose to allocate dummy memory using the TT backend for this tensor.
+              // The user is free to use previously allocated memory, or use the backend to allocate memory that is then filled with actual data.
+              tt::io::utils::fill_tensor_with_data(name, tensor_desc);
               // DMA the input tensor from host to device
               assert(tt::backend::push_input(io_desc, tensor_desc, false, 1) == tt::DEVICE_STATUS_CODE::Success);
+              // Optional: Host memory management
+              // - free releases storage on host (tensor data freed), since host is done with pushing data for this activation
+              // - The user can choose not to free this memory and use it even after the data is in device DRAM 
+              std::cout << "Pushed Input tensor " << name << " data ptr: " << tensor_desc.ptr << std::endl;
+              assert(tt::backend::free_tensor(tensor_desc) == tt::DEVICE_STATUS_CODE::Success);
           }
 
           // <runtime process> - Run inference program, p_loop_count is the number of microbatches executed
           std::map<std::string, std::string> program_parameters = {{"$p_loop_count", "1"}};
-          backend->run_program("run_fwd_0", program_parameters);
-
+          for (const auto& prog_name : backend -> get_programs()) {
+              assert(backend->run_program(prog_name, program_parameters) == tt::DEVICE_STATUS_CODE::Success);
+          }
+          
           // <io process> - Pop a microbatch of outputs from device
           for (const std::string &name : model->get_graph_output_names()) {
-              tt::tt_dram_io_desc io_desc = get_queue_descriptor(backend, name);
+              tt::tt_dram_io_desc io_desc = tt::io::utils::get_queue_descriptor(backend, name);
               tt::tt_PytorchTensorDesc tensor_desc = {};  // passed into get_tensor below to be populated
 
               // DMA the output tensor from device to host
@@ -482,66 +502,16 @@ Here's an example of loading a TTI model from c++ for environments that do not h
 
               // Host memory management
               // - free releases storage on host (tensor data freed), host is done with the output data
-              std::cout << "Output tensor " << name << " data ptr: " << tensor_desc.ptr << std::endl;
+              // - The user can choose not to free this memory and use it for downstream tasks 
+              std::cout << "Got Output tensor " << name << " data ptr: " << tensor_desc.ptr << std::endl;
               assert(tt::backend::free_tensor(tensor_desc) == tt::DEVICE_STATUS_CODE::Success);
           }
       }
-
       // <runtime process> - Teardown the backend
       if (backend->finish() != tt::DEVICE_STATUS_CODE::Success) {
           throw std::runtime_error("Failed to shutdown device");
       }
       return 0;
-  }
-
-  // Populate an queue descriptor from a queue name
-  tt::tt_dram_io_desc get_queue_descriptor(const std::shared_ptr<tt_backend> &backend, const std::string &queue_name) {
-      tt::tt_dram_io_desc queue_desc = backend->get_queue_descriptor(queue_name);
-      // (optional) maps device address to a contiguous user-space address in tt::tt_dram_io_desc::bufq_mapping
-      // - push_input will use this mapping for memcpy-based fast DMA if it exists
-      // - push_input will use user-mode driver for DMA if mapping does not exist
-      tt::backend::translate_addresses(queue_desc);
-      return queue_desc;
-  }
-
-  // Populate a tensor descriptor from raw data + metadata
-  template <class T>
-  tt::tt_PytorchTensorDesc to_tensor_descptor(
-      const T *array,
-      unsigned int w_dim,
-      unsigned int z_dim,
-      unsigned int r_dim,
-      unsigned int c_dim,
-      tt::DataFormat format,
-      unsigned int dim = tt::PY_TENSOR_DIMS) {
-      tt::tt_PytorchTensorDesc tensor_desc;
-      tensor_desc.owner = tt::OWNERSHIP::Backend;
-      tensor_desc.ptr = array;
-      tensor_desc.itemsize = sizeof(T);
-      tensor_desc.format = format;
-      tensor_desc.shape = {w_dim, z_dim, r_dim, c_dim};
-      tensor_desc.dim = dim;
-
-      tensor_desc.strides[3] = sizeof(T);
-      tensor_desc.strides[2] = c_dim * tensor_desc.strides[3];
-      tensor_desc.strides[1] = r_dim * tensor_desc.strides[2];
-      tensor_desc.strides[0] = z_dim * tensor_desc.strides[1];
-      return tensor_desc;
-  }
-
-  // Populate a tensor descriptor from a queue name
-  tt::tt_PytorchTensorDesc get_tensor_descriptor(const std::string &name) {
-      // The following code is an example for BERT base encoder input:
-      // - activation: [microbatch, channels = 1, height = 128, width = 768]
-      // - atten_mask: [microbatch, channels = 1, height = 32, width = 128]
-      if (name == "input_1") {
-          static std::vector<uint16_t> tensor_data(128 * 1 * 128 * 768, 0);
-          return to_tensor_descptor<uint16_t>(tensor_data.data(), 128, 1, 128, 768, tt::DataFormat::Float16_b);
-      } else if (name == "attention_mask") {
-          static std::vector<uint16_t> tensor_data(128 * 1 * 32 * 128, 0);
-          return to_tensor_descptor<uint16_t>(tensor_data.data(), 128, 1, 32, 128, tt::DataFormat::Float16_b);
-      }
-      throw std::runtime_error("Tensor is not a valid input");
   }
 
 
@@ -691,6 +661,137 @@ However, ``num_chips`` and ``chip_ids`` parameters can be used to select a subse
    tt0 = TTDevice("tt0", chip_ids[0, 2, 3]) # Skip chip id 1 and take 3 chips
 
 See :py:class:`TTDevice<pybuda.TTDevice>` for more details.
+
+Pybuda Multi-Model Support (Embedded Applications Only)
+-------------------------------------------------------
+
+Introduction
+*******************
+
+PyBuda allows users to merge several models into a single Tenstorrent Device Image, with minimal workflow overhead. The TTI can then be consumed by the C++ Backend and run on a Tenstorrent Device.
+
+A typical process to generate and execute a Multi-Model workload is as follows:
+
+**Compilation: Either Offline or on a Tenstorrent Device**
+
+#. Generate TTIs for each model in the workload.
+#. Run the Model-Merging tool to consolidate all models into a single TTI.
+
+**Execution: On a Tenstorrent Device**
+
+#. Spawn an application using the C++ backend APIs to deploy the workload contained in the TTI. An example application is provided in the `Embedded TTI Loading` section.
+
+Fusing multiple independent models is well tested with several State of the Art models (including ViT, Mobilenet, ResNet50 ...). Supporting pipelined models is currently under active development.
+
+Below, we describe the APIs and associated tools used to fuse models without any dependencies.
+
+Usage
+*****
+
+Pybuda exposes two entry points for users to run the Model Merging Tool:
+
+#. Command Line Interface to specify the list of models to merge along with optional arguments. These include parameters enabling/disabling certain optimizations.
+#. Python API to be consumed by user applications. Usage of this API is very similar to the Command Line Tool.
+
+**Command Line Interface**
+
+.. code-block:: bash
+
+  python3 pybuda/pybuda/tools/tti_merge.py [-h] [-mbl {dirname}] 
+    [-mdl {models}] [-a {arch}]
+    [-mml {filename}] [-scr] 
+    [-dqo]
+
+The following arguments are available when using `tti_merge.py`
+
+.. list-table:: Table 1. TT-SMI optional arguments.
+  :header-rows: 1
+
+  * - Argument
+    - Function
+  * - -h, --help
+    - Show help message and exit
+  * - -mbl, --model_binaries_location
+    - Relative path to where model TTIs are stored [Required]
+  * - -mdl, --models
+    - List of models to be merged (names must match TTI filenames) [Required]
+  * - -a, --arch
+    - Target Tenstorrent Architecture (default = wormhole_b0) [Optional]
+  * - -mml, --merged_model_location
+    - Relative path to where the Multi-Model TTI will be emitted (default = merged_model.tti) [Optional]
+  * - -scr, --skip_channel_reallocation
+    - Disable memory optimization that switches channels for queues when OOM during memory allocation (default = False) [Optional]
+  * - -dqo, --dynamic_queue_overlap_off
+    - Disable memory optimization allowing dynamic queues to overlap in memory channels (default = False) [Optional]
+  
+As an example, given the following directory structure in the Pybuda root directory:
+
+.. code-block:: bash
+
+  device_images_to_merge/
+  ├-- bert_large.tti
+  ├-- deit.tti
+  ├-- hrnet.tti
+  ├-- inception.tti
+  ├-- mobilenet_v1.tti
+  ├-- mobilenet_v2.tti
+  ├-- mobilenet_v3.tti
+  ├-- resnet.tti
+  ├-- unet.tti
+  ├-- vit.tti
+
+The following command will generate a Multi-Model TTI (with memory optimizations enabled) and store it in `multi_model_workload.tti`:
+
+.. code-block:: bash
+
+  python3 pybuda/pybuda/tools/tti_merge.py -mbl device_images_to_merge/ -mdl bert_large deit hrnet inception mobilenet_v1 mobilenet_v2 mobilenet_v3 resnet unet vit -mml multi_model_workload.tti
+
+**Python API**
+
+This API provides identical functionality as the command line interface, for cases where the Model Merging step needs to be automated.
+
+.. code-block:: python
+
+  # API Declaration
+  def merge_models(model_bin_location, models, arch = "wormhole_b0", merged_model_location = "", switch_chans_if_capacity_hit = True, overlap_dynamic_queues = True)
+
+Here the arguments `switch_chans_if_capacity_hit` and `overlap_dynamic_queues` corresponds to memory optimizations, which are enabled my default.
+
+The following Python code generates a Multi-Model TTI in a manner identical to the command listed in the previous section:
+
+.. code-block:: python
+
+  from pybuda.tools.tti_merge import merge_models
+
+  model_binary_loc = "device_images_to_merge"
+  models_to_merge = ["bert_large", "deit", "hrnet", "inception", "mobilenet_v1", "mobilenet_v2", "mobilenet_v3", "resnet", "unet", "vit"]
+  target_arch = "wormhole_b0
+  merged_model_location = "multi_model_workload.tti"
+
+  # Individual Model Generation Code Goes Here
+
+  merge_models(model_binary_loc, models_to_merge, target_arch, merged_model_location)
+
+**Memory Profiler**
+
+During the model fusion process, the API presented above is responsible for performing memory reallocation. Users may be interested in the memory footprint of the fused model (both Device and Host DRAM).
+
+To fullfil this requirement, the tool reports memory utilization post reallocation. An example using a model compiled for Wormhole (with 6 Device and upto 4 Host DRAM channels) is provided below.
+
+.. code-block:: bash
+
+Displaying memory footprint per DRAM channel (MB):
+0 : 161.17
+1 : 511.12
+2 : 577.51
+3 : 200.27
+4 : 204.41
+5 : 339.57
+Displaying memory footprint per Host channel (MB):
+0 : 132.88
+1 : 0.0
+2 : 0.0
+3 : 0.0
 
 TT-SMI
 ------

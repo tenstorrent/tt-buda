@@ -54,7 +54,7 @@ if __name__ == "__main__":
 
         models_to_merge = []
         if args.models_to_merge == "*":
-            models_to_merge = valid_models
+            models_to_merge = list(valid_models.keys())
         else:
             for model in args.models_to_merge:
                 assert model in valid_models, "Model: " + model + "is not in the list of valid models."
@@ -71,9 +71,9 @@ if __name__ == "__main__":
         # Merge TTIs
         logger.info("Merging TTIs")
         if args.disable_memory_optimizations:
-            merge_models(tti_locations, "wormhole_b0", "merged_model.tti", False, False)
+            merge_models(tti_build_dir, models_to_merge, "wormhole_b0", "merged_model.tti", "", False, False)
         else:
-            merge_models(tti_locations, "wormhole_b0", "merged_model.tti")
+            merge_models(tti_build_dir, models_to_merge, "wormhole_b0", "merged_model.tti")
     except Exception as e:
         logger.exception(e)
         

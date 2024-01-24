@@ -694,7 +694,7 @@ void BackendModule(py::module &m_backend) {
     m_backend.def("get_next_aligned_address", &tt::backend::get_next_aligned_address);
 
     m_backend.def("translate_addresses", &tt::backend::translate_addresses, py::call_guard<py::gil_scoped_release>());
-
+    m_backend.def("get_format_from_string", &tt::get_format_from_string, py::arg("format_str"));
     m_backend.def(
         "detect_available_silicon_devices", &tt::backend::detect_available_devices, py::arg("only_detect_mmio") = true);
     m_backend.def(
@@ -740,6 +740,8 @@ void BackendModule(py::module &m_backend) {
         .def("get_harvested_cfg", &DeviceConfig::get_harvested_cfg)
         .def("get_ethernet_connections", &DeviceConfig::get_ethernet_connections)
         .def("get_dram_backend_reserved_max", &DeviceConfig::get_dram_backend_reserved_max)
+        .def("get_dram_num_channels", &DeviceConfig::get_dram_num_channels)
+        .def("get_dram_channel_capacity", &DeviceConfig::get_dram_channel_capacity)
         .def("get_host_memory_channel_start_address", &DeviceConfig::get_host_memory_channel_start_address)
         .def("get_host_memory_num_channels", &DeviceConfig::get_host_memory_num_channels)
         .def("get_host_memory_channel_size", &DeviceConfig::get_host_memory_channel_size)

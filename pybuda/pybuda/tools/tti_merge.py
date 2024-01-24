@@ -17,131 +17,152 @@ from loguru import logger
 # Track all temp directories used for intermediate steps
 # Delete them as part of cleanup
 temp_directories = []
-def str_to_format(format_str):
-    if(format_str == "Float32"):
-        return DataFormat.Float32
-    elif(format_str == "Float16"):
-        return DataFormat.Float16
-    elif(format_str == "Float16_b"):
-        return DataFormat.Float16_b
-    elif(format_str == "Bfp8"):
-        return DataFormat.Bfp8
-    elif(format_str == "Bfp8_b"):
-        return DataFormat.Bfp8_b
-    elif(format_str == "Bfp4"):
-        return DataFormat.Bfp4
-    elif(format_str == "Bfp4_b"):
-        return DataFormat.Bfp4_b
-    elif(format_str == "Bfp2"):
-        return DataFormat.Bfp2
-    elif(format_str == "Bfp2_b"):
-        return DataFormat.Bfp2_b
-    elif(format_str == "RawUInt32"):
-        return DataFormat.RawUInt32
-    elif(format_str == "RawUInt16"):
-        return DataFormat.RawUInt16
-    elif(format_str == "RawUInt8"):
-        return DataFormat.RawUInt8
-    else:
-        assert False, "Invalid Format"
     
-def uniquify_global_structures(model_paths):
+def uniquify_and_merge_netlists(model_paths, inter_model_connections, consumer_to_producers_map, overlay_size_per_model):
     temp_dir = tempfile.mkdtemp()
     temp_directories.append(temp_dir)
-    uniquified_netlist_paths = []
-    for i in range(0, len(model_paths)):
-        unique_global_struct_names = {}
-        model_path = model_paths[i]
-        
-        with open(model_path, 'r') as file:
-            file_content = file.read()
-        
-        with open(model_path, 'r') as file:
-            netlist_data = yaml.load(file, Loader = yaml.FullLoader)
-            for queue in netlist_data["queues"].keys():
-                unique_global_struct_names[queue] = "model_" + str(i) + "_" + queue
-            for graph in netlist_data["graphs"].keys():
-                unique_global_struct_names[graph] = "model_" + str(i) + "_" + graph
-                for op in netlist_data["graphs"][graph]:
-                    if(op == "target_device" or op == "input_count"):
-                        continue
-                    unique_global_struct_names[op] = "model_" + str(i) + "_" + op
-                         
-            for program in netlist_data["programs"]:
-                program_name = list(program.keys())[0]
-                unique_global_struct_names[program_name] = "model_" + str(i) + "_" + program_name
-            if "fused_ops" in netlist_data:
-                for sched in netlist_data["fused_ops"].keys():
-                    for op in netlist_data["fused_ops"][sched]["schedules"][0]:
-                        op_name = list(op.keys())[0]
-                        unique_global_struct_names[op_name] = "model_" + str(i) + "_" + op_name
-        replacement_keys = list(unique_global_struct_names.keys())
-        replacement_keys.reverse()
-        for unique_key in replacement_keys:
-            pattern = re.compile(r'\b' + re.escape(unique_key) + r'\b')
-            file_content = pattern.sub(unique_global_struct_names[unique_key], file_content)
-        
-        indexed_model_path = str(model_path).split(".yaml")[0] + "_" + str(i) + ".yaml"
-        base_filename = os.path.basename(indexed_model_path)
-        temp_file_path = os.path.join(temp_dir, base_filename)
-        
-        with open(temp_file_path, "w+") as file:
-            file.write(file_content)
-        uniquified_netlist_paths.append(temp_file_path)
-    return uniquified_netlist_paths
-
-def merge_unique_netlists(unique_netlist_paths, overlay_blob_size_per_model):
+    
+    consumer_inputs = list(inter_model_connections.keys())
+    producer_outputs = list(inter_model_connections.values())
+    producer_queue_shapes = {}
+    producer_data_format= {}
+    producer_tile_dims = {}
+    model_input_counts = {}
+    fused_op_counter = 0
     merged_model = {"devices" : [],
                     "queues" : {},
                     "graphs" : {},
                     "programs" : []}
+    # Track if the IO queues specified in the dependency list are actually present in the netlist
+    sub_graph_nodes_visited = {}
+    for queue in consumer_inputs + producer_outputs:
+        sub_graph_nodes_visited[queue] = False
     
-    fused_op_counter = 0
-    for (i, netlist) in enumerate(unique_netlist_paths):
+    for i in range(0, len(model_paths)):
+        unique_queue_names = {}
+        unique_graph_names = {}
+        unique_op_names = {}
         fused_op_idx_updates = {}
-        with open(netlist, 'r') as file:
+        
+        model_path = model_paths[i]
+        with open(model_path, 'r') as file:
             netlist_data = yaml.load(file, Loader = yaml.FullLoader)
-            if(i == 0):
-                merged_model["devices"] = netlist_data["devices"]
+            merged_model["devices"] = netlist_data["devices"]
             for queue in netlist_data["queues"].keys():
-                merged_model["queues"][queue] = netlist_data["queues"][queue]
+                updated_queue_name = "model_" + str(i) + "_" + queue
+                if updated_queue_name in sub_graph_nodes_visited:
+                    # This queue was specified as a model-to-model queue in the dependency list
+                    # Mark it as visited, since it was found
+                    sub_graph_nodes_visited[updated_queue_name] = True
+                    # Keep track of queue parameters for queues feeding downstream models
+                    if updated_queue_name in producer_outputs:
+                        num_tiles_y = netlist_data["queues"][queue]["ublock"][0] * netlist_data["queues"][queue]["mblock"][0] * netlist_data["queues"][queue]["grid_size"][0]
+                        num_tiles_x = netlist_data["queues"][queue]["ublock"][1] * netlist_data["queues"][queue]["mblock"][1] * netlist_data["queues"][queue]["grid_size"][1]
+                        producer_queue_shapes[updated_queue_name] = [netlist_data["queues"][queue]["entries"], netlist_data["queues"][queue]["t"], num_tiles_y, num_tiles_x]
+                        producer_data_format[updated_queue_name] = netlist_data["queues"][queue]["df"]
+                        if "tile_dim" in netlist_data["queues"][queue]["tile_dim"]:
+                            producer_tile_dims[updated_queue_name] = netlist_data["queues"][queue]["tile_dim"]
+                        else:
+                            producer_tile_dims[updated_queue_name] = [32, 32]
+                    
+                if updated_queue_name in inter_model_connections:
+                    # This queue is being tied to a queue from a previous model.
+                    # Alias this queue with the feeder after ensuring that the producer and consumer are compatible.
+                    # Since this queue is aliased with its producer queue (which has already been added to the merged netlist) don't add this queue again
+                    num_tiles_y = netlist_data["queues"][queue]["ublock"][0] * netlist_data["queues"][queue]["mblock"][0] * netlist_data["queues"][queue]["grid_size"][0]
+                    num_tiles_x = netlist_data["queues"][queue]["ublock"][1] * netlist_data["queues"][queue]["mblock"][1] * netlist_data["queues"][queue]["grid_size"][1]
+                    consumer_queue_shape = [netlist_data["queues"][queue]["entries"], netlist_data["queues"][queue]["t"], num_tiles_y, num_tiles_x]
+                    tile_dim = [32, 32]
+                    if "tile_dim" in netlist_data["queues"][queue]["tile_dim"]:
+                        tile_dim = netlist_data["queues"][queue]["tile_dim"]
+                    assert consumer_queue_shape == producer_queue_shapes[inter_model_connections[updated_queue_name]], "Consumer " + queue + " shape is incompatible with the producer."
+                    assert netlist_data["queues"][queue]["df"] == producer_data_format[inter_model_connections[updated_queue_name]], "Consumer " + queue + " data format is incompatible with the producer."
+                    assert tile_dim == producer_tile_dims[inter_model_connections[updated_queue_name]], "Consumer " + queue + " tile dimensions are incompatible with the producer."
+                    updated_queue_name = inter_model_connections[updated_queue_name]
+                else:
+                    # This queue is not tied to a queue from a previous model. Add an unaliased version of it to the merged netlist.
+                    input_name = netlist_data["queues"][queue]["input"]
+                    # Queues can only be fed by ops in the sane model or by host.
+                    updated_input_name = "HOST" if (input_name.lower() == "host") else "model_" + str(i) + "_" + input_name    
+                    merged_model["queues"][updated_queue_name] = netlist_data["queues"][queue]
+                    merged_model["queues"][updated_queue_name]["input"] = updated_input_name
+                # Track the updated queue name, for modifying graph and program structures.
+                unique_queue_names[queue] = updated_queue_name
+                
+                
             for graph in netlist_data["graphs"].keys():
+                updated_graph_name = "model_" + str(i) + "_" + graph
+                unique_graph_names[graph] = updated_graph_name
+                merged_model["graphs"][updated_graph_name] = {}
                 for op in netlist_data["graphs"][graph]:
                     if(op == "target_device" or op == "input_count"):
-                        continue
-                    if netlist_data["graphs"][graph][op]["type"] == "fused_op":
-                        local_id = netlist_data["graphs"][graph][op]["attributes"]["fused_op_id"]
-                        if not local_id in fused_op_idx_updates:
-                            fused_op_idx_updates[local_id] = fused_op_counter
-                            fused_op_counter = fused_op_counter + 1
-                        netlist_data["graphs"][graph][op]["attributes"]["fused_op_id"] = fused_op_idx_updates[local_id]
-                    
-                    if "attributes" in netlist_data["graphs"][graph][op]:
-                        if "kernel_broadcast" in netlist_data["graphs"][graph][op]["attributes"]:
-                            updated_kernel_bcast = {}
-                            for input in netlist_data["graphs"][graph][op]["attributes"]["kernel_broadcast"]:
-                                updated_kernel_bcast[input.replace("model_" + str(i) + "_", "")] = netlist_data["graphs"][graph][op]["attributes"]["kernel_broadcast"][input]
-                            netlist_data["graphs"][graph][op]["attributes"]["kernel_broadcast"] = updated_kernel_bcast
-                    if i in overlay_blob_size_per_model:
-                        netlist_data["graphs"][graph][op]["overlay_size"] = int(overlay_blob_size_per_model[i])
-                
-                merged_model["graphs"][graph] = netlist_data["graphs"][graph]
-            for program in netlist_data["programs"]:
+                        if (op == "input_count"):
+                            model_input_counts["model_" + str(i)] = netlist_data["graphs"][graph][op]
+                            if "model_" + str(i) in consumer_to_producers_map:
+                                # Model has producers
+                                for producer in consumer_to_producers_map["model_" + str(i)]:
+                                    assert netlist_data["graphs"][graph][op] == model_input_counts[producer], "The microbatch sizes across producers and consumers are not consistent."
+
+                        merged_model["graphs"][updated_graph_name][op] = netlist_data["graphs"][graph][op]
+                        
+                    else:
+                        for input_idx  in range(len(netlist_data["graphs"][graph][op]["inputs"])):
+                            if netlist_data["graphs"][graph][op]["inputs"][input_idx] in unique_queue_names:
+                                netlist_data["graphs"][graph][op]["inputs"][input_idx] = unique_queue_names[netlist_data["graphs"][graph][op]["inputs"][input_idx]]
+                            elif netlist_data["graphs"][graph][op]["inputs"][input_idx] in unique_op_names:
+                                netlist_data["graphs"][graph][op]["inputs"][input_idx] = unique_op_names[netlist_data["graphs"][graph][op]["inputs"][input_idx]]
+                            else:
+                                assert False, "Input to op " + op + " is not another op or a queue."
+                        
+                        if i in overlay_size_per_model:
+                            netlist_data["graphs"][graph][op]["overlay_size"] = int(overlay_size_per_model[i])
+                        
+                        if netlist_data["graphs"][graph][op]["type"] == "fused_op":
+                            local_id = netlist_data["graphs"][graph][op]["attributes"]["fused_op_id"]
+                            if not local_id in fused_op_idx_updates:
+                                fused_op_idx_updates[local_id] = fused_op_counter
+                                fused_op_counter = fused_op_counter + 1
+                            netlist_data["graphs"][graph][op]["attributes"]["fused_op_id"] = fused_op_idx_updates[local_id]
+                        updated_op_name = "model_" + str(i) + "_" + op
+                        unique_op_names[op] = updated_op_name
+                        merged_model["graphs"][updated_graph_name][updated_op_name] = netlist_data["graphs"][graph][op]
+            
+            for prog_idx, program in enumerate(netlist_data["programs"]):
                 program_name = list(program.keys())[0]
-                program_dict = {program_name : program[program_name]}
-                merged_model["programs"].append(program_dict)
+                updated_program_name = "model_" + str(i) + "_" + program_name
+                for instrn_idx, instrn in enumerate(netlist_data["programs"][prog_idx][program_name]):
+                    if(type(instrn) == dict):
+                        instrn_code = list(instrn.keys())[0]
+                        if instrn_code == "execute":
+                            netlist_data["programs"][prog_idx][program_name][instrn_idx][instrn_code]["graph_name"] = unique_graph_names[netlist_data["programs"][prog_idx][program_name][instrn_idx][instrn_code]["graph_name"]]
+                            queue_settings = netlist_data["programs"][prog_idx][program_name][instrn_idx][instrn_code]["queue_settings"]
+                            netlist_data["programs"][prog_idx][program_name][instrn_idx][instrn_code]["queue_settings"] = {}
+                            for queue in queue_settings:
+                                updated_queue = unique_queue_names[queue]
+                                netlist_data["programs"][prog_idx][program_name][instrn_idx][instrn_code]["queue_settings"][updated_queue] = queue_settings[queue]
+                        if instrn_code == "allocate_queue" or instrn_code == "deallocate_queue":
+                            for queue_idx in range(len(netlist_data["programs"][prog_idx][program_name][instrn_idx][instrn_code])):
+                                queue_name = netlist_data["programs"][prog_idx][program_name][instrn_idx][instrn_code][queue_idx]
+                                netlist_data["programs"][prog_idx][program_name][instrn_idx][instrn_code][queue_idx] = unique_queue_names[queue_name]
+            
+                merged_model["programs"].append({updated_program_name : netlist_data["programs"][prog_idx][program_name]})
+
             if "fused_ops" in netlist_data:
                 if not "fused_ops" in merged_model:
                     merged_model["fused_ops"] = {}
-                for sched in netlist_data["fused_ops"].keys():
-                    merged_model["fused_ops"][fused_op_idx_updates[sched]] = netlist_data["fused_ops"][sched]
-                    for op in merged_model["fused_ops"][fused_op_idx_updates[sched]]["schedules"][0]:
-                        for op_idx in range(len(op[list(op.keys())[0]]["inputs"])):
-                            input_name = op[list(op.keys())[0]]["inputs"][op_idx]
-                            op[list(op.keys())[0]]["inputs"][op_idx] = input_name.replace("model_" + str(i) + "_", "")
-                        
-                    merged_model["fused_ops"][fused_op_idx_updates[sched]]
-                    
+                for group in netlist_data["fused_ops"].keys():
+                    schedules = netlist_data["fused_ops"][group]["schedules"]
+                    netlist_data["fused_ops"][group]["schedules"] = []
+                    for sched_idx in range(len(schedules)):
+                        netlist_data["fused_ops"][group]["schedules"].append([])
+                        for op_idx, op in enumerate(schedules[sched_idx]):
+                            updated_op_name = "model_" + str(i) + "_" + list(op.keys())[0]
+                            netlist_data["fused_ops"][group]["schedules"][sched_idx].append({updated_op_name : schedules[sched_idx][op_idx][list(op.keys())[0]]})
+                    merged_model["fused_ops"][fused_op_idx_updates[group]] = netlist_data["fused_ops"][group]
+        
+    # Assert if the queues specified in the dependency list are not found in the appropriate netlists
+    for queue in sub_graph_nodes_visited:
+        assert sub_graph_nodes_visited[queue], "Queue " + queue + " was specified in the dependency list but was not found in any netlist."    
     return merged_model
 
 def update_buffer_ranges(merged_model, queue, buf_info, buf_group_ranges):
@@ -197,7 +218,7 @@ def get_queue_size(netlist, queue):
     is_untilized = False
     if("layout" in netlist["queues"][queue]):
         is_untilized = (netlist["queues"][queue]["layout"] != "tilized")
-    format = str_to_format(netlist["queues"][queue]["df"])
+    format = backend_api.get_format_from_string(netlist["queues"][queue]["df"])
     ublock_ct = netlist["queues"][queue]["ublock"][0]
     ublock_rt = netlist["queues"][queue]["ublock"][1]
     mblock_m = netlist["queues"][queue]["mblock"][0]
@@ -211,23 +232,28 @@ def get_queue_size(netlist, queue):
         tile_width = netlist["queues"][queue]["tile_dim"][1]
     return backend_api.get_io_size_in_bytes(format, is_untilized, ublock_ct, ublock_rt, mblock_m, mblock_n, t, entries, tile_height, tile_width)
     
-def reallocate_queues(merged_model, dynamic_queues, start_offset_to_queue_buf_per_model, soc_descriptor, switch_chans_if_capacity_hit, overlap_dynamic_queues):
-    dev_cfg = backend_api.DeviceConfig("wormhole_b0",
+def reallocate_queues(arch, merged_model, dynamic_queues, start_offset_to_queue_buf_per_model, soc_descriptor, switch_chans_if_capacity_hit, overlap_dynamic_queues):
+    dev_cfg = backend_api.DeviceConfig(arch,
                              soc_descriptor,
                              "",
                              "",
                              "",
                              False,
                              [])
+    
     max_reserved_backend_space = dev_cfg.get_dram_backend_reserved_max()
-    backend_reserved_dram_memory = {0 : max_reserved_backend_space, 1 : max_reserved_backend_space, 2 : max_reserved_backend_space, 3 : max_reserved_backend_space, 
-                                   4 : max_reserved_backend_space, 5 : max_reserved_backend_space}
+    # Constants derived from the SOC descriptor. These will be unchanged for the arch.
+    max_dram_space = dev_cfg.get_dram_channel_capacity()
+    backend_reserved_dram_memory = {}
     memory_consumed_per_host_channel = {}
+    
+    for chan in range(dev_cfg.get_dram_num_channels()):
+        backend_reserved_dram_memory[chan] = max_reserved_backend_space
+        
     for host_chan in range(dev_cfg.get_host_memory_num_channels()):
         memory_consumed_per_host_channel[host_chan] = dev_cfg.get_host_memory_channel_start_address()
     
     static_queue_dram_space = copy.copy(backend_reserved_dram_memory)
-    MAX_DRAM_SPACE = 2**31
     
     if not switch_chans_if_capacity_hit:
         logger.warning("Memory Optimization Allowing Buffer Channels to be Reallocated is disabled")
@@ -259,16 +285,16 @@ def reallocate_queues(merged_model, dynamic_queues, start_offset_to_queue_buf_pe
         queue_size = get_queue_size(merged_model, queue)
         if(merged_model["queues"][queue]["loc"].lower() == "dram"):
             for alloc in merged_model["queues"][queue]["dram"]:
-                if static_queue_dram_space[alloc[0]] + queue_size > MAX_DRAM_SPACE:
+                if static_queue_dram_space[alloc[0]] + queue_size > max_dram_space:
                     if switch_chans_if_capacity_hit:
                         logger.info("DRAM Channel {} capacity hit. Bytes Used: {}. Reallocating queue to a different channel", alloc[0], static_queue_dram_space[alloc[0]])
                         for i in static_queue_dram_space:
-                            if static_queue_dram_space[i] + queue_size <= MAX_DRAM_SPACE:
+                            if static_queue_dram_space[i] + queue_size <= max_dram_space:
                                 alloc[0] = i
                             
                 alloc[1] = static_queue_dram_space[alloc[0]]
                 static_queue_dram_space[alloc[0]] += queue_size
-                assert static_queue_dram_space[alloc[0]] <= MAX_DRAM_SPACE, "DRAM space exceeded for DRAM channel " + str(alloc[0]) + " when trying to allocate memory for queue " + queue + " Bytes used: " + str(static_queue_dram_space[alloc[0]])
+                assert static_queue_dram_space[alloc[0]] <= max_dram_space, "DRAM space exceeded for DRAM channel " + str(alloc[0]) + " when trying to allocate memory for queue " + queue + " Bytes used: " + str(static_queue_dram_space[alloc[0]])
                 static_queue_dram_space[alloc[0]] = backend_api.get_next_aligned_address(static_queue_dram_space[alloc[0]])
         else:
             for (alloc_idx, alloc) in enumerate(merged_model["queues"][queue]["host"]):
@@ -309,7 +335,7 @@ def uniquify_tensor_bin_names(unzipped_tti_paths, merged_tti_path):
                             os.path.join(merged_tti_path, "unzipped_tti", "tensors", "model_" + str(i) + "_" + tensor_bin))
 
 
-def merge_device_metadata(unzipped_tti_paths, merged_tti_path):
+def merge_device_metadata(unzipped_tti_paths, merged_tti_path, inter_model_connections):
     logger.info("Generating Metadata for merged model...")
     netlist_names = []
     merged_md = {
@@ -327,6 +353,13 @@ def merge_device_metadata(unzipped_tti_paths, merged_tti_path):
                     "devtype" : {}
                 }
     
+    intermediate_inputs = set()
+    intermediate_outputs = set()
+    
+    for connection in inter_model_connections:
+        intermediate_inputs.add(connection)
+        intermediate_outputs.add(inter_model_connections[connection])
+        
     for (i, tti_path) in enumerate(unzipped_tti_paths):
         with open(os.path.join(tti_path, "unzipped_tti", "device.json"), "r") as file:
             device_md = json.load(file)
@@ -335,9 +368,11 @@ def merge_device_metadata(unzipped_tti_paths, merged_tti_path):
         for name in device_md["compiled_graph_state"]["ordered_parameter_node_names"]:
             merged_md["compiled_graph_state"]["ordered_parameter_node_names"].append("model_" + str(i) + "_" + name)
         for name in device_md["compiled_graph_state"]["ordered_input_names"]:
-            merged_md["compiled_graph_state"]["ordered_input_names"].append("model_" + str(i) + "_" + name)
+            if not "model_" + str(i) + "_" + name in intermediate_inputs:
+                merged_md["compiled_graph_state"]["ordered_input_names"].append("model_" + str(i) + "_" + name)
         for name in device_md["compiled_graph_state"]["ordered_output_names"]:
-            merged_md["compiled_graph_state"]["ordered_output_names"].append("model_" + str(i) + "_" + name)
+            if not "model_" + str(i) + "_" + name in intermediate_outputs:
+                merged_md["compiled_graph_state"]["ordered_output_names"].append("model_" + str(i) + "_" + name)
         for name in device_md["compiled_graph_state"]["post_const_eval_parameters"]:
             merged_md["compiled_graph_state"]["post_const_eval_parameters"]["model_" + str(i) + "_" + name] = device_md["compiled_graph_state"]["post_const_eval_parameters"][name]
             tensor_bin = merged_md["compiled_graph_state"]["post_const_eval_parameters"]["model_" + str(i) + "_" + name]["bin"].split("/")[1]
@@ -414,25 +449,43 @@ def unzip_ttis_and_generate_output_dir(tti_file_paths, output_tti_dir):
         sp.run(['tar', '-xf', tti, '-C', unzipped_tti_directory])
     return unzipped_tti_directories
 
-def merge_netlists(netlist_paths, merged_tti_path, unzipped_tti_paths, overlay_blob_size_per_model, switch_chans_if_capacity_hit, overlap_dynamic_queues):
+def merge_netlists(arch, netlist_paths, merged_tti_path, unzipped_tti_paths, overlay_blob_size_per_model, switch_chans_if_capacity_hit, overlap_dynamic_queues, inter_model_connections, consumer_to_producers_map):
     logger.info("Merging Netlists...")
-    soc_descriptor = os.path.join(unzipped_tti_paths[0], "unzipped_tti/backend_build_binaries/device_desc_runtime/0.yaml")
-    if not os.path.exists(soc_descriptor):
+
+    wh_soc_desc_dir = os.path.join(unzipped_tti_paths[0], "unzipped_tti/backend_build_binaries/device_desc_runtime")
+    gs_golden_soc_desc_dir = os.path.join(unzipped_tti_paths[0], "unzipped_tti/backend_build_binaries/device_descs")
+    soc_descriptor = ""
+    
+    soc_desc_dir = wh_soc_desc_dir # Expect files in WH device desc location
+    if not os.path.exists(wh_soc_desc_dir):
+        # If WH device desc dir does not exist, check GS silicon or Golden (All archs) location
+        soc_desc_dir = gs_golden_soc_desc_dir
+    # If device desc dir does not exist, set it to default device_descs.yaml
+    if os.path.exists(soc_desc_dir):
+        soc_desc_files = os.listdir(soc_desc_dir)
+        if len(soc_desc_files):
+            soc_descriptor = os.path.join(soc_desc_dir, soc_desc_files[0])
+    
+    if not soc_descriptor:
         soc_descriptor = os.path.join(unzipped_tti_paths[0], "unzipped_tti/backend_build_binaries/device_desc.yaml")
-    uniquifed_netlist =  merge_unique_netlists(uniquify_global_structures(netlist_paths), overlay_blob_size_per_model)
-    dynamic_queues, start_offset_to_queue_buf_per_model = get_dynamic_queue_info(uniquifed_netlist)
-    merged_model = reallocate_queues(uniquifed_netlist, dynamic_queues, start_offset_to_queue_buf_per_model, soc_descriptor, switch_chans_if_capacity_hit, overlap_dynamic_queues)
+    
+    assert(os.path.exists(soc_descriptor), "Could not find SOC Descriptor in Unzipped TTI Files")
+    
+    merged_netlist = uniquify_and_merge_netlists(netlist_paths, inter_model_connections, consumer_to_producers_map, overlay_blob_size_per_model)
+    dynamic_queues, start_offset_to_queue_buf_per_model = get_dynamic_queue_info(merged_netlist)
+    merged_model = reallocate_queues(arch, merged_netlist, dynamic_queues, start_offset_to_queue_buf_per_model, soc_descriptor, switch_chans_if_capacity_hit, overlap_dynamic_queues)
+
     yaml_output = yaml.dump(merged_model, default_flow_style=False, sort_keys=False)
     netlist_path = os.path.join(merged_tti_path, "unzipped_tti/merged_netlist.yaml")
     with open(netlist_path, "w+") as file:
         file.write(yaml_output)
     return netlist_path
         
-def compile_backend_binaries(merged_tti_path, netlist_path):
+def compile_backend_binaries(arch, merged_tti_path, netlist_path):
     logger.info("Compiling TT Binaries for merged model...")
     os.makedirs(os.path.join(merged_tti_path, "unzipped_tti/backend_build_binaries/"))
     bcfg = backend_api.BackendConfig(backend_api.BackendType.Silicon,
-                              backend_api.BackendDevice.Wormhole_B0,
+                              backend_api.BackendDevice.from_string(arch.capitalize()),
                               backend_api.DeviceMode.CompileOnly,
                               0,
                               os.path.join(merged_tti_path, "unzipped_tti/backend_build_binaries/"),
@@ -450,23 +503,81 @@ def cleanup():
     logger.info("Cleaning up intermediate state and exiting")
     for dir in temp_directories:
         shutil.rmtree(dir)
-            
-def merge_models(model_binaries, arch, merged_model_location = "", switch_chans_if_capacity_hit = True, overlap_dynamic_queues = True):
+        
+def check_model_dep_constraints(models, dep_list):
+    for model in dep_list:
+        for input in dep_list[model]["inputs"]:
+            if type(dep_list[model]["inputs"][input]) == str:
+                assert dep_list[model]["inputs"][input].lower() == "host", "If input for model " + str(model) + " is not host, the feeder must be specified in format [feeder_model_name, feeder_queue_name]."
+            else:
+                assert type(dep_list[model]["inputs"][input]) == list, "The feeder for model " + str(model) + " must be specified in format [feeder_model_name, feeder_queue_name]."
+                assert dep_list[model]["inputs"][input][0] in models, "Feeder model " + str(dep_list[model]["inputs"][input][0]) + " to consumer model " + model + " is not specified."
+                
+def parse_model_deps(models, dependency_list_file):
+    ordered_models = []
+    model_connections = {}
+    model_name_remap = {}
+    consumer_to_producers_map = {}
+    with open(dependency_list_file, "r") as dep_file:
+        dep_list = yaml.load(dep_file, Loader = yaml.FullLoader)
+    
+    check_model_dep_constraints(models, dep_list)
+    while len(models) != len(ordered_models):
+        for model in models:
+            if not model in ordered_models:
+                if not model in dep_list:
+                    logger.warning("Could not find model {} in dependency list. Assuming that this model is fed by host.", model)
+                    ordered_models.append(model)
+                else:
+                    feeders_found = True
+                    for input in dep_list[model]["inputs"]:
+                        if not type(dep_list[model]["inputs"][input]) == str:
+                            feeder_model = dep_list[model]["inputs"][input][0]
+                            feeders_found = feeder_model in ordered_models
+                    if feeders_found:
+                        ordered_models.append(model)
+                        
+    for model_idx in range(len(ordered_models)):
+        model_name_remap[ordered_models[model_idx]] = "model_" + str(model_idx) 
+        if ordered_models[model_idx] in dep_list:
+            for input in dep_list[ordered_models[model_idx]]["inputs"]:
+                if type(dep_list[ordered_models[model_idx]]["inputs"][input]) == str:
+                    continue
+                feeder_model = model_name_remap[dep_list[ordered_models[model_idx]]["inputs"][input][0]]
+                feeder_queue = dep_list[ordered_models[model_idx]]["inputs"][input][1]
+                model_connections["model_" + str(model_idx) + "_" + input] = feeder_model + "_" + feeder_queue
+                if not "model_" + str(model_idx) in consumer_to_producers_map:
+                    consumer_to_producers_map["model_" + str(model_idx)] = []
+                consumer_to_producers_map["model_" + str(model_idx)].append(feeder_model)
+    return ordered_models, model_connections, consumer_to_producers_map
+
+def merge_models(model_bin_location, models, arch = "wormhole_b0", merged_model_location = "", switch_chans_if_capacity_hit = True,
+                 overlap_dynamic_queues = True):       
     # Main API that gets exported to other files
     try:
-        assert arch == "grayskull" or arch == "wormhole_b0", "Expected arch to be Grayskull or Wormhole_B0"
+        assert arch == "grayskull" or arch == "wormhole_b0", "Expected arch to be grayskull or wormhole_b0"
         output_loc = merged_model_location
         if not output_loc:
             output_loc = "merged_model.tti"
-        
         merged_binary_dir = tempfile.mkdtemp()
         temp_directories.append(merged_binary_dir)
+        
+        # Parse dependency file, topologically sort models, and infer connections
+        ordered_models = models
+        inter_model_connections = {}
+        consumer_to_producers_map = {}
+        dependency_file = "" # Explicitly set dependency file to empty, since we don't have compiler support for pipelined models
+        if dependency_file:
+            ordered_models, inter_model_connections, consumer_to_producers_map = parse_model_deps(models, dependency_file)
+        
+        model_binaries = [os.path.join(model_bin_location, x + ".tti") for x in ordered_models]
         unzipped_tti_paths = unzip_ttis_and_generate_output_dir(model_binaries, merged_binary_dir)
         overlay_blob_size_per_model = verify_and_copy_config_json(unzipped_tti_paths, merged_binary_dir)
-        netlist_names = merge_device_metadata(unzipped_tti_paths, merged_binary_dir)
+        netlist_names = merge_device_metadata(unzipped_tti_paths, merged_binary_dir, inter_model_connections)
         uniquify_tensor_bin_names(unzipped_tti_paths, merged_binary_dir)
-        merged_netlist_path = merge_netlists(netlist_names, merged_binary_dir, unzipped_tti_paths, overlay_blob_size_per_model, switch_chans_if_capacity_hit, overlap_dynamic_queues)
-        compile_backend_binaries(merged_binary_dir, merged_netlist_path)
+        merged_netlist_path = merge_netlists(arch, netlist_names, merged_binary_dir, unzipped_tti_paths, overlay_blob_size_per_model, 
+                                             switch_chans_if_capacity_hit, overlap_dynamic_queues, inter_model_connections, consumer_to_producers_map)
+        compile_backend_binaries(arch, merged_binary_dir, merged_netlist_path)
         create_merged_tti(output_loc, merged_binary_dir)
         logger.info("Binaries for the merged model are stored in: " + output_loc)
         logger.info("Done!")
@@ -474,14 +585,23 @@ def merge_models(model_binaries, arch, merged_model_location = "", switch_chans_
     except Exception as e:
         logger.exception(e)
         cleanup()
-    
+        
 if __name__ == "__main__":
     # Interface to run tool directly
     parser =  argparse.ArgumentParser()
-    parser.add_argument("--model_binaries", type = str, help = "List of model binaries (tti files) to merge.", required = True, nargs = "*")
-    parser.add_argument("--arch", type = str, help = "Target TT architecture.", default="wormhole_b0")
-    parser.add_argument("--merged_model_location", type = str, help = "Filesystem location where the merged model binaries are stored.")
-    parser.add_argument("--skip_channel_reallocation", type = bool, help = "Skip memory usage optimization that reallocates buffers on different DRAM channels, once channel capacity is hit.", default = False)
-    parser.add_argument("--dynamic_queue_overlap_off", type = bool, help = "Turn off memory usage optimization that overlaps dynamic queues", default = False)
+    parser.add_argument("--model_binaries_location", "-mbl", type=str, help="Location of model binaries (tti files) to merge.", required=True)
+    parser.add_argument("--models", "-mdl", type=str, help="List of models to merge", required=True, nargs="*")
+    # Disable passing in dependency files for now, since we don't have compiler support for pipelined models
+    # parser.add_argument("--dependency_file", "-df", type=str, help="YAML file describing IO dependencies between models")
+    parser.add_argument("--arch", "-a", type=str, help="Target TT architecture.", default="wormhole_b0")
+    parser.add_argument("--merged_model_location", "-mml", type=str, help="Filesystem location where the merged model binaries are stored.")
+    parser.add_argument("--skip_channel_reallocation", "-scr", type=bool, help="Skip memory usage optimization that reallocates buffers on different DRAM channels, once channel capacity is hit.", default=False)
+    parser.add_argument("--dynamic_queue_overlap_off", "-dqo", type=bool, help="Turn off memory usage optimization that overlaps dynamic queues", default=False)
     args = parser.parse_args()
-    merge_models(args.model_binaries, args.arch.lower(), args.merged_model_location, not args.skip_channel_reallocation, not args.dynamic_queue_overlap_off)
+    
+    merge_models(args.model_binaries_location,
+                 args.models,
+                 args.arch.lower(),
+                 args.merged_model_location,
+                 not args.skip_channel_reallocation, 
+                 not args.dynamic_queue_overlap_off)
