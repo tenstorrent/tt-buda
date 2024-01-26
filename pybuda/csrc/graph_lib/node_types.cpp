@@ -23,7 +23,7 @@ template<> const TaggedNode* Node::as<TaggedNode>() const
 {
     const TaggedNode* tagged_node = dynamic_cast<TaggedNode const *>(this);
     TT_ASSERT(tagged_node != nullptr);
-    return dynamic_cast<TaggedNode const *>(this);
+    return tagged_node;
 }
 template<> const OpNode* Node::as<OpNode>() const
 {
