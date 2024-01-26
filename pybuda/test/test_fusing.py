@@ -454,7 +454,7 @@ class FuseMatmulGelu(pybuda.PyBudaModule):
 def test_matmul_gelu(test_device, test_kind):
     relative_atol, pcc = get_relaxed_atol_pcc(True, test_device)
     verify_module(FuseMatmulGelu("fuse_matmul_gelu"), [FuseMatmulGelu.shape],
-        VerifyConfig(test_kind=test_kind, skip_shutdown=True, arch=BackendDevice.Wormhole, devtype=test_device.devtype,
+        VerifyConfig(test_kind=test_kind, skip_shutdown=True, arch=test_device.arch, devtype=test_device.devtype,
                 relative_atol=relative_atol,
                 pcc=pcc))
 

@@ -182,7 +182,7 @@ def test_bwd_fail():
     )
 
     module = ModuleBuilder(bwd_op_format_promotio, ff1_weights=pybuda.Parameter(1,1,64,64))
-    verify_module(module, [(1, 1, 64, 64)], VerifyConfig(test_kind=config.TestKind.TRAINING, arch=BackendDevice.Wormhole))
+    verify_module(module, [(1, 1, 64, 64)], VerifyConfig(test_kind=config.TestKind.TRAINING))
 
 def test_eltwise_binary_mixed_ab_inputs(test_device):
     shape = (1, 1, 32, 32)

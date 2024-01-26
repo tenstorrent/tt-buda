@@ -42,7 +42,7 @@ def test_basic_wormhole(test_kind):
     if test_kind == TestKind.TRAINING_RECOMPUTE:
         pytest.skip() # tenstorrent/budabackend#382
     verify_module(BudaTest("verify_module"), [(1, 64, 64), (1, 64, 64)],
-           VerifyConfig(test_kind=test_kind, run_net2pipe=True, arch=BackendDevice.Wormhole))
+           VerifyConfig(test_kind=test_kind, run_net2pipe=True))
 
 def test_multi_input_inference():
     verify_module(BudaTest("verify_module"), [(1, 64, 64), (1, 64, 64)],

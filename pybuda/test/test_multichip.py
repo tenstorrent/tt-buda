@@ -138,7 +138,7 @@ def test_multichip_wormhole_sanity():
     verify_module(module, [(1, 1, 64, 64)],
             # chip_ids=[0, 1] fails in net2pipe bbe_issue#2331
             # VerifyConfig(test_kind=TestKind.INFERENCE, run_net2pipe=True, arch=BackendDevice.Wormhole, chip_ids=[0,1]))
-            VerifyConfig(test_kind=TestKind.INFERENCE, run_net2pipe=True, arch=BackendDevice.Wormhole))
+            VerifyConfig(test_kind=TestKind.INFERENCE, run_net2pipe=True))
 
 def test_four_chip_wormhole_sanity():
     pytest.skip("Skip until BBE commit 42d9685b1 is consumed")

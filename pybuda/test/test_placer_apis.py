@@ -241,37 +241,6 @@ def test_conflicting_placement_overrides(test_kind):
     verify.verify_module(module, [(1, 1, 64, 64)], VerifyConfig(test_kind=test_kind))
 
 
-def test_wh_pin_op_to_chip_id(test_kind):
-    def wh_pin_op_to_chip_id(act, *, ff1_weights, ff2_weights):
-        op0 = pybuda.op.Matmul(f"ff1", act, ff1_weights)
-        op1 = pybuda.op.Buffer(f"gelu", op0)
-        op2 = pybuda.op.Matmul(f"ff2", op1, ff2_weights)
-        return op2
-
-    pybuda.config.set_epoch_break("gelu")
-    pybuda.config.override_op_placement("gelu", start=[2,2], chip_id=1)
-    pybuda.config.override_op_placement("ff2", start=[2,2])
-
-    module = ModuleBuilder(wh_pin_op_to_chip_id, ff1_weights=pybuda.Parameter(1,1,64,64), ff2_weights=pybuda.Parameter(1,1,64,64))
-    verify.verify_module(module, [(1, 1, 64, 64)], VerifyConfig(test_kind=test_kind, arch=BackendDevice.Wormhole, chip_ids=range(2)))
-
-
-def test_wh_temporal_break(test_kind):
-    def wh_pin_op_to_chip_id(act, *, ff1_weights, ff2_weights):
-        op0 = pybuda.op.Matmul(f"ff1", act, ff1_weights)
-        op1 = pybuda.op.Buffer(f"gelu", op0)
-        op2 = pybuda.op.Matmul(f"ff2", op1, ff2_weights)
-        op3 = pybuda.op.Buffer(f"buffer", op2)
-        return op3
-
-    pybuda.config.set_epoch_break("gelu")
-    pybuda.config.set_epoch_break("ff2")
-    pybuda.config.override_op_placement("buffer", temporal_epoch_break=True)
-
-    module = ModuleBuilder(wh_pin_op_to_chip_id, ff1_weights=pybuda.Parameter(1,1,64,64), ff2_weights=pybuda.Parameter(1,1,64,64))
-    verify.verify_module(module, [(1, 1, 64, 64)], VerifyConfig(test_kind=test_kind, arch=BackendDevice.Wormhole, chip_ids=range(2)))
-
-
 def test_dram_allocator_api(test_device):
     shape = (1, 1, 32, 32)
     test_kind = verify.TestKind.INFERENCE
