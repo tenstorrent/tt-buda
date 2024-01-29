@@ -25,6 +25,8 @@ _graph = None
 _subgraph_index = 0
 _module_index = 0
 _tensor_to_unique_id = {}
+_ordered_inputs_per_subgraph = {}
+_ordered_outputs_per_subgraph = {}
 """
 There are dummy enums defined in pytorch, like PrivateUse1 that can be used
 for bringing up new device types.  Eventually we should mainline an enum for
@@ -300,6 +302,11 @@ class compiledModel(torch.nn.Module):
         for index, out_id in self.device_tensors_to_output:
             outputs.insert(index, _tensor_to_unique_id[out_id])
 
+        global _ordered_outputs_per_subgraph
+        _ordered_outputs_per_subgraph[self.index] = [unique_id(out) for out in outputs]
+        print (f"ordered_inputs_per_subgraph: {_ordered_inputs_per_subgraph}")
+        print (f"ordered_outputs_per_subgraph: {_ordered_outputs_per_subgraph}")
+
         return outputs
     
     def to(self, dev):
@@ -360,6 +367,9 @@ def _torch_compile(
     which has the device target information to decouple it from the runtime device.
     """
     logger.info("Torch Compile")
+    global _ordered_inputs_per_subgraph
+    _ordered_inputs_per_subgraph[_subgraph_index] = [unique_id(inp) for inp in sample_inputs]
+
     strip_overloads(aten_module)
 
     # TODO: Remove me, needs to be persistant

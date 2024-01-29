@@ -135,15 +135,11 @@ def test_gen():
     pybuda_mod = torch.compile(gpt2, backend=compile_torch, dynamic=False)
     result = pybuda_mod(input_ids)
 
-    print("first exec done")
     res = result[0].to("cpu")
-    print("Res on CPU")
     inp2 = torch.randint(0, 10000, (1, 32)).int()
     inp2 = inp2.to("tt")
-    print("Input on TT")
     result = pybuda_mod(inp2, result[1])
     rs2 = result[0].to("cpu")
-    print("Res on CPU")
     
 def test_add():
     class Add(nn.Module):
