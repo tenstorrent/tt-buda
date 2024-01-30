@@ -19,19 +19,22 @@ from pybuda.utils import as_json, dict_as_json, list_as_json, optional_as_json, 
 from loguru import logger
 
 
-
-
 class CompileDepth(Enum):
-    FULL = 0                    # Full compilation
-    START_COMPILE = 1           # Start compilation
-    GENERATE_INITIAL_GRAPH = 2  # Finish compilation after generating an initial graph
-    POST_INITIAL_GRAPH_PASS = 3 # Finish compilation after post initial graph pass
-    PRE_LOWERING_PASS = 4       # Finish compilation after pre lowering pass
-    BUDA_GRAPH_PRE_PLACER = 5   # Finish compilation after lowering to Buda pre-placer pass
-    BALANCER_PASS = 6           # Finish compilation after lowering to Buda balancer pass
-    GENERATE_NETLIST = 7        # Finish compilation after generating a netlist
-    POST_PATTERN_MATCHER = 8    # Finish compilation after running subgraph pattern_matcher
-    BACKEND_GOLDEN_VERIFY = 9   # Finish compilation after backend golder verification during compile stage
+    INIT_COMPILE = 0
+    GENERATE_INITIAL_GRAPH = 1
+    POST_INITIAL_GRAPH_PASS = 2
+    CONSTEVAL_GRAPH = 3
+    POST_PATTERN_MATCHER = 4
+    OPTIMIZED_GRAPH = 5
+    AUTOGRAD = 6
+    POST_AUTOGRAD_PASS = 7
+    PRE_LOWERING_PASS = 8
+    BUDA_GRAPH_PRE_PLACER = 9
+    BALANCER_PASS = 10
+    PRE_NETLIST_PASS = 11
+    GENERATE_NETLIST = 12
+    BACKEND_GOLDEN_VERIFY = 13
+    FULL = 14
 
     @classmethod
     def has_value(cls, value):
@@ -259,7 +262,7 @@ class CompilerConfig:
         if "PYBUDA_COMPILE_DEPTH" in os.environ:
             self.compile_depth = {
                     "full": CompileDepth.FULL,
-                    "start_compile": CompileDepth.START_COMPILE,
+                    "init_compile": CompileDepth.INIT_COMPILE,
                     "generate_initial_graph": CompileDepth.GENERATE_INITIAL_GRAPH,
                     "post_initial_graph_pass": CompileDepth.POST_INITIAL_GRAPH_PASS,
                     "pre_lowering_pass": CompileDepth.PRE_LOWERING_PASS,

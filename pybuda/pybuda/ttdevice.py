@@ -166,7 +166,7 @@ class TTDevice(Device):
     def __repr__(self):
         return f"TTDevice '{self.name}'"
 
-    def get_device_config(self, compiler_cfg=None):
+    def get_device_config(self, compiler_cfg=None) -> DeviceConfig:
         """
         Figure out which silicon devices will be used, if in silicon mode
         """
