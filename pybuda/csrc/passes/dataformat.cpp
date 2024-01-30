@@ -515,17 +515,31 @@ void fix_data_formats(graphlib::Graph *graph, bool fp32_acc_supported)
                     op->set_accumulate_df(DataFormat::Int32);
                 }
                 if (op->output_df() != DataFormat::Int8 
-                    and op->buda_attrs().find("has_requant") != op->buda_attrs().end()
-                    and op->buda_attrs().find("has_dequant") == op->buda_attrs().end()
-                    and op->op_name() != "dequantization")
+                    and op->op_name() != "dequantization"
+                    and op->buda_attrs().find("has_dequant") == op->buda_attrs().end())
                 {
-                    // Only set to INT8 if requantization is applied.
-                    log_warning(
-                        "Op {} is configured for Int8, but output_df != Int8. "
-                        "Setting output_df from {} to Int8.",
-                        op->name(),
-                        op->output_df());
-                    op->set_output_df(DataFormat::Int8);
+                    if (op->buda_attrs().find("has_requant") != op->buda_attrs().end()) {
+                        log_warning(
+                            "Op {} is configured for Int8, but output_df != Int8. "
+                            "Setting output_df from {} to Int8.",
+                            op->name(),
+                            op->output_df());
+                        op->set_output_df(DataFormat::Int8);
+                    } else if (op->is_matmul()){
+                        log_warning(
+                            "Op {} is configured for Int8, but output_df != Int8. "
+                            "Setting output_df from {} to Int8.",
+                            op->name(),
+                            op->output_df());
+                        op->set_output_df(DataFormat::Int32);
+                    } else {
+                        log_warning(
+                            "Op {} is configured for Int8, but output_df != Int8. "
+                            "Setting output_df from {} to Int8.",
+                            op->name(),
+                            op->output_df());
+                        op->set_output_df(DataFormat::Int8);
+                    }
                 }
             }
             else if (is_configured_for_int32(graph, node))

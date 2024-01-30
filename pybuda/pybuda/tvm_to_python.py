@@ -1190,7 +1190,6 @@ def populate_quantize_args(graph, nid, compiler_cfg):
 
     args.append(("out_dtype", "torch." + node['attrs']['out_dtype'][0][0]))
     args.append(("axis", f"{int(node['attrs']['axis'][0][0])}"))
-    print(f"Node quantize out dtype {node['attrs']['out_dtype'][0][0]}")
     return args
 
 def populate_dequantize_args(graph, nid, compiler_cfg):
@@ -1206,7 +1205,6 @@ def populate_requantize_args(graph, nid, compiler_cfg):
     node = graph["nodes"][nid]
     args.append(("axis", f"{int(node['attrs']['axis'][0][0])}"))
     args.append(("out_dtype", "torch." + node['attrs']['out_dtype'][0][0]))
-    print(f"Node Requantize out dtype {node['attrs']['out_dtype'][0][0]}")
 
     return args
 

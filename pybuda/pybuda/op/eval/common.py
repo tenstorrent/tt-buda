@@ -58,7 +58,7 @@ def cast_for_cpu_eval(t_ops, op_name=None):
             t_ops[index] = op.to(torch.float32)
         if op.dtype == torch.int8:
             t_ops[index] = op.to(torch.float32)
-            if op_name == "matmul":
+            if op_name == "matmul" or op_name == "depthwise":
                 original_type = torch.int32
             elif op_name == "sparse_matmul":
                 original_type = torch.int8

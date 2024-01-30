@@ -34,6 +34,7 @@
 #include "passes/lower_concat_to_runtime_transform.hpp"
 #include "passes/lower_reinterpret_shape.hpp"
 #include "passes/lowering_context.hpp"
+#include "passes/move_requantize.hpp"
 #include "passes/move_select_after_matmul_optional.hpp"
 #include "passes/pad_output_buffer.hpp"
 #include "passes/passes_utils.hpp"
@@ -160,6 +161,7 @@ void run_optimization_graph_passes(graphlib::Graph *graph, const DeviceConfig &d
             passes::bypass_nop_tms(graph);
         }
     }
+    passes::move_tm_through_requantize(graph);
     recalculate_shapes(graph);
 
     passes::hoist_transforms_to_inputs(graph);

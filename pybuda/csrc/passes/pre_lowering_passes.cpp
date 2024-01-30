@@ -523,7 +523,7 @@ static bool has_fusable_upstream_matmul(graphlib::Graph *graph, graphlib::PyOpNo
     if (op == nullptr)
         return false;
 
-    while (not (op->is_dense_matmul() || op->is_depthwise_matmul()))
+    while (not (op->is_dense_matmul() || (op->is_depthwise_matmul() and not requant))) // requant can't be fused to depthwise
     {
         if (not (commutable_reshape(op))) {
             if (not (requant and op->is_tm()))  // requant can be commuted through TM

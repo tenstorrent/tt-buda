@@ -821,29 +821,6 @@ bool is_quantization_ops(graphlib::OpNode *op)
 }
 
 
-bool can_commute_through_squeeze(
-    graphlib::OpNode* op, 
-    graphlib::OpNode* initial_op)
-{
-    if (initial_op->op_name() == "transpose") {
-        auto dim0 = initial_op->op_type().get_attr_as<int>("dim0");
-        auto dim1 = initial_op->op_type().get_attr_as<int>("dim1");
-        if (dim0 < 0)
-            dim0 += initial_op->shape().size();
-        if (dim1 < 0)
-            dim1 += initial_op->shape().size();
-
-        auto squeeze_dim = std::get<int>(op->op_attrs()[0]);
-        if (squeeze_dim < 0)
-            squeeze_dim += op->shape().size();
-        
-        if (dim0 != squeeze_dim and dim1 != squeeze_dim)
-            return true;
-    }
-
-    return false;
-}
-
 bool can_commute_past_op(
     graphlib::OpNode *op,
     graphlib::OpNode *initial_op,
@@ -869,11 +846,7 @@ bool can_commute_past_op(
         bool can_commute = can_commute_through_select(graph, op, initial_op, producer, commute_shape, clone_shape, commute_up);
         return can_commute;
     }
-    else if (op->op_name() == "squeeze")
-    {
-        bool can_commute = can_commute_through_squeeze(op, initial_op);
-        return can_commute;
-    }
+
     return (is_elementwise(op) and op->op_name() != "interleave") or is_quantization_ops(op);
 }
 

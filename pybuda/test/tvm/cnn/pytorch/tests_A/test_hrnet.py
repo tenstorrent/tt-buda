@@ -52,7 +52,7 @@ def test_hrnet_full_model(test_kind, test_device):
 
 def test_hrnet_basic_block(test_kind, test_device):
     if (
-        test_kind == TestKind.TRAINING
+        test_kind.is_training()
     ):  # Always run with recompute in post-commit CI. Nightly tests both
         pytest.skip()
 
@@ -83,7 +83,7 @@ def test_hrnet_basic_block(test_kind, test_device):
 
 def test_hrnet_fuse_layer(test_kind, test_device):
     if (
-        test_kind == TestKind.TRAINING
+        test_kind.is_training()
     ):  # Always run with recompute in post-commit CI. Nightly tests both
         pytest.skip()
 

@@ -768,7 +768,7 @@ def decompose(type, attr, dc, inputs):
         # We allow prestriding only in inference mode currently
         compiler_cfg = dc.get_compiler_cfg()
         is_prestride_enabled = not dc.is_training_enabled() and compiler_cfg.enable_conv_prestride
-        # import pdb; pdb.set_trace()
+
         if is_prestride_enabled and should_prestride(attr, dc, inputs):
             # Prestride
             decompose_conv2d_prestride(attr, dc, inputs)

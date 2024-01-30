@@ -40,7 +40,7 @@ def get_relaxed_atol_pcc(test_kind, test_device, microbatch_size=1):
 
 def test_resnet_pytorch(test_kind, test_device):
     # Always run with recompute in post-commit CI. Nightly tests both
-    if test_kind == TestKind.TRAINING:
+    if test_kind.is_training():
         pytest.skip()
 
     compiler_cfg = _get_global_compiler_config()

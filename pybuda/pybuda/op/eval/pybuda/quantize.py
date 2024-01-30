@@ -147,40 +147,6 @@ def shape(type, attr, ops):
         for dim in range(1, len(ops[0])):
             if ops[0][dim] != ops[1][dim]:
                 broadcast.append((1, dim - len(ops[0]), ops[0][dim]))
-
-    # if type == "requantize":
-    #     op2 = ops[2]
-    #     axis = attr[2]
-    #     if axis < 0:
-    #         axis = len(ops[0]) + axis
-    #     left_ndim = axis
-    #     right_ndim = len(ops[0]) - axis - 1
-    #     if len(op1) == 1:
-    #         op1 = [1] * left_ndim + list(ops[1]) + [1] * right_ndim
-    #     if len(op2) == 1:
-    #         op2 = [1] * left_ndim + list(ops[2]) + [1] * right_ndim
-    #     assert len(op1) == len(op0) == len(op2), "Scale and input must have same dimension"
-
-    #     for dim in range(1, len(op0)):
-    #         if op0[dim] != op1[dim]:
-    #             print("op0 shape " + str(op0))
-    #             broadcast.append((1, dim - len(op0), op0[dim]))
-    #             print("op1 shape " + str(op1))
-
-    
-    #     for dim in range(1, len(op0)):
-    #         if op0[dim] != op2[dim]:
-    #             broadcast.append((2, dim - len(op0), op0[dim]))
-
-    # if type == "dequantize":
-    #     import pdb; pdb.set_trace()
-    #     op1 = list(ops[1])
-    #     while len(op1) < len(ops[0]):
-    #         op1 = [1] + op1
-    #     for dim in range(1, len(ops[0])):
-    #         if ops[0][dim] != op1[dim]:
-    #             broadcast.append((1, dim - len(ops[0]), ops[0][dim]))
-
     return ops[0], broadcast
 
 
@@ -237,11 +203,6 @@ def decompose(type, attr, dc, inputs):
                 out_scale = dc.op("unsqueeze", [out_scale], attrs=(len(out_scale_shape), len(out_scale_shape)), output_df=out_scale.output_df)
                 out_scale_shape = out_scale_shape + [1]
 
-        # Bcast on axis
-        # if inp_scale_shape[axis] != act.shape[axis]:
-        #     assert inp_scale_shape[axis] == 1
-        #     inp_scale = dc.op("broadcast", [inp_scale], attrs=(axis - len(inp_scale_shape), act.shape[axis]),output_df=inp_scale.output_df)
-        #     inp_scale_shape[axis] = act.shape[axis]
 
         if out_scale_shape[axis] != act.shape[axis]:
             assert out_scale_shape[axis] == 1
@@ -276,11 +237,6 @@ def decompose(type, attr, dc, inputs):
                 scale = dc.op("unsqueeze", [scale], attrs=(len(scale_shape), len(scale_shape)), output_df=scale.output_df)
                 scale_shape = scale_shape + [1]
 
-        # Bcast on axis
-        # if scale_shape[axis] != act.shape[axis]:
-        #     assert scale_shape[axis] == 1
-        #     scale = dc.op("broadcast", [scale], attrs=(axis - len(scale_shape), act.shape[axis]),output_df=scale.output_df)
-        #     scale_shape[axis] = act.shape[axis]
 
         out = dc.op("buda_dequantize", [act, scale], attrs=attr,)
         dc.fuse(out)

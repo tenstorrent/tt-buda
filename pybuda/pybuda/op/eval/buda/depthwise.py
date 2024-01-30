@@ -17,7 +17,7 @@ from pybuda.pybudaglobal import TILE_DIM
 from pybuda.utils import align_up_tile
 from pybuda._C.graph import UBlockOrder
 
-from ..common import to_torch_operands, math_fidelity_to_multiplier, data_format_to_int, op_model_to_desc
+from ..common import to_torch_operands, math_fidelity_to_multiplier, data_format_to_int, op_model_to_desc, cast_for_cpu_eval
 
 
 def eval(type, attr, ops):
@@ -25,6 +25,7 @@ def eval(type, attr, ops):
     assert len(attr) == 1, f"Unexpected number of attrs for depthwise matmul: {len(attr)}"
 
     t_ops = to_torch_operands(*ops)
+    t_ops, original_type = cast_for_cpu_eval(t_ops, type)
     in0 = t_ops[0]
     in1 = t_ops[1]
     bias = t_ops[2] if len(t_ops) == 3 else None
@@ -53,7 +54,7 @@ def eval(type, attr, ops):
     if bias is not None:
         result += bias
 
-    return result
+    return result.to(original_type)
 
 
 def shape(type, attr, ops, tile_height, tile_width):
