@@ -59,6 +59,7 @@ from pybuda import PyBudaModule
 from .tensor import Tensor, to_pt_tensors, to_buda_tensors
 from . import ci, utils
 from pybuda.tools.net2reportify import net2placement
+from .backend import BackendCompileException
 
 LAST_SUCCESSFUL_STAGE = None
 def init_log_last_successful_compile_stage():
@@ -165,7 +166,9 @@ class CompileContext:
     buda_losses: List[Tensor] = field(default_factory=list)
     placer_retry_count: int = 0
     backend_output_directory: str = ""
-
+    in_recompile: bool = False
+    recompile_count: int = 0
+    target_cycles_offset: int = 0
 
 def calculate_grads(
         outputs: Tuple[Tensor, ...],
@@ -934,6 +937,7 @@ def run_balancer_and_placer(context: CompileContext) -> CompileDepth:
         enable_enumerate_u_kt = context.compiler_cfg.enable_enumerate_u_kt,
         enable_single_buffer_fallback = context.compiler_cfg.enable_single_buffer_fallback,
     )
+    balancer_config.target_cycles_offset = context.target_cycles_offset
 
     try:
         context.balancer_solution, had_balancer_attempts = run_placer_buda_passes(context.lowered_graph, balancer_config, context.fracture_chip_id_assignments, context.compiler_cfg.paddings)
@@ -1086,7 +1090,16 @@ def generate_netlist(context: CompileContext) -> CompileDepth:
         generate_override_config(lowered_graph, balancer_solution, placer_solution, post_placer_results.nop_instructions, graph_name)
 
     if verify_cfg.run_net2pipe or bool(int(os.environ.get("PYBUDA_VERIFY_NET2PIPE", "0"))):
-        verify_net2pipe(context.netlist_filename, device_cfg.device_yaml, device_cfg.cluster_config_yaml)
+        logger.info("Verifying net2pipe.")
+        ok, error = verify_net2pipe(context.netlist_filename, device_cfg.device_yaml, device_cfg.cluster_config_yaml)
+        if not ok:
+            logger.error("net2pipe failed: {}", error)
+            is_error_handled = handle_backend_error(context, None)
+            assert is_error_handled, "Net2Pipe verification failed"
+
+            return context.stage
+
+        logger.info("net2pipe completed successfully!")
 
     return CompileDepth.BACKEND_GOLDEN_VERIFY
 
@@ -1123,3 +1136,42 @@ def run_backend_golden_verify(context: CompileContext) -> CompileDepth:
 
     return CompileDepth.FULL
 
+def handle_backend_error(context: CompileContext, ex: Optional[BackendCompileException]) -> bool:
+    """
+    If pybuda recompile is enabled, tries to handle error raised by the backend.
+
+    Parameters
+    ----------
+    context: CompileContext
+        Compile context
+
+    e: Exception
+        Exception
+
+    Returns
+    -------
+    bool - True if the error was handled and we should recompile, false otherwise
+    """
+
+    assert context is not None
+    recompile_enabled = bool(int(os.environ.get("PYBUDA_AUTO_RECOMPILE", "0")))
+    recompile_retry_limit = int(os.environ.get("PYBUDA_AUTO_RECOMPILE_RETRY_LIMIT", "10"))
+
+    # Currently only NLP and Ribbon policies are supported for recompilation.
+    # Because the only handling we do is to change the target cycles and recompile - which other policies don't use.
+    if context.policy_type not in [pybalancer.PolicyType.NLP, pybalancer.PolicyType.Ribbon]:
+        return False
+
+    if recompile_enabled and context.recompile_count < recompile_retry_limit:
+        logger.warning("Compile failed, retrying compilation with different parameters.")
+        context.in_recompile = True
+        context.recompile_count += 1
+
+        # Offset target cycles for the recompile.
+        context.target_cycles_offset += int(os.environ.get("PYBUDA_TARGET_CYCLES_OFFSET", "50000"))
+
+        # Set the compile context to execute from pre placer stage.
+        context.stage = CompileDepth.BUDA_GRAPH_PRE_PLACER
+        return True
+
+    return False

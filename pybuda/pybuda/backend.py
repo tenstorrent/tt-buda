@@ -25,6 +25,10 @@ from .tensor import Tensor, consteval_input, pytorch_tensor_to_tensor_desc, pad_
 from .utils import detach_tensors
 from .config import PerfTraceLevel
 
+class BackendCompileException(Exception):
+    def __init__(self, compile_result: BackendCompileResult):
+        self.compile_result = compile_result
+
 class BackendAPI:
 
     def __init__(self,
@@ -81,7 +85,7 @@ class BackendAPI:
             f"target chip id: {self.compile_result.device_id}, target core(x,y): {self.compile_result.logical_core_x} {self.compile_result.logical_core_y}, temporal epoch id: {self.compile_result.temporal_epoch_id}\n"
             f"requires extra size bytes: {self.compile_result.extra_size_bytes}\n")
             self.shutdown()
-            raise RuntimeError(f"Backend compile failed: {self.compile_result.failure_type}")
+            raise BackendCompileException(self.compile_result)
 
         # Create and start a feeder thread, if requested
         if feeder_thread:

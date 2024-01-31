@@ -62,6 +62,7 @@ struct BalancerConfig
     bool enable_enumerate_u_kt;
     bool enable_single_buffer_fallback;
     std::uint32_t fork_join_tiles_treshold = 1000;
+    std::uint32_t target_cycles_offset = 0;
 
     BalancerConfig(
         const DeviceConfig& device_config,

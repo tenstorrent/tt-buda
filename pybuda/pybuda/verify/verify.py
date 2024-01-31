@@ -278,5 +278,5 @@ def verify_golden(
 def verify_net2pipe(netlist, device_yaml, cluster_cfg_yaml):
     level = int(os.environ.get("PYBUDA_VERIFY_NET2PIPE", "0"))
     returncode, error_message = net2pipe(netlist, device_yaml=device_yaml, cluster_cfg_yaml=cluster_cfg_yaml, stats=(level > 3), run_pipegen=(level > 1), run_blobgen=(level > 2))
-    assert returncode == 0, f"net2pipe failed: {error_message}"
-    logger.info("net2pipe success!")
+    ok = returncode == 0
+    return ok, error_message

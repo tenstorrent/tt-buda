@@ -42,6 +42,7 @@ class BalancerConfig:
     random_policy_seed: int
     scheduler_config: pybuda._C.scheduler.SchedulerConfig
     skip_l1_usage_validation: bool
+    target_cycles_offset: int
     use_interactive_placer: bool
     def __init__(self, device_config, scheduler_config: pybuda._C.scheduler.SchedulerConfig, policy_type: PolicyType = ..., random_policy_seed: int = ..., chip_ids: List[int] = ..., chip_placement_policy: ChipPlacementPolicy = ..., default_dram_parameters: bool = ..., skip_l1_usage_validation: bool = ..., enable_t_streaming: bool = ..., manual_t_streaming: bool = ..., input_queues_on_host: bool = ..., output_queues_on_host: bool = ..., op_overrides: Dict[str, OpOverride] = ..., op_names_to_epoch_break: List[List[str]] = ..., op_names_to_chip_break: List[List[str]] = ..., op_names_to_chip_id_assignment: Dict[str, int] = ..., op_name_to_placer_overrides: Dict[str, pybuda._C.placer.OpOverride] = ..., enable_auto_transposing_placement: bool = ..., graph_solver_self_cut_type: GraphSolverSelfCutType = ..., use_interactive_placer: bool = ..., enable_enumerate_u_kt: bool = ..., enable_single_buffer_fallback: bool = ...) -> None: ...
 
@@ -117,16 +118,27 @@ class FactorizedInt:
     def max_factor(self) -> int: ...
 
 class FusedSubOpModel:
-    type: str
-    mblock_m: int
-    mblock_n: int
-    ublock_rt: int
-    ublock_ct: int
-    mblock_k: int
-    ublock_kt: int
-    reduce_dim: str
-    has_dest_input: bool
-    has_dest_output: bool
+    def __init__(self, *args, **kwargs) -> None: ...
+    @property
+    def has_dest_input(self) -> bool: ...
+    @property
+    def has_dest_output(self) -> bool: ...
+    @property
+    def mblock_k(self) -> int: ...
+    @property
+    def mblock_m(self) -> int: ...
+    @property
+    def mblock_n(self) -> int: ...
+    @property
+    def reduce_dim(self) -> str: ...
+    @property
+    def type(self) -> str: ...
+    @property
+    def ublock_ct(self) -> int: ...
+    @property
+    def ublock_kt(self) -> int: ...
+    @property
+    def ublock_rt(self) -> int: ...
 
 class GraphSolverSelfCutType:
     __members__: ClassVar[dict] = ...  # read-only

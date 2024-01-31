@@ -781,7 +781,10 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
 
     std::unordered_set<std::uint64_t> validated_cache;  // list of op model IDs that have been validated to be ok, so we
                                                         // don't have to validate them again
-    const int target_cycles = env_as<int>("PYBUDA_RIBBON_TARGET_CYCLES", 95000);
+
+    // In case of recompile, we can offset the target cycles to get a different solution.
+    const int target_cycles =
+        env_as<int>("PYBUDA_RIBBON_TARGET_CYCLES", 95000) + config.target_cycles_offset;
     const int max_iterations = env_as<int>("PYBUDA_RIBBON2_OPTIMIZATION_ITERATIONS", 0);
 
     TT_ASSERT(config.op_names_to_chip_break.size() == 0, "Ribbon2 policy does not process chip breaks");

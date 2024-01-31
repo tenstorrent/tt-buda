@@ -206,6 +206,9 @@ std::shared_ptr<balancer::BalancerSolution> run_epoch_placer(
         global_target_cycles = calculate_target_cycles(current_graph, graph_solver, config.device_config.arch_name);
     }
 
+    // In case of recompile, we can offset the target cycles to get a different solution.
+    global_target_cycles += config.target_cycles_offset;
+
     auto [op_models, block_shape_map, output_host_tms, cut_edges] =
         run_balancer(current_graph, config, cache_collection, global_valid_op_models, global_target_cycles);
 

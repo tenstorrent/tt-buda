@@ -31,7 +31,7 @@ from pybuda.tvm_utils import flatten_inputs
 from .pybudaglobal import TILE_DIM, create_queue
 from .verify import VerifyConfig
 from .config import CompilerConfig, _get_global_compiler_config
-from .backend import BackendAPI
+from .backend import BackendAPI, BackendCompileException
 from pybuda._C.backend_api import BackendDevice, BackendType, DeviceMode, StrideDescriptor, DramIODesc, DeviceConfig, get_device_descs_for_available_devices, get_custom_device_desc, get_device_cluster_yaml
 from .device_connector import (
     DeviceConnector, 
@@ -791,57 +791,82 @@ class TTDevice(Device):
             verify_cfg = VerifyConfig.disabled() # no verification config provided, disable by default
 
         losses = None
-        from .compile import pybuda_compile
+
+        should_compile = self.device_mode == DeviceMode.CompileAndRun or self.device_mode == DeviceMode.CompileOnly
+
+        from .compile import pybuda_compile_from_context, handle_backend_error, CompileContext
         from .compiled_graph_state import CompiledGraphState
-        if self.device_mode == DeviceMode.CompileAndRun or self.device_mode == DeviceMode.CompileOnly:
-            graph_name = self.modules[0].get_name()
-            self._compile_output = pybuda_compile(
+
+        compile_context: Optional[CompileContext] = None
+        if should_compile:
+            compile_context = CompileContext(
+                dev=self,
+                graph_name=self.modules[0].get_name(),
+                inputs=inputs,
+                compiler_cfg=compiler_cfg,
+                verify_cfg=verify_cfg,
+                device_cfg=self.get_device_config(compiler_cfg),
+                microbatch_size=microbatch_size,
+                microbatch_count=microbatch_count,
+                targets=targets,
+                losses=losses,
+            )
+
+        while self._compiled == False or self.backend_api == None:
+
+            if should_compile:
+                assert compile_context is not None
+                compile_context.device_cfg = self.get_device_config(compiler_cfg)
+                self._compile_output = pybuda_compile_from_context(compile_context)
+
+                self._compiled_graph_state = CompiledGraphState.from_compiled_graph(self, self._compile_output)
+
+            device_mode_for_backend = DeviceMode.RunOnly if "PYBUDA_SKIP_BACKEND_COMPILE" in os.environ else self.device_mode
+            backend_runtime_args = compiler_cfg.backend_runtime_args if "PYBUDA_FORCE_SEQUENTIAL" in os.environ else compiler_cfg.backend_runtime_args + " --concurrent-mode"
+
+            # Set some perf defaults for WH
+            if self.arch == BackendDevice.Wormhole_B0:
+                os.environ["TT_BACKEND_MULTI_THREADED_PUSH"] = "1"
+
+            try:
+                self.backend_api = BackendAPI(
+                    self.devtype,
+                    self.arch,
                     self,
-                    graph_name,
-                    *inputs,
-                    compiler_cfg = compiler_cfg,
-                    verify_cfg = verify_cfg,
-                    losses = losses,
-                    targets = targets,
-                    microbatch_size = microbatch_size,
-                    microbatch_count = microbatch_count)
+                    self._compiled_graph_state.netlist_filename,
+                    self._compiled_graph_state,
+                    not self._sequential,
+                    None,
+                    None,
+                    compiler_cfg.performance_trace,
+                    device_mode_for_backend,
+                    verify_cfg.golden_ignore_df_precision,
+                    compiler_cfg.backend_opt_level,
+                    compiler_cfg.backend_output_dir,
+                    # for nebula+galaxy, backend_device_descriptor_path is for unharvested device_desc
+                    # creating backend with it will cause crashes when runtime tries to reset the harvested cores in nebulas
+                    # not passing device_desc allows runtime to create unharvested&harvested device_desc's for each chip
+                    compiler_cfg.backend_device_descriptor_path if "PYBUDA_NEBULA_GALAXY_PLACER" not in os.environ else "",
+                    compiler_cfg.backend_cluster_descriptor_path,
+                    backend_runtime_args)
+            except BackendCompileException as ex:
+                if compile_context is not None:
+                    if handle_backend_error(compile_context, ex):
+                        # Continue to recompile
+                        continue
 
-            self._compiled_graph_state = CompiledGraphState.from_compiled_graph(self, self._compile_output)
+                raise RuntimeError(f"Backend compile failed: {ex.compile_result.failure_type}")
 
-        device_mode_for_backend = DeviceMode.RunOnly if "PYBUDA_SKIP_BACKEND_COMPILE" in os.environ else self.device_mode
-        backend_runtime_args = compiler_cfg.backend_runtime_args if "PYBUDA_FORCE_SEQUENTIAL" in os.environ else compiler_cfg.backend_runtime_args + " --concurrent-mode"
+            if compile_context is not None and compile_context.recompile_count > 0:
+                logger.info("Compile successfully completed after {} retries!", compile_context.recompile_count)
 
-        # Set some perf defaults for WH
-        if self.arch == BackendDevice.Wormhole_B0:
-            os.environ["TT_BACKEND_MULTI_THREADED_PUSH"] = "1"
+            self._compiled = True
 
-        self.backend_api = BackendAPI(
-            self.devtype,
-            self.arch,
-            self,
-            self._compiled_graph_state.netlist_filename,
-            self._compiled_graph_state,
-            not self._sequential,
-            None,
-            None,
-            compiler_cfg.performance_trace,
-            device_mode_for_backend,
-            verify_cfg.golden_ignore_df_precision,
-            compiler_cfg.backend_opt_level,
-            compiler_cfg.backend_output_dir,
-            # for nebula+galaxy, backend_device_descriptor_path is for unharvested device_desc
-            # creating backend with it will cause crashes when runtime tries to reset the harvested cores in nebulas
-            # not passing device_desc allows runtime to create unharvested&harvested device_desc's for each chip
-            compiler_cfg.backend_device_descriptor_path if "PYBUDA_NEBULA_GALAXY_PLACER" not in os.environ else "",
-            compiler_cfg.backend_cluster_descriptor_path,
-            backend_runtime_args)
-            
         if self.device_mode == DeviceMode.CompileAndRun or self.device_mode == DeviceMode.RunOnly:
             # Copy constants and parameters to device - probably shouldn't be part of compile, but explicit on run!
             self.backend_api.push_constants_and_parameters(translate=True)
             self.backend_api.push_optimizer_parameters(translate=True)
 
-        self._compiled = True
         if self._compile_output and self._compile_output.outputs:
             return [t.detach() for t in self._compile_output.outputs] # detach so it can pushed into mp queues
         else:

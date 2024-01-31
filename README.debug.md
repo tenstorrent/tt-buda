@@ -106,6 +106,9 @@
  * PYBUDA\_RIBBON1\_PREPASS\_ENABLED: Whether to use or not suboptimal opmodel invalidation prepass. Default value is False.
  * PYBUDA\_RIBBON2\_OPTIMIZATION\_ITERATIONS: Number of optimization iterations in Ribbon2 balancing policy. Default value is 0.
  * PYBUDA\_RIBBON2\_DISABLE\_CLEANUP\_BUF\_NOPS: Disable cleanup of unneeded buffering nops in Ribbon2. (default: 0/False)
+ * PYBUDA\_AUTO\_RECOMPILE: Triggers handling of backend compile error and recompiles the model. (default: 0/False)
+ * PYBUDA\_AUTO\_RECOMPILE\_RETRY\_LIMIT: Limits number of attempts to recompile. (default: 10)
+ * PYBUDA\_TARGET\_CYCLES\_OFFSET: Sets the desired amount by which to offset the target cycles for balancer. Default value is 0.
 
 ## Temp overrides
 * PYBUDA\_TEMP\_ENABLE\_NEW\_SPARSE\_ESTIMATES: Apply new formula to estimate the cycle count of sparse matmul ops (currently only support LoFi and HiFi2 fidelities)

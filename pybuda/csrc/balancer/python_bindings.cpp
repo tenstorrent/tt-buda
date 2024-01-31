@@ -241,7 +241,8 @@ void BalancerModule(py::module &m_balancer) {
         .def_readwrite("use_interactive_placer", &BalancerConfig::use_interactive_placer)
         .def_readwrite("enable_enumerate_u_kt", &BalancerConfig::enable_enumerate_u_kt)
         .def_readwrite("enable_single_buffer_fallback", &BalancerConfig::enable_single_buffer_fallback)
-        .def_readwrite("fork_join_tiles_treshold", &BalancerConfig::fork_join_tiles_treshold);
+        .def_readwrite("fork_join_tiles_treshold", &BalancerConfig::fork_join_tiles_treshold)
+        .def_readwrite("target_cycles_offset", &BalancerConfig::target_cycles_offset);
 
     py::class_<TensorShape>(m_balancer, "TensorShape")
         .def_readonly("w", &TensorShape::w)

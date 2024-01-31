@@ -69,7 +69,11 @@ legalizer::GraphSolverSolution run_policy_nlp_v2(
             target_cycles = get_matmul_target_cycles(
                 graph, topo_sort, policy_manager, min_param_grid_volume, config.device_config.arch_name);
         }
+
+        // In case of recompile, we can offset the target cycles to get a different solution.
+        target_cycles += config.target_cycles_offset;
     }
+
     std::vector<int> target_cycles_per_subgraph = env_as_vector<int>("PYBUDA_NLP_MANUAL_TARGET_PER_SUBGRAPH");
     std::map<int, int> target_cycles_per_subgraph_map;
     int default_target_cycles = target_cycles;
