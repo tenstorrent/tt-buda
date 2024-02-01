@@ -212,6 +212,26 @@ def get_budabackend_git_hash() -> Optional[str]:
     except:
         return None
 
+def budabackend_path() -> str:
+    if "BUDA_HOME" in os.environ:
+        return os.environ["BUDA_HOME"]
+
+    if os.path.exists(os.getcwd() + '/third_party/budabackend'):
+        # must be in pybuda root
+        return "third_party/budabackend/"
+    else:
+        return ""
+
+
+def resolve_device_descriptor_path(device_yaml_override: str) -> str:
+    if os.path.isfile(device_yaml_override):
+        return device_yaml_override
+    elif os.path.isfile(budabackend_path() + f"device/{device_yaml_override}"):
+        return budabackend_path() + f"device/{device_yaml_override}"
+    else:
+        raise FileNotFoundError(f"Device descriptor file not found: {device_yaml_override}")
+
+
 def get_buda_compile_and_runtime_configs() -> Dict[str, str]: 
     """
     Capture compile-time and runtime environment variables used to compile and run on the device.

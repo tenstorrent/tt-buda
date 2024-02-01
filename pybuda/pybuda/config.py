@@ -15,7 +15,7 @@ from pybuda._C.backend_api import DeviceMode
 import pybuda.query as query
 from dataclasses_json import dataclass_json, config
 
-from pybuda.utils import as_json, dict_as_json, list_as_json, optional_as_json, resolve_output_build_directory
+from pybuda.utils import as_json, dict_as_json, list_as_json, optional_as_json, resolve_output_build_directory, resolve_device_descriptor_path
 from loguru import logger
 
 
@@ -318,7 +318,7 @@ class CompilerConfig:
             self.scheduler_policy = os.environ["PYBUDA_SCHEDULER_POLICY"]
 
         if "PYBUDA_OVERRIDE_DEVICE_YAML" in os.environ:
-            self.backend_device_descriptor_path = os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"]
+            self.backend_device_descriptor_path = resolve_device_descriptor_path(os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"])
 
     def __post_init__(self):
         self.apply_env_config_overrides()
@@ -595,7 +595,7 @@ def set_configuration_options(
     if backend_output_dir is not None:
         g_compiler_config.backend_output_dir = backend_output_dir
     if backend_device_descriptor_path is not None:
-        g_compiler_config.backend_device_descriptor_path = backend_device_descriptor_path
+        g_compiler_config.backend_device_descriptor_path = resolve_device_descriptor_path(backend_device_descriptor_path)
     if backend_cluster_descriptor_path is not None:
         g_compiler_config.backend_cluster_descriptor_path = backend_cluster_descriptor_path
     if backend_runtime_params_path is not None:

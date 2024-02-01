@@ -21,6 +21,7 @@ from .tensor import Tensor, to_pt_tensors, remove_microbatch, consteval_input_bw
 from .parameter import Parameter
 from .optimizers import Optimizer
 from .schedulers import LearningRateScheduler
+from .utils import budabackend_path
 
 from pybuda._C.graph import Graph, create_op_node, create_data_edge, create_parameter_input, create_activation_input, create_output, create_constant_input, create_target_input, add_partial_datacopy_edge, RuntimeTensorTransform, RuntimeTensorTransformType, Shape, OpType
 from pybuda._C.graph import eval as graph_eval
@@ -1530,17 +1531,6 @@ class TTDevice(Device):
         return TTDeviceImage.create_device_from_image(img)
 
 
-def budabackend_path() -> str:
-    if "BUDA_HOME" in os.environ:
-        return os.environ["BUDA_HOME"]
-
-    if os.path.exists(os.getcwd() + '/third_party/budabackend'):
-        # must be in pybuda root
-        return "third_party/budabackend/"
-    else:
-        return ""
-
-
 def get_backend_string(backend_type: BackendType) -> str:
     BACKEND_TYPE_TO_DEVICE_GRID = {
             BackendType.Golden: "golden",
@@ -1555,13 +1545,10 @@ def get_backend_string(backend_type: BackendType) -> str:
 
 
 def get_default_device_yaml(arch: BackendDevice, device_yaml: str, backend_output_dir: str, device_yaml_override: Optional[str]) -> str:
+    if arch not in {BackendDevice.Grayskull, BackendDevice.Wormhole, BackendDevice.Wormhole_B0}:
+        raise RuntimeError("Running pybuda_compile with unknown arch config")
     if device_yaml_override:
-        if arch not in {BackendDevice.Grayskull, BackendDevice.Wormhole, BackendDevice.Wormhole_B0}:
-            raise RuntimeError("Running pybuda_compile with unknown arch config")
-        if os.path.isfile(device_yaml_override):
-            return device_yaml_override
-        elif os.path.isfile(budabackend_path() + f"device/{device_yaml_override}"):
-            return budabackend_path() + f"device/{device_yaml_override}"
+        return device_yaml_override
 
     # NOTE: followings should be removed when decweek3 uplift is merged
     harvested_rows_manual = os.environ.get("TT_BACKEND_HARVESTED_ROWS", None)
