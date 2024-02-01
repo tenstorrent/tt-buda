@@ -32,7 +32,7 @@ from .pybudaglobal import TILE_DIM, create_queue
 from .verify import VerifyConfig
 from .config import CompilerConfig, _get_global_compiler_config
 from .backend import BackendAPI
-from pybuda._C.backend_api import BackendDevice, BackendType, DeviceMode, StrideDescriptor, DramIODesc, DeviceConfig, get_device_descs_for_available_devices, get_custom_device_desc, get_device_cluster_yaml, load_cached_sys_param
+from pybuda._C.backend_api import BackendDevice, BackendType, DeviceMode, StrideDescriptor, DramIODesc, DeviceConfig, get_device_descs_for_available_devices, get_custom_device_desc, get_device_cluster_yaml
 from .device_connector import (
     DeviceConnector, 
     TransferType, 
@@ -182,11 +182,7 @@ class TTDevice(Device):
         if self.devtype != BackendType.Silicon or (self.device_mode == DeviceMode.CompileOnly and len(device_descs) == 0):
             assert self.arch is not None, "Unknown arch for non-silicon compile"
 
-            # retrieve harvested cfg if devtype is set to Silicon (i.e. TTI)
-            if len(compiler_cfg.backend_runtime_params_path) > 0:
-                cached_syslevel_runtime_param = load_cached_sys_param(compiler_cfg.backend_runtime_params_path)
-                harvesting_mask = int(cached_syslevel_runtime_param["system-device0-harvesting_mask"])
-            default_device_desc = get_custom_device_desc(self.arch, mmio=True, harvesting_mask=harvesting_mask)
+            default_device_desc = get_custom_device_desc(self.arch, mmio=True, harvesting_mask=harvesting_mask, out_dir=compiler_cfg.backend_output_dir)
             return get_device_config(self.arch,
                                      self.chip_ids,
                                      compiler_cfg.backend_cluster_descriptor_path,

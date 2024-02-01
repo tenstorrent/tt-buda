@@ -36,7 +36,6 @@ from pybuda._C.backend_api import (
     BackendType,
     PytorchTensorDesc,
     TilizedTensorDesc,
-    get_device_descs_for_available_devices,
     binarize_tensor,
     debinarize_tensor,
     tilize_tensor,
@@ -438,22 +437,31 @@ class TTIArchive:
             absolute_device_image_directory,
             device_image.compiler_cfg.backend_output_dir,
         )
-        device_image.compiler_cfg.backend_runtime_params_path = ""
-
-        # Check if the loaded device-desc.yaml exists, generate new one if not
-        # (temporary measure till budabackend#2066 resolved)
-        if not os.path.exists(device_image.compiler_cfg.backend_device_descriptor_path):
-            if device_image.devtype == BackendType.Silicon:
-                soc_files = get_device_descs_for_available_devices(device_image.compiler_cfg.backend_output_dir)
-                first_id = (
-                    device_image.chip_ids[0] if len(device_image.chip_ids) > 0 else 0
-                )
-                soc_file_new = soc_files[first_id].soc_desc_yaml
-                device_image.compiler_cfg.backend_device_descriptor_path = soc_file_new
-
+        if device_image.compiler_cfg.backend_runtime_params_path:
+            device_image.compiler_cfg.backend_runtime_params_path = os.path.join(
+                absolute_device_image_directory,
+                device_image.compiler_cfg.backend_runtime_params_path
+            )
+        if device_image.compiler_cfg.backend_device_descriptor_path: 
+            device_image.compiler_cfg.backend_device_descriptor_path = os.path.join(
+                absolute_device_image_directory,
+                device_image.compiler_cfg.backend_device_descriptor_path
+            )
+        if device_image.compiler_cfg.backend_cluster_descriptor_path:
+            device_image.compiler_cfg.backend_cluster_descriptor_path = os.path.join(
+                absolute_device_image_directory,
+                device_image.compiler_cfg.backend_cluster_descriptor_path
+            )
         _set_global_compiler_config(device_image.compiler_cfg)
 
         return device_image
+
+    @staticmethod
+    def encode_archive_base_path(full_path: str, original_base_path: str, modified_base_path: str):
+        if full_path:
+            return full_path.replace(original_base_path, modified_base_path)
+        return full_path
+
 
     @staticmethod
     def save_to_disk(
@@ -488,10 +496,26 @@ class TTIArchive:
                 "TTI: Copying backend build files took {} seconds",
                 time.time() - copy_start,
             )
+            
+            current_backend_output_dir = device_image.compiler_cfg.backend_output_dir
+            device_image.compiler_cfg.backend_output_dir = relative_backend_output_dir
+            device_image.compiler_cfg.backend_device_descriptor_path = TTIArchive.encode_archive_base_path(
+                device_image.compiler_cfg.backend_device_descriptor_path,
+                current_backend_output_dir,
+                relative_backend_output_dir
+            )
+            device_image.compiler_cfg.backend_cluster_descriptor_path = TTIArchive.encode_archive_base_path(
+                device_image.compiler_cfg.backend_cluster_descriptor_path,
+                current_backend_output_dir,
+                relative_backend_output_dir
+            )
+            device_image.compiler_cfg.backend_runtime_params_path = TTIArchive.encode_archive_base_path(
+                device_image.compiler_cfg.backend_runtime_params_path,
+                current_backend_output_dir,
+                relative_backend_output_dir
+            )
 
             netlist_path = device_image.compiled_graph_state.netlist_filename
-            device_image.compiler_cfg.backend_output_dir = relative_backend_output_dir
-            device_image.compiler_cfg.backend_runtime_params_path = ""
             netlist_file_basename = os.path.basename(netlist_path)
             device_image.compiled_graph_state.netlist_filename = os.path.join(
                 relative_backend_output_dir, netlist_file_basename

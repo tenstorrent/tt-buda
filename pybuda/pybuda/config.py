@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from pybuda._C import DataFormat, MathFidelity, NopInsertionInstruction, AMPNodeProperties, DramQueueConfigOverride
 import pybuda._C.balancer as pybalancer
 import pybuda._C.placer as pyplacer
-from pybuda._C.backend_api import DeviceMode
+from pybuda._C.backend_api import DeviceMode, load_cached_sys_param
 import pybuda.query as query
 from dataclasses_json import dataclass_json, config
 
@@ -632,8 +632,10 @@ def set_configuration_options(
     if device_config is not None:
         if device_config in supported_backend_configurations and pkg_resources.resource_exists("pybuda", supported_backend_configurations[device_config]):
             g_compiler_config.backend_runtime_params_path = pkg_resources.resource_filename("pybuda", supported_backend_configurations[device_config])
+            cached_syslevel_runtime_param = load_cached_sys_param(g_compiler_config.backend_runtime_params_path)
+            g_compiler_config.harvesting_mask = int(cached_syslevel_runtime_param["system-device0-harvesting_mask"])
         else:
-            raise RuntimeError(f"Unsupported backend device configuration: {device_config}")
+            raise RuntimeError(f"Unsupported backend device configuration: {device_config}. Valid options are: [{', '.join(supported_backend_configurations.keys())}]")
 
 def set_epoch_break(op_names: Union[str, query.NodePredicateBuilder, List[Union[str, query.NodePredicateBuilder]]]):
     """
