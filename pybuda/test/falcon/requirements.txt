@@ -1,0 +1,11 @@
+# transformers # FIXME: which version did we take the falcon files from?
+einops # FIXME: which version is compatible with the above?
+peft @ git+https://github.com/huggingface/peft.git@032fff92fb74b737a2934e91a08d82142fb79dc3
+datasets
+wandb
+scipy
+tqdm
+# torch==1.10.0+cpu
+reprint == 0.6.0
+langdetect
+evaluate

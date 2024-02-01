@@ -1,0 +1,63 @@
+rm perf.json
+
+# ------------------------------------------------------------------------------------------------------------------------------------------------------------ #
+# Data Format Bfp8_b
+# ------------------------------------------------------------------------------------------------------------------------------------------------------------ #
+
+# Default data format (-df) is Bfp8_b, default math fidelity (-mf) is LoFi
+
+# ResNet
+pybuda/test/benchmark/benchmark.py -m resnet -c resnet50 -o perf.json
+
+# Mobilenet v1
+pybuda/test/benchmark/benchmark.py -m mobilenet_v1 -c 224 -mf HiFi2 -o perf.json
+
+# Mobilenet v2
+pybuda/test/benchmark/benchmark.py -m mobilenet_v2 -c 224 -mf HiFi2 -o perf.json
+
+# Mobilenet v3
+pybuda/test/benchmark/benchmark.py -m mobilenet_v3_timm -c large -o perf.json
+
+# Vit
+pybuda/test/benchmark/benchmark.py -m vit -c base -o perf.json
+
+# Deit
+pybuda/test/benchmark/benchmark.py -m deit -c base -o perf.json
+
+# VoVNet v2
+pybuda/test/benchmark/benchmark.py -m vovnet_v2 -c 39 -o perf.json
+
+# OpenPose Body
+pybuda/test/benchmark/benchmark.py -m openpose_osmr_body -c 2d -o perf.json
+
+# OpenPose Hand
+pybuda/test/benchmark/benchmark.py -m openpose_hand -c basic -o perf.json
+
+# HRNet
+pybuda/test/benchmark/benchmark.py -m hrnet -c v2_w64 -o perf.json
+
+# YOLOv3
+pybuda/test/benchmark/benchmark.py -m yolo_v3 -c default -mb 32 -o perf.json
+
+# YOLOv5
+pybuda/test/benchmark/benchmark.py -m yolo_v5 -c s -o perf.json
+
+# Inception v4
+pybuda/test/benchmark/benchmark.py -m inception_v4 -c 224 -o perf.json
+
+# UNet
+pybuda/test/benchmark/benchmark.py -m unet -c 256 -mb 48 -mf HiFi2 -o perf.json
+
+# Bert large
+pybuda/test/benchmark/benchmark.py -m bert -c large_tc -o perf.json
+
+# Whisper
+pybuda/test/benchmark/benchmark.py -m whisper -c small --loop_count 1 -mb 1 --single-thread --generative -o perf.json
+
+# T5
+pybuda/test/benchmark/benchmark.py -m t5 -c base --loop_count 1 -mb 1 --single-thread --generative -o perf.json
+pybuda/test/benchmark/benchmark.py -m t5 -c large --loop_count 1 -mb 1 --single-thread --generative -o perf.json
+
+# Flan-T5
+pybuda/test/benchmark/benchmark.py -m flan_t5 -c base --loop_count 1 -mb 1 -mf HiFi2 --single-thread --generative -o perf.json
+pybuda/test/benchmark/benchmark.py -m flan_t5 -c large --loop_count 1 -mb 1 -mf HiFi2 --single-thread --generative -o perf.json

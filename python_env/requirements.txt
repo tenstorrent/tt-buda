@@ -1,0 +1,36 @@
+# First include all requirements from the Distribution build
+-r core_requirements.txt
+
+bitarray==2.5.1
+clang-format==14.0.3
+diffusers==0.14.0
+hydra-core
+IPython==8.8.0
+nvidia-ml-py3==7.352.0
+omegaconf
+pytest==6.2.4
+pytest-timeout==2.0.1
+pytest-xdist==2.5.0
+pytorchcv==0.0.67
+sacrebleu==2.1.0
+sacremoses==0.0.53
+seaborn
+scikit-image==0.20.0 # For DenseNet 121 HF XRay model
+segmentation_models_pytorch==0.3.2
+sentencepiece==0.1.96
+subword-nmt==0.3.8
+tensorflow-hub==0.12.0
+timm==0.6.12
+yolov5==7.0.9
+# The CPU versions of torch and torch visions are used due to their size being
+# several GB smaller which made a large impact on the performance of CI
+# (through build artifacts and caching)
+torchvision==0.16.0+cpu
+torch @ https://download.pytorch.org/whl/cpu-cxx11-abi/torch-2.1.0%2Bcpu.cxx11.abi-cp38-cp38-linux_x86_64.whl ; python_version=='3.8'
+torch @ https://download.pytorch.org/whl/cpu-cxx11-abi/torch-2.1.0%2Bcpu.cxx11.abi-cp310-cp310-linux_x86_64.whl ; python_version=='3.10'
+torchxrayvision==0.0.39
+vgg_pytorch==0.3.0
+librosa==0.10.0.post2
+soundfile==0.12.1
+accelerate==0.23.0
+python-gitlab==4.2.0

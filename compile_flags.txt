@@ -1,0 +1,16 @@
+-std=c++17
+-stdlib=libstdc++
+-I/usr/lib/llvm-12/lib/clang/12.0.0/include/
+-I/usr/include/c++/9
+-I/usr/include/x86_64-linux-gnu/c++/9
+-I/usr/include/
+-Ibg
+-Irbg
+-I.
+-Ithird_party/pybind11/include
+-I/usr/include/python3.8
+-Igui_lib
+-Ithird_party/json
+-Ipybuda/csrc
+-Ithird_party/fmt
+-Ithird_party/budabackend

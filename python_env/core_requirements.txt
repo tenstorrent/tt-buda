@@ -1,0 +1,49 @@
+# This is needed to avoid issue https://yyz-gitlab.local.tenstorrent.com/devops/devops/-/issues/95
+# jax requires any version of optax which requires any version of chex which in turn
+# requires jax>=0.4.6 which conflicts with our jax == 0.3.16
+# TODO: Remove when jax library is upgraded
+chex==0.1.6
+dataclasses-json==0.5.7
+datasets==2.3.2
+decorator==5.1.1
+# This is needed to avoid issue https://yyz-gitlab.local.tenstorrent.com/devops/devops/-/issues/95
+# TODO: Remove when datasets is upgraded
+dill==0.3.5.1
+# This is needed to avoid issue https://yyz-gitlab.local.tenstorrent.com/devops/devops/-/issues/95
+flatbuffers==23.5.26
+# This is needed to prevent AttributeError: module 'ml_dtypes' has no attribute 'float8_e4m3b11'
+ml-dtypes==0.2.0
+flax==0.6.0
+jax==0.4.13
+jaxlib==0.4.11
+loguru==0.5.3
+matplotlib==3.5.1
+# This is needed to avoid issue https://yyz-gitlab.local.tenstorrent.com/devops/devops/-/issues/95
+# multiprocess 0.70.14 requires dill>=0.3.6 but datasets==2.3.2 requires dill < 0.3.6
+# They are both requirements of datasets. Multiprocess is however not fixed.
+# TODO: Remove when datasets is upgraded
+multiprocess==0.70.13
+mxnet==1.9.1
+networkx==2.8.5
+numpy==1.23.1
+onnx==1.14.1
+onnxruntime==1.15.0
+opencv-python-headless==4.6.0.66
+# This is needed to avoid issue https://yyz-gitlab.local.tenstorrent.com/devops/devops/-/issues/95
+pandas==1.5.3
+prettytable==3.0.0
+protobuf==3.20.3
+pybind11==2.6.2
+pyinstrument==4.1.1
+scipy==1.8.0
+tensorflow-cpu==2.13.0
+tensorboard==2.13.0
+tf2onnx==1.15.1
+transformers==4.35.2
+# To avoid warning during the import
+requests==2.28.2
+urllib3==1.26.14
+tflite==2.10.0
+ultralytics==8.0.145
+keras==2.13.1
+pytorch_forecasting==1.0.0

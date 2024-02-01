@@ -1,0 +1,13 @@
+system_level_params:
+  system-device-chip_locations: 0,0,0,0,0,-1,1,0,0,0,-
+  system-device-chips_with_mmio: 0-
+  system-device-cluster_descriptor: "" 
+  system-device-ethernet_connections: 0,8,1,0,-0,9,1,1,-1,0,0,8,-1,1,0,9,-
+  system-device-num_mmio_devices: 2
+  system-device-number_of_chips: 2
+  system-device0-harvesting_mask: 2052
+  system-device0-num_harvested_rows: 2
+  system-device0-type: WORMHOLE_B0
+  system-device1-harvesting_mask: 2176
+  system-device1-num_harvested_rows: 2
+  system-device1-type: WORMHOLE_B0

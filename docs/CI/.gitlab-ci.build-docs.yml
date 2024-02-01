@@ -1,0 +1,49 @@
+.build-docs:
+  stage: docs
+  artifacts:
+    paths:
+      - docs/public/md
+  needs: 
+    - pybuda-wh-b0-wheel
+    - seeded-venv
+  tags:
+    - 8-core
+  script: 
+    - !reference [.common_prep, script]
+    - pip3 install sphinx
+    - pip3 install sphinx-rtd-theme
+    - pip3 install sphinx-markdown-builder
+    - sphinx-build -M markdown docs/public docs/public/md
+    - cp -r docs/public/images docs/public/md/markdown
+    - git config --global user.email "tenstorrent-github-bot@tenstorrent.com"
+    - git config --global user.name "tenstorrent-github-bot"
+    - git clone https://tenstorrent-github-bot:${GITHUB_BOT_TOKEN}@github.com/tenstorrent-software/test-docs.git
+    - cd test-docs
+    - git remote set-url origin https://tenstorrent-github-bot:${GITHUB_BOT_TOKEN}@github.com/tenstorrent-software/test-docs.git
+
+build-docs-main:
+  extends: .build-docs
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: always
+    - when: never  
+  script:
+    - !reference [.build-docs, script]
+    - cp -r ../docs/public/md/* pybuda
+    - git add pybuda
+    - git commit -m "update docs from pipeline $CI_PIPELINE_ID"
+    - git push
+
+build-docs-staging:
+  extends: .build-docs
+  rules:
+  - if: $CI_COMMIT_BRANCH == "main"
+    when: always
+  script: 
+    - !reference [.build-docs, script]
+    - git checkout staging 
+    - cp -r ../docs/public/md/* pybuda
+    - git add pybuda
+    - git commit -m "update docs from pipeline $CI_PIPELINE_ID"
+    - git push
+    

@@ -1,0 +1,63 @@
+DATASET:
+  TEST:
+    ANN: "annotations/person_keypoints_val2017.json"
+    DET_FILE: "./exp/json/test_det_yolo.json"
+    IMG_PREFIX: "val2017"
+    ROOT: "./data/coco/"
+    TYPE: "Mscoco_det"
+  TRAIN:
+    ANN: "annotations/person_keypoints_train2017.json"
+    AUG:
+      FLIP: true
+      NUM_JOINTS_HALF_BODY: 8
+      PROB_HALF_BODY: -1
+      ROT_FACTOR: 40
+      SCALE_FACTOR: 0.3
+    IMG_PREFIX: "train2017"
+    ROOT: "./data/coco/"
+    TYPE: "Mscoco"
+  VAL:
+    ANN: "annotations/person_keypoints_val2017.json"
+    IMG_PREFIX: "val2017"
+    ROOT: "./data/coco/"
+    TYPE: "Mscoco"
+DATA_PRESET:
+  HEATMAP_SIZE:
+    - 64
+    - 48
+  IMAGE_SIZE:
+    - 256
+    - 192
+  NUM_JOINTS: 17
+  SIGMA: 2
+  TYPE: "simple"
+DETECTOR:
+  CONFIDENCE: 0.05
+  CONFIG: "detector/yolo/cfg/yolov3-spp.cfg"
+  NAME: "yolo"
+  NMS_THRES: 0.6
+  WEIGHTS: "detector/yolo/data/yolov3-spp.weights"
+MODEL:
+  NUM_DECONV_FILTERS:
+    - 256
+    - 256
+    - 256
+  NUM_LAYERS: 50
+  PRETRAINED: ""
+  TRY_LOAD: ""
+  TYPE: "FastPose"
+TRAIN:
+  BATCH_SIZE: 32
+  BEGIN_EPOCH: 0
+  DPG_MILESTONE: 140
+  DPG_STEP:
+    - 160
+    - 190
+  END_EPOCH: 200
+  LR: 0.001
+  LR_FACTOR: 0.1
+  LR_STEP:
+    - 90
+    - 120
+  OPTIMIZER: "adam"
+  WORLD_SIZE: 4

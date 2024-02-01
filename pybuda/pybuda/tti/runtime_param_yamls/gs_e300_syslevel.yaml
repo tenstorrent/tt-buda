@@ -1,0 +1,6 @@
+system_level_params:
+  system-device-num_mmio_devices: 1
+  system-device-number_of_chips: 1
+  system-device0-harvesting_mask: 2050
+  system-device0-num_harvested_rows: 2
+  system-device0-type: GRAYSKULL

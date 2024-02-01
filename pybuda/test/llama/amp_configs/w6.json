@@ -1,0 +1,20 @@
+{
+    "mlp_df": {
+        "gate": "fp4b",
+        "up": "fp8b",
+        "down": "fp8b"
+    },
+    "attn_df": {
+        "q": "fp8b",
+        "k": "fp8b",
+        "v": "fp8b",
+        "o": "fp8b"
+    },
+    "cache_df": {
+        "key": "fp8b",
+        "value": "fp8b"
+    },
+    "default_df": "bf16",
+    "mm_acc_df": "fp32",
+    "attn_mask_df": "fp2b"
+}

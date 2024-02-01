@@ -1,0 +1,12 @@
+[submodule "third_party/tvm"]
+	path = third_party/tvm
+	url = git@github.com:tenstorrent/tt-tvm.git
+[submodule "third_party/budabackend"]
+	path = third_party/budabackend
+	url = git@github.com:tenstorrent/tt-budabackend.git
+[submodule "third_party/pybind11"]
+	path = third_party/pybind11
+	url = https://github.com/pybind/pybind11
+[submodule "third_party/public-tt-buda"]
+	path = third_party/public-tt-buda
+	url = git@github.com:tenstorrent/tt-buda-demos.git
