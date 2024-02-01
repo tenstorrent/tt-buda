@@ -1,3 +1,5 @@
+#!/bin/bash
+
 export LD_LIBRARY_PATH=versim/wormhole_b0/lib:versim/wormhole_b0/lib/ext
 export BACKEND_ARCH_NAME=wormhole_b0
 export ARCH_NAME=wormhole_b0
@@ -10,6 +12,14 @@ if [ "$SUPPORTS_BEAR" = "true" ] && [ "$TT_BUDA_GENERATE_DEPS" = "1" ]; then
 else
     make
 fi
-source build/python_env/bin/activate
-source third_party/tvm/enable.sh
+
+RET=$?
+if [[ $RET -eq 0 ]]; then
+    source build/python_env/bin/activate
+    source third_party/tvm/enable.sh
+else
+    echo -e "\e[31mPybuda build failed!\e[0m"
+    return $RET
+fi
+
 set +e
