@@ -245,7 +245,7 @@ class CompilerConfig:
 
     # TODO: add reportify dir
 
-    def __post_init__(self):
+    def apply_env_config_overrides(self):
         if "PYBUDA_OVERRIDE_NUM_CHIPS" in os.environ:
             self.chip_ids = list(range(int(os.environ.get('PYBUDA_OVERRIDE_NUM_CHIPS'))))
 
@@ -319,6 +319,9 @@ class CompilerConfig:
 
         if "PYBUDA_OVERRIDE_DEVICE_YAML" in os.environ:
             self.backend_device_descriptor_path = os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"]
+
+    def __post_init__(self):
+        self.apply_env_config_overrides()
 
     def enable_amp_light(self, level: int = 1):
         if level == 0:

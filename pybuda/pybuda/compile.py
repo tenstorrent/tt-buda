@@ -321,6 +321,8 @@ def pybuda_compile(
     if compiler_cfg is None:
         compiler_cfg = _get_global_compiler_config()
 
+    compiler_cfg.apply_env_config_overrides()
+
     compile_context: CompileContext = CompileContext(
         dev=dev,
         graph_name=graph_name,
