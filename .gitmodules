@@ -7,6 +7,6 @@
 [submodule "third_party/pybind11"]
 	path = third_party/pybind11
 	url = https://github.com/pybind/pybind11
-[submodule "third_party/public-tt-buda"]
-	path = third_party/public-tt-buda
+[submodule "third_party/tt-buda-demos"]
+	path = third_party/tt-buda-demos
 	url = ../tt-buda-demos.git
