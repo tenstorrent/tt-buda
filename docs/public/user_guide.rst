@@ -231,18 +231,31 @@ Such a dictionary can also be pushed back onto the device using :py:func:`update
 TensTorrent Device Image (TTI): Saving/Loading
 **********************************************
 
-A Tenstorrent Device Image (TTI) is a standalone zip/archive file that snapshots the :py:class:`TTDevice<pybuda.TTDevice>` configuration,
-the compiled models/modules placed and any backend build files. There are multiple benefits with the usage a TTI archive:
+A Tenstorrent Image (TTI) is a standalone archive file that captures the entire compiled state of a 
+model. The contents of the archive include device configuration, compiler configuration, compiled model artifacts,
+backend build files (e.g. overlay and risc binaries), model parameter tensors. There can be multiple advantages
+with leveraging the usage of a TTI archive:
 
 1) Offline target compilation of models on arbitrary device targets (i.e. target device does not have to be present/available on the machine to compile and save a TTI).
 2) Loading a TTI archive allows the user to skip any long front-end and backend compilations of models onto the device
    and directly begin executing the graph/module that was packaged in the `*.tti` after pushing inputs to queues.
+3) TTI archives can be shared and loaded across different machines and environments.
+4) When we save a TTI archive, we can configure the serialization format for the model parameters. This can be useful for
+   scenarios where the user wants to save the model parameters in a tilized-binary format to avoid tilizing during model inference.
+   By default the serialization format is pickle. To configure for alternate serialization formats, the user can set either: 
+   `PYBUDA_TTI_BACKEND_FORMAT=1` or `PYBUDA_TTI_BACKEND_TILIZED_FORMAT=1` environment variables.
 
-We can save a TTI archive by invoking the `compile_to_image` method on  :py:class:`TTDevice<pybuda.TTDevice>`
+For example, from a machine without a silicon device, we can save a TTI archive intended to be deployed on a silicon device.
+We need to configure the device type and architecture of the target device and compile the model to a TTI archive.
+This can be done by invoking the `compile_to_image` method on  :py:class:`TTDevice<pybuda.TTDevice>`. 
 
 .. code-block:: python
 
-    tt0 = pybuda.TTDevice("tt0",arch=BackendDevice.Grayskull, devtype=BackendType.Silicon)
+    tt0 = pybuda.TTDevice(
+      name="tt0",
+      arch=BackendDevice.Wormhole_B0,
+      devtype=BackendType.Silicon
+    )
     tt0.place_module(...)
     device_img: TTDeviceImage = tt0.compile_to_image(
         img_path="device_images/tt0.tti",
@@ -256,14 +269,19 @@ This will create the archive file `device_images/tt0.tti`. The contents of a TTI
 .. code-block::
 
     /unzipped_tti_directory
-    ├── device.json # json file capturing device state
+    ├── device.json # Device state and compiled model metadata
     ├── <module-name>.yaml # netlist yaml
-    ├── backend_build_binaries # backend build files from tt_build/<test>
-    │   ├── blob_init
+    ├── compile_and_runtime_config.json # compiler and runtime configurations
+    ├── backend_build_binaries # backend build binaries
+    │   ├── device_desc.yaml
+    │   ├── cluster_desc.yaml
     │   ├── brisc
-    │   ├── ...
-    ├── *tensor*.pkl # pickled constant/parameter tensors
-    ├── *module*.pkl # pickled PyBuda module object
+    │   ├── erisc
+    │   ├── nrisc
+    │   ├── hlks 
+    │   ├── epoch_programs
+    ├── tensors # directory containing serialized tensors
+    ├── module_files # Python file containing the PybudaModule of the model
 
 To load the TTI archive and inspect the contents:
 
@@ -291,11 +309,10 @@ The :py:class:`TTDeviceImage<pybuda.TTDeviceImage>::info()` method provides a su
       - chip_ids: [0]
       - backend device type: BackendType.Silicon
       - grid size: [10, 12]
-      - harvested rows: 0
+      - harvested rows: [0]
 
       Compilation Graph State...
       - training: False
-      - modules: ['bert_encoder']
       - ordered input shapes: [[1, 128, 128], [1, 1, 128, 128]]
       - ordered targets shapes: []
 
@@ -312,8 +329,35 @@ We can now configure :py:class:`TTDevice<pybuda.TTDevice>` by using our image ob
     output_q = pybuda.run_inference()
 
 
-Create TTI Targeting Row-Harvested Silicon Devices
-**************************************************
+Create TTI: Targeting Supported Silicon Devices
+***********************************************
+
+In the example above, we saved a TTI file targeting a silicon device with default configuration (unharvested). There
+are also convenience labels available that can be used to target specific silicon devices in our supported product spec.
+The current support available is: {gs_e150, gs_e300, wh_n150, wh_n300}.
+
+To target a specific silicon device, we can set the device type and architecture using :py:func:`set_configuration_options<pybuda.set_configuration_options>`.
+
+
+.. code-block:: python
+
+    pybuda.set_configuration_options(device_config="wh_n150")
+
+    tt0 = pybuda.TTDevice(
+      name="tt0",
+      arch=BackendDevice.Wormhole_B0,
+      devtype=BackendType.Silicon
+    )
+    tt0.place_module(...)
+    device_img: TTDeviceImage = tt0.compile_to_image(
+        img_path="device_images/tt0.tti",
+        training=training,
+        sample_inputs=(...),
+    )
+
+
+Create TTI: Targeting Custom Row-Harvested Silicon Devices
+*********************************************************
 
 We can also save a TTI file targeting a machine with silicon devices with harvested rows offline. 
 The only difference from the above is we need to manually induce the harvested rows before saving TTI. 
@@ -346,6 +390,28 @@ Accordingly, part of the TTI file slightly changes as well:
  
   
 Note that only rows 1-5 and 7-11 are harvestable, and TTI loading will raise an error if the manually harvested rows in TTI does not match with that of the loaded silicon device.
+
+
+Create TTI: Targeting Custom Device Descriptor
+**************************************************
+
+We can also save a TTI file targeting a machine with silicon devices with custom device descriptor (specified with file-path).
+This can be done by setting the device descriptor using :py:func:`set_configuration_options<pybuda.set_configuration_options>` with `backend_device_descriptor_path` argument.
+ 
+.. code-block:: python
+
+    pybuda.set_configuration_options(backend_device_descriptor_path="<device-descriptor-path>/wormhole_b0_4x6.yaml")
+
+    tt0 = pybuda.TTDevice("tt0",arch=BackendDevice.Wormhole_B0, devtype=BackendType.Silicon)
+    tt0.place_module(...)
+    device_img: TTDeviceImage = tt0.compile_to_image(
+        img_path="device_images/tt0.tti",
+        training=training,
+        sample_inputs=(...),
+    )
+
+The device-descriptor used during the offline compilation process will be embedded in the TTI-archive.
+This device-descriptor will be used to configure the device during the TTI-loading process.
 
 
 Embedded TTI Loading
