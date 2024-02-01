@@ -94,8 +94,6 @@ def pybuda_reset():
     _clear_global_compiler_config()
     from pybuda.run.context import context_reset
     context_reset()
-    if os.environ.get("TT_BACKEND_HARVESTED_ROWS", None):
-        del os.environ["TT_BACKEND_HARVESTED_ROWS"]
     set_state_changed()
 
 def state_changed() -> bool:

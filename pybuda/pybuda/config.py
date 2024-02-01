@@ -217,6 +217,7 @@ class CompilerConfig:
                                         # 2: Matmuls inputs/outputs are set to BFP8;    Fused ops, Softmax, LayerNorm ops are set to FP16;  GELU is BFP8;
                                         # 
                                         # Have in mind that in each AMP level, non-mentioned op types are left with default data format (usually set by user; i.e. FP32).
+    harvesting_mask: int = 0 # List of harvested rows (same across all chips)
     enable_auto_transposing_placement: bool = ("PYBUDA_ENABLE_AUTO_TRANSPOSE" in os.environ)  # compiler automatically detects ops to transpose on placement when the flag is set
     fracture_groups: List[Tuple[List[Tuple[str, int, int]], List[str], List[int]]] = field(default_factory=lambda: list()) # see insert_fracture_group
     conv_multi_op_fracture_factor_override: Dict[str, int] = field(default_factory=lambda: dict())  # override multi op fracture factor for conv
@@ -407,17 +408,11 @@ class CompilerConfig:
         return len(self.op_intermediates_to_save) > 0
 
 
-def set_harvested_rows_simulate(row_indices_allchips: List[List[int]]):
-    config_allchips = ""
-    num_chips = len(row_indices_allchips)
-    for chip, row_indices in enumerate(row_indices_allchips):
-        harvested_rows_mask = 0 
-        for r in row_indices:
-            harvested_rows_mask += (1 << r)
-        config_allchips += str(harvested_rows_mask)
-        if chip != num_chips-1:
-            config_allchips += ","
-    os.environ["TT_BACKEND_HARVESTED_ROWS"] = config_allchips
+def get_harvesting_mask(row_indices: List[int]):
+    harvested_rows_mask = 0 
+    for r in row_indices:
+        harvested_rows_mask += (1 << r)
+    return harvested_rows_mask
 
 # Backend runtime yaml path for supported B0 boards
 supported_backend_configurations = {
@@ -611,7 +606,7 @@ def set_configuration_options(
     if amp_level is not None:
         g_compiler_config.amp_level = amp_level
     if harvested_rows is not None:
-        set_harvested_rows_simulate(harvested_rows)
+        g_compiler_config.harvesting_mask = get_harvesting_mask(harvested_rows)
     if store_backend_db_to_yaml is not None:
         g_compiler_config.store_backend_db_to_yaml = store_backend_db_to_yaml
     if input_queues_on_host is not None:

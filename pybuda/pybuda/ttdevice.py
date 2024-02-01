@@ -178,11 +178,11 @@ class TTDevice(Device):
         # For the following case, get_device_config is not called here, but later with device.yaml obtained from backend
         # (3) it's running on Silicon machine with setting device-mode to CompileOnly (eg. generating TTI on silion machine)
         device_descs = get_device_descs_for_available_devices(compiler_cfg.backend_output_dir) # possibly modify here
+        harvesting_mask = compiler_cfg.harvesting_mask
         if self.devtype != BackendType.Silicon or (self.device_mode == DeviceMode.CompileOnly and len(device_descs) == 0):
             assert self.arch is not None, "Unknown arch for non-silicon compile"
 
             # retrieve harvested cfg if devtype is set to Silicon (i.e. TTI)
-            harvesting_mask = 0
             if len(compiler_cfg.backend_runtime_params_path) > 0:
                 cached_syslevel_runtime_param = load_cached_sys_param(compiler_cfg.backend_runtime_params_path)
                 harvesting_mask = int(cached_syslevel_runtime_param["system-device0-harvesting_mask"])
@@ -195,7 +195,8 @@ class TTDevice(Device):
                                      self.devtype,
                                      default_device_desc.soc_desc_yaml,
                                      backend_output_dir=compiler_cfg.backend_output_dir,
-                                     backend_device_descriptor_path_override=compiler_cfg.backend_device_descriptor_path)
+                                     backend_device_descriptor_path_override=compiler_cfg.backend_device_descriptor_path,
+                                     harvesting_mask=harvesting_mask)
 
         device_list = [d.arch for d in device_descs if d.mmio]
         if len(device_list) == 0:
@@ -232,15 +233,14 @@ class TTDevice(Device):
                       backend_type=self.devtype,
                       device_yaml=soc_desc,
                       backend_output_dir=compiler_cfg.backend_output_dir,
-                      backend_device_descriptor_path_override=compiler_cfg.backend_device_descriptor_path)
+                      backend_device_descriptor_path_override=compiler_cfg.backend_device_descriptor_path,
+                      harvesting_mask=harvesting_mask)
 
-        # NOTE: followings should be removed when decweek3 uplift is merged
         if "PYBUDA_FORCE_EMULATE_HARVESTED" in os.environ and dev_cfg.grid_size.r == 10: # non-harvested
-            if "TT_BACKEND_HARVESTED_ROWS" not in os.environ:
-                if self.arch == BackendDevice.Wormhole_B0 or self.arch == BackendDevice.Wormhole:
-                    os.environ["TT_BACKEND_HARVESTED_ROWS"] = "2048"
-                else:
-                    os.environ["TT_BACKEND_HARVESTED_ROWS"] = "2050"
+            if self.arch == BackendDevice.Wormhole_B0 or self.arch == BackendDevice.Wormhole:
+                harvesting_mask = 2048
+            else:
+                harvesting_mask = 2050
             dev_cfg = get_device_config(self.arch,
                         chip_ids=self.chip_ids,
                         backend_cluster_descriptor_path=cluster_yaml,
@@ -249,7 +249,8 @@ class TTDevice(Device):
                         backend_type=self.devtype,
                         device_yaml=soc_desc,
                         backend_output_dir=compiler_cfg.backend_output_dir,
-                        backend_device_descriptor_path_override=compiler_cfg.backend_device_descriptor_path)
+                        backend_device_descriptor_path_override=compiler_cfg.backend_device_descriptor_path,
+                        harvesting_mask=harvesting_mask)
         return dev_cfg
 
 
@@ -1544,26 +1545,23 @@ def get_backend_string(backend_type: BackendType) -> str:
         raise Exception("Running pybuda_compile with unknown backend_type config")
 
 
-def get_default_device_yaml(arch: BackendDevice, device_yaml: str, backend_output_dir: str, device_yaml_override: Optional[str]) -> str:
+def get_default_device_yaml(
+    arch: BackendDevice,
+    device_yaml: str,
+    backend_output_dir: str, 
+    device_yaml_override: Optional[str],
+    harvesting_mask: int
+) -> str:
     if arch not in {BackendDevice.Grayskull, BackendDevice.Wormhole, BackendDevice.Wormhole_B0}:
         raise RuntimeError("Running pybuda_compile with unknown arch config")
     if device_yaml_override:
         return device_yaml_override
 
-    # NOTE: followings should be removed when decweek3 uplift is merged
-    harvested_rows_manual = os.environ.get("TT_BACKEND_HARVESTED_ROWS", None)
-    if device_yaml != "" and harvested_rows_manual is None:
+    if harvesting_mask:
+        default_device_desc = get_custom_device_desc(arch, mmio=True, harvesting_mask=harvesting_mask, out_dir=backend_output_dir)
+        return default_device_desc.soc_desc_yaml
+    else:
         return device_yaml
-
-    harvesting_mask = 0
-    if harvested_rows_manual is not None:
-        masks = harvested_rows_manual.split(",")
-        for mask in masks:
-            assert mask == masks[0], "We currently only support identical harvest masks for all chips"
-        harvesting_mask = int(masks[0])
-
-    default_device_desc = get_custom_device_desc(arch, mmio=True, harvesting_mask=harvesting_mask, out_dir=backend_output_dir)
-    return default_device_desc.soc_desc_yaml
 
 def get_default_cluster_descriptor(backend_output_dir: str, backend_cluster_descriptor_path: str = "") -> str:
     cluster_override = os.environ.get("PYBUDA_OVERRIDE_CLUSTER_YAML", None)
@@ -1587,10 +1585,11 @@ def get_device_config(arch: BackendDevice,
                       backend_type = BackendType.NoBackend,
                       device_yaml = "",
                       backend_output_dir = "./tt_build",
-                      backend_device_descriptor_path_override = None) -> str: 
+                      backend_device_descriptor_path_override = None,
+                      harvesting_mask: int = 0) -> str: 
     return DeviceConfig(
         arch.to_string(),
-        get_default_device_yaml(arch, device_yaml, backend_output_dir, backend_device_descriptor_path_override),
+        get_default_device_yaml(arch, device_yaml, backend_output_dir, backend_device_descriptor_path_override, harvesting_mask),
         get_default_cluster_descriptor(backend_output_dir, backend_cluster_descriptor_path),
         backend_runtime_params_path, 
         get_backend_string(backend_type),

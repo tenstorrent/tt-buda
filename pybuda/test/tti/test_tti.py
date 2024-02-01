@@ -256,7 +256,7 @@ def test_inference_compile_only_silicon_target_device_harvested_manual(test_devi
             harvesting_mask = (harvesting_mask >> 1)
             row_coordinate += 1 
     harvested_rows = random.sample(harvesting_rows_available, num_harvested_rows-len(detected_harvested_rows))+detected_harvested_rows
-    pybuda.set_configuration_options(harvested_rows=[harvested_rows]) 
+    pybuda.set_configuration_options(harvested_rows=harvested_rows) 
     device_image = pybuda_module._save_device_image(
         device_name = "tt2-harvested-manual",
         arch = test_device.arch,
