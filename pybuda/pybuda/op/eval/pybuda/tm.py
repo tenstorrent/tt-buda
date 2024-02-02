@@ -53,7 +53,7 @@ def eval(type, attr, ops):
         zero_shape[dim] = 1
         zero_slice = torch.zeros(zero_shape, dtype=dtype).squeeze(dim)
         result = []
-        for offset in range(0, t_ops[0].shape[dim], stride):
+        for offset in range(0, t_ops[0].shape[dim] - begin, stride):
             for i in range(begin, begin + length):
                 if offset + i < t_ops[0].shape[dim] or stride == t_ops[0].shape[dim]:
                     result.append(t_ops[0].select(dim, offset + i))
@@ -459,7 +459,7 @@ def shape(type, attr, ops):
         assert len(attr) == 4, "Select should have 4 attributes"
         dim, begin, length, stride = attr
         shape = list(ops[0])
-        shape[dim] = length * round_up_div(shape[dim], stride)
+        shape[dim] = length * round_up_div(shape[dim] - begin, stride)
         return tuple(shape), []
 
     if type == "gather":

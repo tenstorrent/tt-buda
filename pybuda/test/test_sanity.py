@@ -360,6 +360,32 @@ def test_select(test_kind, test_device, shape, dim_index_length):
     x = Tensor.create_from_torch(torch.rand(*shape, requires_grad=test_kind.is_training()))
     simple_select(x)
 
+@pytest.mark.parametrize("shape", [(1, 3, 288, 124),(1, 6, 288, 124)])
+@pytest.mark.parametrize("dim_index_length", [(-3, 1, 1, 2),])
+def test_single_select(test_kind, test_device, shape, dim_index_length):
+    dim, index, length, stride = dim_index_length
+    if index + length > shape[dim]:
+        pytest.skip()
+
+    if length == -1:
+        length = shape[dim] - index
+
+    compiler_cfg = _get_global_compiler_config()
+    compiler_cfg.enable_t_streaming = True
+    compiler_cfg.manual_t_streaming = True
+    # pybuda.config.override_t_stream_shape("index.dc.select.0", (9, 1))
+
+    @compile(
+        compiler_cfg = CompilerConfig(enable_t_streaming=True, manual_t_streaming = True),
+        verify_cfg = VerifyConfig(test_kind=test_kind, devtype=test_device.devtype, arch=test_device.arch, verify_all=True),
+    )
+
+    def simple_select(x):
+        ret = pybuda.op.Select("select0", x, dim, (index, length), stride=stride)
+        return ret
+
+    x = Tensor.create_from_torch(torch.rand(*shape, requires_grad=test_kind.is_training()))
+    simple_select(x)
 
 @pytest.mark.parametrize("mode", ["inference", "training"])
 @pytest.mark.parametrize("shape", [(1, 1, 384, 384), (1, 12, 384, 384), (1, 1, 384, 96)])

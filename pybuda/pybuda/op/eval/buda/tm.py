@@ -76,7 +76,7 @@ def eval(type, attr, ops):
         zero_shape[dim] = 1
         zero_slice = torch.zeros(zero_shape, dtype=dtype).squeeze(dim)
         result = []
-        for offset in range(0, t_ops[0].shape[dim], stride):
+        for offset in range(0, t_ops[0].shape[dim] - begin, stride):
             for i in range(begin, begin + length):
                 if offset + i < t_ops[0].shape[dim] or stride == t_ops[0].shape[dim]:
                     result.append(t_ops[0].select(dim, offset + i))
@@ -327,7 +327,7 @@ def shape(type, attr, ops, tile_height, tile_width):
         shape = ops[0]
         if dim < 0:
             dim += max(len(shape), 4)
-        shape[dim] = length * round_up_div(shape[dim], stride)
+        shape[dim] = length * round_up_div(shape[dim] - begin, stride)
         if dim >= 2:
             shape[dim] = align_up_tile(shape[dim])
         return tuple(shape), []

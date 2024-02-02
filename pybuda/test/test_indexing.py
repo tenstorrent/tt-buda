@@ -38,7 +38,7 @@ def test_index(
         pytest.skip("temporarily skip it, fails on pipeline but cannot reproduce it locally")
 
     @compile(
-        compiler_cfg=CompilerConfig(enable_training=training, enable_t_streaming=False),
+        compiler_cfg=CompilerConfig(enable_training=training, enable_t_streaming=True),
         verify_cfg=VerifyConfig(),
     )
     def index(x):
@@ -172,7 +172,7 @@ def test_index3d(
         start2, stop2, stride2 = index2
 
     @compile(
-        compiler_cfg=CompilerConfig(enable_training=training, enable_t_streaming=False),
+        compiler_cfg=CompilerConfig(enable_training=training, enable_t_streaming=True),
         verify_cfg=VerifyConfig(),
     )
     def index3d(x):

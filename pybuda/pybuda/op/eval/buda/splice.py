@@ -262,8 +262,8 @@ class Splice(BudaEltwiseNaryOp):
             ), f"Select should have only 1 tensor_shape: len(tensor_shapes) = {len(tensor_shapes)}"
             assert len(self.canonical_ranges) == 1
             shape = list(tensor_shapes[0])
-            index, length, stride = self.canonical_ranges[0]
-            shape[self.dim] = length * round_up_div(shape[self.dim], index + stride)
+            index, length, stride = self.ranges[0] if self.dim == 1 else self.canonical_ranges[0]
+            shape[self.dim] = length * round_up_div(shape[self.dim] - index, index + stride)
             if self.dim >= 2:
                 shape[self.dim] = align_up_tile(shape[self.dim])
             return tuple(shape), []
