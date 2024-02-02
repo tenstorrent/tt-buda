@@ -27,6 +27,55 @@ from .cpueval import cpueval_inference, cpueval_training
 from .utils import CPUCombiner
 from ..pybudaglobal import get_devices
 
+
+def pybuda_override_veto_gen_overrides_json(override_file_path, compiler_cfg, new_g_compiler_config, removed_env_based_configurations):
+    import json
+    from deepdiff import DeepDiff
+
+    # Create veto compile file if doesn't exist
+    veto_compile_output = {}
+    if not os.path.exists(override_file_path):
+        with open(override_file_path, "w") as f:
+            f.write(json.dumps(veto_compile_output))
+
+    # Read veto compile file
+    with open(override_file_path, "r") as f:
+        veto_compile_output = json.loads(f.read())
+
+    # Append test name to the compile output
+    test_command = os.environ["PYBUDA_OVERRIDES_VETO_CUSTOM_SETUP"]
+    if test_command not in veto_compile_output:
+        veto_compile_output[test_command] = {}
+        veto_compile_output[test_command]["cnf"] = {}
+        veto_compile_output[test_command]["env"] = {}
+    else:
+        assert False
+
+    # Collect general compiler configurations
+    compiler_cfg_diff = DeepDiff(new_g_compiler_config, compiler_cfg)
+    if "values_changed" in compiler_cfg_diff:
+        for changed_cfg_data in compiler_cfg_diff['values_changed']:
+            updated_value = compiler_cfg_diff['values_changed'][changed_cfg_data]['new_value']
+
+            # Special case name handling
+            if "root.compile_depth" in changed_cfg_data:
+                if changed_cfg_data == "root.compile_depth.name":
+                    continue
+                elif changed_cfg_data == "root.compile_depth.value":
+                    changed_cfg_data = "root.compile_depth"
+            
+            veto_compile_output[test_command]["cnf"][changed_cfg_data.split('root.')[-1]] = updated_value
+
+    # env_var_config_state = {key: value for key, value in os.environ.items() if key.startswith(('PYBUDA_', 'TT_BACKEND_')) and key != "PYBUDA_OVERRIDES_VETO" and key != "PYBUDA_OVERRIDES_VETO_CUSTOM_SETUP"}
+    # env_var_diff = DeepDiff(current_env_var_config_state, env_var_config_state)
+    if len(removed_env_based_configurations) > 0:
+        for key, val in removed_env_based_configurations.items():
+            veto_compile_output[test_command]["env"][key] = val
+            
+    # Write veto compile file
+    with open(override_file_path, "w") as f:
+        f.write(json.dumps(veto_compile_output))
+
 def pybuda_override_veto(compiler_cfg):
     import json
 
@@ -45,8 +94,6 @@ def pybuda_override_veto(compiler_cfg):
             new_g_compiler_config.__setattr__(key, current_value)
         else:
             assert False, "Shouldn't hit this case"
-
-    compiler_cfg = new_g_compiler_config
     _set_global_compiler_config(new_g_compiler_config)
 
     # 2. Tackle with compiler configurations set through environment
@@ -54,13 +101,15 @@ def pybuda_override_veto(compiler_cfg):
 
     # Get currently set compiler configurations as environment variables
     initial_env_var_config_state =  json.loads(os.environ["PYBUDA_OVERRIDES_VETO"])["environ_conf"]
-    current_env_var_config_state = {key: value for key, value in os.environ.items() if key.startswith("PYBUDA_") and key != "PYBUDA_OVERRIDES_VETO"}
+    current_env_var_config_state = {key: value for key, value in os.environ.items() if key.startswith(('PYBUDA_', 'TT_BACKEND_')) and key != "PYBUDA_OVERRIDES_VETO" and key != "PYBUDA_OVERRIDES_VETO_CUSTOM_SETUP"}
 
     # Remove and update reference env configs
+    removed_env_based_configurations = {}
     logger.info("Overriding env var compiler configs:")
     for key, value in current_env_var_config_state.items():
         if key not in initial_env_var_config_state:
             logger.info("  Removing '{}' key from env var config", key)
+            removed_env_based_configurations[key] = value
             del os.environ[key]
         elif key in initial_env_var_config_state and initial_env_var_config_state[key] != "" and initial_env_var_config_state[key] != value:
             logger.info("  Overriding '{}' key with '{}'", key, initial_env_var_config_state[key])
@@ -79,8 +128,13 @@ def pybuda_override_veto(compiler_cfg):
         if key not in current_env_var_config_state:
             logger.info("  Adding '{}' key with '{}' value", key, value)
             os.environ[key] = value
-            
-    return compiler_cfg
+
+    # 3. Generate overrides json that contain all non-default overrides set
+    if "PYBUDA_OVERRIDES_VETO_CUSTOM_SETUP" in os.environ:
+        override_file_path = "override_veto_compile_output.json"
+        pybuda_override_veto_gen_overrides_json(override_file_path, compiler_cfg, new_g_compiler_config, removed_env_based_configurations)
+        
+    return new_g_compiler_config
 
 
 def _generate_random_inputs(input_shapes: List[Tuple], input_params: List[Dict], verify_cfg: VerifyConfig, uniform_inputs: bool, inputs_centered_on_zero: bool) -> List[Tuple[Tensor, ...]]:
@@ -659,6 +713,9 @@ def verify_module_pipeline(modules: List[Module], input_shapes: List[Tuple], ver
     
     if "PYBUDA_OVERRIDES_VETO" in os.environ:
         compiler_cfg = pybuda_override_veto(compiler_cfg)
+        
+        if "PYBUDA_OVERRIDES_VETO_CUSTOM_SETUP" in os.environ:
+            return
 
     assert verify_cfg is not None, "VerifyConfig must be provided for verify_module flow"
     force_full = bool(int(os.environ.get("PYBUDA_FORCE_FULL_COMPILE_DEPTH", "0")))
