@@ -167,6 +167,9 @@ size = ["n", "s", "m", "l", "x"]
     "size", size, ids=["yolov5" + s for s in size]
 )
 def test_yolov5_640x640(test_device, size):
+    if size in ["yolov5x", "yolov5l"]:
+        os.environ["PYBUDA_LEGACY_KERNEL_BROADCAST"] = "1"
+
     model, inputs, _ = generate_model_yoloV5I640_imgcls_torchhub_pytorch(
         test_device, "ultralytics/yolov5",
         size=size,
@@ -248,6 +251,9 @@ def generate_model_yoloV5I480_imgcls_torchhub_pytorch(test_device, variant, size
 def test_yolov5_480x480(test_device, size):
     if test_device.arch == BackendDevice.Grayskull:
         os.environ["PYBUDA_FORK_JOIN_SKIP_EXPANDING_BUFFERS"] = "1"
+    if size in ["yolov5x", "yolov5l", "yolov5m"] and test_device.arch == BackendDevice.Wormhole_B0:
+        os.environ["PYBUDA_LEGACY_KERNEL_BROADCAST"] = "1"
+
     model, inputs, _ = generate_model_yoloV5I480_imgcls_torchhub_pytorch(
         test_device, "ultralytics/yolov5",
         size=size,

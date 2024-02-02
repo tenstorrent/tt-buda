@@ -120,7 +120,10 @@ def test_vovnet_v1_39_stigma_pytorch(test_device, enable_default_dram_parameters
     model, inputs, _ = generate_model_vovnet39_imgcls_stigma_pytorch(
         test_device, None,
     )
-    
+
+    if enable_default_dram_parameters == True:
+        os.environ["PYBUDA_LEGACY_KERNEL_BROADCAST"] = "1"
+
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.default_dram_parameters = enable_default_dram_parameters
 
@@ -203,13 +206,16 @@ def generate_model_vovnet_imgcls_timm_pytorch(test_device, variant):
     
     return tt_model, [image_tensor], {}
 
-   
-varaints = ["ese_vovnet19b_dw", "ese_vovnet39b", "ese_vovnet99b"]
-@pytest.mark.parametrize("variant", varaints, ids=varaints)
+
+variants = ["ese_vovnet19b_dw", "ese_vovnet39b", "ese_vovnet99b"]
+@pytest.mark.parametrize("variant", variants, ids=variants)
 def test_vovnet_timm_pytorch(variant, test_device):
     model, inputs, _ = generate_model_vovnet_imgcls_timm_pytorch(
         test_device, variant,
     )
+
+    if test_device.arch == BackendDevice.Grayskull and variant == "ese_vovnet39b":
+        os.environ["PYBUDA_LEGACY_KERNEL_BROADCAST"] = "1"
 
     verify_module(
         model,

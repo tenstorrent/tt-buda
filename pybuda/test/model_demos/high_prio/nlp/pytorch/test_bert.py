@@ -146,6 +146,9 @@ def test_bert_sequence_classification_pytorch(test_device):
         test_device, "textattack/bert-base-uncased-SST-2",
     )
 
+    if test_device.arch == BackendDevice.Wormhole_B0:
+        os.environ["PYBUDA_LEGACY_KERNEL_BROADCAST"] = "1"
+
     verify_module(
         model,
         input_shapes=[(inputs[0].shape,)],

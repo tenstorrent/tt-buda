@@ -34,6 +34,7 @@ def test_vgg_osmr_pytorch(variant, test_device):
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     if (test_device.arch == BackendDevice.Wormhole_B0):
         os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "65536"
+        os.environ["PYBUDA_LEGACY_KERNEL_BROADCAST"] = "1"
 
     # STEP 2: Create PyBuda module from PyTorch model
     # Variants: 
@@ -82,6 +83,7 @@ def test_vgg_19_hf_pytorch(test_device):
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     if test_device.arch == BackendDevice.Wormhole_B0:
         os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "65536"
+        os.environ["PYBUDA_LEGACY_KERNEL_BROADCAST"] = "1"
 
     '''
     # https://pypi.org/project/vgg-pytorch/

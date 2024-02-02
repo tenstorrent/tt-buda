@@ -127,6 +127,9 @@ def test_gptneo_sequence_classification(variant, test_device):
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
 
+    if variant in ["EleutherAI/gpt-neo-1.3B", "EleutherAI/gpt-neo-2.7B"]:
+        os.environ["PYBUDA_LEGACY_KERNEL_BROADCAST"] = "1"
+
     tokenizer = download_model(AutoTokenizer.from_pretrained, variant)
     tokenizer.pad_token = tokenizer.eos_token
     model = download_model(

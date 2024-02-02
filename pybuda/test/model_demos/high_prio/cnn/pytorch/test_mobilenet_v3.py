@@ -116,6 +116,8 @@ def test_mobilenetv3_timm(variant, test_device):
         test_device, variant,
     )
 
+    os.environ["PYBUDA_LEGACY_KERNEL_BROADCAST"] = "1"
+
     verify_module(
         model,
         input_shapes=[inputs[0].shape],

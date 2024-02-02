@@ -29,6 +29,8 @@ def test_albert_masked_lm_pytorch(size, variant, test_device):
         default_df_override=pybuda.DataFormat.Float16,
         amp_level=2,
     )
+    compiler_cfg = pybuda.config._get_global_compiler_config()
+
     if ("xxlarge" in model_ckpt):
         if test_device.arch == BackendDevice.Grayskull:
             compiler_cfg = pybuda.config._get_global_compiler_config()
@@ -54,16 +56,18 @@ def test_albert_masked_lm_pytorch(size, variant, test_device):
         os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{8*1024}"
 
         if test_device.arch == BackendDevice.Grayskull:
-            compiler_cfg = pybuda.config._get_global_compiler_config()
             compiler_cfg.enable_t_streaming = True
             os.environ["PYBUDA_NLP_MANUAL_TARGET"] = "2000000"
     elif "large" == size:
         if test_device.arch == BackendDevice.Grayskull:
-            compiler_cfg = pybuda.config._get_global_compiler_config()
             compiler_cfg.enable_t_streaming = True
             compiler_cfg.enable_auto_fusing = False
             os.environ["PYBUDA_TEMP_ELT_UNARY_ESTIMATES_LEGACY"] = "1"
-
+        elif test_device.arch == BackendDevice.Wormhole_B0:
+            os.environ["PYBUDA_LEGACY_KERNEL_BROADCAST"] = "1"
+    elif "base" == size:
+        if test_device.arch == BackendDevice.Wormhole_B0:
+            os.environ["PYBUDA_LEGACY_KERNEL_BROADCAST"] = "1"
 
     # Load data sample
     sample_text = "The capital of France is [MASK]."
@@ -104,6 +108,8 @@ def test_albert_token_classification_pytorch(size, variant, test_device):
         amp_level=2,
     )
 
+    compiler_cfg = pybuda.config._get_global_compiler_config()
+
     # NOTE: These model variants are pre-trined only. They need to be fine-tuned
     # on a downstream task. Code is for demonstration purposes only.
     # Variants: albert-base-v1, albert-large-v1, albert-xlarge-v1, albert-xxlarge-v1
@@ -121,15 +127,19 @@ def test_albert_token_classification_pytorch(size, variant, test_device):
         os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{8*1024}"
 
         if test_device.arch == BackendDevice.Grayskull:
-            compiler_cfg = pybuda.config._get_global_compiler_config()
             compiler_cfg.enable_t_streaming = True
             os.environ["PYBUDA_NLP_MANUAL_TARGET"] = "2000000"
     elif "large" == size:
         if test_device.arch == BackendDevice.Grayskull:
-            compiler_cfg = pybuda.config._get_global_compiler_config()
             compiler_cfg.enable_t_streaming = True
             compiler_cfg.enable_auto_fusing = False
             os.environ["PYBUDA_TEMP_ELT_UNARY_ESTIMATES_LEGACY"] = "1"
+        elif test_device.arch == BackendDevice.Wormhole_B0:
+            os.environ["PYBUDA_LEGACY_KERNEL_BROADCAST"] = "1"
+    elif "base" == size:
+        if test_device.arch == BackendDevice.Wormhole_B0:
+            os.environ["PYBUDA_LEGACY_KERNEL_BROADCAST"] = "1"
+
 
     # Load ALBERT tokenizer and model from HuggingFace
     tokenizer = AlbertTokenizer.from_pretrained(model_ckpt)

@@ -100,6 +100,9 @@ def test_dpr_reader_pytorch(variant, test_device):
 
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object 
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
+
+    if test_device.arch == BackendDevice.Wormhole_B0:
+        os.environ["PYBUDA_LEGACY_KERNEL_BROADCAST"] = "1"
  
     # Data preprocessing
     input_tokens = tokenizer(
