@@ -642,149 +642,152 @@ bool is_candidate_better_than_current(
     {
         return true;
     }
-    else if (std::abs(ribbon_size - candidate.grid_shape.r) == std::abs(ribbon_size - current.grid_shape.r))
+    else if (std::abs(ribbon_size - candidate.grid_shape.r) > std::abs(ribbon_size - current.grid_shape.r))
     {
-        // If both are same diff from target ribbon size, prefer smaller one.
-        // It makes smaller "disturbance" to targeted ribbon and uses smaller number of cores.
-        //
-        if (candidate.grid_shape.r != current.grid_shape.r)
-        {
-            return candidate.grid_shape.r < current.grid_shape.r;
-        }
+        return false;
+    }
 
-        bool candidate_prologue_ok = prologue_ok(candidate);
-        bool current_prologue_ok = prologue_ok(current);
+    // If both are same diff from target ribbon size, prefer smaller one.
+    // It makes smaller "disturbance" to targeted ribbon and uses smaller number of cores.
+    //
+    if (candidate.grid_shape.r != current.grid_shape.r)
+    {
+        return candidate.grid_shape.r < current.grid_shape.r;
+    }
 
-        if (candidate_prologue_ok > current_prologue_ok)
+    bool candidate_prologue_ok = prologue_ok(candidate);
+    bool current_prologue_ok = prologue_ok(current);
+
+    if (candidate_prologue_ok > current_prologue_ok)
+    {
+        return true;
+    }
+    else if (candidate_prologue_ok < current_prologue_ok)
+    {
+        return false;
+    }
+
+    int current_cycles = get_limiter_cycles(current, graph, device_config);
+    int candidate_cycles = get_limiter_cycles(candidate, graph, device_config);
+
+    // Both op_models are within target. Prefer smaller number of columns.
+    //
+    if (candidate_cycles <= target_exec_cycles and current_cycles <= target_exec_cycles)
+    {
+        if (candidate.grid_shape.c < current.grid_shape.c)
         {
             return true;
         }
-        else if (candidate_prologue_ok == current_prologue_ok)
+        else if (candidate.grid_shape.c > current.grid_shape.c)
         {
-            int current_cycles = get_limiter_cycles(current, graph, device_config);
-            int candidate_cycles = get_limiter_cycles(candidate, graph, device_config);
+            return false;
+        }
+    }
 
-            // Both op_models are within target. Prefer smaller number of columns.
-            //
-            if (candidate_cycles <= target_exec_cycles and current_cycles <= target_exec_cycles)
+    bool ukt_ok_candidate = ukt_ok(candidate);
+    bool ukt_ok_current = ukt_ok(current);
+
+    if (ukt_ok_candidate > ukt_ok_current)
+    {
+        return true;
+    }
+    else if (ukt_ok_candidate < ukt_ok_current)
+    {
+        return false;
+    }
+
+    bool mblock_size_ok_candidate = mblock_size_ok(candidate);
+    bool mblock_size_ok_current = mblock_size_ok(current);
+    if (mblock_size_ok_candidate > mblock_size_ok_current)
+    {
+        return true;
+    }
+    else if (mblock_size_ok_candidate < mblock_size_ok_current)
+    {
+        return false;
+    }
+
+    // (1) if both are close to target, pick the one with the largest block (volume_no_t)
+    // (2) if only one is close to target, pick that one
+    // (3) if both are far from target, pick the one that is closer to target (in terms of execution
+    // cycles)
+
+    int current_exec_cycles = current.get_execution_cycles(device_config.arch_name);
+    int candidate_exec_cycles = candidate.get_execution_cycles(device_config.arch_name);
+    float current_exec_util = (float)current_exec_cycles / (float)current_cycles;
+    float candidate_exec_util = (float)candidate_exec_cycles / (float)candidate_cycles;
+
+    if (op_model_compare_version == 2)
+    {
+        if (close_to_target_exec_cycles(current_exec_cycles, current_cycles, target_exec_cycles))
+        {
+            if (close_to_target_exec_cycles(candidate_exec_cycles, candidate_cycles, target_exec_cycles))
             {
-                if (candidate.grid_shape.c < current.grid_shape.c)
+                if (candidate.block_shape().volume_no_t() > current.block_shape().volume_no_t())
                 {
                     return true;
                 }
-                else if (candidate.grid_shape.c > current.grid_shape.c)
+                else if (candidate.block_shape().volume_no_t() == current.block_shape().volume_no_t())
                 {
-                    return false;
+                    if (candidate_exec_util > current_exec_util)
+                    {
+                        return true;
+                    }
                 }
             }
-
-            bool ukt_ok_candidate = ukt_ok(candidate);
-            bool ukt_ok_current = ukt_ok(current);
-
-            if (ukt_ok_candidate > ukt_ok_current)
+        }
+        else if (close_to_target_exec_cycles(candidate_exec_cycles, candidate_cycles, target_exec_cycles))
+        {
+            return true;
+        }
+        else
+        {
+            if (candidate_cycles <= target_exec_cycles)
+            {
+                if (current_cycles > target_exec_cycles)
+                {
+                    return true;
+                }
+                else
+                {
+                    if (candidate.block_shape().volume_no_t() > current.block_shape().volume_no_t())
+                    {
+                        return true;
+                    }
+                    else if (candidate.block_shape().volume_no_t() == current.block_shape().volume_no_t())
+                    {
+                        if (candidate_exec_util > current_exec_util)
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+            else if (candidate_cycles < current_cycles)
             {
                 return true;
             }
-            else if (ukt_ok_candidate == ukt_ok_current)
+        }
+    }
+    else if (op_model_compare_version == 1)
+    {
+        if (close_to_target(current_cycles, target_exec_cycles))
+        {
+            if (close_to_target(candidate_cycles, target_exec_cycles))
             {
-                bool mblock_size_ok_candidate = mblock_size_ok(candidate);
-                bool mblock_size_ok_current = mblock_size_ok(current);
-                if (mblock_size_ok_candidate > mblock_size_ok_current)
+                if (candidate.block_shape().volume_no_t() > current.block_shape().volume_no_t())
                 {
                     return true;
                 }
-                else if (mblock_size_ok_candidate == mblock_size_ok_current)
-                {
-                    // (1) if both are close to target, pick the one with the largest block (volume_no_t)
-                    // (2) if only one is close to target, pick that one
-                    // (3) if both are far from target, pick the one that is closer to target (in terms of execution
-                    // cycles)
-
-                    int current_exec_cycles = current.get_execution_cycles(device_config.arch_name);
-                    int candidate_exec_cycles = candidate.get_execution_cycles(device_config.arch_name);
-                    float current_exec_util = (float)current_exec_cycles / (float)current_cycles;
-                    float candidate_exec_util = (float)candidate_exec_cycles / (float)candidate_cycles;
-
-                    if (op_model_compare_version == 2)
-                    {
-                        if (close_to_target_exec_cycles(current_exec_cycles, current_cycles, target_exec_cycles))
-                        {
-                            if (close_to_target_exec_cycles(
-                                    candidate_exec_cycles, candidate_cycles, target_exec_cycles))
-                            {
-                                if (candidate.block_shape().volume_no_t() > current.block_shape().volume_no_t())
-                                {
-                                    return true;
-                                }
-                                else if (candidate.block_shape().volume_no_t() == current.block_shape().volume_no_t())
-                                {
-                                    if (candidate_exec_util > current_exec_util)
-                                    {
-                                        return true;
-                                    }
-                                }
-                            }
-                        }
-                        else if (close_to_target_exec_cycles(
-                                     candidate_exec_cycles, candidate_cycles, target_exec_cycles))
-                        {
-                            return true;
-                        }
-                        else
-                        {
-                            if (candidate_cycles <= target_exec_cycles)
-                            {
-                                if (current_cycles > target_exec_cycles)
-                                {
-                                    return true;
-                                }
-                                else
-                                {
-                                    if (candidate.block_shape().volume_no_t() > current.block_shape().volume_no_t())
-                                    {
-                                        return true;
-                                    }
-                                    else if (
-                                        candidate.block_shape().volume_no_t() == current.block_shape().volume_no_t())
-                                    {
-                                        if (candidate_exec_util > current_exec_util)
-                                        {
-                                            return true;
-                                        }
-                                    }
-                                }
-                            }
-                            else if (candidate_cycles < current_cycles)
-                            {
-                                return true;
-                            }
-                        }
-                    }
-                    else if (op_model_compare_version == 1)
-                    {
-                        if (close_to_target(current_cycles, target_exec_cycles))
-                        {
-                            if (close_to_target(candidate_cycles, target_exec_cycles))
-                            {
-                                if (candidate.block_shape().volume_no_t() > current.block_shape().volume_no_t())
-                                {
-                                    return true;
-                                }
-                            }
-                        }
-                        else if (close_to_target(candidate_cycles, target_exec_cycles))
-                        {
-                            return true;
-                        }
-                        else if (
-                            std::abs(target_exec_cycles - candidate_cycles) <
-                            std::abs(target_exec_cycles - current_cycles))
-                        {
-                            return true;
-                        }
-                    }
-                }
             }
+        }
+        else if (close_to_target(candidate_cycles, target_exec_cycles))
+        {
+            return true;
+        }
+        else if (std::abs(target_exec_cycles - candidate_cycles) < std::abs(target_exec_cycles - current_cycles))
+        {
+            return true;
         }
     }
 
@@ -1102,8 +1105,9 @@ int get_limiter_cycles(
     float noc_bw = static_cast<float>(device_config.get_noc_bandwidth_bytes_per_cycle()) / inefficency_divider;
     float dram_bw_divider = std::max(
         inefficency_divider,
-        std::ceil(dram_access_core_count / (device_config.get_dram_num_channels() * device_config.get_dram_num_subchannels() /
-                                  subchannel_oversub_coeff)));
+        std::ceil(
+            dram_access_core_count / (device_config.get_dram_num_channels() * device_config.get_dram_num_subchannels() /
+                                      subchannel_oversub_coeff)));
 
     // API is currently returning wrong value for WH
     // tenstorrent/budabackend#2423
