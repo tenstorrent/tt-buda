@@ -25,7 +25,6 @@ def test_swin_v1_tiny_4_224_hf_pytorch(test_device):
     compiler_cfg = pybuda.config._get_global_compiler_config()    
     compiler_cfg.retain_tvm_python_files = True
     compiler_cfg.enable_tvm_constant_prop = True
-    compiler_cfg.enable_t_streaming = True
     os.environ["PYBUDA_ENABLE_STABLE_SOFTMAX"] = "1"
     os.environ["TVM_BACKTRACE"]="1" 
     

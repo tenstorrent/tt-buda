@@ -29,7 +29,6 @@ def generate_model_mobilenetV2_imgcls_torchhub_pytorch(test_device, variant):
         pybuda.config._get_global_compiler_config()
     )  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
 
     # STEP 2: Create PyBuda module from PyTorch model
@@ -75,7 +74,6 @@ def generate_model_mobilenetV2I96_imgcls_hf_pytorch(test_device, variant):
         pybuda.config._get_global_compiler_config()
     )  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
 
     # Create PyBuda module from PyTorch model
@@ -121,7 +119,6 @@ def generate_model_mobilenetV2I160_imgcls_hf_pytorch(test_device, variant):
         pybuda.config._get_global_compiler_config()
     )  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
 
     # Create PyBuda module from PyTorch model
@@ -170,7 +167,6 @@ def generate_model_mobilenetV2I244_imgcls_hf_pytorch(test_device, variant):
         pybuda.config._get_global_compiler_config()
     )  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
 
     # Create PyBuda module from PyTorch model
@@ -220,7 +216,6 @@ def generate_model_mobilenetV2_imgcls_timm_pytorch(test_device, variant):
         pybuda.config._get_global_compiler_config()
     )  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
 
     # Create PyBuda module from PyTorch model
@@ -274,7 +269,6 @@ def generate_model_mobilenetV2_semseg_hf_pytorch(test_device, variant):
     # Configurations
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     os.environ["PYBUDA_RIBBON2"] = "1"
 

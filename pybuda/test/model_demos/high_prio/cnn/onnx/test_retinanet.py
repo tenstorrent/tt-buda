@@ -57,7 +57,6 @@ def test_retinanet_r101_640x480_onnx(test_device):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.graph_solver_self_cut_type = "ConsumerOperandDataEdgesFirst"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
     compiler_cfg.conv_multi_op_fracture_factor_override["conv2d_356"] = 3

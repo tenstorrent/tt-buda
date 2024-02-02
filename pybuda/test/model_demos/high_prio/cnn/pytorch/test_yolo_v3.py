@@ -27,7 +27,6 @@ def generate_model_yolotinyV3_imgcls_holli_pytorch(test_device, variant):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.Float16_b
     if test_device.devtype == BackendType.Golden:
         compiler_cfg.enable_auto_fusing = False
@@ -72,7 +71,6 @@ def generate_model_yoloV3_imgcls_holli_pytorch(test_device, variant):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.Float16_b
     if test_device.devtype == BackendType.Golden:
         compiler_cfg.enable_auto_fusing = False

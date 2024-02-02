@@ -24,7 +24,6 @@ from pybuda.verify.config import TestKind
 def generate_model_yoloV5I320_imgcls_torchhub_pytorch(test_device, variant, size):
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tm_cpu_fallback = False
     compiler_cfg.enable_conv_prestride = True
     compiler_cfg.enable_tvm_constant_prop = True
@@ -87,7 +86,6 @@ def generate_model_yoloV5I640_imgcls_torchhub_pytorch(test_device, variant, size
     # Add required env vars as per: https://yyz-gitlab.local.tenstorrent.com/tenstorrent/model-demos/-/issues/46
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_auto_fusing = False
     os.environ["PYBUDA_DECOMPOSE_SIGMOID"] = "1"
     os.environ["PYBUDA_DISABLE_CAP_SPARSE_MM_FIDELITY"] = "1"
@@ -191,7 +189,6 @@ def test_yolov5_640x640(test_device, size):
 def generate_model_yoloV5I480_imgcls_torchhub_pytorch(test_device, variant, size):
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tm_cpu_fallback = True
     os.environ["PYBUDA_DECOMPOSE_SIGMOID"] = "1"
     os.environ["PYBUDA_LEGACY_UBLOCK_SHAPE"] = "1"
@@ -284,7 +281,6 @@ def test_yolov5_1280x1280(test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tm_cpu_fallback = True
     compiler_cfg.default_df_override = DataFormat.Float16_b
     compiler_cfg.paddings = {

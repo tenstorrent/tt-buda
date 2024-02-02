@@ -44,7 +44,6 @@ variants = [
 def generate_model_whisper_congen_hf_pytorch(test_device, variant):
     # Configurations
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tvm_cpu_fallback = False  # Run full model on silicon
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     os.environ["PYBUDA_PAD_OUTPUT_BUFFER"] = "1"
@@ -167,7 +166,6 @@ def test_whisper_pipeline(test_device, variant):
 
     # Configurations
     compiler_cfg = pybuda.config._get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_auto_fusing = False  # tenstorrent/pybuda#844
     compiler_cfg.amp_level = 2
     compiler_cfg.enable_link_past_cache_ios = False
@@ -229,7 +227,6 @@ def test_whisper_encoder(test_device, variant):
 
     # Configurations
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tvm_cpu_fallback = False
     compiler_cfg.input_queues_on_host = True
     compiler_cfg.enable_link_past_cache_ios = True

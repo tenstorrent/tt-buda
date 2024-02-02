@@ -372,7 +372,6 @@ class PyBudify(torch.nn.Module):
             if self.masked_odkv:
                 # print('masked_odkv')
 
-                # compiler_cfg.enable_t_streaming = True
                 # compiler_cfg.manual_t_streaming = True
 
                 # pybuda.config.override_t_stream_dir(f"concatenate_50.dc.sparse_matmul.4.lc2", "c")
@@ -416,10 +415,8 @@ class PyBudify(torch.nn.Module):
                 compiler_cfg.loopback_outputs = names_dict
 
             elif self.odkv:
-
-                # compiler_cfg.enable_t_streaming = True
                 # compiler_cfg.manual_t_streaming = True
-
+                
                 # pybuda.config.override_t_stream_dir(f"concatenate_50.dc.sparse_matmul.4.lc2", "c")
                 # pybuda.config.override_t_stream_dir(f"concatenate_67.dc.sparse_matmul.4.lc2", "c")
 
@@ -450,8 +447,6 @@ class PyBudify(torch.nn.Module):
                 #     input_df={0: [pybuda.DataFormat.Bfp8_b, True], 1: [pybuda.DataFormat.Bfp8_b, True], 2: [pybuda.DataFormat.Bfp8_b, True]})
 
                 compiler_cfg.loopback_outputs = names_dict
-            else:
-                compiler_cfg.enable_t_streaming = True
 
             pybuda_arch = {
                 "grayskull": pybuda.BackendDevice.Grayskull,

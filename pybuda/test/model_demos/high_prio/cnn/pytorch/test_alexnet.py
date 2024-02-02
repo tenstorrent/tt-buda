@@ -22,7 +22,6 @@ def test_alexnet_torchhub(test_device):
     # Configurations
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
 
     os.environ["PYBUDA_CONV2D_SPARSE_SECOND"] = "1"
 
@@ -81,7 +80,6 @@ def test_alexnet_osmr(test_device):
     # Configurations
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
 
     os.environ["PYBUDA_CONV2D_SPARSE_SECOND"] = "1"
 

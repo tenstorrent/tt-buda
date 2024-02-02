@@ -28,7 +28,6 @@ def generate_model_resnet_imgcls_hf_pytorch(test_device, variant):
     # Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     os.environ["PYBUDA_DISABLE_STREAM_OUTPUT"] = "1"  # Disable streaming for output queue (perf)
     os.environ["PYBUDA_PAD_OUTPUT_BUFFER"] = "1"
@@ -84,7 +83,6 @@ def generate_model_resnet_imgcls_timm_pytorch(test_device, variant):
         pybuda.config._get_global_compiler_config()
     )  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
 
     # Load data sample

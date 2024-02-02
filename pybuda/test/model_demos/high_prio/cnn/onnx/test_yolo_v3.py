@@ -48,7 +48,6 @@ def test_yolov3_tiny_onnx(test_device):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
 
     # STEP 2: Create PyBuda module from PyTorch model 
     load_path = "third_party/confidential_customer_models/model_2/onnx/saved/yolo_v3/tiny-yolov3-11.onnx"
@@ -81,7 +80,6 @@ def test_yolov3_onnx(test_device):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
 
     # STEP 2: Create PyBuda module from PyTorch model 
     load_path = "third_party/confidential_customer_models/model_2/onnx/saved/yolo_v3/yolov3-10.onnx"

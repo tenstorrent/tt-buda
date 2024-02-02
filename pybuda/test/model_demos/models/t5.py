@@ -62,7 +62,6 @@ def generate_t5_past_cache_enc_dec(test_device, variant):
     os.environ["TT_BACKEND_EPOCH_BIN_NUM_SLOTS"] = "64"
     os.environ["PYBUDA_ROTATE_PAST_CACHE_PARAMS"] = "1"
     compiler_cfg = pybuda.config._get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tvm_cpu_fallback = False
     compiler_cfg.default_df_override = pybuda._C.Float16_b
     compiler_cfg.default_dram_parameters = False

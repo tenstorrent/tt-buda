@@ -27,7 +27,6 @@ def test_mobilenet_v1_ssd_pytorch_1x1(test_device):
         pybuda.config._get_global_compiler_config()
     )  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     compiler_cfg.conv_multi_op_fracture_factor_override["conv2d_102"] = -1
     compiler_cfg.conv_multi_op_fracture_factor_override["conv2d_131"] = -1

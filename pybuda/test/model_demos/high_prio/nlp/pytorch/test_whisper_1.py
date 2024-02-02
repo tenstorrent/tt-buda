@@ -76,7 +76,6 @@ def test_whisper_dec_past_cache(test_device, variant):
 @pytest.mark.parametrize("variant", variants, ids=variants)
 def test_whisper_enc_dec(test_device, variant):
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tvm_cpu_fallback = False  # Run full model on silicon
     compiler_cfg.input_queues_on_host = True
     compiler_cfg.compile_subgraphs = True
@@ -315,7 +314,6 @@ def test_whisper_enc_dec_pipeline(test_device, variant):
     pytest.skip("Already tested with past-cache and separated encoder-decoder")
     compiler_cfg = _get_global_compiler_config()
     # compiler_cfg.amp_level = 1
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tvm_cpu_fallback = False  # Run full model on silicon
     compiler_cfg.input_queues_on_host = True
     compiler_cfg.compile_subgraphs = True

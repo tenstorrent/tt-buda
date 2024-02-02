@@ -34,7 +34,6 @@ def generate_model_hrnet_imgcls_osmr_pytorch(test_device, variant):
 
     # tenstorrent/pybuda#950
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     
     # STEP 2: Create PyBuda module from PyTorch model
@@ -120,7 +119,6 @@ def generate_model_hrnet_imgcls_timm_pytorch(test_device, variant):
     
     # tenstorrent/pybuda#950
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
 
     # STEP 2: Create PyBuda module from PyTorch model

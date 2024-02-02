@@ -29,7 +29,6 @@ def test_blazepose_detector_pytorch(test_device):
     # Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
 
     # Load BlazePose Detector
     pose_detector = BlazePose()
@@ -68,7 +67,6 @@ def test_blazepose_regressor_pytorch(test_device):
     # Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
 
 
     # Load BlazePose Landmark Regressor
@@ -100,7 +98,6 @@ def test_blazepose_detector_pytorch_1x1(test_device):
     # Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
 
     # Load BlazePose Detector
     pose_detector = BlazePose()
@@ -141,8 +138,6 @@ def test_blazepose_regressor_pytorch_1x1(test_device):
     # Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
-
 
     # Load BlazePose Landmark Regressor
     pose_regressor = BlazePoseLandmark()
@@ -173,7 +168,6 @@ def test_blaze_palm_pytorch_1x1(test_device):
     # Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.cpu_fallback_ops = set(["concatenate"])
 
     # Load BlazePalm Detector
@@ -219,7 +213,6 @@ def test_blaze_hand_pytorch_1x1(test_device):
     # Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.conv_multi_op_fracture_factor_override["conv2d_33"] = -1
     compiler_cfg.conv_multi_op_fracture_factor_override["conv2d_112"] = -1
 

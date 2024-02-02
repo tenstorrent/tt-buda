@@ -22,7 +22,6 @@ def test_googlenet_pytorch(test_device):
         pybuda.config._get_global_compiler_config()
     )  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     
     # Create PyBuda module from PyTorch model

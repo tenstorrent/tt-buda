@@ -312,7 +312,6 @@ def generate_model_openpose_posdet_custom_pytorch(test_device, variant):
     # Configurations
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_enumerate_u_kt = False
     compiler_cfg.graph_solver_self_cut_type = "FastCut"
     compiler_cfg.default_df_override = DataFormat.Float16_b
@@ -390,7 +389,6 @@ def generate_model_openpose_posdet_osmr_pytorch(test_device, variant):
     # Configurations
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_auto_fusing = False
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16
 

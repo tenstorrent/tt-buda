@@ -77,7 +77,6 @@ def test_densenet_121_pytorch(variant, test_device):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     os.environ["PYBUDA_DISABLE_CONSTANT_FOLDING"] = "1"
 
@@ -121,8 +120,7 @@ def test_densenet_161_pytorch(test_device):
     
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
-    compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True    
+    compiler_cfg.balancer_policy = "CNN"  
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     compiler_cfg.place_on_new_epoch("concatenate_131.dc.sparse_matmul.7.lc2") 
     os.environ["PYBUDA_DISABLE_CONSTANT_FOLDING"] = "1"
@@ -163,7 +161,6 @@ def test_densenet_169_pytorch(test_device):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     os.environ["PYBUDA_DISABLE_CONSTANT_FOLDING"] = "1"
     os.environ["PYBUDA_GRAPHSOLVER_SELF_CUT_TYPE"] = "ConsumerOperandDataEdgesFirst"
@@ -197,7 +194,6 @@ def test_densenet_201_pytorch(test_device):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     os.environ["PYBUDA_DISABLE_CONSTANT_FOLDING"] = "1"
     os.environ["PYBUDA_GRAPHSOLVER_SELF_CUT_TYPE"] = "ConsumerOperandDataEdgesFirst"

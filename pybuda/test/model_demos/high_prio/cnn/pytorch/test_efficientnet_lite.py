@@ -47,7 +47,6 @@ def test_efficientnet_lite_0_pytorch(test_device):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
 
     if test_device.arch == BackendDevice.Wormhole_B0:
         os.environ["PYBUDA_GRAPHSOLVER_SELF_CUT_TYPE"] = "ConsumerOperandDataEdgesFirst"
@@ -87,7 +86,6 @@ def test_efficientnet_lite_1_pytorch(test_device):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     compiler_cfg.amp_level = 2
     os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
@@ -128,7 +126,6 @@ def test_efficientnet_lite_2_pytorch(test_device):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     compiler_cfg.amp_level = 2
     compiler_cfg.balancer_op_override("conv2d_99.dc.conv2d.1.dc.matmul.12", "grid_shape", (7,5))
@@ -174,7 +171,6 @@ def test_efficientnet_lite_3_pytorch(test_device):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     os.environ["PYBUDA_PAD_SPARSE_MM"] = "{613:640, 39:48, 11:12}"
     os.environ["PYBUDA_MANUAL_SPLICE_DECOMP_TH"] = "613"
     os.environ["PYBUDA_GRAPHSOLVER_SELF_CUT_TYPE"] = "ConsumerOperandDataEdgesFirst"
@@ -217,7 +213,6 @@ def test_efficientnet_lite_4_pytorch(test_device):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     os.environ["PYBUDA_PAD_SPARSE_MM"] = "{46:48}"
     os.environ["PYBUDA_GRAPHSOLVER_SELF_CUT_TYPE"] = "ConsumerOperandDataEdgesFirst"
     os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"

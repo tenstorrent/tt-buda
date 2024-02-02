@@ -147,7 +147,6 @@ def test_fuyu8b(test_device):
     # Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()
     #compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     #compiler_cfg.enable_tvm_constant_prop = True
     compiler_cfg.enable_tvm_cpu_fallback = False
@@ -204,7 +203,6 @@ def test_fuyu8b_past_cache(test_device):
     # Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     compiler_cfg.enable_tvm_cpu_fallback = False
     compiler_cfg.compile_subgraphs = True

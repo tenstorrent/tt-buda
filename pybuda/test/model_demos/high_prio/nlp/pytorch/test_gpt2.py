@@ -79,7 +79,6 @@ def test_gpt2_past_cache(test_device):
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.compile_subgraphs = True
     compiler_cfg.enable_tvm_cpu_fallback = False
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_auto_fusing = False
 
     model = GPT2LMHeadModel.from_pretrained("gpt2", return_dict=False)

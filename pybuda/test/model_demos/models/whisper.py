@@ -69,7 +69,6 @@ class Whisper_decoder(torch.nn.Module):
 
 def generate_model_whisper_decoder_past_cache(test_device, variant):
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tvm_cpu_fallback = False  # Run full model on silicon
     compiler_cfg.input_queues_on_host = True
     compiler_cfg.enable_link_past_cache_ios = True
@@ -137,7 +136,6 @@ def generate_model_whisper_decoder_past_cache(test_device, variant):
 def generate_model_whisper_enc_dec(test_device, variant):
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.amp_level = 1
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tvm_cpu_fallback = False  # Run full model on silicon
     compiler_cfg.input_queues_on_host = True
     compiler_cfg.compile_subgraphs = True

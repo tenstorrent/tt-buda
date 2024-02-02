@@ -30,7 +30,6 @@ def test_t5_loop_tiny_tile(test_device):
     # os.environ["TT_BACKEND_PROFILER"] = "1"
 
     compiler_cfg = pybuda.config._get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tvm_cpu_fallback = False
     compiler_cfg.default_df_override = pybuda._C.Float16_b
     compiler_cfg.default_dram_parameters = False
@@ -86,7 +85,6 @@ def test_t5_generation(variant, test_device):
     # os.environ["PYBUDA_ENABLE_TINY_TILE"] = "1"
     # Add PyBUDA configurations
     compiler_cfg = pybuda.config._get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tvm_cpu_fallback = False
     compiler_cfg.enable_auto_fusing = False  # tenstorrent/pybuda#844
     compiler_cfg.amp_level = 1
@@ -195,7 +193,6 @@ def test_t5_past_cache_enc_dec(variant, test_device):
     os.environ["TT_BACKEND_EPOCH_BIN_NUM_SLOTS"] = "64"
     os.environ["PYBUDA_ROTATE_PAST_CACHE_PARAMS"] = "1"
     compiler_cfg = pybuda.config._get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tvm_cpu_fallback = False
     compiler_cfg.default_df_override = pybuda._C.Float16_b
     compiler_cfg.default_dram_parameters = False
@@ -344,7 +341,6 @@ def test_t5_past_cache_pybuda_pipeline(variant, test_device):
     os.environ["PYBUDA_NLP_MANUAL_TARGET"] = "30000"
     os.environ["TT_BACKEND_DRAM_POLLING_FREQUENCY"] = "64"
     compiler_cfg = pybuda.config._get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tvm_cpu_fallback = False
     compiler_cfg.default_df_override = pybuda._C.Float16_b
     compiler_cfg.default_dram_parameters = False
@@ -518,7 +514,6 @@ def test_t5_pybuda_pipeline(variant, test_device):
     os.environ["PYBUDA_NLP_MANUAL_TARGET"] = "30000"
     os.environ["TT_BACKEND_DRAM_POLLING_FREQUENCY"] = "64"
     compiler_cfg = pybuda.config._get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tvm_cpu_fallback = False
     compiler_cfg.default_df_override = pybuda._C.Float16_b
     compiler_cfg.default_dram_parameters = False
@@ -565,7 +560,6 @@ def test_t5_small_tiny_tile(test_device):
     os.environ["PYBUDA_LEGACY_UBLOCK_SHAPE"] = "1"
     # Add PyBUDA configurations
     compiler_cfg = pybuda.config._get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tvm_cpu_fallback = False
     compiler_cfg.enable_auto_fusing = False  # tenstorrent/pybuda#844
     compiler_cfg.amp_level = 1

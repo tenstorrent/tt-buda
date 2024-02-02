@@ -108,7 +108,6 @@ def test_retinanet_r50_fpn_v1_torchvision_pytorch(test_device):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Bfp8_b
     compiler_cfg.amp_level = 2
     compiler_cfg.enable_auto_fusing = False

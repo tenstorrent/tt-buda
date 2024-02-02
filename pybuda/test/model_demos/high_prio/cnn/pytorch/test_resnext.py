@@ -54,7 +54,6 @@ def test_resnext_50_torchhub_pytorch(test_device):
     )  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
     os.environ["PYBUDA_RIBBON2"] = "1"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     
     # STEP 2: Create PyBuda module from PyTorch model
@@ -93,7 +92,6 @@ def test_resnext_101_torchhub_pytorch(test_device):
     compiler_cfg.balancer_policy = "Ribbon"
     os.environ["PYBUDA_RIBBON2"] = "1"
     os.environ["PYBUDA_BALANCER_PREPASS_DISABLED"] = "1"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
 
     # STEP 2: Create PyBuda module from PyTorch model
@@ -133,7 +131,6 @@ def test_resnext_101_32x8d_fb_wsl_pytorch(test_device):
     compiler_cfg.balancer_policy = "Ribbon"
     os.environ["PYBUDA_RIBBON2"] = "1"
     os.environ["PYBUDA_BALANCER_PREPASS_DISABLED"] = "1"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
 
     # STEP 2: Create PyBuda module from PyTorch model
@@ -165,7 +162,6 @@ def test_resnext_101_32x8d_fb_wsl_pytorch(test_device):
 def test_resnext_14_osmr_pytorch(test_device):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
-    compiler_cfg.enable_t_streaming = True
 
     if test_device.arch == BackendDevice.Wormhole_B0:
         compiler_cfg.balancer_policy = "Ribbon"
@@ -211,7 +207,6 @@ def test_resnext_26_osmr_pytorch(test_device):
         pybuda.config._get_global_compiler_config()
     )  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     os.environ["PYBUDA_RIBBON2"] = "1"
     os.environ["PYBUDA_BALANCER_PREPASS_DISABLED"] = "1"
@@ -251,7 +246,6 @@ def test_resnext_50_osmr_pytorch(test_device):
     )  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
     os.environ["PYBUDA_RIBBON2"] = "1"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
 
     # STEP 2: Create PyBuda module from PyTorch model
@@ -289,7 +283,6 @@ def test_resnext_101_osmr_pytorch(test_device):
     compiler_cfg.balancer_policy = "Ribbon"
     os.environ["PYBUDA_RIBBON2"] = "1"
     os.environ["PYBUDA_BALANCER_PREPASS_DISABLED"] = "1"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
 
     # STEP 2: Create PyBuda module from PyTorch model

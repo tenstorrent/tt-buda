@@ -30,7 +30,6 @@ def generate_model_unet_imgseg_osmr_pytorch(test_device, variant):
     
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_auto_fusing = False
     compiler_cfg.enable_enumerate_u_kt = False
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
@@ -100,7 +99,6 @@ def test_unet_holocron_pytorch(test_device):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
 
     # STEP 2: Create PyBuda module from PyTorch model
@@ -143,7 +141,6 @@ def generate_model_unet_imgseg_smp_pytorch(test_device, variant):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     os.environ["PYBUDA_GRAPHSOLVER_SELF_CUT_TYPE"]= "FastCut"
     compiler_cfg.conv_multi_op_fracture_factor_override["conv2d_1488"] = 3
@@ -198,7 +195,6 @@ def generate_model_unet_imgseg_torchhub_pytorch(test_device, variant):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
     if test_device.arch == BackendDevice.Grayskull:

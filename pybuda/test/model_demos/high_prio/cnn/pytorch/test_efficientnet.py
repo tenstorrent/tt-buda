@@ -40,7 +40,6 @@ def test_efficientnet_timm(variant, test_device):
     # Configuration
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_auto_fusing = False
 
     if variant == "efficientnet_b0":
@@ -123,7 +122,6 @@ def test_efficientnet_torchvision(variant, test_device):
     # Configuration
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_auto_fusing = False # Until #844 is resolved
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
 
