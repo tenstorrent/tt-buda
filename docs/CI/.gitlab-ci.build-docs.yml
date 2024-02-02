@@ -29,6 +29,7 @@ build-docs-main:
     - if: $CI_COMMIT_REF_NAME == "main"
       when: manual
     - when: never  
+  allow_failure: true
   script:
     - !reference [.build-docs, script]
     - cp -r ../docs/public/md/* pybuda
