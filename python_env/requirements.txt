@@ -34,3 +34,4 @@ librosa==0.10.0.post2
 soundfile==0.12.1
 accelerate==0.23.0
 python-gitlab==4.2.0
+deepdiff==6.7.1

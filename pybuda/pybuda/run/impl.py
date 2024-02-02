@@ -353,9 +353,6 @@ def _initialize_pipeline(
     else:
         if checkpoint_queue is not None:
             raise RuntimeError("Checkpoint queue should only be provided in training mode")
-        
-    if "PYBUDA_OVERRIDES_VETO" in os.environ or "PYBUDA_OVERRIDES_VETO_CUSTOM_SETUP" in os.environ:
-        raise RuntimeError("Currently not supporting override veto outside of verification pipeline")
 
     # Translate framework modules. May increase number of devices due to CPU fallback
     # sample_inputs, _, _ = flatten_inputs(sample_inputs) # NESTED INPUT ASSERT NUM GROUP == NUM MODULES ON THAT DEVICE
