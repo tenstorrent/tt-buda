@@ -287,23 +287,30 @@ def pytest_runtest_logreport(report):
             # - Level 2 - set by dev in test;   we want to remove them          (e.g. enable/disable by default, redefine as more user friendly, etc.)
             # - Level 3 - set by dev in test;   we want to remove them entirely (purely for testing purposes)
             #
-            _set_pybuda_override_veto({
-                # Level 0 overrides (These should not be set as part of compiler config; runtime based)
-                "chip_ids": "",
-                "backend_device_descriptor_path": "",
-                
-                # Level 1 overrides
-                "balancer_policy": "",
-                "enable_t_streaming": "",
-                "default_df_override": "",
-            },
-            {
-                # Level 2 overrides
-                "PYBUDA_RIBBON2": "",
-                "PYBUDA_DISABLE_STREAM_OUTPUT": "",
-                "PYBUDA_PAD_OUTPUT_BUFFER": "",
-                "PYBUDA_OVERRIDE_DEVICE_YAML": "" # Mostly used for 1x1 model overrides
-            })
+            if "PYBUDA_OVERRIDES_VETO_CUSTOM_SETUP" in os.environ:
+                _set_pybuda_override_veto({
+                    # Level 0 overrides (These should not be set as part of compiler config; runtime based)
+                    "backend_device_descriptor_path": "",
+                    "backend_output_dir": "",
+                }, {})
+            else:
+                _set_pybuda_override_veto({
+                    # Level 0 overrides (These should not be set as part of compiler config; runtime based)
+                    "backend_device_descriptor_path": "",
+                    "backend_output_dir": "",
+
+                    # Level 1 overrides
+                    "balancer_policy": "",
+                    "enable_t_streaming": "",
+                    "default_df_override": "",
+                },
+                {
+                    # Level 2 overrides
+                    "PYBUDA_RIBBON2": "",
+                    "PYBUDA_DISABLE_STREAM_OUTPUT": "",
+                    "PYBUDA_PAD_OUTPUT_BUFFER": "",
+                    "PYBUDA_OVERRIDE_DEVICE_YAML": "" # Mostly used for 1x1 model overrides
+                })
 
     elif report.when == "teardown":
         environ_before_test_keys = set(environ_before_test.keys())
