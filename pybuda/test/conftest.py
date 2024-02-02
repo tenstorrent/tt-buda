@@ -137,8 +137,8 @@ def pytest_cmdline_preparse(config, args):
 DEVICE_CONFIG_TO_BACKEND_DEVICE_TYPE = {
     "gs_e150": BackendDevice.Grayskull,
     "gs_e300": BackendDevice.Grayskull,
-    "wh_nebula_x1": BackendDevice.Wormhole_B0,
-    "wh_nebula_x2": BackendDevice.Wormhole_B0,
+    "wh_n150": BackendDevice.Wormhole_B0,
+    "wh_n300": BackendDevice.Wormhole_B0,
     "galaxy": BackendDevice.Wormhole_B0,
 }
 

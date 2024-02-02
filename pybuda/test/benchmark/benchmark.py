@@ -428,7 +428,7 @@ if __name__ == "__main__":
     parser.add_argument(        '--arch', choices=['grayskull', 'wormhole', 'wormhole_b0'], default=None, help='Set arch for offline TTI compilation.')
     parser.add_argument(        '--device', choices=['silicon', 'golden', 'model'], default=None, help='Set device.')
     parser.add_argument(        '--runtime_params_yaml', default=None, help='Set runtime params yaml for offline compile of WH devices.')
-    parser.add_argument(        '--device-config', choices=['galaxy', 'wh_nebula_x1', 'wh_nebula_x2', 'gs_e150', 'gs_e300'], default=None, type=str, help='Runtime params yaml for offline compile of WH devices would be configured based on that.')
+    parser.add_argument(        '--device-config', choices=['galaxy', 'wh_n150', 'wh_n300', 'gs_e150', 'gs_e300'], default=None, type=str, help='Runtime params yaml for offline compile of WH devices would be configured based on that.')
     parser.add_argument(        '--auto_transpose', action='store_true', help='Enable auto-transpose on placement')
     parser.add_argument('-bp',  '--balancer-policy', choices=['default', 'CNN', 'Ribbon', 'NLP'], default='default', help='Set balancer policy.')
     parser.add_argument(        '--perf_analysis', action='store_true', help='Enable backend perf analyzer and op estimates in compiler')

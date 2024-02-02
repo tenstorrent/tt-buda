@@ -16,7 +16,7 @@ if __name__ == "__main__":
             
         parser =  argparse.ArgumentParser()
         parser.add_argument("--models_to_merge", type = str, help = "List of models to generate TTIs for and merge.", default = "*", nargs = "*")
-        parser.add_argument("--device_cfg", type = str, help = "Choose between wh_nebula_x1 and wh_nebula_x2", required = True)
+        parser.add_argument("--device_cfg", type = str, help = "Choose between wh_n150 and wh_n300", required = True)
         parser.add_argument("--merge_ttis", type = bool, help = "Merge Generated TTIs into a single image", default = False)
         parser.add_argument("--disable_host_queues", type = bool, help = "Disable activations in host memory", default = False)
         parser.add_argument("--disable_memory_optimizations", type = bool, help = "Disable low level memory optimizations done during model fusion", default = False)
@@ -38,9 +38,9 @@ if __name__ == "__main__":
         
         os.makedirs(tti_build_dir, exist_ok=True)
         harvesting_flag = ['--env']
-        if args.device_cfg == "wh_nebula_x1":
+        if args.device_cfg == "wh_n150":
             harvesting_flag = harvesting_flag + ['PYBUDA_FORCE_EMULATE_HARVESTED=1 TT_BACKEND_HARVESTED_ROWS=2048']
-        elif args.device_cfg == "wh_nebula_x2":
+        elif args.device_cfg == "wh_n300":
             harvesting_flag = harvesting_flag + ['PYBUDA_FORCE_EMULATE_HARVESTED=1 TT_BACKEND_HARVESTED_ROWS=2050']
         else:
             logger.exception("Unsupported device cfg: {}", args.device_cfg)

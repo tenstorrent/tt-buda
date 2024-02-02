@@ -416,8 +416,8 @@ def get_harvesting_mask(row_indices: List[int]):
 
 # Backend runtime yaml path for supported B0 boards
 supported_backend_configurations = {
-    "wh_nebula_x1" : "tti/runtime_param_yamls/nebula_x1_syslevel.yaml",
-    "wh_nebula_x2" : "tti/runtime_param_yamls/nebula_x2_syslevel.yaml",
+    "wh_n150"      : "tti/runtime_param_yamls/wh_n150_syslevel.yaml",
+    "wh_n300"      : "tti/runtime_param_yamls/wh_n300_syslevel.yaml",
     "galaxy"       : "tti/runtime_param_yamls/galaxy_syslevel.yaml",
     "gs_e150"      : "tti/runtime_param_yamls/gs_e150_syslevel.yaml",
     "gs_e300"      : "tti/runtime_param_yamls/gs_e300_syslevel.yaml",
