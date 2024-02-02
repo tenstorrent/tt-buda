@@ -9,6 +9,7 @@ import socket
 import random
 import string
 import argparse
+import itertools
 import subprocess
 from datetime import date
 
@@ -192,6 +193,19 @@ def collect_error_logs(run_date, commit_sha):
                                     print(line)
                                     print()
 
+def compile_test_configurations(test_list):
+    for i, test in enumerate(test_list):
+        # Generate configuration file with all overrides that needs to be tested in combinations
+        os.environ["PYBUDA_OVERRIDES_VETO"] = "1"
+        os.environ["PYBUDA_OVERRIDES_VETO_CUSTOM_SETUP"] = test
+        print(f"Running {i}/{len(test_list)}) {test}")
+        sys_out = subprocess.run(["pytest", "-svv", "--durations=0", test], capture_output=True)
+        
+        with open("out.txt", "a") as f:
+            f.write(sys_out.stdout.decode("utf-8"))
+            f.write(sys_out.stderr.decode("utf-8"))
+            
+
 def run_tests():
     global reset_command_wh_b0, reset_command_gs, testlist
     
@@ -204,6 +218,8 @@ def run_tests():
     parser.add_argument("-co", "--collect-only", help="Collect error logs based on failed variants", action="store_true")
     parser.add_argument("-d", "--date", help="Specify date of run in format dd_mm (e.g. 27_03)")
     parser.add_argument("-s", "--sha", help="Specify short commit sha on which this script is run. Has to be 9 char long (e.g. a5d778af5)")
+    
+    parser.add_argument("-ovc", "--override-veto-compile", help="Compile list of each variant configuration set in test (both general and env based configs)", action="store_true")
 
     args = parser.parse_args()
     
@@ -239,6 +255,18 @@ def run_tests():
     # Set needed env vars
     set_env_vars_to_match_ci(device_type)
     
+    # Generate or fetch test list
+    if testlist == []:
+        testlist = generate_test_list()
+    test_count = len(testlist)
+    
+    if args.reverse:
+        testlist = testlist[::-1]
+        
+    if args.override_veto_compile:
+        compile_test_configurations(testlist)
+        return
+    
     # Get commit hash and date-time references
     commit = get_git_hash()
     if commit is None:
@@ -252,14 +280,6 @@ def run_tests():
     sum_log_file_suffix = ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(9))        
     sum_log_file_path = sum_log_dir_path + f"/summary_{hostname}_{sum_log_file_suffix}.log"
     test_sum_file = open(sum_log_file_path, "w")
-    
-    # Generate or fetch test list
-    if testlist == []:
-        testlist = generate_test_list()
-    test_count = len(testlist)
-    
-    if args.reverse:
-        testlist = testlist[::-1]
 
     # Run each test variant as subprocess
     for i, test in enumerate(testlist):
