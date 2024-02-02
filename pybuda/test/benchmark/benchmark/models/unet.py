@@ -12,7 +12,6 @@ from pybuda.config import _get_global_compiler_config
 @benchmark_model(configs=["256"])
 def unet(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str):
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tvm_constant_prop = True
 
     if compiler_cfg.balancer_policy == "default":

@@ -114,7 +114,6 @@ def big_conv(training: bool, config: str, microbatch: int, devtype: str, arch: s
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
 
     models = {"tt": mod}
     inputs = [torch.rand(microbatch, cin, input_size[0], input_size[1])]

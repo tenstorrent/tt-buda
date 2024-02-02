@@ -24,7 +24,6 @@ def openpose_hand(training: bool, config: str, microbatch: int, devtype: str, ar
 
     # Configurations
     compiler_cfg = pybuda.config._get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_auto_transposing_placement = True
 
     if compiler_cfg.balancer_policy == "default":

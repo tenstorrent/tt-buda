@@ -30,7 +30,6 @@ torch.multiprocessing.set_sharing_strategy("file_system")
 def hrnet(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str):
 
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
 
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"

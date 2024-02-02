@@ -17,7 +17,6 @@ from transformers import ResNetForImageClassification
 def resnet(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str):
 
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_auto_transposing_placement = True
 
     if compiler_cfg.balancer_policy == "default":
@@ -63,7 +62,6 @@ def resnet_quant(training: bool, config: str, microbatch: int, devtype: str, arc
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_auto_fusing = False
     compiler_cfg.graph_solver_self_cut_type = "FastCut"
 
@@ -280,7 +278,6 @@ def resnet50_layer(training: bool, config: str, microbatch: int, devtype: str, a
     layer = config
 
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     # verify_cfg.verify_pybuda_codegen_vs_framework = False # hacking 7x7 to 1x1 will cause mismatches
 
     if compiler_cfg.balancer_policy == "default":
