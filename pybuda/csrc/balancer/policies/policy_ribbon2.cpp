@@ -983,7 +983,7 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
                         }
                     }
 
-                    if (new_epoch || (placed_op_index + op_index == scheduled_ops.size() - 1))
+                    if (new_epoch)
                     {
                         TT_ASSERT(!new_epoch || selected_models.size() > 0);
                         // Record the solution
