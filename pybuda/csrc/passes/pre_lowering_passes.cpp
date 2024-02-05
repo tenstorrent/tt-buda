@@ -38,6 +38,23 @@ void convert_broadcast_ops_to_tms(Graph *graph)
     }
 }
 
+void place_inter_subgraph_queues(graphlib::Graph *graph) {
+    for (Node *n : graph->nodes_by_type(NodeType::kOutput)) {
+        std::vector<Node *> consumers = graph->data_users(n);
+        if (consumers.size() == 0)
+            continue;
+        std::vector<Node *> producers = graph->data_operands(n);
+        TT_ASSERT(producers.size() == 1);
+
+        std::cout << "removing node: " << n->name() << std::endl;
+        graph->remove_node(n);
+        for (Node *consumer : consumers) {
+            std::cout << "adding edge from: " << producers[0]->name() << " to: " << consumer->name() << std::endl;
+            graph->add_edge(producers[0], consumer);
+        }
+    }
+}
+
 static void insert_tile_broadcasts(
     Graph *graph, graphlib::Edge edge, std::vector<int> ignore_dims = {}, bool try_consteval = true)
 {

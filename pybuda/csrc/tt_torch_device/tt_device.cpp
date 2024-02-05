@@ -251,7 +251,7 @@ std::vector<torch::Tensor> dispatch(
         auto impl = input.unsafeGetTensorImpl();
         input_meta = dynamic_cast<TTMetaData*>(impl->get_backend_meta());
         TT_ASSERT (input_meta != nullptr);
-        if (!input_meta->runtime_transformed)
+        if (!input_meta->runtime_transformed and !input_meta->created_on_device)
         {
             std::string runtime_transform = device.input_runtime_transforms.at(subgraph_idx).at(input_idx);
             std::vector<int> tile_bcast_dims = device.input_tile_bcast_dims.at(subgraph_idx).at(input_idx);
@@ -261,7 +261,10 @@ std::vector<torch::Tensor> dispatch(
         }
         else
         {
-            push_tensor(device.backend->get_queue_descriptor(desc.name), desc, input, fmt::format("input[{}]", input_idx));
+            if (!input_meta->created_on_device)
+            {
+                push_tensor(device.backend->get_queue_descriptor(desc.name), desc, input, fmt::format("input[{}]", input_idx));
+            }
         }
         // TT_ASSERT(copied_inputs.at(input_idx) == input.const_data_ptr(), "Incorrect input pointer, input tensors need to be copied to device in the same order as they'll be consumed");
         ++input_idx;

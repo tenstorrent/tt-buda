@@ -396,6 +396,7 @@ node_to_id = {}
 param_to_id = {}
 const_to_id = {}
 id_to_intermed = {}
+output_nodes_per_subgraph = {}
 
 def get_pybuda_node(torch_op_name, node):
     if torch_op_name in dynamo_to_pybuda_function:
@@ -601,14 +602,26 @@ def append_to_graph(graph, module, aten_module, activations, subgraph_idx):
         if node.op == "output":
             consumed.add(node)
 
+    input_index = 0
     for index, node in enumerate(aten_module.graph.nodes):
         if node not in consumed:
             logger.debug(f"Skipping {node} because it was not consumed")
             continue
 
         if node.op == "placeholder":
-            node_to_id[node] = add_input(graph, node, subgraph_idx, module_inputs)
-            id_to_intermed[node_to_id[node]] = activations[index]
+            uid = inputs_per_subgraph[subgraph_idx][input_index]
+            if uid != -1:
+                # this input is on device, don't create input node, add edge to corresponding output
+                node_to_id[node] = add_param(graph, params[index][0], params[index][1].data, subgraph_idx)
+                for idx in range(subgraph_idx):
+                    if uid not in outputs_per_subgraph[idx]:
+                        continue
+                    output_index = outputs_per_subgraph[idx].index(uid)
+                    add_partial_datacopy_edge(graph, output_nodes_per_subgraph[idx][output_index], 0, node_to_id[node], 0)
+            else:
+                node_to_id[node] = add_input(graph, node, subgraph_idx, module_inputs)
+            id_to_intermed[node_to_id[node]] = activations[index - len(params)]
+            input_index +=1
         elif node.op == "get_attr":
             assert node.target in param_name_map, f"Weight node is not mapped to original names: {node.target}"
             node_to_id[node] = add_param(graph, param_name_map[node.target], aten_module.state_dict()[node.target], subgraph_idx)
@@ -622,4 +635,7 @@ def append_to_graph(graph, module, aten_module, activations, subgraph_idx):
 
     graph.register_module_inputs(module_inputs, append=True)
     graph.register_module_outputs(output_nids, output_requires_grad, append=True)
+
+    output_nodes_per_subgraph[subgraph_idx] = output_nids
+
     return graph, id_to_intermed, output_tensors

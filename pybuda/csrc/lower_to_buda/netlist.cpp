@@ -965,6 +965,7 @@ std::vector<program::Program> create_programs(
                         }
                     }
                     bool is_write_only = placer_solution.name_to_queue_placement[q->name()].write_only;
+                    bool is_read_only = placer_solution.name_to_queue_placement[q->name()].read_only;
                     if (is_write_only)
                     {
                         int write_stride = placer_solution.name_to_queue_placement[q->name()].write_stride;
@@ -980,6 +981,17 @@ std::vector<program::Program> create_programs(
                         qs.prologue = false;
                         has_cache_buffers = true;
                         queue_settings[epoch_index].push_back(qs);
+                    }
+                    else if (is_read_only)
+                    {
+                        // auto read_ptr = std::make_shared<program::Variable>("v_cache_write_index", true);
+                        auto qs = program::QueueSettings(
+                            q->name(), program::RamAttributes{.read_ptr_ = nullptr, .write_ptr_ = nullptr});
+                            
+                        qs.read_only = true;
+                        qs.global_rdptr_autoinc = 1; // RAM needs global_rdptr_autoinc
+                        queue_settings[epoch_index].push_back(qs);
+                        has_cache_buffers = true;
                     }
                     else
                     {

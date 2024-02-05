@@ -217,6 +217,27 @@ def test_bn():
 
     assert pybuda.op.eval.compare_tensor_to_golden(f"linear", golden, result, is_buda=True, pcc=0.99)
 
+def test_link():
+    class Linear(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.linear = nn.Linear(32, 32, bias=True)
+
+        def forward(self, x1):
+            m1 = self.linear(x1)
+            return m1
+
+    os.environ["PYBUDA_DEVMODE"] = "1"
+    input = torch.rand(1, 32, 32)
+
+    input = input.to("tt")
+    pybuda_mod = torch.compile(Linear().to("tt"), backend=compile_torch)
+    result = pybuda_mod(input)
+
+    pybuda_mod_2 = torch.compile(Linear().to("tt"), backend=compile_torch)
+    result = pybuda_mod_2(result)
+    result = result.to("cpu")
+
 def test_linear():
     class Linear(nn.Module):
         def __init__(self):

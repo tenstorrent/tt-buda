@@ -183,7 +183,7 @@ def _compile(module, aten_module, module_name, sample_inputs, device, compiler_c
 
     # Frontend Compile
     logger.debug("Appending to Graph")
-    _graph, intermediate_tensors, output_tensors = append_to_graph(_graph, module, aten_module, sample_inputs, _subgraph_index)
+    _graph, intermediate_tensors, output_tensors = append_to_graph(_graph, module, aten_module, aten_sample_inputs, sample_inputs, _subgraph_index, _ordered_inputs_per_subgraph, _ordered_outputs_per_subgraph)
     logger.debug(f"Appending to graph done, captured {len(_graph.nodes())} nodes")
     _subgraph_index += 1
     _tt0.graph = _graph.clone()

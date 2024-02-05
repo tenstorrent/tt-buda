@@ -35,6 +35,7 @@ bool safe_to_hoist_past(const Graph *graph, const Node *operand);
 void fuse_bias(Graph *graph);
 void fuse_gelu(Graph *graph);
 void fuse_requantize(Graph *graph);
+void place_inter_subgraph_queues(graphlib::Graph *graph);
 
 void replace_with_broadcasted_const(
     Graph *graph,
