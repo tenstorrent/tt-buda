@@ -617,6 +617,9 @@ def run_post_initial_graph_pass(context: CompileContext) -> CompileDepth:
     compiler_cfg = context.compiler_cfg
     graph_name = context.graph_name
     graph, intermediate_tensors = context.graph, context.intermediate_tensors
+
+    if compiler_cfg.enable_consteval:
+        run_consteval_graph_pass(graph)
     inserted_node_id_mapping, context.fracture_chip_id_assignments = run_post_initial_graph_passes(graph, compiler_cfg, compiler_cfg.fracture_groups)
 
     for inserted_node_id, original_node_id in inserted_node_id_mapping:
