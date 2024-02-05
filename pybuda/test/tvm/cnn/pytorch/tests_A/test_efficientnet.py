@@ -59,7 +59,6 @@ def test_efficientnet_stem(test_kind, test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
 
     model = download_model(torch.hub.load, 
         "NVIDIA/DeepLearningExamples:torchhub",
@@ -89,7 +88,6 @@ def test_efficientnet_b0(test_kind, test_device):
     import timm
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
 
     model = timm.create_model('efficientnet_b0', pretrained=True)
     module = PyTorchModule("efficientnet_b0", model)
@@ -113,7 +111,6 @@ def test_efficientnet_b4(test_kind, test_device):
     import timm
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
 
     model = timm.create_model('efficientnet_b4', pretrained=True)
     module = PyTorchModule("efficientnet_b0", model)

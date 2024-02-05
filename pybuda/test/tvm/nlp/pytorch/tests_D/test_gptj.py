@@ -40,8 +40,6 @@ def test_gptj_block(test_kind, test_device):
 
     if test_device.arch == BackendDevice.Wormhole_B0:
         pytest.skip() # see tenstorrent/pybuda#969
-        
-    compiler_cfg.enable_t_streaming = True 
 
     #Fusing disabled due to tenstorrent/pybuda#789
     if (test_kind == TestKind.INFERENCE):
@@ -105,7 +103,6 @@ def test_tvm_rotate_every_two(test_kind, test_device):
 
     input_shape = (1, 128, 16, 256)
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True 
 
     class GPTJRotateEveryTwo(nn.Module):
         def __init__(self, config):

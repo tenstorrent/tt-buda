@@ -3111,7 +3111,6 @@ def test_kernel_fracturing_with_grouped_conv(test_kind, test_device):
 
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.conv_multi_op_fracture_factor_override["conv2d_1"] = 2
 
     class Module(nn.Module):
@@ -3163,7 +3162,6 @@ def test_BN_no_stats(test_kind, test_device):
         
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
     #Fusing disabled due to tenstorrent/pybuda#789
     compiler_cfg.enable_auto_fusing=False
     class ModelBN(nn.Module):
@@ -3396,7 +3394,6 @@ def test_override_removal_flag(test_kind, test_device):
     # General compiler configuration overrides
     start_compiler_cfg = _get_global_compiler_config()
     start_compiler_cfg.balancer_policy = "CNN"
-    start_compiler_cfg.enable_t_streaming = True
     start_compiler_cfg.amp_level = 1
     
     # Environement variable compiler configuration overrides
@@ -3443,7 +3440,6 @@ def test_override_removal_flag(test_kind, test_device):
 def test_torch_conv3d(test_device):
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
 
     inC, inD, inH, inW = (2, 5, 5, 5)
     outC, kD, kH, kW = (4, 3, 3, 3)
@@ -3477,7 +3473,6 @@ def test_torch_conv3d(test_device):
 def test_torch_maxpool3d(test_device):
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
 
     inC, inD, inH, inW = (3, 8, 8, 8)
     outC, kD, kH, kW = (3, 3, 3, 3)
@@ -3511,8 +3506,6 @@ def test_torch_maxpool3d(test_device):
 def test_reflection_pad(test_device):
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
-
 
     class Module(nn.Module):
         def __init__(self):

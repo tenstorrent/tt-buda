@@ -39,7 +39,6 @@ def test_whisper_encoder(test_device, variant):
     # Configurations
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.amp_level = 1
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tvm_cpu_fallback = False  # Run full model on silicon
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     pcc = 0.93 if test_device.devtype == BackendType.Silicon else 0.99
@@ -105,7 +104,6 @@ def test_whisper_decoder(test_device, variant):
     # Configurations
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.amp_level = 1
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tvm_cpu_fallback = False  # Run full model on silicon
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     os.environ["PYBUDA_DISABLE_STREAM_OUTPUT"] = "1"  # Disable streaming for LM head to output queue (perf)
@@ -240,7 +238,6 @@ class Whisper_decoder(torch.nn.Module):
 def test_whisper_enc_dec(test_device, variant):
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.amp_level = 1
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tvm_cpu_fallback = False  # Run full model on silicon
     compiler_cfg.input_queues_on_host = True
     compiler_cfg.compile_subgraphs = True

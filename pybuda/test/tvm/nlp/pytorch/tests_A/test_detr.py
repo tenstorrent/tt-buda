@@ -49,7 +49,6 @@ def test_detr_50_full(test_kind, test_device):
     else:
         compiler_cfg.compile_depth = CompileDepth.FULL
     compiler_cfg.enable_tvm_constant_prop = True
-    compiler_cfg.enable_t_streaming = True  # Enable T streaming for backbone ResNet
     compiler_cfg.balancer_policy = "CNN"
 
     # Inputs
@@ -121,7 +120,6 @@ def test_detr_18_full(test_kind, test_device):
     compiler_cfg.enable_tvm_constant_prop = True
     # compiler_cfg.cpu_fallback_ops.add("zeros")
     # verify_cfg.verify_pybuda_codegen_vs_framework = False  # PCC is over 0.992
-    compiler_cfg.enable_t_streaming = True  # Enable T streaming for backbone ResNet
 
     # Inputs
     input_shape = (1, 3, 256, 256)

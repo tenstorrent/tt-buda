@@ -47,8 +47,6 @@ def test_resnet_onnx(test_kind, test_device):
     # Configurations
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
-
 
     # Sanity run
     input_shape = (1, 3, 224, 224)

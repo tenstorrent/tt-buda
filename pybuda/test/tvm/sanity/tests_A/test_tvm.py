@@ -676,7 +676,6 @@ def test_reshape_transpose_into_hslice(test_kind, test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.retain_tvm_python_files = True
-    compiler_cfg.enable_t_streaming = True
 
     framework_module = Module()
     pybuda_module = PyTorchModule("pt_reshape_transpose_into_hslice", framework_module)
@@ -738,7 +737,6 @@ def test_transpose_reshape_into_hstack(test_kind, test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.retain_tvm_python_files = True
-    compiler_cfg.enable_t_streaming = True
 
     framework_module = Module()
     pybuda_module = PyTorchModule("pt_transpose_reshape_into_hstack", framework_module)
@@ -804,7 +802,6 @@ def test_reshape_into_vslice(test_kind, test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.retain_tvm_python_files = True
-    compiler_cfg.enable_t_streaming = True
 
     framework_module = Module()
     pybuda_module = PyTorchModule("pt_reshape_into_vslice", framework_module)
@@ -865,7 +862,6 @@ def test_reshape_into_vstack(test_kind, test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.retain_tvm_python_files = True
-    compiler_cfg.enable_t_streaming = True
 
     framework_module = Module()
     pybuda_module = PyTorchModule("pt_reshape_into_vslice", framework_module)
@@ -914,7 +910,6 @@ def test_cpu_fallback_when_more_performant(test_kind, test_device):
             return x
 
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tm_cpu_fallback = True
 
     framework_module = Module()
@@ -965,7 +960,6 @@ def test_extended_tm_cpu_fallback_concat_variation(test_kind, test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.retain_tvm_python_files = True
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tm_cpu_fallback = True
 
     framework_module = Module()
@@ -1019,7 +1013,6 @@ def test_extended_tm_cpu_fallback_hslice_variation(test_kind, test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.retain_tvm_python_files = True
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tm_cpu_fallback = True
 
     framework_module = Module()
@@ -1178,7 +1171,6 @@ def test_group_conv2d(test_kind, test_device):
             return x
 
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.retain_tvm_python_files = True
 
     framework_model = Model()
@@ -1218,7 +1210,6 @@ def test_invalid_reshape_transpose_into_hslice(test_kind, test_device):
             return x
 
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.compile_depth = CompileDepth.BUDA_GRAPH_PRE_PLACER
 
     framework_module = Module()
@@ -1571,7 +1562,6 @@ def test_conv2d_with_merged_bias(test_kind, test_device):
             return x
 
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     # compiler_cfg.compile_depth = CompileDepth.BUDA_GRAPH_PRE_PLACER
 
     framework_model = Model()

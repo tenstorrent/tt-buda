@@ -99,7 +99,6 @@ def test_linear_autoencoder(test_kind, test_device):
         pytest.skip()
 
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN" 
 
     framework_model = LinearAE()
@@ -126,7 +125,6 @@ def test_conv_autoencoder(test_kind, test_device):
         pytest.skip()
 
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
     if test_kind.is_training():
         compiler_cfg.compile_depth = CompileDepth.PRE_LOWERING_PASS

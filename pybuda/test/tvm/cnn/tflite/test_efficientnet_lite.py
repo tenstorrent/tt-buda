@@ -25,7 +25,6 @@ def test_efficientnet_lite0(test_device):
         pytest.skip()
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tvm_constant_prop = True
 
     pybuda.config.override_op_size("conv2d_29.dc.sparse_matmul.7.dc.sparse_matmul.1.lc2", (7, 1))
@@ -54,7 +53,6 @@ def test_efficientnet_lite4(test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tvm_constant_prop = True
     compiler_cfg.enable_conv_prestride = True
     compiler_cfg.graph_solver_self_cut_type = "ConsumerOperandDataEdgesFirst"

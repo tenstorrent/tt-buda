@@ -28,7 +28,6 @@ def test_vgg_pytorch(test_kind, test_device):
         pytest.skip()  # Backward is currently unsupported
 
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "Ribbon"
 
     model = download_model(torch.hub.load, "pytorch/vision:v0.10.0", "vgg11", pretrained=True)

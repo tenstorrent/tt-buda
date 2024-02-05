@@ -29,7 +29,6 @@ def test_mobilenet_v3_small(test_kind, test_device):
         pytest.skip()
 
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     # tenstorrent/pybuda#392

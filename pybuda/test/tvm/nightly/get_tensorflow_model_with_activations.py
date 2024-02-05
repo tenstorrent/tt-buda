@@ -171,7 +171,6 @@ def get_gptj_full(training, recompute):
     compile_cfg = CompilerConfig(
         enable_training=training,
         enable_recompute=recompute,
-        enable_t_streaming=True,
     )
     return model, [
         act1,

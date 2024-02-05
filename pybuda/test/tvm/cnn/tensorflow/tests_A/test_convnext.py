@@ -31,7 +31,6 @@ def test_tvm_convnext(test_kind, test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
     # tenstorrent/pybuda#842
     compiler_cfg.compile_depth = (
         CompileDepth.BUDA_GRAPH_PRE_PLACER

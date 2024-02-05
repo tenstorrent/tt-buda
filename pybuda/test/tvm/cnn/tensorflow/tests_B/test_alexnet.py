@@ -110,7 +110,6 @@ def test_alexnet(test_kind, test_device):
             return x
 
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     framework_model = AlexNet()

@@ -32,7 +32,6 @@ def test_codegen_single_layer_fallback(test_kind, test_device):
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_tvm_constant_prop = True
     compiler_cfg.retain_tvm_python_files = True
-    compiler_cfg.enable_t_streaming = True
 
     framework_model = download_model(CodeGenForCausalLM.from_pretrained, "Salesforce/codegen-350M-mono", use_cache=False, n_layer=1, return_dict=False)
 

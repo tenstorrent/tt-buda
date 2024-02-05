@@ -27,7 +27,6 @@ def test_tvm_visual_transformer(test_kind, test_device):
     # Compiler configurations
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
 
     # Load model
     config = ViTConfig()

@@ -382,7 +382,6 @@ def test_past_cache_prefill_generate(test_device):
     past_shape = (1, 1, 480, 32)
 
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.compile_subgraphs = True
     compiler_cfg.balancer_op_override("matmul_3_output_nop_0", "t_stream_shape", (15,1))
     # compiler_cfg.loopback_outputs = {"prefill_output": (0, 1)}
@@ -578,7 +577,6 @@ def test_tvm_gpt2_lmhead(test_kind, test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_tvm_constant_prop = True
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.tvm_constnat_prop_mask={"attn.c_attn.weight", "attn.c_attn.bias"}
 
 

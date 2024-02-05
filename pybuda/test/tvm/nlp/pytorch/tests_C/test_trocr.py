@@ -37,7 +37,6 @@ def test_trocr_reduced_size(test_kind, test_device):
 
     # Compile configuration
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tvm_cpu_fallback = False
     compiler_cfg.enable_tm_cpu_fallback = False
     compiler_cfg.balancer_policy = "Ribbon"

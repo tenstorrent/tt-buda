@@ -37,7 +37,6 @@ def test_convnext_tiny(test_kind, test_device):
         # tenstorrent/pybuda#365
         compiler_cfg.compile_depth = CompileDepth.BUDA_GRAPH_PRE_PLACER
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.retain_tvm_python_files = True
 
     framework_model = download_model(ConvNextModel.from_pretrained, "facebook/convnext-tiny-224", torchscript=True)

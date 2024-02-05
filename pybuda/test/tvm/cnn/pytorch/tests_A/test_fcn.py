@@ -31,7 +31,6 @@ def test_fcn_pytorch(test_kind, test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
 
     # Issue below is still valid, though it doesn't trigger when fracturing is turned on
     # tenstorrent/pybuda#310

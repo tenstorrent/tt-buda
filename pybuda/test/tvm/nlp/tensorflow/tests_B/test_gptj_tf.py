@@ -100,7 +100,6 @@ def test_gptj_block(test_kind, test_device):
         pytest.skip()
 
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
 
     config = GPTJConfig(n_layer=1)  # for faster loading
     config.rotary_dim = 64
@@ -130,8 +129,7 @@ def test_gptj_fallback(test_kind, test_device):
         pytest.skip() # see tenstorrent/pybuda#969
     
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_tvm_constant_prop = True 
-    compiler_cfg.enable_t_streaming = True
+    compiler_cfg.enable_tvm_constant_prop = True
 
     #Fusing disabled due to tenstorrent/pybuda#789
     compiler_cfg.enable_auto_fusing=False

@@ -34,7 +34,6 @@ def test_mobilenetv2_pytorch(test_kind, test_device):
     os.environ["PYBUDA_DISABLE_CONSTANT_FOLDING"] = "1"
     
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     model = download_model(torch.hub.load, 
@@ -79,7 +78,6 @@ def test_mobilenetv2_deeplab(test_kind, test_device):
     os.environ["PYBUDA_PAD_SPARSE_MM"] = "{25:26}"
     
     compiler_cfg = _get_global_compiler_config()
-    # compiler_cfg.enable_t_streaming = True # setting this allows the test to compile, with a 0.97 PCC on golden output
     compiler_cfg.balancer_policy = "CNN"
 
     model = download_model(MobileNetV2ForSemanticSegmentation.from_pretrained, "Matthijs/deeplabv3_mobilenet_v2_1.0_513")

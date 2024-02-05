@@ -48,7 +48,6 @@ def test_yolov5_320x320(test_kind, test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tm_cpu_fallback = True
     model = download_model(torch.hub.load, "ultralytics/yolov5", "yolov5s", pretrained=True)
 
@@ -89,7 +88,6 @@ def test_yolov5_480x480(test_kind, test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tm_cpu_fallback = True
 
     model = download_model(torch.hub.load, "ultralytics/yolov5", "yolov5s", pretrained=True)
@@ -133,7 +131,6 @@ def test_yolov5m_640x640(test_kind, test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tm_cpu_fallback = True
     model = download_model(torch.hub.load, "ultralytics/yolov5", "yolov5m", pretrained=True)
 
@@ -172,7 +169,6 @@ def test_yolov5_1280x1280(test_kind, test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_tm_cpu_fallback = True
 
     model = download_model(torch.hub.load, "ultralytics/yolov5", "yolov5s", pretrained=True)

@@ -23,7 +23,6 @@ def test_ghostnet(test_kind, test_device):
         pytest.skip()  # Backward is currently unsupported
 
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     #Fusing disabled due to tenstorrent/pybuda#800
@@ -62,7 +61,6 @@ def test_ghostnet_v2(test_kind, test_device):
      # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = _get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
  
     # Model load
     localfile, _ = urllib.request.urlretrieve("https://github.com/huawei-noah/ghostnet/raw/master/ghostnetv2_pytorch/model/ghostnetv2_torch.py")

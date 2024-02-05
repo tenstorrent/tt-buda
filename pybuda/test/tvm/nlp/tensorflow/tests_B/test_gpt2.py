@@ -65,7 +65,6 @@ def test_gpt2_block_tf(test_kind, test_device):
     )
 
 def test_tvm_gpt2_fallback(test_kind, test_device):
-    _get_global_compiler_config().enable_t_streaming = True
     if test_kind.is_training():
         pytest.skip()
         #TODO: Fix tvm .14 regressions: tenstorrent/pybuda#2099

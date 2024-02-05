@@ -26,7 +26,6 @@ def test_mobilenetv1_tf(test_kind, test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.compile_depth = CompileDepth.PRE_LOWERING_PASS
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     input_shape = (1, 224, 224, 3)
@@ -54,7 +53,6 @@ def test_mobilenetv2_tf(test_kind, test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.compile_depth = CompileDepth.PRE_LOWERING_PASS
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     input_shape = (1, 224, 224, 3)
@@ -80,7 +78,6 @@ def test_mobilenetv3_tf(test_kind, test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.compile_depth = CompileDepth.PRE_LOWERING_PASS
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     input_shape = (1, 224, 224, 3)

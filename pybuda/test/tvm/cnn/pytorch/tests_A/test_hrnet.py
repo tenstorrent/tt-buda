@@ -29,7 +29,6 @@ def test_hrnet_full_model(test_kind, test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
     if test_kind.is_training():
         compiler_cfg.compile_depth = CompileDepth.GENERATE_INITIAL_GRAPH
 

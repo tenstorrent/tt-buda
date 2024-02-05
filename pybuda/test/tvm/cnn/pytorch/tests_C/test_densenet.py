@@ -25,7 +25,6 @@ def test_densenet_121(test_kind, test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
 
     # Add required env vars as per https://yyz-gitlab.local.tenstorrent.com/tenstorrent/model-demos/-/issues/48
     import os
@@ -56,7 +55,6 @@ def test_densenet_169(test_kind, test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
 
     # Add required env vars as per https://yyz-gitlab.local.tenstorrent.com/tenstorrent/model-demos/-/issues/48
     import os
@@ -90,7 +88,6 @@ def test_densenet_201(test_kind, test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
 
     # Add required env vars as per https://yyz-gitlab.local.tenstorrent.com/tenstorrent/model-demos/-/issues/48
     import os
@@ -124,7 +121,6 @@ def test_densenet_161(test_kind, test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
 
     # Add required env vars as per https://yyz-gitlab.local.tenstorrent.com/tenstorrent/model-demos/-/issues/48
     import os

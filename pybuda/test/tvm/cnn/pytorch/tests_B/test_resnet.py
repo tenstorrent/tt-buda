@@ -50,7 +50,6 @@ def test_resnet_pytorch(test_kind, test_device):
         compiler_cfg.compile_depth = CompileDepth.BUDA_GRAPH_PRE_PLACER
         # compiler_cfg.compile_depth = CompileDepth.FULL
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
     # compiler_cfg.place_on_new_epoch("max_pool2d_14.dc.reshape.0_operand_commute_clone411.dc.sparse_matmul.4.lc2")
 
     # Issue below is still valid, though it doesn't trigger when fracturing is turned on
@@ -96,7 +95,6 @@ def test_resnet_pytorch_instance_norm(test_kind, test_device):
         # compiler_cfg.compile_depth = CompileDepth.BALANCER_PASS
         compiler_cfg.compile_depth = CompileDepth.FULL
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.place_on_new_epoch("conv2d_0.dc.reshape.15.dc.sparse_matmul.1.lc2")
 
     from torchvision.models import resnet18

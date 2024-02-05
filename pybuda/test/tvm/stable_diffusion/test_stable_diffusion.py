@@ -55,7 +55,6 @@ def test_unet(test_device):
     mod = PyTorchModule("sd_unet", UnetWrapper(pipe.unet))
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_tvm_constant_prop = True
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_enumerate_u_kt = False
     compiler_cfg.graph_solver_self_cut_type = "FastCut"
     compiler_cfg.retain_tvm_python_files = True
@@ -101,7 +100,6 @@ def test_unet_CrossAttention(test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_tvm_constant_prop = True
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_op_override("softmax_11.dc.subtract.1", "t_stream_shape", (16,1))
     compiler_cfg.place_on_new_epoch("softmax_11.dc.subtract.1")
     compiler_cfg.place_on_new_epoch("matmul_17")
@@ -249,7 +247,6 @@ def test_unet_up_block(test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_tvm_constant_prop = True
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_auto_fusing = False
     compiler_cfg.retain_tvm_python_files = True
     compiler_cfg.enable_enumerate_u_kt = False
@@ -353,7 +350,6 @@ def test_unet_down_block(test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_tvm_constant_prop = True
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_auto_fusing = False
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.graph_solver_self_cut_type = "ConsumerOperandDataEdgesFirst"
@@ -465,7 +461,6 @@ def initialize_compiler_overrides():
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_tvm_constant_prop = True
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_enumerate_u_kt = False
     compiler_cfg.graph_solver_self_cut_type = "FastCut"
     compiler_cfg.retain_tvm_python_files = True
