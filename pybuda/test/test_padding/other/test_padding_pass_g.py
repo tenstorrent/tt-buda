@@ -156,7 +156,6 @@ TEST_G_PRINT_GRAPH_VIZ_FLAG = False
 TEST_G_PRINT_GRAPH_AT_FLAG = False
 TEST_G_FRACTURING_FLAG = False
 
-TEST_G_CHIP_PLACEMENT_T_STREAMING_FLAG = True
 TEST_G_CHIP_PLACEMENT_FORCE_INTERMED_FLAG = True
 TEST_G_CHIP_PLACEMENT_LEGALIZER_DETAILED_FLAG = True
 TEST_G_CHIP_PLACEMENT_SELF_CUT_TYPE_FLAG = True
@@ -212,8 +211,6 @@ def set_environment():
         os.environ["LOGGER_LEVEL"] = "DEBUG"
 
     # Include or not environment variables for debugging chip placement module
-    if TEST_G_CHIP_PLACEMENT_T_STREAMING_FLAG:
-        os.environ["PYBUDA_ENABLE_T_STREAMING"] = "1"
     if TEST_G_CHIP_PLACEMENT_LEGALIZER_DETAILED_FLAG:
         os.environ["PYBUDA_LEGALIZER_DETAILED_DEBUGGING"] = "1"
     if TEST_G_CHIP_PLACEMENT_LEGALIZER_NODE_NAME:
@@ -320,8 +317,7 @@ def test_padding_pass_g(
         model.name, 
         *inputs, 
         compiler_cfg=CompilerConfig(
-            enable_training=test_kind.is_training(),
-            enable_t_streaming=True
+            enable_training=test_kind.is_training()
         ), 
         verify_cfg=VerifyConfig()
     )

@@ -19,7 +19,6 @@ def test_gpt2():
     compile_cfg.enable_link_past_cache_ios = True
     compile_cfg.cpu_fallback_ops = set()
     compile_cfg.default_df_override = pybuda._C.Float16_b
-    compile_cfg.enable_t_streaming = True
 
     gpt2 = GPT2LMHeadModel(config).eval()
     input_ids = torch.randint(0, 10000, (1, 32)).int()
@@ -44,7 +43,6 @@ def test_gen():
     # compile_cfg.enable_link_past_cache_ios = True
     compile_cfg.cpu_fallback_ops = set()
     compile_cfg.default_df_override = pybuda._C.Float16_b
-    compile_cfg.enable_t_streaming = True
 
     gpt2 = GPT2LMHeadModel(config).eval()
     gpt2.to("tt")

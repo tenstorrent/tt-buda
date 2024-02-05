@@ -346,7 +346,6 @@ def test_select(test_kind, test_device, shape, dim_index_length):
         length = shape[dim] - index
 
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     #if test_kind.is_training():
     #    compiler_cfg.compile_depth = CompileDepth.BALANCER_PASS
     
@@ -558,7 +557,6 @@ def test_sparse_matmul(test_device, config):
     from pybuda.op.eval.sparse_utils import create_conv2d_sparse_picker_matrix
 
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "MaximizeTMinimizeGrid"
 
     if config == "3x3conv":
@@ -656,7 +654,6 @@ def test_sparse_matmul(test_device, config):
 
 def test_simple_clip(test_device):
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "MaximizeTMinimizeGrid"
 
     @run(
@@ -1083,7 +1080,6 @@ def test_z_sparse_matmul(test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "MaximizeTMinimizeGrid"
-    compiler_cfg.enable_t_streaming = True
 
     pybuda.verify.verify_module(
         Model(),
@@ -1231,7 +1227,7 @@ def test_large_reshape(shape):
     block_size = shape[2] 
     
     @compile(
-        compiler_cfg=CompilerConfig(enable_training=False, enable_t_streaming=True, compile_depth=CompileDepth.BUDA_GRAPH_PRE_PLACER),
+        compiler_cfg=CompilerConfig(enable_training=False, compile_depth=CompileDepth.BUDA_GRAPH_PRE_PLACER),
         verify_cfg=VerifyConfig(run_golden=True),  # reshape not supported by backend
     )
     def simple_large_reshape(x, y): 
@@ -1307,7 +1303,6 @@ def test_intermediate_verification(test_kind):
             return trans
 
     compiler_config = _get_global_compiler_config()
-    compiler_config.enable_t_streaming = True
     mod = InterVer("Intermediate_verification")
     verify_module(mod, [(1, 64, 1024)], VerifyConfig(test_kind=test_kind, verify_all=True))
 
@@ -1344,7 +1339,6 @@ def test_channel_fuse_concat_select(test_kind):
             return m1
 
     compiler_config = _get_global_compiler_config()
-    compiler_config.enable_t_streaming = True
     mod = channel_select_fusion("channel_select_fusion")
     verify_module(mod, [(1, 3, 224, 224)], VerifyConfig(test_kind=test_kind, verify_all=True))
 
@@ -1524,7 +1518,6 @@ def test_concat_two_kinds_pad(test_device):
 
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.enable_t_streaming = True
     # compiler_cfg.place_on_new_epoch("m6_transpose_nop_0")
     os.environ["PYBUDA_DISABLE_CONSTANT_FOLDING"] = "1"
     os.environ["PYBUDA_PAD_SPARSE_MM"] = "{11:12}"
@@ -1660,7 +1653,6 @@ def test_3d_mm(test_device):
             return x
 
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object 
-    compiler_cfg.enable_t_streaming = True 
     #compiler_cfg.balancer_op_override("multiply_0", "t_stream_shape", (1,1))
     #compiler_cfg.balancer_op_override("matmul_4", "t_stream_shape", (2,1))
     #compiler_cfg.balancer_op_override("matmul_4", "t_stream_dir", "r")
@@ -1738,7 +1730,6 @@ def test_mismatch_repro(test_device):
             return x
 
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object 
-    compiler_cfg.enable_t_streaming = True  
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.balancer_op_override("conv2d_0.dc.sparse_matmul.9.dc.sparse_matmul.1.lc2", "t_stream_shape", (2,1))
     import os 
@@ -1781,7 +1772,6 @@ def test_mismatch_repro_smm(test_device):
             return x
 
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.balancer_op_override("sparse_matmul_1.dc.sparse_matmul.1.lc2", "t_stream_shape", (2,1))
     compiler_cfg.balancer_op_override("sparse_matmul_1.dc.sparse_matmul.1.lc2", "grid_shape", (2,1))
@@ -1924,8 +1914,7 @@ def test_conv3d(test_device):
             x = pybuda.op.Conv3d("", x, self.get_parameter("weight"), None, stride=[stride, stride, stride], padding=[padding, padding, padding, padding, padding, padding], dilation=dilation, groups=1, channel_last=0)
             return x
 
-    compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object 
-    compiler_cfg.enable_t_streaming = True  
+    compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
  
     input_shapes = ((1, inC, inD, inH, inW),)
@@ -1958,8 +1947,7 @@ def test_maxpool3d(test_device):
             x = pybuda.op.MaxPool3d("", x, (kD, kH, kW), stride=stride, padding=padding, dilation=dilation, channel_last=0)
             return x
 
-    compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object 
-    compiler_cfg.enable_t_streaming = True  
+    compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
  
     input_shapes = ((1, inC, inD, inH, inW),)
@@ -1989,7 +1977,6 @@ def test_resize3d(test_device):
             return x
 
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "Ribbon"
 
     input_shapes = ((1, 3, inD, inH, inW),)

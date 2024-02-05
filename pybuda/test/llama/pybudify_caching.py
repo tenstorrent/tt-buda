@@ -39,7 +39,6 @@ class PyBudify(torch.nn.Module):
 
             if nlp_target_cycles > 0:
                 os.environ["PYBUDA_NLP_MANUAL_TARGET"] = str(nlp_target_cycles)
-            # os.environ["PYBUDA_ENABLE_T_STREAMING"] = "1"
 
             pybuda = self.pybuda = __import__('pybuda') # let us set log levels before importing pybuda
 

@@ -25,7 +25,6 @@ def test_stream_transpose(test_kind, test_device):
         return x
 
     compiler_cfg = pybuda.config._get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
 
     pybuda.config.override_op_size("add0", (1, 1))
     pybuda.config.override_op_size("transpose0", (1, 1))
@@ -58,7 +57,6 @@ def test_stream_to_slice(test_kind, test_device):
         return x
 
     compiler_cfg = pybuda.config._get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
 
     pybuda.config.override_op_size("buf0", (1, 1))
     pybuda.config.override_op_size("buf1", (1, 1))
@@ -87,7 +85,6 @@ def test_stream_slice_transpose(test_kind, test_device, mode):
         return x
 
     compiler_cfg = pybuda.config._get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
 
     if mode == "producer_streaming":
         pybuda.config.override_t_stream_shape("producer", (2, 1))
@@ -108,7 +105,7 @@ def test_stream_slice_transpose(test_kind, test_device, mode):
 
 @pytest.mark.parametrize("dir", ["r", "c"])
 def test_stream_interleave(test_device, dir):
-    pybuda.config.set_configuration_options(enable_t_streaming=True, balancer_policy="MaximizeTMinimizeGrid")
+    pybuda.config.set_configuration_options(balancer_policy="MaximizeTMinimizeGrid")
     pybuda.config.override_t_stream_dir("interleave", dir)
 
     @run(test_device)
@@ -131,7 +128,6 @@ def test_manual_streaming(test_device):
         return x
 
     compiler_cfg = pybuda.config._get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.manual_t_streaming = True
 
     pybuda.config.override_t_stream_shape("buf1", (4, 1))

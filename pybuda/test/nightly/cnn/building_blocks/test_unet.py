@@ -178,7 +178,6 @@ def test_unet_double_conv_batchnorm_relu(input_size, in_channels, out_channels, 
         pytest.skip(msg="This combination is expected to fail, moved to _xfail version of the function.")
 
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     model = DoubleConvBatchnormRelu(in_channels, out_channels)
@@ -230,7 +229,6 @@ def test_unet_double_conv_batchnorm_relu(input_size, in_channels, out_channels, 
 )
 def test_unet_double_conv_batchnorm_relu_xfail(input_size, in_channels, out_channels, arch):
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     model = DoubleConvBatchnormRelu(in_channels, out_channels)
@@ -262,7 +260,6 @@ def test_unet_double_conv_relu(input_size, in_channels, out_channels, arch):
         pytest.skip(msg="This combination is expected to fail, moved to _xfail version of the function.")
 
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     model = DoubleConvRelu(in_channels, out_channels)
@@ -289,7 +286,6 @@ def test_unet_double_conv_relu(input_size, in_channels, out_channels, arch):
 )
 def test_unet_double_conv_relu_xfail(input_size, in_channels, out_channels, arch):
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     model = DoubleConvRelu(in_channels, out_channels)
@@ -316,7 +312,6 @@ def test_unet_double_conv_relu_xfail(input_size, in_channels, out_channels, arch
 @pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole])
 def test_unet_double_conv_batchnorm_relu_maxpool(input_size, in_channels, out_channels, arch):
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     model = DoubleConvBatchnormReluMaxpool(in_channels, out_channels)
@@ -346,7 +341,6 @@ def test_unet_double_conv_batchnorm_relu_maxpool(input_size, in_channels, out_ch
 @pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole])
 def test_unet_maxpool(input_size, input_channels, arch):
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     model = Maxpool()
@@ -376,7 +370,6 @@ def test_unet_maxpool(input_size, input_channels, arch):
 @pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole])
 def test_unet_upconv(input_size, input_channels, arch):
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     model = Upconv(input_channels)
@@ -406,7 +399,6 @@ def test_unet_upconv(input_size, input_channels, arch):
 @pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole])
 def test_unet_upconv_double_conv_relu(input_size, input_channels, arch):
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     model = UpconvDoubleConvRelu(input_channels)
@@ -437,7 +429,6 @@ def test_unet_upconv_double_conv_relu(input_size, input_channels, arch):
 @pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole])
 def test_unet_concat(input_size, encoder_activations_channels, upconv_activations_channels, arch):
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     model = Concat()
@@ -465,7 +456,6 @@ def test_unet_concat(input_size, encoder_activations_channels, upconv_activation
 @pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole])
 def test_unet_unityconv(input_size, input_channels, output_channels, arch):
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     model = UnityConv(input_channels, output_channels)

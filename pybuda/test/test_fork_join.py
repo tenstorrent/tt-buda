@@ -314,7 +314,6 @@ def test_multilevel_fork_join_vovnet(test_kind, test_device, format):
 
         compiler_cfg = pybuda.config._get_global_compiler_config()
         compiler_cfg.balancer_policy = "Ribbon"
-        compiler_cfg.enable_t_streaming = True
         compiler_cfg.default_df_override = format
         # Op overrides
         pybuda.config.override_op_size("conv2d_0.dc.sparse_matmul.9.dc.sparse_matmul.1.lc2", (1, 4))
@@ -686,7 +685,6 @@ def test_fork_join_yolo_v3(test_kind, test_device):
 
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = DataFormat.Float16_b
     compiler_cfg.enable_auto_transposing_placement = True
 
@@ -822,7 +820,6 @@ def test_fork_join_hrnet(test_kind, test_device):
     width = 224
 
     compiler_cfg = pybuda.config._get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = DataFormat.Float16_b
 

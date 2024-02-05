@@ -137,7 +137,6 @@ def test_convtranspose2d(
     padding_mode,
 ):
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
 
     training = test_kind.is_training()
     if training:
@@ -184,7 +183,6 @@ def test_convtranspose2d(
 
 def test_convtranspose2d_data_mismatch_repro(test_device):
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
 
     # Fracturing the conv causes the data mismatch
     # Forcing the fracturing here, so the mismatch repros with small input
@@ -263,7 +261,6 @@ def test_conv2d_t_streaming(
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "MaximizeTMinimizeGrid"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_conv_prestride = False
 
     pybuda.verify.verify_module(mod, [(1, in_channels, original_shape[0], original_shape[1])],
@@ -326,7 +323,6 @@ def test_conv2d_fractured(
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "MaximizeTMinimizeGrid"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_conv_prestride = False
 
     pybuda.config.override_fracture_factor("conv2d_fractured.conv.dc.sparse_matmul.9.dc.sparse_matmul.1.lc2", kernel_size[0])
@@ -397,7 +393,6 @@ def test_conv2d_multi_op_fractured(
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "MaximizeTMinimizeGrid"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_conv_prestride = False
 
     os.environ["PYBUDA_FORCE_DISALLOW_FRACTURING"] = "1"  # Disables "within-op" fracturing
@@ -469,7 +464,6 @@ def test_conv2d_prestrided(
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "MaximizeTMinimizeGrid"
-    compiler_cfg.enable_t_streaming = True
 
     os.environ["PYBUDA_FORCE_DISALLOW_FRACTURING"] = "1"
 
@@ -548,7 +542,6 @@ def test_conv2d_resnet_prestrided_fractured(
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "MaximizeTMinimizeGrid"
-    compiler_cfg.enable_t_streaming = True
     pybuda.config.override_fracture_factor("conv2d_resnet_prestrided_fractured.conv.dc.conv2d.3.dc.sparse_matmul.9.dc.sparse_matmul.1.lc2", 8)
 
     devices = pybuda.verify.verify_module(mod, [(1, in_channels, original_shape[0], original_shape[1])],
@@ -625,7 +618,6 @@ def test_conv2d_fractured_multi_c(
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "MaximizeTMinimizeGrid"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_conv_prestride = False
     # pybuda.config.override_fracture_factor("conv2d_fractured_multi_c.conv.dc.sparse_matmul.9.dc.sparse_matmul.1.lc2", fracture_factor)
     # pybuda.config.override_op_size("?", (?, fracture_factor * 2))
@@ -737,7 +729,6 @@ def test_max_pool2d(
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_broadcast_splitting = True # tenstorrent/budabackend#694
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_conv_prestride = False
 
     if training:
@@ -884,7 +875,6 @@ def test_avg_pool2d(
 def test_conv2d_stream_data_mismatch(test_device):
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "MaximizeTMinimizeGrid"
-    compiler_cfg.enable_t_streaming = True
     return test_conv2d(
         TestKind.INFERENCE,
         test_device,
@@ -904,7 +894,6 @@ def test_conv2d_stream_data_mismatch(test_device):
 def test_conv2d_stream_through_queue(test_device):
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "MaximizeTMinimizeGrid"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.place_on_new_epoch("conv2d.dc.matmul.11")
     return test_conv2d(
         TestKind.INFERENCE,
@@ -925,7 +914,6 @@ def test_conv2d_stream_through_queue(test_device):
 def test_conv2d_vgg_head(test_device):
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "MaximizeTMinimizeGrid"
-    compiler_cfg.enable_t_streaming = True
     pybuda.config.override_t_stream_shape("conv2d.dc.sparse_matmul.9.dc.sparse_matmul.1.lc2", (28, 1))
     return test_conv2d(
         TestKind.INFERENCE,

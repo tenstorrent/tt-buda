@@ -108,7 +108,7 @@ def test_max_fork_streams():
 
 
 def test_stream_stacking_rotate():
-    pybuda.config.set_configuration_options(balancer_policy="MaximizeTMinimizeGrid", enable_t_streaming=True)
+    pybuda.config.set_configuration_options(balancer_policy="MaximizeTMinimizeGrid")
 
     @compile(
         verify_cfg=VerifyConfig(run_golden=False, run_net2pipe=True)
@@ -129,7 +129,7 @@ def test_stream_stacking_rotate():
 
 
 def test_stream_stacking_transpose():
-    pybuda.config.set_configuration_options(balancer_policy="MaximizeTMinimizeGrid", enable_t_streaming=True)
+    pybuda.config.set_configuration_options(balancer_policy="MaximizeTMinimizeGrid")
 
     @compile(
         verify_cfg=VerifyConfig(run_golden=False, run_net2pipe=True)
@@ -148,10 +148,7 @@ def test_stream_stacking_transpose():
 
 
 def test_r_stream_mm_rhs():
-    pybuda.config.set_configuration_options(
-            balancer_policy="MaximizeTMinimizeGrid",
-            enable_t_streaming=True,
-    )
+    pybuda.config.set_configuration_options(balancer_policy="MaximizeTMinimizeGrid")
     pybuda.config._get_global_compiler_config().insert_queues = [("exp0", "mm1", 1)]
 
     @compile(

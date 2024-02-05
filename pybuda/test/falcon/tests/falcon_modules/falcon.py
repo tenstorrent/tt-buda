@@ -1258,7 +1258,6 @@ class PyBudaTrainer():
                                          enable_auto_transposing_placement=True,
                                         #  backend_cluster_descriptor_path="/proj_sw/user_dev/jrock/pybuda-falcon-stable-avx/pybuda/third_party/budabackend/wormhole_2chip_cluster.yaml" if args.num_chips > 1 else None,
                                          )
-        pybuda.config._get_global_compiler_config().enable_t_streaming = True
         pybuda.config._get_global_compiler_config().use_interactive_placer = True
 
         self.cpu0 = pybuda.CPUDevice("cpu0", module=self.embeddings_module)

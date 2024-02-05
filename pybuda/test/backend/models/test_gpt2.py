@@ -56,7 +56,6 @@ from pybuda.transformers.pipeline import pipeline as pybuda_pipeline
 def test_pt_gpt2_fallback(test_kind, test_device):
     model = GPT2LMHeadModel.from_pretrained("gpt2")
     tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
-    _get_global_compiler_config().enable_t_streaming = True
     tokenizer.pad_token = tokenizer.eos_token
 
     prefix_text = "My name is Bert, and I am"

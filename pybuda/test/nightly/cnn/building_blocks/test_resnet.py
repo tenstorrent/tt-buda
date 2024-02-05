@@ -135,7 +135,6 @@ class ResnetOutputBlock(nn.Sequential):
 @pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole])
 def test_resnet_input_block(input_size, input_channels, arch):
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     model = ResnetInputBlock(input_channels)
@@ -161,7 +160,6 @@ def test_resnet_input_block(input_size, input_channels, arch):
 @pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole])
 def test_resnet_output_block(input_channels, num_classes, arch):
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     model = ResnetOutputBlock(input_channels//512, num_classes)
@@ -205,7 +203,6 @@ def test_resnet_basic_block(input_size, in_channels, out_channels, stride, arch)
         pytest.skip(msg="This combination is expected to fail, moved to _xfail version of the function.")
 
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     model = BasicResidualBlock(in_channels, out_channels, stride)
@@ -239,7 +236,6 @@ def test_resnet_basic_block(input_size, in_channels, out_channels, stride, arch)
 )
 def test_resnet_basic_block_xfail(input_size, in_channels, out_channels, stride, arch):
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     model = BasicResidualBlock(in_channels, out_channels, stride)
@@ -285,7 +281,6 @@ def test_resnet_bottleneck_block(input_size, in_channels, out_channels, stride, 
         pytest.skip(msg="This combination is expected to fail, moved to _xfail version of the function.")
 
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     model = BottleneckResidualBlock(in_channels, out_channels, stride)
@@ -323,7 +318,6 @@ def test_resnet_bottleneck_block(input_size, in_channels, out_channels, stride, 
 )
 def test_resnet_bottleneck_block_xfail(input_size, in_channels, out_channels, stride, arch):
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     model = BottleneckResidualBlock(in_channels, out_channels, stride)
@@ -369,7 +363,6 @@ def test_resnext_bottleneck_block(input_size, in_channels, out_channels, stride,
         pytest.skip(msg="This combination is expected to fail, moved to _xfail version of the function.")
 
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     model = BottleneckResidualBlock(in_channels, out_channels, stride, 32, 2)
@@ -407,7 +400,6 @@ def test_resnext_bottleneck_block(input_size, in_channels, out_channels, stride,
 )
 def test_resnext_bottleneck_block_xfail(input_size, in_channels, out_channels, stride, arch):
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     model = BottleneckResidualBlock(in_channels, out_channels, stride, 32, 2)

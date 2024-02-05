@@ -71,7 +71,6 @@ def test_vit_encoder(
         pytest.skip(msg="This combination is expected to fail, moved to _xfail version of the function.")
 
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     hidden_size = patch_size * patch_size * num_channels
@@ -129,7 +128,6 @@ def test_vit_encoder_xfail(
     arch
 ):  
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     hidden_size = patch_size * patch_size * num_channels
@@ -175,7 +173,6 @@ def test_vit_pooler(
     arch
 ):   
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     hidden_size = patch_size * patch_size * num_channels

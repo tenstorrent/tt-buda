@@ -312,8 +312,6 @@ class PyBudify(torch.nn.Module):
                 #     input_df={0: [pybuda.DataFormat.Bfp8_b, True], 1: [pybuda.DataFormat.Bfp8_b, True], 2: [pybuda.DataFormat.Bfp8_b, True]})
 
                 compiler_cfg.loopback_outputs = names_dict
-            else:
-                compiler_cfg.enable_t_streaming = True
 
             pybuda_arch = { 'grayskull': pybuda.BackendDevice.Grayskull,
                             'wormhole': pybuda.BackendDevice.Wormhole,

@@ -162,7 +162,6 @@ def test_mobilenet_v1_depthwise_separable_conv(
         pytest.skip(msg="This combination is expected to fail, moved to _xfail version of the function.") 
 
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     in_channels = int(in_channels_base * width_multiplier)
@@ -223,7 +222,6 @@ def test_mobilenet_v1_depthwise_separable_conv_xfail(
     arch
 ):
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     in_channels = int(in_channels_base * width_multiplier)
@@ -298,7 +296,6 @@ def test_mobilenet_v2_inverted_residual(
         pytest.skip(msg="This combination is expected to fail, moved to _xfail version of the function.") 
     
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     in_channels = int(in_channels_base * width_multiplier)
@@ -347,7 +344,6 @@ def test_mobilenet_v2_inverted_residual_xfail(
     arch
 ):  
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.balancer_policy = "CNN"
 
     in_channels = int(in_channels_base * width_multiplier)

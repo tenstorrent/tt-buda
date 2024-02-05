@@ -11,7 +11,7 @@ seeds = []
     
 @pytest.fixture(autouse=True)
 def run_test(test_index, random_seeds):
-    pybuda.config.set_configuration_options(balancer_policy="Random", enable_t_streaming=True, use_interactive_placer=True)
+    pybuda.config.set_configuration_options(balancer_policy="Random", use_interactive_placer=True)
     os.environ["PYBUDA_BALANCER_RANDOM_POLICY_SEED"] = str(random_seeds[test_index])
     
     rng = random.Random(random_seeds[test_index])

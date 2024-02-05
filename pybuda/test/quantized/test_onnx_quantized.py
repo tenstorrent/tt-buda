@@ -42,7 +42,6 @@ def test_onnx_quantized_mlp_gelu(test_kind, test_device):
     # Configurations
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_auto_fusing = False
 
     # Sanity run
@@ -86,7 +85,6 @@ def test_onnx_quantized_mlp(test_kind, test_device):
     # Configurations
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_auto_fusing = False
 
     # Sanity run
@@ -131,7 +129,6 @@ def test_onnx_quantized_conv(test_kind, test_device):
     # Configurations
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_auto_fusing = False
 
     # Sanity run
@@ -196,7 +193,6 @@ def test_onnx_quantized_mm_int8_no_bias(test_kind, test_device):
     # Configurations
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_auto_fusing = False
 
     # Sanity run
@@ -241,7 +237,6 @@ def test_onnx_quantized_mm_int8_bias(test_kind, test_device):
     # Configurations
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_auto_fusing = False
 
     # Sanity run
@@ -286,7 +281,6 @@ def test_onnx_quantized_mm_uint8_no_bias(test_kind, test_device):
     # Configurations
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_auto_fusing = False
 
     # Sanity run
@@ -334,7 +328,6 @@ def test_onnx_quantized_resnet(test_kind, test_device):
     # Configurations
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_auto_fusing = False
     compiler_cfg.graph_solver_self_cut_type = "FastCut"
     compiler_cfg.default_df_override = DataFormat.Float32
