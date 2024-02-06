@@ -318,7 +318,7 @@ class CompilerConfig:
         if "PYBUDA_SCHEDULER_POLICY" in os.environ:
             self.scheduler_policy = os.environ["PYBUDA_SCHEDULER_POLICY"]
 
-        if "PYBUDA_OVERRIDE_DEVICE_YAML" in os.environ:
+        if "PYBUDA_OVERRIDE_DEVICE_YAML" in os.environ and os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] != "":
             self.backend_device_descriptor_path = resolve_device_descriptor_path(os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"])
 
     def __post_init__(self):

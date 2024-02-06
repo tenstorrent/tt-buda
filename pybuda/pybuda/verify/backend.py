@@ -133,7 +133,7 @@ def pybuda_override_veto(compiler_cfg):
     if "PYBUDA_OVERRIDES_VETO_CUSTOM_SETUP" in os.environ:
         override_file_path = "override_veto_compile_output.json"
         pybuda_override_veto_gen_overrides_json(override_file_path, compiler_cfg, new_g_compiler_config, removed_env_based_configurations)
-        
+
     return new_g_compiler_config
 
 
