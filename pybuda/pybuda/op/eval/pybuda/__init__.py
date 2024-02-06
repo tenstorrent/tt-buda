@@ -14,6 +14,8 @@ from .reciprocal import Reciprocal
 from .abs import Abs
 from .tanh import Tanh
 from .log import Log
+from .nop import Nop
+from .buffer import Buffer
 
 op_to_module_map = {
         "add":           "eltwise_binary",
@@ -33,10 +35,10 @@ op_to_module_map = {
         "not_equal":     "eltwise_binary",
         "logical_and":   "eltwise_binary",
 
-        "nop":             "eltwise_unary",
-        "buffer":          "eltwise_unary",
         "exp":              Exp,
         "reciprocal":      Reciprocal,
+        "nop":             Nop,
+        "buffer":          Buffer,
         "sqrt":            "eltwise_unary",
         "relu":            "eltwise_unary",
         "leaky_relu":      "eltwise_unary",

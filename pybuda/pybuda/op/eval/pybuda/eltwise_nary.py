@@ -10,6 +10,8 @@ import math
 import pybuda
 from ..common import to_torch_operands
 from .transpose import TransposeTM
+from .nop import Nop
+from .buffer import Buffer
 from ..buda.splice import Splice
 from pybuda.pybudaglobal import TILE_DIM, align_up_tile, is_tile_dim_aligned
 from ..sparse_utils import (
@@ -244,7 +246,7 @@ def decompose(type, attr, dc, inputs):
         
     if type == "concatenate":
         if len(inputs) == 1:
-            dc.fuse(dc.op("nop", [inputs[0]]))
+            dc.fuse(dc.op(Nop.create(), [inputs[0]]))
     
 from math import gcd
 from functools import reduce
@@ -262,7 +264,7 @@ def decompose_post_optimize(type, attr, dc, inputs):
             axis -= len(in1.shape)
 
         if len(inputs) == 1:
-            result = dc.op("nop", [in1])
+            result = dc.op(Nop.create(), [in1])
             dc.fuse(result)
             return
 
@@ -353,12 +355,12 @@ def decompose_post_optimize(type, attr, dc, inputs):
                 padded_shape_len += padded_inputs[-1].shape[axis]
 
                 if insert_slice and concat_slice_dim is not None:
-                    padded_inputs[-1] = dc.op("buffer", [padded_inputs[-1], ])
+                    padded_inputs[-1] = dc.op(Buffer.create(), [padded_inputs[-1], ])
                     assert padded_inputs[-1].shape[axis] % slice_size == 0
                     padded_inputs[-1] = dc.op(concat_slice_dim + "slice", [padded_inputs[-1], ], (padded_inputs[-1].shape[axis] // slice_size , ))
                 elif insert_slice and non_concat_slice_dim is not None:
                     slices = inputs[0].shape[non_concat_dim] // TILE_DIM
-                    padded_inputs[-1] = dc.op("buffer", [padded_inputs[-1], ])
+                    padded_inputs[-1] = dc.op(Buffer.create(), [padded_inputs[-1], ])
                     padded_inputs[-1] = dc.op(non_concat_slice_dim + "slice", [padded_inputs[-1], ], (slices, ))
                 
 

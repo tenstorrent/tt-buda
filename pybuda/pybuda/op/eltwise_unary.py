@@ -103,7 +103,9 @@ def Pow(
 
 def Identity(
         name: str, 
-        operandA: Tensor) -> Tensor:
+        operandA: Tensor,
+        unsqueeze : str =  None,
+        unsqueeze_dim : int = None) -> Tensor:
 
     """
     Identity operation.
@@ -116,13 +118,22 @@ def Identity(
     operandA: Tensor
         First operand
 
+    unsqueeze: str
+        If set, the operation returns a new tensor with a dimension of size one inserted at the specified position.
+
+    unsqueeze_dim: int
+        The index at where singleton dimenion can be inserted
+
     Returns
     -------
     Tensor
         Buda tensor
     """
 
-    return op("nop", name, operandA).get_tensor()
+    if unsqueeze==None and unsqueeze_dim==None:
+        return op("nop", name, operandA).get_tensor()
+    else:
+        return op("nop", name, operandA, unsqueeze=unsqueeze, unsqueeze_dim=unsqueeze_dim).get_tensor()
 
 
 def Buffer(

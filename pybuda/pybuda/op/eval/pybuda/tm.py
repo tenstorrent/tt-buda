@@ -32,6 +32,9 @@ from pybuda.utils import align_up_tile, round_up_div, align_up
 from pybuda._C.balancer import FactorizedInt
 from .transpose import TransposeTM
 from ..buda.splice import Splice
+from .nop import Nop
+from ..buda.nop import Nop as BudaNop
+from .buffer import Buffer
 
 def eval(type, attr, ops):
     assert len(ops) == 1 or (type == "adv_index" and len(ops) == 2), f"Tensor manipulation ops should have one input {len(ops)} {attr}"
@@ -733,7 +736,7 @@ def lower(type, attr, lc, ops, outputs):
 
         # Squeeze / unsqueeze ops that do not reshape a 4d tensor are nops
         if all([orig == new for orig, new in zip(orig_shape, attr)]):
-            lc.op("nop", ops, [], {})
+            lc.op(BudaNop.create(), ops)
         else:
             orig_w = orig_shape[-4]
             orig_z = orig_shape[-3]
@@ -828,7 +831,7 @@ def lower(type, attr, lc, ops, outputs):
         )
 
     elif type == "pad_tile":
-        return lc.op("nop", ops, [], {})
+        return lc.op(BudaNop.create(), ops)
 
     elif type == "narrow":
         assert len(attr) == 4
@@ -836,7 +839,7 @@ def lower(type, attr, lc, ops, outputs):
         if dim >= 0:
             dim -= len(ops[0].shape)
         if dim >= -2 and align_up_tile(length) == align_up_tile(ops[0].shape[dim]):
-            return lc.op("nop", ops, [], {})
+            return lc.op(BudaNop.create(), ops)
         else:
             raise NotImplementedError("Unimplemented narrow in buda")
 
@@ -844,7 +847,7 @@ def lower(type, attr, lc, ops, outputs):
         assert ((len(attr) == 4 and attr[0] == 0) or 
                (len(attr) == 6 and attr[0] == 0 and attr[2] == 0) or
                (attr[-2] != 0)), "Nop does not support left/top padding for constant mode"
-        return lc.op("nop", ops, [], {})
+        return lc.op(BudaNop.create(), ops)
 
     elif type == "unsqueeze":
         assert len(attr) == 2
@@ -852,15 +855,16 @@ def lower(type, attr, lc, ops, outputs):
         #assert input_ndim + 1 <= 4, "Cannot unsqueeze beyond 4D"
         if input_ndim + 1 > 4:
             assert attr[0] == 0, f"Unsqueeze 4D tensors to 5D is only supported for the 1st dim: {attr[0]}" 
-            return lc.op("nop", ops, ["unsqueeze", attr[1]], {}, tag="dont_remove")
-        return lc.op("nop", ops, [], {})
+            return lc.op(BudaNop.create(unsqueeze = "unsqueeze", unsqueeze_dim=attr[1]), ops, tag="dont_remove")
+
+        return lc.op(BudaNop.create(), ops)
 
     elif type == "squeeze":
         assert len(attr) == 1
-        return lc.op("nop", ops, [], {})
+        return lc.op(BudaNop.create(), ops)
 
     elif (type == "hstack" or type == "hslice") and attr[0] == 1:
-        return lc.op("nop", ops, [], {})
+        return lc.op(BudaNop.create(), ops)
 
     elif type == "buda_pad":
         return lc.tm("buda_pad", ops[0], attr, { "rt": attr[0], "ct": attr[1], "pad_value": attr[2]})
@@ -1011,7 +1015,7 @@ def backward(type, attr, ac, operand, inputs, output, grad):
 
         dim = attr[0]
         if grad.shape.len() == 4: # Cannot unsqueeze beyond 4D
-            return ac.op("nop", (grad,), attributes=())
+            return ac.op(Nop.create(), (grad,))
         return ac.op("unsqueeze", (grad,), attributes=(dim, grad.shape.len()))
 
     elif type == "broadcast": 
@@ -1086,11 +1090,11 @@ def decompose(type, attr, dc, inputs):
             return
         elif start % TILE_DIM == 0 and stop % TILE_DIM == 0 and stride == 1 and act.shape[dim] % TILE_DIM == 0:
             result = dc.op("select", [act], (dim, start, length, act.shape[dim]))
-            result = dc.op("buffer", [result]) # Workaround to enable T-streaming for Splice
+            result = dc.op(Buffer.create(), [result]) # Workaround to enable T-streaming for Splice
             dc.fuse(result)
             return
         elif act.shape[dim] == 1 and length == 1 and stride == 1:
-            result = dc.op("nop", [inputs[0]], ())
+            result = dc.op(Nop.create(), [inputs[0]])
             dc.fuse(result)
             return
         elif dim == -2 and stride == 1 and length == stop and "PYBUDA_PAD_MM" in os.environ:
@@ -1149,7 +1153,7 @@ def decompose(type, attr, dc, inputs):
         in0_shape = inputs[0].shape
         in1_shape = inputs[1].shape
         if len(in0_shape) == 1 or in0_shape[dim] == 1:
-            result = dc.op("nop", [inputs[0]], ())
+            result = dc.op(Nop.create(), [inputs[0]])
             dc.fuse(result)
             return
         if dim == 0 and len(in1_shape) <= 2:
@@ -1163,7 +1167,7 @@ def decompose(type, attr, dc, inputs):
     if type == "pad":
         if all([x == 0 for x in attr[0:-2]]):
             # Pad size is 0
-            result = dc.op("nop", [inputs[0]], ())
+            result = dc.op(Nop.create(), [inputs[0]])
             dc.fuse(result)
 
 
@@ -1329,7 +1333,7 @@ def decompose(type, attr, dc, inputs):
 
     if type == "broadcast":
         if attr[1] == 1:
-            dc.fuse(dc.op("nop", [inputs[0]]))
+            dc.fuse(dc.op(Nop.create(), [inputs[0]]))
 
     if type == "transpose":
         # canonicalize dims to use negative indexing
@@ -1428,7 +1432,7 @@ def decompose_select(attr, dc, inputs):
 
         result = inputs[0]
         if orig_shape[dim] == length:
-            result = dc.op("nop", [result])
+            result = dc.op(Nop.create(), [result])
             dc.fuse(result)
 
         # select on z dim is supported via splice
@@ -1505,17 +1509,17 @@ def decompose_xy_flatten_reshape(inputs, dc, orig_shape, attr):
 
     if orig_shape[-3] > 1:
         result = dc.op("hslice", [result], (orig_shape[-3],))
-        # result = dc.op("buffer", [result]) # HW workaround for: tenstorrent/budabackend#656
+        # result = dc.op(Buffer.create(), [result]) # HW workaround for: tenstorrent/budabackend#656
         
     rt = align_up_tile(r_new) // TILE_DIM
     if pad_for_factrization:
         rt = sparse_r_padding[orig_shape[-2]]
     result = dc.op("vslice", [result], (rt,))
-    # result = dc.op("buffer", [result]) # HW workaround for: tenstorrent/budabackend#656
+    # result = dc.op(Buffer.create(), [result]) # HW workaround for: tenstorrent/budabackend#656
     result = dc.op("hstack", [result], (rt,))
 
     if orig_shape[-3] > 1:
-        # result = dc.op("buffer", [result]) # HW workaround for: tenstorrent/budabackend#656
+        # result = dc.op(Buffer.create(), [result]) # HW workaround for: tenstorrent/budabackend#656
         result = dc.op("vstack", [result], (orig_shape[-3],))
 
 
@@ -1765,7 +1769,7 @@ def decompose_post_optimize(type, attr, dc, inputs):
 
             rt = align_up_tile(r_new) // TILE_DIM
             result = dc.op("vslice", [result], (rt,))
-            result = dc.op("buffer", [result]) # HW workaround for: tenstorrent/budabackend#656
+            result = dc.op(Buffer.create(), [result]) # HW workaround for: tenstorrent/budabackend#656
             result = dc.op("hstack", [result], (rt,))
         
             result = dc.op(TransposeTM.create(-2, -1), [result])
@@ -2362,7 +2366,7 @@ def decompose_post_autograd(type, attr, dc, inputs):
         shape = list(attr)
 
         if shape == input_shape:
-            #dc.fuse(dc.op("nop", [inputs[0]]))
+            #dc.fuse(dc.op(Nop.create(), [inputs[0]]))
             return
 
         rank = 0

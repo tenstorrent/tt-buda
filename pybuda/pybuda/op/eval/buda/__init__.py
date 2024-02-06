@@ -14,6 +14,8 @@ from .reciprocal import Reciprocal
 from .abs import Abs
 from .tanh import Tanh
 from .log import Log
+from .nop import Nop
+from .buffer import Buffer
 
 op_to_module_map = {
         "add":             "eltwise_binary",
@@ -31,10 +33,9 @@ op_to_module_map = {
         "equal":           "eltwise_binary",
         "not_equal":       "eltwise_binary",
         "ethernet_datacopy": EthernetDatacopy,
-        "nop":             "eltwise_unary",
-        "buffer":          "eltwise_unary",
         "exp":             Exp,
-        "reciprocal":      "eltwise_unary",
+        "nop":             Nop,
+        "buffer":          Buffer,
         "reciprocal":      Reciprocal,
         "sqrt":            "eltwise_unary",
         "lrelu":           "eltwise_unary",

@@ -7,6 +7,7 @@ from pybuda.utils import align_up_tile, round_up_div, clamp
 from pybuda import Tensor
 from pybuda.op.resize import INT_TO_RESIZE2d_METHOD
 from .transpose import TransposeTM
+from .nop import Nop
 
 from ..common import to_torch_operands
 from ..sparse_utils import create_nearest_neighbor_upsample_picker_matrix, create_bilinear_upsample_picker_matrix, create_nearest_neighbor_downsample_picker_matrix
@@ -359,7 +360,7 @@ def decompose_resize2d(attr, dc, inputs, resize_method):
 
     scale_factor = scale_factor = attr[0] // shape[-3] if channel_last else attr[0] // shape[-2]
     if scale_factor == 1:
-        result = dc.op("nop", [activations])
+        result = dc.op(Nop.create(), [activations])
         dc.fuse(result)
         return
     
@@ -415,7 +416,7 @@ def decompose_resize3d(attr, dc, inputs, resize_method):
  
     scale_factor = scale_factor = attr[0] // shape[-4] if channel_last else attr[0] // shape[-3]
     if scale_factor == 1:
-        result = dc.op("nop", [activations])
+        result = dc.op(Nop.create(), [activations])
         dc.fuse(result)
         return
     

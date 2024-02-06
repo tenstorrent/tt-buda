@@ -13,6 +13,9 @@ import numpy as np
 from pybuda.op.eval.common import calculate_tile_size
 from .tanh import Tanh
 from ..buda.log import Log as BudaLog
+from .nop import Nop
+from ..buda.nop import Nop as BudaNop
+from .buffer import Buffer
 
 from ..buda.exp import Exp as BudaExp
 from .exp import Exp
@@ -193,7 +196,7 @@ def lower(type, attr, lc, ops, outputs):
             threshold = attr[0] - f32_epsilon
         if len(attr) > 1:
             mode = attr[1]
-        lc.op("nop", ops, [], {"relu_en": True, "relu_threshold": threshold, "relu_mode": mode })
+        lc.op(BudaNop.create(relu_en=True, relu_threshold=threshold, relu_mode=mode), ops)
         
     elif type == "leaky_relu":
         lc.op("lrelu", ops, attr, {"slope": attr[0]})
@@ -218,7 +221,7 @@ def lower(type, attr, lc, ops, outputs):
             node_shape = lc.pybuda_shape()
             tile_height = calculate_tile_size(node_shape[-2])
             if node_shape[-2] % tile_height == 0:
-                lc.op("nop", ops, [], {}, "", tile_height, TILE_DIM)
+                lc.op(BudaNop.create(), ops, tile_height=tile_height,tile_width=TILE_DIM)
                 return # Don't need to tile bcast to full tile
 
 
@@ -274,7 +277,7 @@ def lower(type, attr, lc, ops, outputs):
             buda_attr = {"p": p, "seed": seed}
             lc.op(type, ops, attr + [r, c, 1, 1, True, False], buda_attr) # straigh 1-1 for all other unaries
         else:
-            lc.op("nop", ops)
+            lc.op(BudaNop.create(), ops)
     elif type == "gelu":
         lc.op("gelu", ops, attr, {"approximate_mode": "true" if attr[0] == "tanh" else "false"})
     elif type == "gelu_derivative":
@@ -290,7 +293,7 @@ def lower(type, attr, lc, ops, outputs):
             max_value = 65504.0
 
         if (min_value == 0) and (max_value >= 0):
-            res = lc.op("nop", (ops[0], ), [], {"relu_en": True, "relu_mode": "max", "relu_threshold": max_value })
+            lc.op(BudaNop.create(relu_en=True, relu_threshold=max_value, relu_mode="max"), (ops[0], ))
             return
 
         shape = list(ops[0].shape.as_list())
@@ -314,11 +317,11 @@ def lower(type, attr, lc, ops, outputs):
 
         res = lc.op("subtract", (ops[0], min_value_tensor))
                 # x - min_value
-        res = lc.op("nop", (res, ), [], {"relu_en": True, "relu_mode": "min", "relu_threshold": 0.0 })
+        res = lc.op(BudaNop.create(relu_en=True, relu_threshold=0.0, relu_mode="min"), (res, ))
                 # ReLU(x - min_value)
         res = lc.op("subtract", (diff_tensor, res))
                 # diff_value - ReLU(x - min_value), diff = max - min
-        res = lc.op("nop", (res, ), [], {"relu_en": True, "relu_mode": "min", "relu_threshold": 0.0 })
+        res = lc.op(BudaNop.create(relu_en=True, relu_threshold=0.0, relu_mode="min"), (res, ))
                 # ReLU(diff_value - ReLU(x - min_value))
         lc.op("subtract", (max_value_tensor, res))
                 # max_value - ReLU(diff_value - ReLU(x - min_value))
@@ -365,16 +368,16 @@ def backward(type, attr, ac, operand, inputs, output, grad):
         ), "Eltwise unary should have no attributes, execpt for clip, leaky_relu and cumsum"
 
     if type == "nop":
-        return ac.op("nop", (grad, ))
+        return ac.op(Nop.create(), (grad, ))
 
     if type == "tilizer":
-        return ac.op("nop", (grad, ))
+        return ac.op(Nop.create(), (grad, ))
 
     if type == "tile_broadcast": # the full TM broadcast will generate a reduce
-        return ac.op("nop", (grad, ))
+        return ac.op(Nop.create(), (grad, ))
 
     if type == "buffer":
-        return ac.op("buffer", (grad, ))
+        return ac.op(Buffer.create(), (grad, ))
 
     if type == "exp":
         return ac.op("multiply", (output, grad))
@@ -455,7 +458,7 @@ def backward(type, attr, ac, operand, inputs, output, grad):
         assert dim == 0, "Unsupported dim different then 0 for cumulative sum backward pass"
         
         if dim == 0:
-            return ac.op("nop", (grad, ))
+            return ac.op(Nop.create(), (grad, ))
         
         return res
 

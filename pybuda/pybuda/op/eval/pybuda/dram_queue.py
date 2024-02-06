@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import torch
 import torch.nn.functional
+from .buffer import Buffer
 
 from ..common import to_torch_operands
 
@@ -23,4 +24,4 @@ def lower(type, attr, lc, ops, outputs):
 
 
 def backward(type, attr, ac, operand, inputs, output, grad):
-    return ac.op("buffer", (grad, ))
+    return ac.op(Buffer.create(), (grad, ))

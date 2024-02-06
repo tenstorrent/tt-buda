@@ -9,6 +9,7 @@ import torch.nn.functional as F
 from pybuda.pybudaglobal import TILE_DIM
 from pybuda.utils import align_up_tile
 from .transpose import TransposeTM
+from .nop import Nop
 
 from ..common import to_torch_operands
 from ..sparse_utils import (
@@ -391,7 +392,7 @@ def decompose(type, attr, dc, inputs):
         activations = inputs[0]
 
         if kernel_size == 1:
-            dc.fuse(dc.op("nop", [activations]))
+            dc.fuse(dc.op(Nop.create(), [activations]))
             return
 
         if max_pool_add_sub_surround:
@@ -512,7 +513,7 @@ def decompose(type, attr, dc, inputs):
         activations = inputs[0]
 
         if kD == 1 and kH == 1 and kW == 1:
-            dc.fuse(dc.op("nop", [activations]))
+            dc.fuse(dc.op(Nop.create(), [activations]))
             return
 
         #if max_pool_add_sub_surround:

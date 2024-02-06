@@ -6,6 +6,8 @@ from ..common import to_torch_operands
 from ....pybudaglobal import TILE_DIM, align_up_tile
 from ....tensor import buda_dataformat_to_pytorch_dtype
 from .transpose import TransposeTM
+from .nop import Nop
+from ..buda.nop import Nop as BudaNop
 import torch
 import numpy as np
 import math
@@ -166,7 +168,7 @@ def lower(type, attr, lc, ops, outputs):
 
     if reduce_len == 1 and not tile_broadcast:
         # Nothing to reduce
-        lc.op("nop", ops)
+        lc.op(BudaNop.create(), ops)
         return
 
     if reduce_len % TILE_DIM == 0 and type != "grouped_reduce_avg":
@@ -286,7 +288,7 @@ def backward(type, attr, ac, operand, inputs, output, grad):
             return ac.op("multiply", [grad, mask])
 
     if type == "reduce_sum":
-        return ac.op("nop", (grad, )) # the broadcast will be implicitly figured out during shape calculations
+        return ac.op(Nop.create(), (grad, )) # the broadcast will be implicitly figured out during shape calculations
 
     if type == "reduce_avg":
         dim = attr[0]
@@ -347,7 +349,7 @@ def decompose(type, attr, dc, inputs):
     inp_shape = inputs[0].shape.as_list()
     if inp_shape[attr[0]] == 1:
         # This is a NOP
-        result = dc.op("nop", inputs, ())
+        result = dc.op(Nop.create(), inputs, ())
         dc.fuse(result)
     elif (type == "reduce_sum" or type == "reduce_avg"):
         dim = attr[0]

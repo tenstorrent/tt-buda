@@ -13,6 +13,8 @@ from ..buda.exp import Exp as BudaExp
 from .reciprocal import Reciprocal
 from .log import Log
 from ..buda.log import Log as BudaLog
+from .nop import Nop
+from ..buda.nop import Nop as BudaNop
 
 from ..common import to_torch_operands
 from pybuda.utils import align_up_tile
@@ -129,9 +131,9 @@ def lower(type, attr, lc, ops, outputs):
                     # diff = (A - B) * amplifier
             diff_one = lc.op("add", (diff, one))
                     # diff + 1.0
-            res = lc.op("nop", (diff_one, ), [], { "relu_en": True, "relu_threshold": 1.0, "relu_mode": "min" })
+            res = lc.op(BudaNop.create(relu_en=True, relu_threshold=1.0, relu_mode="min" ), (diff_one, ))
                     # res = ReLU(diff + 1.0, 1.0)
-            res = lc.op("nop", (res, ), [], { "relu_en": True, "relu_threshold": 1.0, "relu_mode": "max" })
+            res = lc.op(BudaNop.create(relu_en=True, relu_threshold=1.0, relu_mode="max"), (res, ))
                     # res = Inv_ReLU(res, 1.0)
             return res
 
@@ -181,11 +183,11 @@ def lower(type, attr, lc, ops, outputs):
         ops1_dims = len(ops[1].shape)
         if ops0_dims == 5 and ops1_dims < 5:
             while ops1_dims < 5:
-                ops[1] = lc.op("nop", [ops[1]], ["unsqueeze", ops1_dims], {}, tag="dont_remove")
+                ops[1] = lc.op(BudaNop.create(unsqueeze = "unsqueeze", unsqueeze_dim=ops1_dims), [ops[1]], tag="dont_remove")
                 ops1_dims += 1
         elif ops1_dims == 5 and ops0_dims < 5:
             while ops0_dims < 5:
-                ops[0] = lc.op("nop", [ops[0]], ["unsqueeze", ops0_dims], {}, tag="dont_remove")
+                ops[0] = lc.op(BudaNop.create(unsqueeze = "unsqueeze", unsqueeze_dim=ops0_dims), [ops[0]], tag="dont_remove")
                 ops0_dims += 1
         lc.op(type, ops, attr, {}, "", tile_height, TILE_DIM) # straight 1-1 for all other binaries
 
@@ -217,7 +219,7 @@ def backward(op_type, attr, ac, operand, inputs, output, grad):
                 if shapes[operand][i] < grad_shape[i]:
                     # Negative indexing for reduce axis
                     grad = ac.op("reduce_sum", (grad,), (i - grad_shape_len,))
-        return ac.op("nop", (grad,))  # pass gradient through
+        return ac.op(Nop.create(), (grad,))  # pass gradient through
 
     elif op_type == "subtract":
         if inputs[operand].shape != grad.shape:
@@ -225,7 +227,7 @@ def backward(op_type, attr, ac, operand, inputs, output, grad):
                 if shapes[operand][i] < grad.shape[i]:
                     grad = ac.op("reduce_sum", (grad,), (i,))
         if operand == 0:
-            return ac.op("nop", (grad,))
+            return ac.op(Nop.create(), (grad,))
         else:
             return ac.op("multiply", (grad, ac.constant(-1)))
 
@@ -239,7 +241,7 @@ def backward(op_type, attr, ac, operand, inputs, output, grad):
 
     elif op_type == "maximum":
         # TODO
-        return ac.op("nop", (grad,)) # pass gradient through
+        return ac.op(Nop.create(), (grad,)) # pass gradient through
 
     elif op_type == "power": 
         if operand == 0: # dx = y * (x^y) * recp(x)

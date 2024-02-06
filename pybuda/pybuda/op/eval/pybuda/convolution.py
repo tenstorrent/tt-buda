@@ -11,6 +11,7 @@ from pybuda.utils import align_up_tile, round_up_div, clamp
 from pybuda import Tensor
 from pybuda.config import _get_global_compiler_config
 from .transpose import TransposeTM
+from .buffer import Buffer
 
 from ..common import to_torch_operands
 from ..sparse_utils import (
@@ -452,14 +453,14 @@ def decompose_conv2d_sparse_second(attr, dc, inputs):
     v_slice_factor = result.shape[-2] // TILE_DIM
     if v_slice_factor > 1:
         result = dc.op("vslice", [result], (v_slice_factor,))
-        result = dc.op("buffer", [result])  # HW workaround for: tenstorrent/budabackend#656
+        result = dc.op(Buffer.create(), [result])  # HW workaround for: tenstorrent/budabackend#656
 
     if (kH * kW) > 1:
         result = dc.op("hslice", [result], (kH * kW,))
         if "PYBUDA_MIDDLE_CNN_BUFFER" in os.environ: # most workloads are ok without it, and perf is much better... so enable only where needed
-            result = dc.op("buffer", [result])  # HW workaround for: tenstorrent/budabackend#656
+            result = dc.op(Buffer.create(), [result])  # HW workaround for: tenstorrent/budabackend#656
         result = dc.op("vstack", [result], (kH * kW,))
-        result = dc.op("buffer", [result])  # HW workaround for: tenstorrent/budabackend#656
+        result = dc.op(Buffer.create(), [result])  # HW workaround for: tenstorrent/budabackend#656
 
     if v_slice_factor > 1:
         result = dc.op("vstack", [result], (v_slice_factor,))

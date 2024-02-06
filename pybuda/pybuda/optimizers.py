@@ -327,9 +327,10 @@ class Adam(Optimizer):
             weight_decay = ac.constant(self.weight_decay)
         else:
             weight_decay = None
-
+        ## import locally to avoid circular dependency from Dataformat, fix it later
+        from pybuda.op.eval.pybuda.buffer import Buffer
         # we copy the grad accum. queue since it only accepts a single consumer/pop
-        gradient_copy = ac.op("buffer", (gradient,))
+        gradient_copy = ac.op(Buffer.create(), (gradient,))
 
         if weight_decay and not self.enable_adam_w:
             weight_decay_times_param = ac.op("multiply", (weight_decay, parameter))
@@ -649,7 +650,9 @@ class LAMB(Optimizer):
         # gradinet buffering
 
         # g(t) -> gradient at current timestep
-        grad = ac.op("buffer", (gradient, ))
+        #temp fix to avoid circular dependency by importing locally
+        from pybuda.op.eval.pybuda.buffer import Buffer
+        grad = ac.op(Buffer.create(), (gradient, ))
 
         # m(t) <- beta1 * m(t - 1) + (1 - beta1) * g(t)
         # m(t)     : mean at current timestep
@@ -962,7 +965,9 @@ class LARS(Optimizer):
         # gradinet buffering
 
         # g(t) -> gradient at current timestep
-        grad = ac.op("buffer", (gradient, ))
+        #temp fix for circular dependency
+        from pybuda.op.eval.pybuda.buffer import Buffer
+        grad = ac.op(Buffer.create(), (gradient, ))
 
         # lambda <- || w(t) || / (|| g(t) || + beta * || w(t) ||)
         weight_norm = ac.op("multiply", (parameter, parameter))
