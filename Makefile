@@ -66,8 +66,8 @@ WARNINGS += -Wmaybe-uninitialized
 LDFLAGS += -lstdc++
 endif
 GIT_COMMON_DIR=$(shell git rev-parse --git-common-dir)
-SUBMODULES=$(wildcard $(GIT_COMMON_DIR)/modules/third_party/*)
-SUBMODULES_UPDATED=$(addprefix $(SUBMODULESDIR)/, $(SUBMODULES:$(GIT_COMMON_DIR)/modules/%=%.checkout))
+SUBMODULES=$(shell git submodule status | grep -o "third_party/[^ ]*")
+SUBMODULES_UPDATED=$(addprefix $(SUBMODULESDIR)/, $(SUBMODULES:%=%.checkout))
 SKIP_BBE_UPDATE ?= 0
 SKIP_SUBMODULE_UPDATE ?= $(SKIP_BBE_UPDATE)
 
@@ -80,20 +80,15 @@ include docs/public/module.mk
 
 update_submodules: $(SUBMODULES_UPDATED) ;
 
-$(SUBMODULESDIR)/%.checkout: $(SUBMODULESDIR)/%
-	@mkdir -p $(dir $@)
-	touch $@
-
-$(SUBMODULESDIR)/%: $(GIT_COMMON_DIR)/modules/%/HEAD
+$(SUBMODULESDIR)/%.checkout:
 	@mkdir -p $(dir $@)
 ifeq ($(SKIP_SUBMODULE_UPDATE), 0)
-	git submodule update --init --recursive $(@:$(SUBMODULESDIR)/%=%)
-	git -C $(@:$(SUBMODULESDIR)/%=%) submodule foreach --recursive git lfs install || true
-	git -C $(@:$(SUBMODULESDIR)/%=%) submodule foreach --recursive git lfs pull
-	git -C $(@:$(SUBMODULESDIR)/%=%) submodule foreach --recursive git lfs checkout HEAD
+	git submodule update --init --recursive $(@:$(SUBMODULESDIR)/%.checkout=%)
+	git -C $(@:$(SUBMODULESDIR)/%.checkout=%) submodule foreach --recursive git lfs install || true
+	git -C $(@:$(SUBMODULESDIR)/%.checkout=%) submodule foreach --recursive git lfs pull
+	git -C $(@:$(SUBMODULESDIR)/%.checkout=%) submodule foreach --recursive git lfs checkout HEAD
 endif
-	touch -r $^ $@
-	touch $@.checkout
+	touch $@
 
 build: pybuda third_party/tvm ;
 
