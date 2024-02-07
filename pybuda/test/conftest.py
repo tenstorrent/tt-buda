@@ -33,7 +33,27 @@ def pytest_sessionstart(session):
     tf.config.threading.set_inter_op_parallelism_threads(num_threads)
     torch._dynamo.reset()
     reset_state()
+    # If specified by env variable, print the environment variables
+    # It can be useful in CI jobs to get the state of the enviroment variables before test session starts
+    print_env_variables = bool(int(os.environ.get("PYTEST_PRINT_ENV_VARIABLES", "0")))
+    if print_env_variables:
+        pybuda_specific_vars = {}
+        tt_backend_specific_vars = {}
+        print(f"####### Environment variables - Count: {len(os.environ)} #######")
+        for key, value in os.environ.items():
+            print(f"{key}={value}")
+            if key.startswith("PYBUDA_") or key.startswith("GOLDEN_"):
+                pybuda_specific_vars[key] = value
+            elif key.startswith("TT_BACKEND_"):
+                tt_backend_specific_vars[key] = value
 
+        print(f"####### PYBUDA specific enviroment variables - Count: {len(pybuda_specific_vars)} #######")
+        for key, value in pybuda_specific_vars.items():
+            print(f"{key}={value}")
+
+        print(f"####### TT_BACKEND specific enviroment variables - Count: {len(tt_backend_specific_vars)} #######")
+        for key, value in tt_backend_specific_vars.items():
+            print(f"{key}={value}")
 
 @pytest.fixture(autouse=True)
 def clear_pybuda():
