@@ -423,6 +423,27 @@ def execution_cycles(type, arch_name, op_model, theoretical) -> int:
     else:
         cycle_count = get_op_model_execution_cycles(op_model_desc)
 
+        if op_model.input_buffers[0].data_format == DataFormat.Int8:
+            if op_model.buda_op_attrs().get("bias") is True:
+                op_model_desc.type = "nop"
+                op_model_desc.mblock_k = 0
+                op_model_desc.ublock_kt = 0
+                cycle_count += get_op_model_execution_cycles(op_model_desc)
+
+            if op_model.buda_op_attrs().get("requant") is True:
+                op_model_desc.type = "requantization"
+                op_model_desc.mblock_k = 0
+                op_model_desc.ublock_kt = 0
+                op_model_desc.math_fidelity = MathFidelity.HiFi4
+                cycle_count += get_op_model_execution_cycles(op_model_desc)
+
+            if op_model.buda_op_attrs().get("dequant") is True:
+                op_model_desc.type = "dequantization"
+                op_model_desc.mblock_k = 0
+                op_model_desc.ublock_kt = 0
+                op_model_desc.math_fidelity = MathFidelity.HiFi4
+                cycle_count += get_op_model_execution_cycles(op_model_desc)
+
     return cycle_count
 
 def cyclenet_execution_cycles(type, X) -> int:

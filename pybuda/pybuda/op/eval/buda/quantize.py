@@ -17,7 +17,7 @@ from pybuda.pybudaglobal import TILE_DIM
 from pybuda.utils import align_up_tile, align_up
 from pybuda._C.graph import UBlockOrder
 
-from ..common import to_torch_operands, math_fidelity_to_multiplier, data_format_to_int, op_model_to_desc
+from ..common import op_model_to_desc, get_compiler_cached_cycles
 from pybuda.op.eval.pybuda.quantize import STRING_TO_LOWER_LIMIT, STRING_TO_UPPER_LIMIT, STRING_TO_TORCH_DTYPE
 
 def eval(type, attr, ops):
@@ -86,6 +86,17 @@ def input_ublock_order(type, attr, num_operands):
     return None
 
 def execution_cycles(type, arch_name, op_model) -> int:
-    b = op_model.output_buffers[0].block_shape
-    cycles_per_tile = 32 * 20
-    return b.mblock_m * b.mblock_n * b.ublock.rt * b.ublock.ct * b.t * cycles_per_tile
+    op_model_desc = op_model_to_desc(type, arch_name, op_model)
+
+    # for dequant and requant input0 format is important,
+    # output format is always Int8 for requant and Float32 for dequant;
+    # this is a workaround until we expand the API to accept all data formats for an op
+    if (op_model_desc.type == "dequantization" or op_model_desc.type == "requantization"):
+        op_model_desc.data_format = op_model.input_buffers[0].data_format
+
+    compiler_cache_cycles = get_compiler_cached_cycles(op_model_desc)
+    if compiler_cache_cycles is not None:
+        return compiler_cache_cycles
+
+    cycle_count = get_op_model_execution_cycles(op_model_desc)
+    return cycle_count

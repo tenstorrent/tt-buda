@@ -388,6 +388,11 @@ def op_model_to_desc(type: str, arch_name: str, op_model: OpModel, sub_op_model:
                 desc.ublock_kt = op_model.input_buffers[0].block_shape.ublock.ct
                 desc.mblock_k = op_model.op_shape.inputs[0].ct // desc.ublock_kt
 
+                # requant/dequant part of matmul is calculated separately for now, and we need to pass
+                # matmul output format here
+                if "requant" in op_model.buda_op_attrs() or "dequant" in op_model.buda_op_attrs():
+                    desc.data_format = DataFormat.Int32
+
         if type == "depthwise":
             desc.mblock_k = op_model.op_shape.inputs[1].rt
             desc.ublock_kt = 1
