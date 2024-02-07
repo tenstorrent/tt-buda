@@ -32,7 +32,7 @@ third_party/budabackend: $(SUBMODULESDIR)/third_party/budabackend.build ;
 
 DEVICE_VERSIM_INSTALL_ROOT ?= third_party/budabackend
 $(SUBMODULESDIR)/third_party/budabackend.build: $(SUBMODULESDIR)/third_party/budabackend.checkout
-	CC=$(BACKEND_CC) CXX=$(BACKEND_CXX) CONFIG=$(BACKEND_CONFIG) ARCH_NAME=$(BACKEND_ARCH_NAME) DEVICE_VERSIM_INSTALL_ROOT=$(DEVICE_VERSIM_INSTALL_ROOT) ROOT=$(PWD)/third_party/budabackend $(MAKE) -C third_party/budabackend backend build_hw
+	CC=$(BACKEND_CC) CXX=$(BACKEND_CXX) CONFIG=$(BACKEND_CONFIG) ARCH_NAME=$(BACKEND_ARCH_NAME) DEVICE_VERSIM_INSTALL_ROOT=$(DEVICE_VERSIM_INSTALL_ROOT) ROOT=$(PWD)/third_party/budabackend $(MAKE) -C third_party/budabackend backend build_hw dbd
 	touch $@
 
 .PHONY: third_party/budabackend/netlist_analyzer

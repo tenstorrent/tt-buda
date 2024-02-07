@@ -62,7 +62,15 @@ bbe_files = {
     "firmware_brisc_hex": {
         "path": "build/src/firmware/riscv/targets/brisc/out",
         "files": [
-            "brisc.hex"
+            "brisc.hex",
+            "brisc.elf"
+        ]
+    },
+    "firmware_ncrisc_hex": {
+        "path": "build/src/firmware/riscv/targets/ncrisc/out",
+        "files": [
+            "ncrisc.hex",
+            "ncrisc.elf"
         ]
     },
     "kernels": {
@@ -114,7 +122,36 @@ bbe_files = {
     "sfpi": {
         "path": "third_party/sfpi",
         "files": "*" 
-    }
+    },
+    "debuda": {
+        "path": "dbd/",
+        "files": [
+            "debuda.py",
+            "tt_buffer.py",
+            "tt_coordinate.py",
+            "tt_debug_risc.py",
+            "tt_device.py",
+            "tt_firmware.py",
+            "tt_graph.py",
+            "tt_grayskull.py",
+            "tt_netlist.py",
+            "tt_object.py",
+            "tt_parse_elf.py",
+            "tt_pipe.py",
+            "tt_stream.py",
+            "tt_temporal_epoch.py",
+            "tt_util.py",
+            "tt_wormhole.py"
+        ]
+    },
+    "debuda_commands": {
+        "path": "dbd/debuda_commands",
+        "files": "*",
+    },
+    "debuda-server-standalone": {
+        "path": "build/bin" ,
+        "files": [ "debuda-server-standalone" ],
+    },
 }
 
 # Only copy eric if we are building Wormhole
@@ -123,6 +160,7 @@ if "BACKEND_ARCH_NAME" in os.environ and os.environ["BACKEND_ARCH_NAME"] == "wor
         "path": "build/src/firmware/riscv/targets/erisc_app/out",
         "files": [
             "erisc_app.hex"
+            "erisc_app.elf"
         ]
     }
 
@@ -131,6 +169,7 @@ if "BACKEND_ARCH_NAME" in os.environ and os.environ["BACKEND_ARCH_NAME"] == "wor
         "path": "build/src/firmware/riscv/targets/erisc_app/out",
         "files": [
             "erisc_app.hex",
+            "erisc_app.elf",
             "erisc_app.iram.hex",
             "erisc_app.l1.hex",
             "split_iram_l1"
@@ -225,6 +264,10 @@ with open("python_env/core_requirements.txt", "r") as f:
 with open("python_env/dist_requirements.txt", "r") as f:
     requirements += [r for r in f.read().splitlines() if not r.startswith("-r")]
 
+# Add specific requirements for Debuda
+with open("third_party/budabackend/dbd/requirements.txt", "r") as f:
+    requirements += [r for r in f.read().splitlines() if not r.startswith("-r")]
+
 # pybuda._C
 pybuda_c = TTExtension("pybuda._C")
 
@@ -269,5 +312,10 @@ setup(
         "Intended Audience :: Science/Research",
         "Topic :: Scientific/Engineering :: Artificial Intelligence"
     ],
+    entry_points={
+        'console_scripts': [
+            'debuda = budabackend.dbd.debuda:main'
+        ]
+    }
 
 )
