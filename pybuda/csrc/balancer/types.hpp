@@ -324,9 +324,8 @@ struct OpModel
 
     GridShape get_input_grid_shape(int input_idx) const
     {
-        return buda_op_node->is_matmul_not_sparse()
-                   ? (input_idx == 0 ? GridShape(grid_shape.r, 1) : GridShape(1, grid_shape.c))
-                   : grid_shape;
+        return buda_op_node->is_matmul() ? (input_idx == 0 ? GridShape(grid_shape.r, 1) : GridShape(1, grid_shape.c))
+                                         : grid_shape;
     }
     int get_input_bytes(int input_idx) const
     {
