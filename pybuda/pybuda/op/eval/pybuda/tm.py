@@ -90,7 +90,9 @@ def eval(type, attr, ops):
         if dim >= 0:
             dim -= len(ops[0].shape)
 
-        if dim == -4:
+        if dim == -5:
+            return t_ops[0][..., start:stop:stride, :, :, :, :]
+        elif dim == -4:
             return t_ops[0][..., start:stop:stride, :, :, :]
         elif dim == -3:
             return t_ops[0][..., start:stop:stride, :, :]
