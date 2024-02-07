@@ -110,9 +110,12 @@ static void insert_t_stream_default_tms(
 }
 
 void insert_t_stream_tms_for_eltwise(
-    std::vector<graphlib::OpType>& tms, TStreamFactor consumer_factor, TStreamFactor producer_factor)
+    std::vector<graphlib::OpType>& tms,
+    TStreamFactor consumer_factor,
+    TStreamFactor producer_factor,
+    bool after_transpose)
 {
-    return insert_t_stream_default_tms(tms, consumer_factor, producer_factor);
+    return insert_t_stream_default_tms(tms, consumer_factor, producer_factor, 1 /*group*/, after_transpose);
 }
 
 static void insert_t_stream_tms_for_matmul(

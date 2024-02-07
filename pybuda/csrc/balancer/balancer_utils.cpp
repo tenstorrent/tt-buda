@@ -513,7 +513,7 @@ ResourceUsage get_edge_resource_usage(
         producer_grid_shape.c /= producer_op_model.fracture_factor;
     }
 
-    GridShape consumer_grid_shape = consumer_op_model.grid_shape;
+    GridShape consumer_grid_shape = consumer_op_model.get_input_grid_shape(edge.consumer_input_port_id);
     BlockShape consumer_block_shape =
         consumer_op_model.input_buffers[edge.consumer_input_port_id].block_shape.canonical();
     if (consumer_node->is_matmul())

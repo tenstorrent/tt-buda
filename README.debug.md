@@ -119,6 +119,7 @@
  * PYBUDA\_VERSIM\_DEVICE\_ARCH: This env variable represents the architecture of the Versim device used in the pytest.
  * PYBUDA\_ENABLE\_EMULATION\_DEVICE: This device is a specific silicon emulation device that PyBUDA supports. The variable is used to enable emulation device in PyBUDA pytest environment. By setting this variable to 1, we are instructing PyBUDA to use the emulation device as the target device instead of the silicon or golden device. Enabling the emulation device can be useful for testing or experimentation purposes, allowing us to evaluate the behaviour of our code on this emulation device. In order to run emulation device as a targeted device, the source code must be built with EMULATION_DEVICE_EN=1 environment variable.
  * PYBUDA\_EMULATION\_DEVICE\_ARCH: This env variable represents the architecture of the emulation device used in the pytest.
+ * PYBUDA\_DISABLE\_UNROLLED\_PARAMETERS: Disable unrolled parameters optimization. (default: 0/False)
 
  ## Golden overrides
  * GOLDEN\_WORMHOLE\_B0: run Golden with Wormhole_B0 as target device instead of Grayskull (default)

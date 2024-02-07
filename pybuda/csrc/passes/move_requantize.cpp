@@ -72,7 +72,6 @@ void commute_through_requant(graphlib::Graph *graph, std::vector<graphlib::Node 
     TT_ASSERT(path.size() >= 2);
     graphlib::OpNode *first = path.front()->as<graphlib::OpNode>();
     graphlib::OpNode *last = path.back()->as<graphlib::OpNode>();
-    std::pair<int, int> operand_dims;
     log_debug(LogGraphCompiler, "Commute and bypass TM through requant: {} -> {}", first->name(), last->name());
     graphlib::OpType golden_transform = first->op_type();
 

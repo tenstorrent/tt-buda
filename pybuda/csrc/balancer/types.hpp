@@ -235,6 +235,7 @@ struct BufferModel
     std::size_t single_buffered_size_tiles() const;
     std::size_t single_buffered_size_bytes() const;
     std::size_t total_size_bytes() const;
+    inline bool is_unrolled() const { return size_tiles_override; }
     operator bool() const { return buffer_factor > 0; }
     bool operator==(BufferModel const &other) const
     {

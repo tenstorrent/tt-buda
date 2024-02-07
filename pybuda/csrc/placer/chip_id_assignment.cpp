@@ -39,7 +39,7 @@ unordered_map<string, uint32_t> get_grayskull_fwd_op_to_chip_id_placement(
             {
                 if (config.ops_tagged_for_chip_id_break.find(op_name) != config.ops_tagged_for_chip_id_break.end())
                 {
-                    current_chip_index++;
+                    current_chip_index = (current_chip_index + 1) % config.chip_ids.size();
                 }
             }
 

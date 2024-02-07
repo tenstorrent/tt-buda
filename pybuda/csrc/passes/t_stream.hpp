@@ -19,7 +19,8 @@ namespace tt
 void insert_t_stream_tms_for_eltwise(
     std::vector<graphlib::OpType>& tms,
     balancer::TStreamFactor consumer_factor,
-    balancer::TStreamFactor producer_factor);
+    balancer::TStreamFactor producer_factor,
+    bool after_transpose = true);
 
 //
 // insert_t_stream_tms

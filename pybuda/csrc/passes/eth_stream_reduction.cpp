@@ -987,8 +987,10 @@ static void update_tstreaming_factors(
     auto datacopy_input_edge_attr = graph->get_edge_attributes(datacopy_operand_edge);
     log_debug("update_tstreaming_factors for serializing datacopy op {}. Producer t-stream factor: {}. Consumer t-stream factor: {}",
         graph->node_by_id(datacopy_operand_edge.consumer_node_id)->name(), producer_t_stream_factor, datacopy_tstream_factor);
-    insert_t_stream_tms_for_eltwise(datacopy_input_edge_attr->get_tms(), datacopy_tstream_factor, producer_t_stream_factor);
-    
+    constexpr bool kAfterTranspose = false;
+    insert_t_stream_tms_for_eltwise(
+        datacopy_input_edge_attr->get_tms(), datacopy_tstream_factor, producer_t_stream_factor, kAfterTranspose);
+
     auto const& consumer_name = graph->node_by_id(consumer_new_operand_edge.consumer_node_id)->name();
     bool consumer_is_op = placer_solution.name_to_op_placement.find(consumer_name) != placer_solution.name_to_op_placement.end();
     if (consumer_is_op) 
@@ -1003,7 +1005,7 @@ static void update_tstreaming_factors(
         // We don't need to specify the consumer t-stream factor because it has already been calculated. If we pass the consumer factor in
         // this function will generate the net/merged t factor required to get from producer->consumer and won't take into account already
         // existing t stream tms introduced by the t stream pass originally
-        insert_t_stream_tms_for_eltwise(consumer_input_edge_attr->get_tms(), {}/*consumer_t_stream_factor*/, datacopy_tstream_factor);
+        insert_t_stream_tms_for_eltwise(consumer_input_edge_attr->get_tms(), {}/*consumer_t_stream_factor*/, datacopy_tstream_factor, kAfterTranspose);
     } 
     else 
     {
@@ -1015,7 +1017,7 @@ static void update_tstreaming_factors(
             auto consumer_input_edge_attr = graph->get_edge_attributes(e2e_user_edge);
             log_debug("update_tstreaming_factors for e2e consumer {} (from inserted ethernet serializing op {}). Producer t-stream factor: {}. Consumer t-stream factor: {}",
                 consumer_node->name(), graph->node_by_id(datacopy_operand_edge.consumer_node_id)->name(), datacopy_tstream_factor, consumer_t_stream_factor);
-            insert_t_stream_tms_for_eltwise(consumer_input_edge_attr->get_tms(), {}/*consumer_t_stream_factor*/, datacopy_tstream_factor);
+            insert_t_stream_tms_for_eltwise(consumer_input_edge_attr->get_tms(), {}/*consumer_t_stream_factor*/, datacopy_tstream_factor, kAfterTranspose);
         }
     }
 }

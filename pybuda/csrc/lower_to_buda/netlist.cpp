@@ -321,10 +321,16 @@ static BudaOp create_op(
 
             // We could just get the number from the input buffer model, but we don't want to pollute
             // the netlist with "default" values - we only want to list something when there's an override
-            if (op_model.input_buffers.at(i).size_tiles_override)
+            if (op_model.parameter_buffers.at(i).is_unrolled())
             {
                 input_buf_overrides = true;
-                input_buf_min_size_tiles.push_back(op_model.input_buffers.at(i).l1_size_tiles);
+                input_buf_min_size_tiles.push_back(op_model.parameter_buffers.at(i).size_tiles(true /*include_t*/));
+                TT_ASSERT(not op_model.input_buffers.at(i).size_tiles_override);
+            }
+            else if (op_model.input_buffers.at(i).is_unrolled())
+            {
+                input_buf_overrides = true;
+                input_buf_min_size_tiles.push_back(op_model.input_buffers.at(i).size_tiles(false /*include_t*/));
             }
             else
             {

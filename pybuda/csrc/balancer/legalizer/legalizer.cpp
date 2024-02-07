@@ -945,31 +945,125 @@ static bool is_input_node_parameter_or_constant(const graphlib::Node* node)
             or node->as<graphlib::InputNode>()->is_optimizer_parameter());
 }
 
+// Calculates the required parameter buffer size for parameters depending on two prefetch scenarios:
+// 1. Pre-TM parameter prefetch:
+//    - parameter buffer: calculated for parameters in Pre-TM shape, distributed equally across the op grid
+//    - input buffer: calculated later in the `calculate_input_buffer_models` function
+// 2. Post-TM parameter prefetch (optimization that uses more l1 memory in some cases, thus it is not always used):
+//    - parameter buffer: calculated for parameters in Post-TM shape, grid size is calculated 
+//      in 'op_model.get_input_grid_shape' method
+//    - input buffer: not needed as the TMs are already evaluated and the kernel directly reads
+//      from the parameter buffer
+//
+static BufferModel calculate_parameter_buffer_model_for_grid(
+    const OpModel& op_model,
+    std::size_t input_idx,
+    DataFormat parameter_df,
+    bool is_post_tm_prefetch)
+{
+    const TensorShape& pre_tm_shape = op_model.op_shape.producer_shapes[input_idx];
+    const TensorShape& post_tm_shape = op_model.op_shape.inputs[input_idx];
+    TensorShape parameter_shape = is_post_tm_prefetch ? post_tm_shape : pre_tm_shape;
+    GridShape parameter_grid = is_post_tm_prefetch ? op_model.get_input_grid_shape(input_idx) : op_model.grid_shape;
+
+    // Ensure that parameter_shape is divisible by grid_r/grid_c in the respective dimensions, as there are cases where:
+    // - parameter_shape.rt % parameter_grid.r != 0 or parameter_shape.ct % parameter_grid.c != 0
+    // - parameter_shape.rt < parameter_grid.r or parameter_shape.ct < parameter_grid.c
+    //
+    int grid_r = FactorizedInt(parameter_shape.rt).get_nearest_factor_le(parameter_grid.r);
+    int grid_c = FactorizedInt(parameter_shape.ct).get_nearest_factor_le(parameter_grid.c);
+
+    BlockShape parameter_block_shape(parameter_shape, grid_r, grid_c, 1, UBlockShape(1, 1));
+    return BufferModel(parameter_block_shape, 1, parameter_df, is_post_tm_prefetch);
+}
+
+// Allocate parameter buffers using the Pre-TM prefetch type to minimize l1 memory usage
+//
 static std::vector<BufferModel> calculate_parameter_buffer_models_for_grid(
-    OpShape const& op_shape,
-    std::vector<graphlib::Node*> const& operands,
-    GridShape selected_grid,
+    const balancer::OpModel& op_model,
+    const std::vector<graphlib::Node*>& operands,
     bool force_dram_parameters)
 {
-    std::vector<BufferModel> parameter_buffers;
-    parameter_buffers.resize(operands.size());
-    for (int input_idx = 0; input_idx < (int)operands.size(); ++input_idx)
+    std::vector<BufferModel> parameter_buffers(operands.size());
+    if (force_dram_parameters) 
     {
-        if (is_input_node_parameter_or_constant(operands[input_idx]) and
-            not force_dram_parameters)
+        return parameter_buffers;
+    }
+
+    for (std::size_t input_idx = 0; input_idx < operands.size(); ++input_idx)
+    {
+        if (is_input_node_parameter_or_constant(operands[input_idx]))
         {
-            TensorShape const& parameter_shape = op_shape.producer_shapes[input_idx];
-            int grid_r = FactorizedInt(parameter_shape.rt).get_nearest_factor_le(selected_grid.r);
-            int grid_c =
-                FactorizedInt(parameter_shape.ct)
-                    .get_nearest_factor_le(selected_grid.c);  // TODO: Should we do this for sparse_matmul in0 and in2?
-            TT_ASSERT(parameter_shape.rt % grid_r == 0);
-            TT_ASSERT(parameter_shape.ct % grid_c == 0);
-            BlockShape parameter_block_shape(parameter_shape, grid_r, grid_c, 1, UBlockShape(1, 1));
-            parameter_buffers[input_idx] = BufferModel(parameter_block_shape, 1, operands[input_idx]->output_df());
+            parameter_buffers[input_idx] = calculate_parameter_buffer_model_for_grid(
+                op_model,
+                input_idx,
+                operands[input_idx]->output_df(),
+                false /*is_post_tm_prefetch*/);
         }
     }
+
     return parameter_buffers;
+}
+
+// Attempt to switch parameter buffers from Pre-TM to Post-TM prefetch type if they fit in l1
+//
+static void try_promote_post_tm_parameter_prefetch(
+    balancer::OpModel& op_model,
+    const std::vector<graphlib::Node*>& operands,
+    std::size_t l1_usable_size,
+    bool force_dram_parameters)
+{
+    if (force_dram_parameters) 
+    {
+        return;
+    }
+
+    const graphlib::BudaOpNode* op_node = op_model.buda_op_node;
+    if (op_node->is_splice() or op_node->is_reduce() or op_node->is_embedding()) 
+    {
+        // These op types are not currently supported for Post-TM parameter prefetch optimization
+        //
+        return;
+    }
+
+    for (std::size_t input_idx = 0; input_idx < operands.size(); ++input_idx)
+    {
+        if (!is_input_node_parameter_or_constant(operands[input_idx]))
+        { 
+            continue;
+        }
+        
+        if (op_model.parameter_buffers[input_idx].is_unrolled()) 
+        {
+            // The parameter is already unrolled, meaning the Post-TM shape has been calculated
+            //
+            continue;
+        }           
+
+        if (op_model.input_buffers[input_idx].kernel_broadcast_tiles) 
+        {
+            // If the parameter is kernel broadcast, it is already in Post-TM shape
+            //
+            continue;
+        }
+
+        BufferModel post_tm_param_buffer = calculate_parameter_buffer_model_for_grid(
+            op_model,
+            input_idx,
+            operands[input_idx]->output_df(),
+            true /*is_post_tm_prefetch*/);
+
+        bool constexpr kIncludeT = true;
+        std::size_t param_memory_usage = 
+            op_model.parameter_buffers[input_idx].size_bytes(kIncludeT) + op_model.input_buffers[input_idx].size_bytes();
+        std::size_t adjusted_memory_usage = 
+            op_model.get_l1_memory_usage() - param_memory_usage + post_tm_param_buffer.size_bytes(kIncludeT);
+        if (adjusted_memory_usage <= l1_usable_size) 
+        {
+            op_model.parameter_buffers[input_idx] = post_tm_param_buffer;
+            op_model.input_buffers[input_idx].l1_size_tiles = 0;
+        }
+    }
 }
 
 static std::vector<BufferModel> calculate_intermediate_buffer_models_for_grid(
@@ -1386,7 +1480,7 @@ static std::vector<BufferModel> calculate_sparse_matmul_input_buffer_models_for_
         output_block_shape.mblock_n,
         UBlockShape(u_kt, output_block_shape.ublock.ct));
     BufferModel buffer_model1 = BufferModel(input_block_shape, input1_buffer_multiplier, input1_df);
-
+    
     return {buffer_model0, buffer_model1, buffer_model2};
 }
 
@@ -1682,11 +1776,11 @@ static std::vector<BufferModel> calculate_input_buffer_models(
     {
         return calculate_depthwise_input_buffer_models_for_l1_budget(graph, op_node, args...);
     }
-    else if (op_node->op_name() == "reduce")
+    else if (op_node->is_reduce())
     {
         return calculate_reduce_input_buffer_models_for_l1_budget(graph, op_node, args...);
     }
-    else if (op_node->op_name() == "embedding")
+    else if (op_node->is_embedding())
     {
         return calculate_embedding_input_buffer_models_for_l1_budget(graph, op_node, args...);
     }
@@ -1952,7 +2046,7 @@ static void try_promote_kernel_broadcast_inputs(
 
         int kb_mem_footprint = l1_kb_buffer_len * tile_size_bytes(producer->output_df());
         std::size_t current_input_size =
-            op_model.input_buffers[input_idx].size_bytes() + op_model.parameter_buffers[input_idx].size_bytes();
+            op_model.input_buffers[input_idx].size_bytes() + op_model.parameter_buffers[input_idx].size_bytes(true /*include_t*/);
         TT_ASSERT(current_input_size <= op_model.get_l1_memory_usage());
         std::size_t adjusted_memory_usage = op_model.get_l1_memory_usage() - current_input_size + kb_mem_footprint;
         if (adjusted_memory_usage <= l1_usable_size)
@@ -1979,30 +2073,34 @@ static void try_promote_kernel_broadcast_inputs(
     }
 }
 
-static std::optional<int> find_max_parameter_buffer_l1_user(OpModel const& op_model, bool is_sparse_matmul)
+static std::optional<std::size_t> find_max_parameter_buffer_l1_user(const OpModel& op_model)
 {
-    if (is_sparse_matmul)
+    if (op_model.buda_op_node->is_sparse_matmul())
     {
         // Only encodings can be streamed from dram, sparse tiles cannot
-        constexpr int encodings_parameter_index = 2;
-        return (op_model.parameter_buffers.size() > 2 and op_model.parameter_buffers[2])
-                   ? std::optional<int>(encodings_parameter_index)
-                   : std::nullopt;
+        constexpr std::size_t kEncodingsParameterIndex = 2;
+        if (op_model.parameter_buffers.size() > kEncodingsParameterIndex and op_model.parameter_buffers[kEncodingsParameterIndex])
+        {
+            return std::optional<std::size_t>(kEncodingsParameterIndex);
+        }
+
+        return std::nullopt;
     }
 
     std::size_t max = 0;
-    int max_idx = 0;
-    for (int i = 0; i < (int)op_model.parameter_buffers.size(); ++i)
+    std::size_t max_idx = 0;
+    for (std::size_t i = 0; i < op_model.parameter_buffers.size(); ++i)
     {
-        auto const& parameter_buffer = op_model.parameter_buffers[i];
-        if (parameter_buffer and max < parameter_buffer.size_bytes(true))
+        bool constexpr kIncludeT = true;
+        const BufferModel& parameter_buffer = op_model.parameter_buffers[i];
+        if (parameter_buffer and max < parameter_buffer.size_bytes(kIncludeT))
         {
-            max = parameter_buffer.size_bytes(true);
+            max = parameter_buffer.size_bytes(kIncludeT);
             max_idx = i;
         }
     }
 
-    return max ? std::optional<int>(max_idx) : std::nullopt;
+    return max ? std::optional<std::size_t>(max_idx) : std::nullopt;
 }
 
 static std::vector<BufferModel> upsize_output_buffer(
@@ -2294,8 +2392,10 @@ static std::pair<OpModel, OpModelFailureReason> calculate_op_model_impl(
 
     // Calculate parameter buffer shapes
     std::vector<graphlib::Node*> operands = graph->data_operands(op_node);
-    op_model.parameter_buffers =
-        calculate_parameter_buffer_models_for_grid(op_model.op_shape, operands, selected_grid, force_dram_parameters);
+    op_model.parameter_buffers = calculate_parameter_buffer_models_for_grid(
+        op_model,
+        operands,
+        force_dram_parameters);
 
     // Calculate intermediate buffer shapes
     TT_ASSERT(op_model.output_buffers.size() == 1);
@@ -2317,36 +2417,45 @@ static std::pair<OpModel, OpModelFailureReason> calculate_op_model_impl(
     for (int i = 0; i < fallback_loop_count; ++i)
     {
         bool try_fallback = (i >= 1);
-        std::optional<int> potential_max_l1_user =
-            find_max_parameter_buffer_l1_user(op_model, op_node->is_sparse_matmul());
-        if (try_fallback and potential_max_l1_user)
+        if (try_fallback) 
         {
-            int max_l1_user = *potential_max_l1_user;
-            if (op_model.dram_buffers.empty())
-                op_model.dram_buffers.resize(op_model.parameter_buffers.size());
-            op_model.dram_buffers[max_l1_user] = op_model.parameter_buffers[max_l1_user];
-            op_model.parameter_buffers[max_l1_user] = BufferModel{};
-            log_trace(
-                LogBalancer,
-                "{}: cannot fit parameters in L1, fallback to streaming at input index[{}] usage[{}/{}]",
-                op_node->name(),
-                max_l1_user,
-                op_model.get_l1_memory_usage(),
-                l1_usable_size);
-        }
-        else if (try_fallback and not output_buffer_factor_override and fallback_single_buffer)
-        {
-            TT_ASSERT(op_model.output_buffers[0].buffer_factor % 2 == 0);
-            TT_ASSERT(op_model.output_buffers[0].l1_size_tiles % 2 == 0);
-            op_model.output_buffers[0].buffer_factor /= 2;
-            op_model.output_buffers[0].l1_size_tiles /= 2;
-            fallback_single_buffer = false;
-            log_trace(
-                LogBalancer,
-                "{}: cannot fit output buffer in L1, fallback to single buffer usage[{}/{}]",
-                op_node->name(),
-                op_model.get_l1_memory_usage(),
-                l1_usable_size);
+            // If we exceed available memory in L1 we can first try to decrease memory usage of the param buffers
+            // or fallback to the single buffered output buffer.
+            //
+            std::optional<std::size_t> potential_max_l1_user = find_max_parameter_buffer_l1_user(op_model);
+            if (potential_max_l1_user)
+            {
+                // Stream the parameter from DRAM.
+                //
+                std::size_t max_l1_user = *potential_max_l1_user;
+                if (op_model.dram_buffers.empty())
+                    op_model.dram_buffers.resize(op_model.parameter_buffers.size());
+                op_model.dram_buffers[max_l1_user] = op_model.parameter_buffers[max_l1_user];
+                op_model.parameter_buffers[max_l1_user] = BufferModel{};
+                log_trace(
+                    LogBalancer,
+                    "{}: cannot fit parameters in L1, fallback to streaming at input index[{}] usage[{}/{}]",
+                    op_node->name(),
+                    max_l1_user,
+                    op_model.get_l1_memory_usage(),
+                    l1_usable_size);
+            }
+            else if (!output_buffer_factor_override and fallback_single_buffer)
+            {
+                // Make the output buffer single buffered.
+                //
+                TT_ASSERT(op_model.output_buffers[0].buffer_factor % 2 == 0);
+                TT_ASSERT(op_model.output_buffers[0].l1_size_tiles % 2 == 0);
+                op_model.output_buffers[0].buffer_factor /= 2;
+                op_model.output_buffers[0].l1_size_tiles /= 2;
+                fallback_single_buffer = false;
+                log_trace(
+                    LogBalancer,
+                    "{}: cannot fit output buffer in L1, fallback to single buffer usage[{}/{}]",
+                    op_node->name(),
+                    op_model.get_l1_memory_usage(),
+                    l1_usable_size);
+            }
         }
 
         if (op_model.get_l1_memory_usage() >= l1_usable_size)
@@ -2397,6 +2506,17 @@ static std::pair<OpModel, OpModelFailureReason> calculate_op_model_impl(
 
     if (op_model.input_buffers.empty())
         return std::make_pair(op_model, InputBufferAllocationFailure);
+
+    if (!env_as<bool>("PYBUDA_DISABLE_UNROLLED_PARAMETERS", false)) 
+    {
+        // Try to use the remaining l1 memory to change prefetch type of some parameter buffers to Post-TM.
+        // It means that TMs / reblocking on prologue parameter inputs will be pre-evaluated and fully unrolled in 
+        // l1 if space permits.
+        // This can have beneficial performance implications because it trivializes the kernel read pattern,
+        // i.e. all data is exactly in order.
+        //
+        try_promote_post_tm_parameter_prefetch(op_model, operands, l1_usable_size, force_dram_parameters);
+    }
 
     if (env_as<bool>("PYBUDA_ENABLE_OUTPUT_BUFFER_UPSIZING"))
     {
@@ -3012,7 +3132,7 @@ static void resolve_input_queue_block_shapes(Graph const* graph, BalancerConfig 
 
                     // Test to make sure that after placing all ops that reference this prologue buffer still fit in L1
                     // Fallback to streaming the param buffer
-                    if (all_users_prologue)
+                    if (all_users_prologue and prologue_users.size() > 1)
                     {
                         int idx = 0;
                         for (OpModel const* user_op_model_ptr : prologue_users)
