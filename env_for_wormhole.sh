@@ -2,8 +2,11 @@ export LD_LIBRARY_PATH=third_party/confidential_tenstorrent_modules/versim/wormh
 export BACKEND_ARCH_NAME=wormhole
 export ARCH_NAME=wormhole
 
-if command -v bear >/dev/null 2>&1; then
-    bear make
+SUPPORTS_BEAR=$(command -v bear >/dev/null 2>&1 && echo true || echo false)
+
+if [ "$SUPPORTS_BEAR" = "true" ] && [ "$TT_BUDA_GENERATE_DEPS" = "1" ]; then
+    bear -- make
+    echo "Compilation database generated with bear"
 else
     make
 fi
