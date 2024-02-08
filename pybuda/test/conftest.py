@@ -308,9 +308,13 @@ def pytest_runtest_logreport(report):
             # - Level 3 - set by dev in test;   we want to remove them entirely (purely for testing purposes)
             #
             if "PYBUDA_OVERRIDES_VETO_CUSTOM_SETUP" in os.environ:
-                _set_pybuda_override_veto({}, {})
+                _set_pybuda_override_veto({
+                    "backend_output_dir": "",
+                }, {})
             else:
                 _set_pybuda_override_veto({
+                    "backend_output_dir": "",
+
                     # Level 1 overrides
                     "balancer_policy": "",
                     "enable_t_streaming": "",
