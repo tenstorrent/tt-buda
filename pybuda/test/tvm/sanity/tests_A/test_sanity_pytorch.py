@@ -2265,6 +2265,38 @@ def test_tvm_indexing(test_kind, test_device):
         ),
     )
 
+@pytest.mark.parametrize("dim", (0, 1, 2, 3, -1, -2, -3, -4))
+@pytest.mark.parametrize("input_shape", ((1, 4, 4), (1, 3, 7), (1, 7, 4), (1, 4, 7), (1, 8, 7, 9), (1, 8, 7, 9, 5)))
+def test_tvm_torch_flip(test_kind, test_device, input_shape, dim):
+    if dim >= len(input_shape[1:]) or (dim < 0 and abs(dim) > len(input_shape[1:])):
+        pytest.skip()
+    # Set PyBuda configurations
+    compiler_cfg = pybuda.config._get_global_compiler_config()
+    compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
+    compiler_cfg.compile_depth = CompileDepth.CONSTEVAL_GRAPH
+    class Flip(torch.nn.Module):
+        def __init__(self,dim,feature_size):
+            super().__init__()
+            self.dim = dim
+            self.l1 = torch.nn.Linear(feature_size, feature_size)
+        def forward(self,input):
+            input = self.l1(input)
+            input = input[0]
+            output = torch.flip(input, [self.dim])
+            return output
+    model = Flip(dim=dim,feature_size=input_shape[-1])
+    model.eval()
+    tt_model = pybuda.PyTorchModule("flip_tvm_decompose_adv_index", model)
+    verify_module(
+        tt_model,
+        (input_shape,),
+        verify_cfg=VerifyConfig(
+            arch=test_device.arch,
+            devtype=test_device.devtype,
+            test_kind=test_kind,
+            verify_tvm_compile = True,
+        ),
+    )
 
 def test_tvm_adv_indexing_batch1(test_kind, test_device):
     # reproduce the decomposition of adv_index op at the end of gpt_neo model
