@@ -17,6 +17,7 @@ from PIL import Image
 from torchvision import transforms
 import timm
 import requests
+from loguru import logger
 from PIL import Image
 from timm.data import resolve_data_config
 from timm.data.transforms_factory import create_transform
@@ -70,10 +71,13 @@ def test_mlp_mixer_timm_pytorch(variant, test_device):
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
 
-    url = "https://images.rawpixel.com/image_1300/cHJpdmF0ZS9sci9pbWFnZXMvd2Vic2l0ZS8yMDIyLTA1L3BkMTA2LTA0Ny1jaGltXzEuanBn.jpg"
-    image = Image.open(requests.get(url, stream=True).raw).convert("RGB")
+    try:
+        url = "https://images.rawpixel.com/image_1300/cHJpdmF0ZS9sci9pbWFnZXMvd2Vic2l0ZS8yMDIyLTA1L3BkMTA2LTA0Ny1jaGltXzEuanBn.jpg"
+        image = Image.open(requests.get(url, stream=True).raw).convert("RGB")
+    except:
+        logger.warning("Failed to download the image file, replacing input with random tensor. Please check if the URL is up to date")
+        image = torch.rand(1, 3, 256, 256)
     pixel_values = transform(image).unsqueeze(0)
-    label = "tiger"
 
     # STEP 2: Create PyBuda module from PyTorch model
     tt_model = pybuda.PyTorchModule(variant+"_pt", model)

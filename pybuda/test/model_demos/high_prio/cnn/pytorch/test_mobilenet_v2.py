@@ -17,6 +17,7 @@ from PIL import Image
 from timm.data import resolve_data_config
 from timm.data.transforms_factory import create_transform
 import requests
+from loguru import logger
 from transformers import AutoImageProcessor, AutoModelForImageClassification
 from transformers import MobileNetV2FeatureExtractor, MobileNetV2ForSemanticSegmentation
 
@@ -223,17 +224,22 @@ def generate_model_mobilenetV2_imgcls_timm_pytorch(test_device, variant):
     tt_model = pybuda.PyTorchModule("mobilenet_v2__hf_timm", model)
 
     # Image load and pre-processing into pixel_values
-    config = resolve_data_config({}, model=model)
-    transform = create_transform(**config)
-    url, filename = (
-        "https://github.com/pytorch/hub/raw/master/images/dog.jpg",
-        "dog.jpg",
-    )
-    urllib.request.urlretrieve(url, filename)
-    img = Image.open(filename).convert("RGB")
-    image_tensor = transform(img).unsqueeze(
-        0
-    )  # transform and add batch dimension
+    try:
+        config = resolve_data_config({}, model=model)
+        transform = create_transform(**config)
+        url, filename = (
+            "https://github.com/pytorch/hub/raw/master/images/dog.jpg",
+            "dog.jpg",
+        )
+        urllib.request.urlretrieve(url, filename)
+        img = Image.open(filename).convert("RGB")
+        image_tensor = transform(img).unsqueeze(
+            0
+        )  # transform and add batch dimension
+    except:
+        logger.warning("Failed to download the image file, replacing input with random tensor. Please check if the URL is up to date")
+        image_tensor = torch.rand(1, 3, 224, 224)
+
     return tt_model, [image_tensor], {}
 
     
@@ -285,15 +291,19 @@ def generate_model_mobilenetV2_semseg_hf_pytorch(test_device, variant):
     
     # II 3x224x224
     # Load and pre-process image
-    config = resolve_data_config({}, model=framework_model)
-    transform = create_transform(**config)
-    url, filename = (
-        "https://github.com/pytorch/hub/raw/master/images/dog.jpg",
-        "dog.jpg",
-    )
-    urllib.request.urlretrieve(url, filename)
-    img = Image.open(filename).convert("RGB")
-    img_tensor = transform(img).unsqueeze(0)
+    try:
+        config = resolve_data_config({}, model=framework_model)
+        transform = create_transform(**config)
+        url, filename = (
+            "https://github.com/pytorch/hub/raw/master/images/dog.jpg",
+            "dog.jpg",
+        )
+        urllib.request.urlretrieve(url, filename)
+        img = Image.open(filename).convert("RGB")
+        img_tensor = transform(img).unsqueeze(0)
+    except:
+        logger.warning("Failed to download the image file, replacing input with random tensor. Please check if the URL is up to date")
+        img_tensor = torch.rand(1, 3, 224, 224)
 
     # Sanity run
     # cpu_out = framework_model(img_tensor)

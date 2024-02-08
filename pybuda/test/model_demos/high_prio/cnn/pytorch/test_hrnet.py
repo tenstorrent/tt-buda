@@ -11,7 +11,7 @@ from pybuda._C.backend_api import BackendType, BackendDevice
 from pybuda.verify.config import TestKind
 
 import os
-
+from loguru import logger
 import pybuda
 import torch
 import torch.multiprocessing
@@ -55,25 +55,26 @@ def generate_model_hrnet_imgcls_osmr_pytorch(test_device, variant):
     tt_model = pybuda.PyTorchModule(f"pt_hrnet_osmr_{variant}", model)
 
     # Model load
-    os.system(
-        "wget -nc https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt"
-    )
-    torch.hub.download_url_to_file(
-        "https://github.com/pytorch/hub/raw/master/images/dog.jpg", "dog.jpg"
-    )
-    input_image = Image.open("dog.jpg")
-    preprocess = transforms.Compose(
-        [
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ]
-    )
-    input_tensor = preprocess(input_image)
-    input_batch = input_tensor.unsqueeze(
-        0
-    )  # create a mini-batch as expected by the model
+    try:
+        torch.hub.download_url_to_file(
+            "https://github.com/pytorch/hub/raw/master/images/dog.jpg", "dog.jpg"
+        )
+        input_image = Image.open("dog.jpg")
+        preprocess = transforms.Compose(
+            [
+                transforms.Resize(256),
+                transforms.CenterCrop(224),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ]
+        )
+        input_tensor = preprocess(input_image)
+        input_batch = input_tensor.unsqueeze(
+            0
+        )  # create a mini-batch as expected by the model
+    except:
+        logger.warning("Failed to download the image file, replacing input with random tensor. Please check if the URL is up to date")
+        input_batch = torch.rand(1, 3, 224, 224)
     print(input_batch.shape)
     
     return tt_model, [input_batch], {}
@@ -140,15 +141,19 @@ def generate_model_hrnet_imgcls_timm_pytorch(test_device, variant):
     tt_model = pybuda.PyTorchModule(f"pt_hrnet_timm_{variant}", model)
 
     ## Preprocessing
-    config = resolve_data_config({}, model=model)
-    transform = create_transform(**config)
-    url, filename = (
-        "https://github.com/pytorch/hub/raw/master/images/dog.jpg",
-        "dog.jpg",
-    )
-    urllib.request.urlretrieve(url, filename)
-    img = Image.open(filename).convert("RGB")
-    input_tensor = transform(img).unsqueeze(0)  # transform and add batch dimension
+    try:
+        config = resolve_data_config({}, model=model)
+        transform = create_transform(**config)
+        url, filename = (
+            "https://github.com/pytorch/hub/raw/master/images/dog.jpg",
+            "dog.jpg",
+        )
+        urllib.request.urlretrieve(url, filename)
+        img = Image.open(filename).convert("RGB")
+        input_tensor = transform(img).unsqueeze(0)  # transform and add batch dimension
+    except:
+        logger.warning("Failed to download the image file, replacing input with random tensor. Please check if the URL is up to date")
+        input_tensor = torch.rand(1, 3, 224, 224)
     print(input_tensor.shape)
     
     return tt_model, [input_tensor], {}

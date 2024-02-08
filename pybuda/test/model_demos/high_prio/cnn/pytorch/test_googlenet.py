@@ -14,7 +14,7 @@ import pybuda
 import torch
 from PIL import Image
 from torchvision import models, transforms
-
+from loguru import logger
 
 def test_googlenet_pytorch(test_device):
     # Set PyBuda configuration parameters
@@ -32,22 +32,26 @@ def test_googlenet_pytorch(test_device):
     tt_model = pybuda.PyTorchModule("pt_googlenet", model)
 
     # Image preprocessing
-    torch.hub.download_url_to_file(
-        "https://github.com/pytorch/hub/raw/master/images/dog.jpg", "dog.jpg"
-    )
-    input_image = Image.open("dog.jpg")
-    preprocess = transforms.Compose(
-        [
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-            ),
-        ]
-    )
-    input_tensor = preprocess(input_image)
-    input_batch = input_tensor.unsqueeze(0)  # create a mini-batch as expected by the model
+    try:
+        torch.hub.download_url_to_file(
+            "https://github.com/pytorch/hub/raw/master/images/dog.jpg", "dog.jpg"
+        )
+        input_image = Image.open("dog.jpg")
+        preprocess = transforms.Compose(
+            [
+                transforms.Resize(256),
+                transforms.CenterCrop(224),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                ),
+            ]
+        )
+        input_tensor = preprocess(input_image)
+        input_batch = input_tensor.unsqueeze(0)  # create a mini-batch as expected by the model
+    except:
+        logger.warning("Failed to download the image file, replacing input with random tensor. Please check if the URL is up to date")
+        input_batch = torch.rand(1, 3, 224, 224)
 
     # Run inference on Tenstorrent device
     verify_module(

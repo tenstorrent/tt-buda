@@ -10,6 +10,7 @@ from pybuda.verify.config import TestKind
 
 import pybuda
 import os
+from loguru import logger
 
 import torch
 import torchvision
@@ -19,25 +20,26 @@ from torchvision import transforms
 torch.multiprocessing.set_sharing_strategy("file_system") 
  
 def get_image():
-    os.system(
-        "wget -nc https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt"
-    )
-    torch.hub.download_url_to_file(
-        "https://github.com/pytorch/hub/raw/master/images/dog.jpg", "dog.jpg"
-    )
-    input_image = Image.open("dog.jpg")
-    preprocess = transforms.Compose(
-        [
-            transforms.Resize(800),
-            transforms.CenterCrop(800),
-            transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-            ),
-        ]
-    )
-    img_tensor = preprocess(input_image)
-    img_tensor = img_tensor.unsqueeze(0)
+    try:
+        torch.hub.download_url_to_file(
+            "https://github.com/pytorch/hub/raw/master/images/dog.jpg", "dog.jpg"
+        )
+        input_image = Image.open("dog.jpg")
+        preprocess = transforms.Compose(
+            [
+                transforms.Resize(800),
+                transforms.CenterCrop(800),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                ),
+            ]
+        )
+        img_tensor = preprocess(input_image)
+        img_tensor = img_tensor.unsqueeze(0)
+    except:
+        logger.warning("Failed to download the image file, replacing input with random tensor. Please check if the URL is up to date")
+        img_tensor = torch.rand(1, 3, 800, 800)
 
     return img_tensor
 

@@ -265,10 +265,9 @@ def test_fuyu8b_past_cache(test_device):
 
     # Prepare inputs
     text_prompt = "Generate a coco-style caption. "
-    url = "https://huggingface.co/adept/fuyu-8b/resolve/main/bus.png"
-    #image_path = "bus.png"
-    #image_pil = Image.open(image_path)
+    url = "https://huggingface.co/adept/fuyu-8b/resolve/main/bus.png" 
     image_pil = Image.open(requests.get(url, stream=True).raw).convert("RGB")
+    print("image-pil = ", image_pil.shape)
     model_inputs = processor(text=text_prompt, images=[image_pil], device="cpu", return_tensor='pt')
 
     # Retrieve config numbers and logit function

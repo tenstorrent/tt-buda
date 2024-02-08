@@ -11,7 +11,7 @@ import torchvision
 from torchvision import transforms
 from torchvision.transforms import Compose, ConvertImageDtype, Normalize, PILToTensor, Resize, CenterCrop
 import requests
-
+from loguru import logger
 
 from PIL import Image
 import numpy as np
@@ -73,21 +73,25 @@ def test_unet_osmr_cityscape_pytorch(test_device):
 
 
 def get_imagenet_sample():
-    url, filename = ("https://github.com/pytorch/hub/raw/master/images/dog.jpg", "dog.jpg")
-    urllib.request.urlretrieve(url, filename)
-    img = Image.open(filename).convert('RGB')
+    try:
+        url, filename = ("https://github.com/pytorch/hub/raw/master/images/dog.jpg", "dog.jpg")
+        urllib.request.urlretrieve(url, filename)
+        img = Image.open(filename).convert('RGB')
 
-    # Preprocessing
-    transform = Compose([
-        Resize(256),
-        CenterCrop(224),
-        PILToTensor(),
-        ConvertImageDtype(torch.float32),
-        Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
+        # Preprocessing
+        transform = Compose([
+            Resize(256),
+            CenterCrop(224),
+            PILToTensor(),
+            ConvertImageDtype(torch.float32),
+            Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
 
-    # Preprocessing
-    img_tensor = transform(img).unsqueeze(0)
+        # Preprocessing
+        img_tensor = transform(img).unsqueeze(0)
+    except:
+        logger.warning("Failed to download the image file, replacing input with random tensor. Please check if the URL is up to date")
+        img_tensor = torch.rand(1, 3, 224, 224)
     return img_tensor
 
 

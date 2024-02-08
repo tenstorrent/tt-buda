@@ -19,6 +19,7 @@ from transformers import AutoImageProcessor
 import timm
 from timm.data import resolve_data_config
 from timm.data.transforms_factory import create_transform
+from loguru import logger
 
 def generate_model_mobilenetV3_imgcls_torchhub_pytorch(test_device, variant):
     # Set PyBuda configuration parameters
@@ -90,17 +91,21 @@ def generate_model_mobilenetV3_imgcls_timm_pytorch(test_device, variant):
     tt_model = pybuda.PyTorchModule(variant, model)
 
     # Image load and pre-processing into pixel_values
-    config = resolve_data_config({}, model=model)
-    transform = create_transform(**config)
-    url, filename = (
-        "https://github.com/pytorch/hub/raw/master/images/dog.jpg",
-        "dog.jpg",
-    )
-    urllib.request.urlretrieve(url, filename)
-    img = Image.open(filename).convert("RGB")
-    image_tensor = transform(img).unsqueeze(
-        0
-    )  # transform and add batch dimension
+    try:
+        config = resolve_data_config({}, model=model)
+        transform = create_transform(**config)
+        url, filename = (
+            "https://github.com/pytorch/hub/raw/master/images/dog.jpg",
+            "dog.jpg",
+        )
+        urllib.request.urlretrieve(url, filename)
+        img = Image.open(filename).convert("RGB")
+        image_tensor = transform(img).unsqueeze(
+            0
+        )  # transform and add batch dimension
+    except:
+        logger.warning("Failed to download the image file, replacing input with random tensor. Please check if the URL is up to date")
+        image_tensor = torch.rand(1, 3, 224, 224)
 
     
     return tt_model, [image_tensor], {}

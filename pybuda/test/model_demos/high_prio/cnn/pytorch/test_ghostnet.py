@@ -10,6 +10,7 @@ import torch
 from PIL import Image
 from timm.data import resolve_data_config
 from timm.data.transforms_factory import create_transform
+from loguru import logger
 
 import pybuda
 from pybuda import VerifyConfig
@@ -43,15 +44,19 @@ def test_ghostnet_timm(variant, test_device):
     pybuda_model = pybuda.PyTorchModule("pt_ghostnet_timm", framework_model)
 
     # Load and pre-process image
-    url, filename = (
-        "https://github.com/pytorch/hub/raw/master/images/dog.jpg",
-        "dog.jpg",
-    )
-    urllib.request.urlretrieve(url, filename)
-    img = Image.open(filename).convert("RGB")
-    config = resolve_data_config({}, model=framework_model)
-    transform = create_transform(**config)
-    img_tensor = transform(img).unsqueeze(0)
+    try:
+        url, filename = (
+            "https://github.com/pytorch/hub/raw/master/images/dog.jpg",
+            "dog.jpg",
+        )
+        urllib.request.urlretrieve(url, filename)
+        img = Image.open(filename).convert("RGB")
+        config = resolve_data_config({}, model=framework_model)
+        transform = create_transform(**config)
+        img_tensor = transform(img).unsqueeze(0)
+    except:
+        logger.warning("Failed to download the image file, replacing input with random tensor. Please check if the URL is up to date")
+        img_tensor = torch.rand(1, 3, 224, 224)
 
     # Sanity run
     # os.system(

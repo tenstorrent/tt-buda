@@ -18,6 +18,7 @@ import timm
 import torch
 from timm.data import resolve_data_config
 from timm.data.transforms_factory import create_transform
+from loguru import logger
 
 def generate_model_resnet_imgcls_hf_pytorch(test_device, variant):    
     # Load ResNet feature extractor and model checkpoint from HuggingFace
@@ -33,14 +34,16 @@ def generate_model_resnet_imgcls_hf_pytorch(test_device, variant):
     os.environ["PYBUDA_PAD_OUTPUT_BUFFER"] = "1"
 
     # Load data sample
-    url = "https://images.rawpixel.com/image_1300/cHJpdmF0ZS9sci9pbWFnZXMvd2Vic2l0ZS8yMDIyLTA1L3BkMTA2LTA0Ny1jaGltXzEuanBn.jpg"
-    image = Image.open(requests.get(url, stream=True).raw)
-    label = "tiger"
+    try:
+        url = "https://images.rawpixel.com/image_1300/cHJpdmF0ZS9sci9pbWFnZXMvd2Vic2l0ZS8yMDIyLTA1L3BkMTA2LTA0Ny1jaGltXzEuanBn.jpg" 
+        image = Image.open(requests.get(url, stream=True).raw)
+    except:
+        logger.warning("Failed to download the image file, replacing input with random tensor. Please check if the URL is up to date")
+        image = torch.rand(1, 3, 256, 256)
 
     # Data preprocessing
     inputs = feature_extractor(image, return_tensors="pt")
     pixel_values = inputs["pixel_values"]
-    
     model = pybuda.PyTorchModule("pt_resnet50", model)
     
     return model, [pixel_values], {}
@@ -86,12 +89,15 @@ def generate_model_resnet_imgcls_timm_pytorch(test_device, variant):
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
 
     # Load data sample
-    url = "https://images.rawpixel.com/image_1300/cHJpdmF0ZS9sci9pbWFnZXMvd2Vic2l0ZS8yMDIyLTA1L3BkMTA2LTA0Ny1jaGltXzEuanBn.jpg"
-    image = Image.open(requests.get(url, stream=True).raw).convert("RGB")
-    label = "tiger"
+    try:
+        url = "https://images.rawpixel.com/image_1300/cHJpdmF0ZS9sci9pbWFnZXMvd2Vic2l0ZS8yMDIyLTA1L3BkMTA2LTA0Ny1jaGltXzEuanBn.jpg"
+        image = Image.open(requests.get(url, stream=True).raw).convert("RGB")
+    except:
+        logger.warning("Failed to download the image file, replacing input with random tensor. Please check if the URL is up to date")
+        image = torch.rand(1, 3, 256, 256)
 
     # Data preprocessing
-    pixel_values = transform(image).unsqueeze(0)
+    pixel_values = transform(image).unsqueeze(0) 
     
     model = pybuda.PyTorchModule("pt_resnet50", model)
 
