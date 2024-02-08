@@ -280,7 +280,7 @@ static bool try_fold_constant_multiply_into_matmul_rhs(
         multiply_clone->set_shape(matmul_rhs->shape());
 
         auto *constant_clone = graph->add_node(
-            constant->clone(constant->name() + "_" + matmul_rhs->name()),
+            constant->clone(constant->name() + "_" + multiply->name()),
             graph->get_subgraph_id_for_node(matmul->id()));
 
         // Connect matmul rhs to multiply LHS
@@ -295,9 +295,12 @@ static bool try_fold_constant_multiply_into_matmul_rhs(
         graphlib::try_consteval_op(graph, multiply_clone);
     }
 
-    // Remove multiply from the graph
-    graph->remove_node(constant);
+    // Remove multiply from the graph, but check if constant has other consumers before removing constant
     graphlib::bypass_node(graph, multiply, true);
+    if (graph->user_edges(constant).size() == 0)
+    {
+        graph->remove_node(constant);
+    }
 
     return true;
 }
