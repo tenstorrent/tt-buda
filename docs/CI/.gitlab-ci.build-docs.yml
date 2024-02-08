@@ -8,6 +8,8 @@
     - seeded-venv
   tags:
     - 8-core
+  variables:
+    PYBUDA_DEVMODE: 1
   script: 
     - !reference [.common_prep, script]
     - pip3 install sphinx
@@ -49,4 +51,4 @@ build-docs-staging:
     - git add pybuda
     - git commit -m "update docs from pipeline $CI_PIPELINE_ID"
     - git push
-    
+
