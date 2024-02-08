@@ -342,6 +342,9 @@ def _initialize_pipeline(
     sequential = _sequential_override(sequential)
     if not sequential:
         initialize_child_process(_get_global_compiler_config().backend_output_dir)
+
+    if "PYBUDA_OVERRIDES_VETO" in os.environ or "PYBUDA_OVERRIDES_VETO_CUSTOM_SETUP" in os.environ:
+        raise RuntimeError("Currently not supporting override veto outside of verification pipeline")
     
     if training:
         for d in devices[:-1]:
