@@ -30,7 +30,6 @@ def generate_model_unet_imgseg_osmr_pytorch(test_device, variant):
     
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
-    compiler_cfg.enable_auto_fusing = False
     compiler_cfg.enable_enumerate_u_kt = False
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     os.environ["PYBUDA_FORCE_RESIZE_DENSE_MM"] = "1"

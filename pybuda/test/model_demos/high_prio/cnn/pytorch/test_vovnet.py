@@ -205,7 +205,8 @@ def generate_model_vovnet_imgcls_timm_pytorch(test_device, variant):
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     
     # tenstorrent/pybuda#915
-    compiler_cfg.enable_auto_fusing = False
+    if test_device.arch == BackendDevice.Grayskull and variant == "ese_vovnet39b":
+        compiler_cfg.enable_auto_fusing = False
 
     # STEP 2: Create PyBuda module from PyTorch model
     tt_model = pybuda.PyTorchModule(variant+"_pt", model)

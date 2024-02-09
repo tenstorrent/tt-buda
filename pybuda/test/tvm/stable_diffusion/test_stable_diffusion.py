@@ -247,7 +247,6 @@ def test_unet_up_block(test_device):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_tvm_constant_prop = True
-    compiler_cfg.enable_auto_fusing = False
     compiler_cfg.retain_tvm_python_files = True
     compiler_cfg.enable_enumerate_u_kt = False
     compiler_cfg.balancer_policy = "Ribbon"

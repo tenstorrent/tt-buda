@@ -21,15 +21,13 @@ def test_opt_causal_lm(variant, test_device):
 
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.default_df_override = DataFormat.Float16_b
-    if variant == "facebook/opt-1.3b" or variant == "facebook/opt-350m":
-        compiler_cfg.enable_auto_fusing = False
-        if variant == "facebook/opt-1.3b":
-            compiler_cfg.amp_level = 2
+    if variant == "facebook/opt-1.3b":
+        compiler_cfg.amp_level = 2
 
-            # Disable expanding output buffer of fork nodes - causes out of memory issue in blobgen.
-            os.environ["PYBUDA_FORK_JOIN_EXPAND_FORK_OUTPUT_BUF"] = "0"
-        if variant == "facebook/opt-350m":
-            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "65536"
+        # Disable expanding output buffer of fork nodes - causes out of memory issue in blobgen.
+        os.environ["PYBUDA_FORK_JOIN_EXPAND_FORK_OUTPUT_BUF"] = "0"
+    if variant == "facebook/opt-350m":
+        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "65536"
 
     config = OPTConfig.from_pretrained(variant)
     config_dict = config.to_dict()
@@ -73,10 +71,8 @@ def test_opt_qa(variant, test_device):
 
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.default_df_override = DataFormat.Float16_b
-    if variant == "facebook/opt-1.3b" or variant == "facebook/opt-350m":
-        compiler_cfg.enable_auto_fusing = False
-        if variant == "facebook/opt-1.3b":
-            compiler_cfg.default_df_override = DataFormat.Float16
+    if variant == "facebook/opt-1.3b":
+        compiler_cfg.default_df_override = DataFormat.Float16
 
     tokenizer = download_model(AutoTokenizer.from_pretrained, variant)
     model = download_model(OPTForQuestionAnswering.from_pretrained,

@@ -28,8 +28,6 @@ def generate_model_yolotinyV3_imgcls_holli_pytorch(test_device, variant):
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda._C.Float16_b
-    if test_device.devtype == BackendType.Golden:
-        compiler_cfg.enable_auto_fusing = False
 
     model = Yolov3Tiny(num_classes=80, use_wrong_previous_anchors=True)
     model.load_state_dict(torch.load('third_party/confidential_customer_models/model_2/pytorch/yolo_v3/weights/yolov3_tiny_coco_01.h5'))
@@ -72,8 +70,6 @@ def generate_model_yoloV3_imgcls_holli_pytorch(test_device, variant):
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda._C.Float16_b
-    if test_device.devtype == BackendType.Golden:
-        compiler_cfg.enable_auto_fusing = False
 
     model = Yolov3(num_classes=80)
     model.load_state_dict(torch.load('third_party/confidential_customer_models/model_2/pytorch/yolo_v3/weights/yolov3_coco_01.h5', map_location=torch.device('cpu')))

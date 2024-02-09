@@ -218,7 +218,6 @@ def generate_model_yoloV5I480_imgcls_torchhub_pytorch(test_device, variant, size
         os.environ["PYBUDA_PAD_SPARSE_MM"] = "{13:16, 3:4}"
         os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"]  = f"{64*1024}"
         compiler_cfg.default_df_override = DataFormat.Float16_b
-        compiler_cfg.enable_auto_fusing = False
         
         if size == "s":
             compiler_cfg.default_dram_parameters = False
@@ -230,8 +229,10 @@ def generate_model_yoloV5I480_imgcls_torchhub_pytorch(test_device, variant, size
             os.environ["PYBUDA_CONCAT_SLICE_Y"] = "10"
             compiler_cfg.balancer_op_override("concatenate_26.dc.concatenate.30.dc.concatenate.1.dc.buffer.0", "t_stream_shape", (6,1))
         elif size == "l":
+            compiler_cfg.enable_auto_fusing = False
             compiler_cfg.place_on_new_epoch("concatenate_208.dc.concatenate.0")
         elif size == "x":
+            compiler_cfg.enable_auto_fusing = False
             os.environ["PYBUDA_INSERT_SLICE_FOR_CONCAT"] = "1"
             os.environ["PYBUDA_CONCAT_SLICE_Y"] = "10"
             os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
