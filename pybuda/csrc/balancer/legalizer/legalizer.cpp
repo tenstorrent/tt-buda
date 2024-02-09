@@ -899,6 +899,17 @@ static std::vector<BufferModel> calculate_output_buffer_models_for_grid(
     return output_buffers;
 }
 
+// Helper method to check if the given node is an input node that represents
+// a parameter, constant, or optimizer parameter.
+// Returns true for input node where data doesn't change for each microbatch item.
+static bool is_input_node_parameter_or_constant(const graphlib::Node* node)
+{
+    return node->node_type() == graphlib::NodeType::kInput and
+           (node->as<graphlib::InputNode>()->is_parameter()
+            or node->as<graphlib::InputNode>()->is_constant()
+            or node->as<graphlib::InputNode>()->is_optimizer_parameter());
+}
+
 static std::vector<BufferModel> calculate_parameter_buffer_models_for_grid(
     OpShape const& op_shape,
     std::vector<graphlib::Node*> const& operands,
@@ -909,9 +920,7 @@ static std::vector<BufferModel> calculate_parameter_buffer_models_for_grid(
     parameter_buffers.resize(operands.size());
     for (int input_idx = 0; input_idx < (int)operands.size(); ++input_idx)
     {
-        graphlib::InputNode* input_node = dynamic_cast<graphlib::InputNode*>(operands[input_idx]);
-        if (input_node and
-            (input_node->is_parameter() or input_node->is_optimizer_parameter() or input_node->is_constant()) and
+        if (is_input_node_parameter_or_constant(operands[input_idx]) and
             not force_dram_parameters)
         {
             TensorShape const& parameter_shape = op_shape.producer_shapes[input_idx];
@@ -1775,7 +1784,8 @@ static void try_promote_kernel_broadcast_inputs(
     graphlib::Graph const* graph,
     graphlib::OpNode const* op_node,
     std::size_t l1_usable_size,
-    OpModel& op_model)
+    OpModel& op_model,
+    bool force_dram_parameters)
 {
     // Check if kernel broadcasting is disabled
     //
@@ -1810,6 +1820,13 @@ static void try_promote_kernel_broadcast_inputs(
         }
 
         graphlib::Node const* producer = graph->node_by_id(edge.producer_node_id);
+
+        // Do not kernel broadcast params/consts when the force_dram_parameter is set to true.
+        // In this case, we don't want to prologue, but stream from DRAM.
+        if(is_input_node_parameter_or_constant(producer) and force_dram_parameters)
+        {
+            continue;
+        }
 
         auto attr = graph->get_edge_attributes(edge);
         auto tms = attr->get_tms();
@@ -1888,8 +1905,17 @@ static void try_promote_kernel_broadcast_inputs(
             producer_tiles_single_mblock);
 
         // If kernel broadcast fits into L1, set it on the input buffer
-        //
-        int kb_mem_footprint = kb_len * tile_size_bytes(producer->output_df());
+        // Account buffering for kernel broadcast inputs
+        // Use single buffering for prologue inputs
+        int l1_kb_buffer_len = kb_len;
+
+        // Adjust for double buffering when the input is not a prologue, such as an activation
+        if (!is_input_node_parameter_or_constant(producer))
+        {
+            l1_kb_buffer_len *= 2;
+        }
+
+        int kb_mem_footprint = l1_kb_buffer_len * tile_size_bytes(producer->output_df());
         std::size_t current_input_size =
             op_model.input_buffers[input_idx].size_bytes() + op_model.parameter_buffers[input_idx].size_bytes();
         TT_ASSERT(current_input_size <= op_model.get_l1_memory_usage());
@@ -1897,11 +1923,12 @@ static void try_promote_kernel_broadcast_inputs(
         if (adjusted_memory_usage <= l1_usable_size)
         {
             // Change the l1_size_tiles property of input buffer to reflect memory footprint of kernel broadcast.
+            // Set l1_size_tiles to reflect double/single buffering.
             // Additionally, change prologue buffer to 0 since it is no longer needed.
             // Leaving the blocking information intact so canonical form checks work as is.
             //
             op_model.input_buffers[input_idx].kernel_broadcast_tiles = kb_len;
-            op_model.input_buffers[input_idx].l1_size_tiles = kb_len;
+            op_model.input_buffers[input_idx].l1_size_tiles = l1_kb_buffer_len;
             op_model.parameter_buffers[input_idx].l1_size_tiles = 0;
 
             log_trace(
@@ -2316,7 +2343,7 @@ static std::pair<OpModel, OpModelFailureReason> calculate_op_model_impl(
         }
 
         try_promote_kernel_broadcast_inputs(
-            &cache_collection->pipe_to_kb_len_cache, graph, op_node, l1_usable_size, op_model);
+            &cache_collection->pipe_to_kb_len_cache, graph, op_node, l1_usable_size, op_model, force_dram_parameters);
 
         if (op_model.get_l1_memory_usage() <= l1_usable_size)
             break;
