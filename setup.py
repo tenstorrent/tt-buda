@@ -37,6 +37,10 @@ bbe_files = {
             "wormhole_b0_1x1.yaml",
             "grayskull_10x12.yaml",
             "wormhole_b0_4x6.yaml",
+            "blackhole_1x1.yaml",
+            "blackhole_8x10.yaml",
+            "blackhole_80_arch.yaml",
+
         ]
     },
     "params": {
