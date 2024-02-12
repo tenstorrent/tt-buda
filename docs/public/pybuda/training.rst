@@ -22,7 +22,7 @@ by a CPU device calculating the loss and backpropagating it to Grayskull.
 
   # Create a device and model, and place it 
   tt0 = TTDevice("tt0", devtype=devtype)
-  matmul0 = BudaLin("matmul0")
+  matmul0 = BudaLinear("matmul0")
   tt0.place_module(matmul0)
 
   act_dim = (1, 1, 32, 32)
