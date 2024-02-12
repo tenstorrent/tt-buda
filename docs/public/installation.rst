@@ -70,8 +70,10 @@ If you have downloaded the latest release wheel files, you can install them dire
   pip install pybuda-<version>.whl tvm-<version>.whl
 
 To compile PyBUDA from source, follow these steps:
+
 * Step 1. Clone PyBUDA from https://github.com/tenstorrent/tt-buda/
 * Step 2. Update submodules
+
 .. code-block:: bash
 
   cd tt-buda
