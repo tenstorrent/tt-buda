@@ -34,8 +34,8 @@ def eval(type, attr, ops):
         
     elif type == "dequantization":
         zero_point, axis = attr
-        input_float = ops[0]
-        scale = ops[1]
+        input_float = ops[0].float()
+        scale = ops[1].float()
         output_float = (input_float - zero_point) * scale
         return output_float
 

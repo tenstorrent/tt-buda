@@ -1513,7 +1513,7 @@ std::vector<graphlib::Node*> GraphSolver::buffer(std::vector<BufferInfo>& buffer
                     buffer_nop->set_epoch_type(original_dest->get_epoch_type());
                     buffer_nop->set_output_df(src->output_df());
                     auto src_buda_op = dynamic_cast<graphlib::BudaOpNode*>(src);
-                    if (src_buda_op != nullptr)
+                    if (src_buda_op != nullptr and src_buda_op->op_name() != "dequantization")
                     {
                         buffer_nop->set_intermediate_df(src_buda_op->intermediate_df());
                         buffer_nop->set_accumulate_df(src_buda_op->accumulate_df());

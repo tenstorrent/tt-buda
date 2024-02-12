@@ -169,6 +169,12 @@ static void handle_node_exceeds_max_op_forks(
             nop->set_shape(node->shape());
             nop->set_output_df(node->output_df());
             nop->set_epoch_type(node->get_epoch_type());
+            if (is_integer_data_format(nop->output_df())) {
+                // Set the math fidelity to HiFi4 for integer data formats
+                nop->set_math_fidelity(MathFidelity::HiFi4);
+                nop->set_accumulate_df(DataFormat::Int32);
+                nop->set_intermediate_df(DataFormat::Int32);
+            }
 
             graphlib::Edge input_nop_edge(node->id(), 0, nop->id(), 0, graphlib::EdgeType::kData);
             graph->add_edge(input_nop_edge);

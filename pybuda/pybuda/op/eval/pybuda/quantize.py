@@ -38,6 +38,7 @@ def eval(type, attr, ops):
         zero_point, axis, out_dtype = attr
         input_float = ops[0].float()
         scale = ops[1].float()
+
         output_float = torch.clamp(
             torch.round(input_float / scale) + zero_point,
             STRING_TO_LOWER_LIMIT[out_dtype],
@@ -56,8 +57,28 @@ def eval(type, attr, ops):
 
     elif type == "dequantize":
         zero_point, axis = attr
-        input_int8 = ops[0]
-        scale = ops[1]
+        input_int8 = ops[0].float()
+        scale = ops[1].float()
+
+        if axis < 0:
+            axis = len(input_int8.shape) + axis
+        left_ndim = axis
+        right_ndim = len(input_int8.shape) - axis - 1
+        if len(scale.shape) == 1:
+            target_shape = [1] * left_ndim + list(scale.shape) + [1] * right_ndim
+
+        if target_shape[axis] != input_int8.shape[axis]:
+            assert target_shape[axis] == 1
+            scale = torch.broadcast_to(scale, target_shape)
+        scale = torch.reshape(scale, target_shape)
+
+        output_float = (input_int8 - zero_point) * scale
+        return output_float
+
+    elif type == "buda_dequantize":
+        zero_point, axis = attr
+        input_int8 = ops[0].float()
+        scale = ops[1].float()
         output_float = (input_int8 - zero_point) * scale
         return output_float
 
@@ -66,8 +87,19 @@ def eval(type, attr, ops):
         input_int32 = ops[0]
         inp_scale, out_scale, = ops[1], ops[2]
         output_scale = inp_scale / out_scale
-        while len(output_scale.shape) != len(input_int32.shape):
-            output_scale = output_scale.unsqueeze(-1)
+
+        if axis < 0:
+            axis = len(input_int32.shape) + axis
+        left_ndim = axis
+        right_ndim = len(input_int32.shape) - axis - 1
+        if len(output_scale.shape) == 1:
+            target_shape = [1] * left_ndim + list(output_scale.shape) + [1] * right_ndim
+
+        if target_shape[axis] != input_int32.shape[axis]:
+            assert target_shape[axis] == 1
+            output_scale = torch.broadcast_to(output_scale, target_shape)
+        output_scale = torch.reshape(output_scale, target_shape)
+
 
         assert inp_zp == 0, "Only support input zero point of 0"
         output_float = torch.round(output_scale * (input_int32 - inp_zp) + out_zp)
@@ -92,27 +124,62 @@ def eval(type, attr, ops):
 
 def shape(type, attr, ops):
     broadcast = []
+    op0 = ops[0]
+    op1 = ops[1]
 
     if type == "quantize" or type == "buda_quantize":
-        op1 = list(ops[1])
-        while len(op1) < len(ops[0]):
-            op1 = [1] + op1
-        for dim in range(1, len(ops[0])):
-            if ops[0][dim] != op1[dim]:
-                broadcast.append((1, dim - len(ops[0]), ops[0][dim]))
+        axis = attr[1]
+        if axis < 0:
+            axis = len(ops[0]) + axis
+        left_ndim = axis
+        right_ndim = len(ops[0]) - axis - 1
+        if len(op1) == 1:
+            op1 = [1] * left_ndim + list(ops[1]) + [1] * right_ndim
+        elif len(op1) < len(op0):
+            while len(op1) < len(op0):
+                op1 = [1] + op1
+        assert len(op1) == len(op0), "Scale and input must have same dimension"
+        for dim in range(1, len(op0)):
+            if op0[dim] != op1[dim]:
+                broadcast.append((1, dim - len(op0), op0[dim]))
 
-    if type == "buda_requantize":
+    if type == "buda_requantize" or type == "buda_dequantize":
         for dim in range(1, len(ops[0])):
             if ops[0][dim] != ops[1][dim]:
                 broadcast.append((1, dim - len(ops[0]), ops[0][dim]))
 
-    if type == "dequantize":
-        op1 = list(ops[1])
-        while len(op1) < len(ops[0]):
-            op1 = [1] + op1
-        for dim in range(1, len(ops[0])):
-            if ops[0][dim] != op1[dim]:
-                broadcast.append((1, dim - len(ops[0]), ops[0][dim]))
+    # if type == "requantize":
+    #     op2 = ops[2]
+    #     axis = attr[2]
+    #     if axis < 0:
+    #         axis = len(ops[0]) + axis
+    #     left_ndim = axis
+    #     right_ndim = len(ops[0]) - axis - 1
+    #     if len(op1) == 1:
+    #         op1 = [1] * left_ndim + list(ops[1]) + [1] * right_ndim
+    #     if len(op2) == 1:
+    #         op2 = [1] * left_ndim + list(ops[2]) + [1] * right_ndim
+    #     assert len(op1) == len(op0) == len(op2), "Scale and input must have same dimension"
+
+    #     for dim in range(1, len(op0)):
+    #         if op0[dim] != op1[dim]:
+    #             print("op0 shape " + str(op0))
+    #             broadcast.append((1, dim - len(op0), op0[dim]))
+    #             print("op1 shape " + str(op1))
+
+    
+    #     for dim in range(1, len(op0)):
+    #         if op0[dim] != op2[dim]:
+    #             broadcast.append((2, dim - len(op0), op0[dim]))
+
+    # if type == "dequantize":
+    #     import pdb; pdb.set_trace()
+    #     op1 = list(ops[1])
+    #     while len(op1) < len(ops[0]):
+    #         op1 = [1] + op1
+    #     for dim in range(1, len(ops[0])):
+    #         if ops[0][dim] != op1[dim]:
+    #             broadcast.append((1, dim - len(ops[0]), ops[0][dim]))
 
     return ops[0], broadcast
 
@@ -120,7 +187,7 @@ def shape(type, attr, ops):
 def lower(type, attr, lc, ops, outputs):
     if type == "buda_quantize":
         lc.op("quantization", ops, attr, {"zero_point": attr[0]}, "", TILE_DIM, TILE_DIM) # straight 1-1 for all other binaries
-    elif type == "dequantize":
+    elif type == "buda_dequantize":
         lc.op("dequantization", ops, attr, {"zero_point": attr[0]}, "", TILE_DIM, TILE_DIM) # straight 1-1 for all other binaries
     elif type == "buda_requantize":
         lc.op("requantization", ops, attr, {"zero_point": attr[0]}, "", TILE_DIM, TILE_DIM)
@@ -146,38 +213,75 @@ def decompose(type, attr, dc, inputs):
         act, inp_scale, out_scale = inputs
         out_zp,inp_zp, axis, rounding, out_dtype = attr
         inp_scale_shape = inp_scale.shape.as_list()
-        if len(inp_scale_shape) == 1:
-            # populate batch dim
-            inp_scale = dc.op("unsqueeze", [inp_scale], attrs=(0, len(inp_scale_shape)), output_df=inp_scale.output_df)
-            inp_scale_shape = [1] + inp_scale_shape
-        
-        while len(inp_scale_shape) < len(act.shape.as_list()):
-            inp_scale = dc.op("unsqueeze", [inp_scale], attrs=(len(inp_scale_shape), len(inp_scale_shape)), output_df=inp_scale.output_df)
-            inp_scale_shape = inp_scale_shape + [1]
 
+        if axis < 0:
+            axis = len(act.shape) + axis
+        left_ndim = axis
+        right_ndim = len(act.shape) - axis - 1
+        if len(inp_scale_shape) == 1:
+            # Match ndim with actiavtion
+            for i in range(0, left_ndim):
+                inp_scale = dc.op("unsqueeze", [inp_scale], attrs=(0, len(inp_scale_shape)), output_df=inp_scale.output_df)
+                inp_scale_shape = [1] + inp_scale_shape
+            for i in range(0, right_ndim):
+                inp_scale = dc.op("unsqueeze", [inp_scale], attrs=(len(inp_scale_shape), len(inp_scale_shape)), output_df=inp_scale.output_df)
+                inp_scale_shape = inp_scale_shape + [1]
 
         out_scale_shape = out_scale.shape.as_list()
         if len(out_scale_shape) == 1:
-            # populate batch dim
-            out_scale = dc.op("unsqueeze", [out_scale], attrs=(0, len(out_scale_shape)), output_df=out_scale.output_df)
-            out_scale_shape = [1] + out_scale_shape
-        
-        while len(out_scale_shape) < len(act.shape.as_list()):
-            out_scale = dc.op("unsqueeze", [out_scale], attrs=(len(out_scale_shape), len(out_scale_shape)), output_df=out_scale.output_df)
-            out_scale_shape = out_scale_shape + [1]
+            # Match ndim with actiavtion
+            for i in range(0, left_ndim):
+                out_scale = dc.op("unsqueeze", [out_scale], attrs=(0, len(out_scale_shape)), output_df=out_scale.output_df)
+                out_scale_shape = [1] + out_scale_shape
+            for i in range(0, right_ndim):
+                out_scale = dc.op("unsqueeze", [out_scale], attrs=(len(out_scale_shape), len(out_scale_shape)), output_df=out_scale.output_df)
+                out_scale_shape = out_scale_shape + [1]
 
+        # Bcast on axis
+        # if inp_scale_shape[axis] != act.shape[axis]:
+        #     assert inp_scale_shape[axis] == 1
+        #     inp_scale = dc.op("broadcast", [inp_scale], attrs=(axis - len(inp_scale_shape), act.shape[axis]),output_df=inp_scale.output_df)
+        #     inp_scale_shape[axis] = act.shape[axis]
 
-        for i, (left, right) in enumerate(zip(inp_scale_shape, out_scale_shape)):
-            if i == 0:
-                continue
-
-            if left != right:
-                out_scale = dc.op("broadcast", [out_scale], attrs=(i - len(out_scale_shape), left),output_df=out_scale.output_df)            
+        if out_scale_shape[axis] != act.shape[axis]:
+            assert out_scale_shape[axis] == 1
+            out_scale = dc.op("broadcast", [out_scale], attrs=(axis - len(out_scale_shape), act.shape[axis]),output_df=out_scale.output_df)
+            out_scale_shape[axis] = act.shape[axis]
 
         recip_out_scale = dc.op("reciprocal", [out_scale],output_df=out_scale.output_df,)
         new_scale = dc.op("multiply", [inp_scale, recip_out_scale],output_df=out_scale.output_df,)
 
-        out = dc.op("buda_requantize", [act, new_scale], attrs=(out_zp, axis, rounding, out_dtype),)
+        torch_dtype = STRING_TO_TORCH_DTYPE[out_dtype]
+        buda_dtype = pytorch_dtype_to_buda_dataformat(torch_dtype)
+        out = dc.op("buda_requantize", [act, new_scale], attrs=(out_zp, axis, rounding, out_dtype),output_df=buda_dtype)
         dc.fuse(out)
         return
 
+    if type == "dequantize":
+        zero_point, axis = attr
+        act = inputs[0]
+        scale = inputs[1]
+        if axis < 0:
+            axis = len(act.shape) + axis
+        left_ndim = axis
+        right_ndim = len(act.shape) - axis - 1
+
+        scale_shape = scale.shape.as_list()
+        if len(scale_shape) == 1:
+            # Match ndim with actiavtion
+            for i in range(0, left_ndim):
+                scale = dc.op("unsqueeze", [scale], attrs=(0, len(scale_shape)), output_df=scale.output_df)
+                scale_shape = [1] + scale_shape
+            for i in range(0, right_ndim):
+                scale = dc.op("unsqueeze", [scale], attrs=(len(scale_shape), len(scale_shape)), output_df=scale.output_df)
+                scale_shape = scale_shape + [1]
+
+        # Bcast on axis
+        # if scale_shape[axis] != act.shape[axis]:
+        #     assert scale_shape[axis] == 1
+        #     scale = dc.op("broadcast", [scale], attrs=(axis - len(scale_shape), act.shape[axis]),output_df=scale.output_df)
+        #     scale_shape[axis] = act.shape[axis]
+
+        out = dc.op("buda_dequantize", [act, scale], attrs=attr,)
+        dc.fuse(out)
+        return

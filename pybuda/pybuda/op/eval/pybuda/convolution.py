@@ -165,7 +165,7 @@ def decompose_fracture_conv2d_at_op_level(attr, dc, inputs):
     # Fracture convs into multiple ops
     fractured_convs = []
     for curr_kH in range(kH):
-        fractured_weights = dc.op("index", [weights], (-2, curr_kH, curr_kH + 1, 1), dont_decompose=True)
+        fractured_weights = dc.op("index", [weights], (-2, curr_kH, curr_kH + 1, 1), dont_decompose=True, output_df=weights.output_df)
         fractured_conv_operands = [activations, fractured_weights]
         if curr_kH == 0 and bias:
             fractured_conv_operands.append(bias)
@@ -182,7 +182,7 @@ def decompose_fracture_conv2d_at_op_level(attr, dc, inputs):
     while len(fractured_convs) > 1:
         left = fractured_convs.pop(0)
         right = fractured_convs.pop(0)
-        result = dc.op("add", [left, right])
+        result = dc.op("add", [left, right], output_df=left.output_df)
         fractured_convs.append(result)
 
     dc.fuse(fractured_convs[0])
@@ -279,10 +279,10 @@ def decompose_conv2d_sparse_first(attr, dc, inputs):
     depthwise = depthwise and not dc.is_training_enabled() and not is_convtranspose2d
 
     if channel_last:
-        activations = dc.op("reshape", [activations], (w, 1, y * x, cin))
+        activations = dc.op("reshape", [activations], (w, 1, y * x, cin), output_df=activations.output_df)
     else:
-        activations = dc.op("reshape", [activations], (w, 1, cin, y * x))
-        activations = dc.op(TransposeTM.create(2, 3), [activations])
+        activations = dc.op("reshape", [activations], (w, 1, cin, y * x), output_df=activations.output_df)
+        activations = dc.op(TransposeTM.create(2, 3), [activations], output_df=activations.output_df)
 
     weights = transform_weights_for_conv2d(dc, weights, cin, cout, depthwise, groups, kH, kW)
 
@@ -295,8 +295,8 @@ def decompose_conv2d_sparse_first(attr, dc, inputs):
         xout = xout_transpose
 
     result = activations
-    result = dc.op("pad_tile", [result], (-1, result.shape[3]))
-    result = dc.op("pad_tile", [result], (-2, result.shape[2]))
+    result = dc.op("pad_tile", [result], (-1, result.shape[3]), output_df=result.output_df)
+    result = dc.op("pad_tile", [result], (-2, result.shape[2]), output_df=result.output_df)
 
     padding_same = (padding == [(kW // 2), (kW // 2), (kH // 2), (kH // 2)])
     pad_for_factorization = False
@@ -318,7 +318,7 @@ def decompose_conv2d_sparse_first(attr, dc, inputs):
             if dense_c in sparse_weight_padding_concat:
                 padded_dense_c = sparse_weight_padding_concat[dense_c]
                 pad_dense_c = padded_dense_c - dense_c
-                result = dc.op("pad", [result], (0, pad_dense_c*32, 0, False))
+                result = dc.op("pad", [result], (0, pad_dense_c*32, 0, False), output_df=result.output_df)
             else: # efficientnet-lite lite1 variant
                 padded_dense_c = sparse_weight_padding_mm[dense_c]
                 index = torch.arange(result.shape[-1]).tolist()
@@ -361,10 +361,10 @@ def decompose_conv2d_sparse_first(attr, dc, inputs):
                     picker = torch.sparse.mm(picker, transpose_tensor)
                 pickers.append(picker)
         sparse = dc.tensor(torch.stack(pickers).unsqueeze(0))
-        result = dc.op("sparse_matmul", [sparse, result])
+        result = dc.op("sparse_matmul", [sparse, result], output_df=result.output_df)
 
     if kH * kW > 1:
-        result = dc.op("hstack", [result], (kH * kW,))
+        result = dc.op("hstack", [result], (kH * kW,), output_df=result.output_df)
 
     if depthwise:
         result = dc.op("depthwise", [result, weights], (kH * kW,))
@@ -383,8 +383,8 @@ def decompose_conv2d_sparse_first(attr, dc, inputs):
         else:
             result = dc.op("select", [result], (-2, 0, sparse_r * 32, sparse.shape[-2]))
 
-    result = dc.op("narrow", [result], (3, 0, cout, result.shape[3]))
-    result = dc.op("narrow", [result], (2, 0, yout * xout, result.shape[2]))
+    result = dc.op("narrow", [result], (3, 0, cout, result.shape[3]), output_df=result.output_df)
+    result = dc.op("narrow", [result], (2, 0, yout * xout, result.shape[2]), output_df=result.output_df)
 
     if bias is not None:
         bias_y, bias_x = 1, 1
@@ -768,6 +768,7 @@ def decompose(type, attr, dc, inputs):
         # We allow prestriding only in inference mode currently
         compiler_cfg = dc.get_compiler_cfg()
         is_prestride_enabled = not dc.is_training_enabled() and compiler_cfg.enable_conv_prestride
+        # import pdb; pdb.set_trace()
         if is_prestride_enabled and should_prestride(attr, dc, inputs):
             # Prestride
             decompose_conv2d_prestride(attr, dc, inputs)

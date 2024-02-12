@@ -47,6 +47,7 @@ op_to_module_map = {
         "dropout":         "eltwise_unary",
         "pow":             "eltwise_unary",
         "tilizer":          "eltwise_unary",
+        "erf":             "eltwise_unary",
 
         "conv_sum":        "eltwise_nary",
         "concatenate":     "eltwise_nary",
@@ -123,6 +124,7 @@ op_to_module_map = {
         "dequantize"          : "quantize",
         "requantize"          : "quantize",
         "buda_requantize"     : "quantize",
+        "buda_dequantize"     : "quantize",
 }
 
 

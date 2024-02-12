@@ -663,6 +663,14 @@ void NopInsertionInstruction::insert(graphlib::Graph *graph)
                 buffer_nop->set_shape(src->shape());
                 buffer_nop->set_buffering_op(true);
                 buffer_nop->tag("mergeable", this->mergeable);
+
+                graphlib::BudaOpNode* src_op = dynamic_cast<graphlib::BudaOpNode*>(src);
+                if (src_op != nullptr and src_op->op_name() != "dequantization")
+                {
+                    buffer_nop->set_accumulate_df(src_op->accumulate_df());
+                    buffer_nop->set_intermediate_df(src_op->intermediate_df());
+                    buffer_nop->set_math_fidelity(src_op->math_fidelity());
+                }
             }
 
             // insert new node on edge

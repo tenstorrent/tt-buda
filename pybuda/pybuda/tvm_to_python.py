@@ -1771,7 +1771,7 @@ def compile_tvm_to_python(framework_mod, graph_name, inputs, module_name=None, c
                         )
                     else:
                         if torch.numel(tensor) == 1 and len(tensor.shape) == 0:
-                            tensor = tensor.reshape((1, 1))
+                            tensor = tensor.reshape((1,))
                         if len(tensor.shape) > 4 and all([x == 1 for x in tensor.shape[0:-4]]):
                             tensor = tensor.reshape(tensor.shape[-4:])
                         if requires_grad:
@@ -1807,7 +1807,7 @@ def compile_tvm_to_python(framework_mod, graph_name, inputs, module_name=None, c
                     )
                 else:
                     if torch.numel(tensor) == 1 and len(tensor.shape) == 0:
-                        tensor = tensor.reshape((1, 1))
+                        tensor = tensor.reshape((1,))
                     if len(tensor.shape) > 4 and all([x == 1 for x in tensor.shape[0:-4]]):
                         tensor = tensor.reshape(tensor.shape[-4:])
                     params_from_tvm[node["buda_name"]] = tensor

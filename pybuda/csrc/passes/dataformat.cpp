@@ -58,6 +58,22 @@ static bool are_data_formats_same_exponent_widths(const std::vector<DataFormat> 
         { return is_b_data_format(data_format) == is_b_data_format(non_integer_data_formats.at(0)); });
 }
 
+static bool are_data_formats_all_integer(const std::vector<DataFormat> &data_formats)
+{
+    return std::all_of(
+        data_formats.begin(),
+        data_formats.end(),
+        [](DataFormat data_format) { return is_integer_data_format(data_format); });
+}
+
+static bool are_data_formats_all_float(const std::vector<DataFormat> &data_formats)
+{
+    return std::all_of(
+        data_formats.begin(),
+        data_formats.end(),
+        [](DataFormat data_format) { return !is_integer_data_format(data_format); });
+}
+
 static bool are_data_formats_same(const std::vector<DataFormat> &data_formats)
 {
     if (data_formats.empty())
@@ -498,8 +514,12 @@ void fix_data_formats(graphlib::Graph *graph, bool fp32_acc_supported)
                         op->accumulate_df());
                     op->set_accumulate_df(DataFormat::Int32);
                 }
-                if (op->output_df() != DataFormat::Int8 and op->op_name() != "dequantization")
+                if (op->output_df() != DataFormat::Int8 
+                    and op->buda_attrs().find("has_requant") != op->buda_attrs().end()
+                    and op->buda_attrs().find("has_dequant") == op->buda_attrs().end()
+                    and op->op_name() != "dequantization")
                 {
+                    // Only set to INT8 if requantization is applied.
                     log_warning(
                         "Op {} is configured for Int8, but output_df != Int8. "
                         "Setting output_df from {} to Int8.",
@@ -785,6 +805,13 @@ void validate_data_formats(const graphlib::Graph *graph, const DeviceConfig& dev
                     "op: {}, accumulate_df: {}: If op is configured for Int8/Int32, accumulate data format must be Int32.",
                     op->name(),
                     op->accumulate_df());
+            }
+            if (graphlib::is_eltwise_binary(op) or op->is_splice()) {
+                TT_LOG_ASSERT(
+                    are_data_formats_all_float(all_data_formats) or are_data_formats_all_integer(all_data_formats),
+                    "All input data formats should either be all float or all integer. Data formats for {}: {}",
+                    op->name(),
+                    all_data_formats);
             }
             if (device_config.is_grayskull() and is_exponent_width_reconfigured(op->accumulate_df(), op->output_df()))
             {
