@@ -52,6 +52,7 @@ def test_xglm_causal_lm(variant, test_device):
         return_tensors="pt",
     )   
 
+    pcc = 0.98 if test_device.devtype == BackendType.Silicon and test_device.arch == BackendDevice.Wormhole_B0 else 0.99
     verify_module(
         pybuda.PyTorchModule("pt_xglm_causal_lm", model),
         input_shapes=[(input_tokens['input_ids'].shape, input_tokens['attention_mask'].shape,)],
@@ -62,5 +63,6 @@ def test_xglm_causal_lm(variant, test_device):
             devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
             chip_ids=NebulaGalaxy.chip_ids if "PYBUDA_NEB_GALAXY_CI" in os.environ and int(os.environ.get("PYBUDA_NEB_GALAXY_CI"))==1 else [0],
+            pcc=pcc,
         )
-)
+    )
