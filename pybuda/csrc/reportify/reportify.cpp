@@ -106,7 +106,8 @@ json node_to_json(
             incoming_edge.edge_type != graphlib::EdgeType::kDataLoopback and
             incoming_edge.edge_type != graphlib::EdgeType::kControlLoop and
             incoming_edge.edge_type != graphlib::EdgeType::kControl and
-            incoming_edge.edge_type != graphlib::EdgeType::kPartialDataCopy)
+            incoming_edge.edge_type != graphlib::EdgeType::kPartialDataCopy and
+            incoming_edge.edge_type != graphlib::EdgeType::kSubgraphLink)
         {
             continue;  // don't display others for now
         }

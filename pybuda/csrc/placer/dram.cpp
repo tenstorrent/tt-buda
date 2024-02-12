@@ -307,6 +307,7 @@ void place_dram_queues(
     std::vector<DramAllocator> &chip_dram_allocators)
 {
     std::map<string, string> linked_queues;
+    std::map<string, string> subgraph_link_queues;
     std::unordered_map<std::uint32_t, std::vector<DRAMScheduleData>> scheduled_queue_placements;
     std::uint32_t max_chip_id = 0;
     std::uint32_t mmio_chip_index = 0;
@@ -377,6 +378,11 @@ void place_dram_queues(
             not graph->user_edges(node, [](Edge e) { return e.edge_type == graphlib::EdgeType::kPartialDataCopy; })
                     .empty();
 
+        bool subgraph_link_queue =
+            node->node_type() == graphlib::NodeType::kOutput and
+            not graph->user_edges(node, [](Edge e) { return e.edge_type == graphlib::EdgeType::kSubgraphLink; })
+                    .empty();
+
         if (node->node_type() == graphlib::NodeType::kInput)
         {
             queue_grid = placer_solution.input_queue_to_grid_shape.at(node->name());
@@ -440,6 +446,36 @@ void place_dram_queues(
                     .write_stride = multiplier,
                 }));
             log_debug(tt::LogPlacer, "Adding linked queue {}", node->name());
+        }
+        else if (subgraph_link_queue) {
+            node->as<graphlib::QueueNode>()->set_memory_access_type(graphlib::MemoryAccessType::RAM);
+            auto subgraph_link_edges =
+                graph->user_edges(node, [](Edge e) { return e.edge_type == graphlib::EdgeType::kSubgraphLink; });
+            TT_ASSERT(subgraph_link_edges.size() == 1);
+            auto linked_node = graph->node_by_id(subgraph_link_edges[0].consumer_node_id);
+            log_debug(tt::LogPlacer, "Subgraph link node {}", linked_node->name());
+            auto writer_block_shape = balancer_solution.block_shapes.at(linked_node->name());
+            auto reader_block_shape = balancer_solution.block_shapes.at(node->name());
+            TT_ASSERT(writer_block_shape.t % reader_block_shape.t == 0);
+            int multiplier = writer_block_shape.t / reader_block_shape.t;
+            node->as<graphlib::QueueNode>()->set_num_entries(graph->get_microbatch());
+            node->as<graphlib::QueueNode>()->set_alias(linked_node->name());
+            linked_node->as<graphlib::QueueNode>()->set_memory_access_type(graphlib::MemoryAccessType::RAM);
+            linked_node->as<graphlib::QueueNode>()->set_num_entries(graph->get_microbatch());
+            subgraph_link_queues.emplace(node->name(), linked_node->name());
+            placer_solution.name_to_queue_placement.insert(std::make_pair(
+                node->name(),
+                QueuePlacement{
+                    .name = node->name(),
+                    .input_name = ref_node->name(),
+                    .grid_shape = queue_grid,
+                    .on_host = false,
+                    .chip_id = placement.chip_id,
+                    .dram_buffers = {},
+                    .host_buffers = {},
+                    .write_stride = multiplier,
+                }));
+            log_debug(tt::LogPlacer, "Adding subgraph link queue {}", node->name());
         }
         else
         {
@@ -590,6 +626,16 @@ void place_dram_queues(
         placer_solution.name_to_queue_placement[val].read_only = true;
         placer_solution.name_to_queue_placement[key].chip_id = placer_solution.name_to_queue_placement[val].chip_id;
     }
+
+    for (auto &[key, val] : subgraph_link_queues)
+    {
+        placer_solution.name_to_queue_placement[key].dram_buffers =
+            placer_solution.name_to_queue_placement[val].dram_buffers;
+        placer_solution.name_to_queue_placement[key].write_only = true;
+        placer_solution.name_to_queue_placement[val].read_only = true;
+        placer_solution.name_to_queue_placement[key].chip_id = placer_solution.name_to_queue_placement[val].chip_id;
+    }
+
     log_epoch_to_epoch_queue_info(graph, placer_solution);
 }
 

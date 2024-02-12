@@ -174,6 +174,10 @@ bool GraphSolver::resolve_step(const bool self_cut_allowed)
 
                 continue;
             }
+            if (edge.edge_type == graphlib::EdgeType::kSubgraphLink)
+            {
+                continue;
+            }
 
             graphlib::Node* producer_node = graph->node_by_id(edge.producer_node_id);
             Bitset* producer_bitset = get_or_insert_bitset(producer_node->id(), kBitsetAll);
@@ -1064,6 +1068,23 @@ const std::vector<OpModel>& GraphSolver::get_legal_op_models(graphlib::Node cons
 
     // For Queue take its producer OpModels.
     //
+
+    if (node->node_type() == graphlib::kInput) {
+        auto subgraph_link_edges =
+                        graph->operand_edges(node, [](Edge e) { return e.edge_type == graphlib::EdgeType::kSubgraphLink; });
+
+        // When we have multiple subgraphs, opmodel must be the same for producer output node and consumer input node
+        // so that we can leave producer subgraph output on device and let consumer subgraph input to consume it as is.
+        if (subgraph_link_edges.size() == 1 and
+            node->get_epoch_type() == graphlib::Forward and
+            graph->node_by_id(subgraph_link_edges[0].producer_node_id)->get_epoch_type() == graphlib::Forward
+        ) {
+            graphlib::Node* output_node = graph->node_by_id(subgraph_link_edges[0].producer_node_id);
+            TT_ASSERT(output_node->node_type() == graphlib::kOutput);
+            node = graph->data_operands(output_node).front();
+        }
+    }
+
     if (node->node_type() == graphlib::NodeType::kQueue)
     {
         node = graph->data_operands(node).back();

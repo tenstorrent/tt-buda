@@ -11,7 +11,7 @@ import pybuda
 from pybuda.tensor import to_buda_tensors, to_pt_tensors
 from pybuda.tvm_utils import flatten_inputs
 
-from pybuda._C.graph import Graph, create_op_node, create_data_edge, create_parameter_input, create_activation_input, create_output, create_constant_input, create_target_input, add_partial_datacopy_edge, RuntimeTensorTransform, RuntimeTensorTransformType, Shape, OpType
+from pybuda._C.graph import Graph, create_op_node, create_data_edge, create_parameter_input, create_activation_input, create_output, create_constant_input, create_target_input, add_partial_datacopy_edge, RuntimeTensorTransform, RuntimeTensorTransformType, Shape, OpType, add_subgraph_io_link_edge
 
 from pybuda.tensor import pytorch_dtype_to_buda_dataformat
 import os
@@ -446,7 +446,11 @@ def add_op(graph, node, name, pybuda_node, subgraph_idx):
         if isinstance(arg, (list, tuple)):
             eval_args[idx] = [id_to_intermed[node_to_id[a]] if isinstance(a, torch.fx.node.Node) else a for a in arg]
     kwargs = {k:v for k, v in node.kwargs.items() if k != "device"}
-    id_to_intermed[nid] = node.target(*eval_args, **kwargs)
+
+    if isinstance(node.target, torch._ops.OpOverloadPacket):
+        # We will add NOP in cases where input to current subgraph is left on device
+        # For input nodes, node.target is str
+        id_to_intermed[nid] = node.target(*eval_args, **kwargs)
     if (pybuda_node.wrap_tuple):
         nid = (nid,)
     return nid
@@ -556,14 +560,13 @@ def map_node_name_to_org_name(module, aten_module):
     return ret
 
 
-def append_to_graph(graph, module, aten_module, activations, subgraph_idx):
+def append_to_graph(graph, module, aten_module, activations, subgraph_idx, inputs_per_subgraph, outputs_per_subgraph):
     param_name_map = map_node_name_to_org_name(module, aten_module)
     aten_module.graph.print_tabular()
 
     tt_act = [a.to("tt") for a in activations]
     torch.fx.passes.shape_prop.ShapeProp(aten_module).propagate(*tt_act)
     aten_module = aten_module.to("cpu")
-    aten_module.graph.print_tabular()
 
     module_inputs = []
     output_nids = []
@@ -612,15 +615,16 @@ def append_to_graph(graph, module, aten_module, activations, subgraph_idx):
             uid = inputs_per_subgraph[subgraph_idx][input_index]
             if uid != -1:
                 # this input is on device, don't create input node, add edge to corresponding output
-                node_to_id[node] = add_param(graph, params[index][0], params[index][1].data, subgraph_idx)
+                node_to_id[node] = add_input(graph, node, subgraph_idx, module_inputs)
+
                 for idx in range(subgraph_idx):
                     if uid not in outputs_per_subgraph[idx]:
                         continue
                     output_index = outputs_per_subgraph[idx].index(uid)
-                    add_partial_datacopy_edge(graph, output_nodes_per_subgraph[idx][output_index], 0, node_to_id[node], 0)
+                    add_subgraph_io_link_edge(graph, output_nodes_per_subgraph[idx][output_index], 0, node_to_id[node], 0)
             else:
                 node_to_id[node] = add_input(graph, node, subgraph_idx, module_inputs)
-            id_to_intermed[node_to_id[node]] = activations[index - len(params)]
+            id_to_intermed[node_to_id[node]] = activations[index]
             input_index +=1
         elif node.op == "get_attr":
             assert node.target in param_name_map, f"Weight node is not mapped to original names: {node.target}"
@@ -637,5 +641,4 @@ def append_to_graph(graph, module, aten_module, activations, subgraph_idx):
     graph.register_module_outputs(output_nids, output_requires_grad, append=True)
 
     output_nodes_per_subgraph[subgraph_idx] = output_nids
-
     return graph, id_to_intermed, output_tensors

@@ -27,6 +27,7 @@ _module_index = 0
 _tensor_to_unique_id = {}
 _ordered_inputs_per_subgraph = {}
 _ordered_outputs_per_subgraph = {}
+_link_subgraph_unique_tensor_ids = []
 """
 There are dummy enums defined in pytorch, like PrivateUse1 that can be used
 for bringing up new device types.  Eventually we should mainline an enum for
@@ -183,7 +184,8 @@ def _compile(module, aten_module, module_name, sample_inputs, device, compiler_c
 
     # Frontend Compile
     logger.debug("Appending to Graph")
-    _graph, intermediate_tensors, output_tensors = append_to_graph(_graph, module, aten_module, aten_sample_inputs, sample_inputs, _subgraph_index, _ordered_inputs_per_subgraph, _ordered_outputs_per_subgraph)
+    _graph, intermediate_tensors, output_tensors = append_to_graph(
+        _graph, module, aten_module, sample_inputs, _subgraph_index, _ordered_inputs_per_subgraph, _ordered_outputs_per_subgraph)
     logger.debug(f"Appending to graph done, captured {len(_graph.nodes())} nodes")
     _subgraph_index += 1
     _tt0.graph = _graph.clone()
@@ -259,20 +261,19 @@ def _compile_cached(module, aten_module, module_name, sample_inputs, device, com
     return workload, compiled_graph_state
 
 class compiledModel(torch.nn.Module):
-    def __init__(self, module, device, workload, compiled_graph_state, index, device_tensors_to_output):
+    def __init__(self, module, device, workload, compiled_graph_state, index):
         super().__init__()
         self.module = module
         self.device = device
         self.workload = workload
         self.compiled_graph_state = compiled_graph_state
         self.index = index
-        self.device_tensors_to_output = device_tensors_to_output
+        self.is_compile = True
 
     # Submit work to device
     def forward(self, *inputs, **kwargs):
         logger.debug("Invoke Submit")
         assert type(inputs) is tuple
-
         inputs = tuple([i.to(self.device.torch_device()) for i in inputs])
         for i, input in enumerate(inputs):
             if input.device != self.device.torch_device():
@@ -294,19 +295,17 @@ class compiledModel(torch.nn.Module):
         program = Program(f"run_fwd_{self.index}", program_params)
         logger.info(f"Running run_fwd_{self.index}")
 
-        outputs = self.device.dispatch(self.workload, [program], list(inputs), self.compiled_graph_state.output_host_tms, self.index)
+        outputs = self.device.dispatch(
+            self.workload, [program], list(inputs), self.compiled_graph_state.output_host_tms, self.index, self.is_compile)
 
         for out in outputs:
             _tensor_to_unique_id[unique_id(out)] = out
-
-        for index, out_id in self.device_tensors_to_output:
-            outputs.insert(index, _tensor_to_unique_id[out_id])
 
         global _ordered_outputs_per_subgraph
         _ordered_outputs_per_subgraph[self.index] = [unique_id(out) for out in outputs]
         print (f"ordered_inputs_per_subgraph: {_ordered_inputs_per_subgraph}")
         print (f"ordered_outputs_per_subgraph: {_ordered_outputs_per_subgraph}")
-
+        # CHeck previous outputs and push to new param queue
         return outputs
     
     def to(self, dev):
@@ -395,16 +394,13 @@ def _torch_compile(
 
     rand_inputs = [torch.rand(sample_input.shape).to(sample_input.dtype).to("cpu") for sample_input in sample_inputs]
 
+    # WOrkload needs to know linked tensors
     workload, compiled_graph_state = _compile_cached(
         module, aten_module, module_name, rand_inputs, device, compiler_cfg, cache
     )
 
-    device_tensors_to_output = []
-    for idx, inp in enumerate(sample_inputs):
-        if unique_id(inp) != -1:
-            device_tensors_to_output.append((idx, unique_id(inp)))
 
-    compiled_model = compiledModel(module, device, workload, compiled_graph_state, _subgraph_index-1, device_tensors_to_output)
+    compiled_model = compiledModel(module, device, workload, compiled_graph_state, _subgraph_index-1)
     # Push parameters and constants to device
     compiled_model.to(device.torch_device())
     logger.info("Done Torch Compile")

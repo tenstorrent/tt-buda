@@ -79,7 +79,15 @@ void TorchDeviceModule(py::module &m_torch_device)
         .def("compile", &tt::compile)
         .def("dispatch", &tt::dispatch);
 
-    m_torch_device.def("push_tensor", tt::push_tensor);
+    m_torch_device.def(
+        "push_tensor", 
+        &tt::push_tensor,
+        py::arg("backend"),
+        py::arg("desc"),
+        py::arg("tensor"),
+        py::arg("info") = "",
+        py::arg("ptr") = std::optional<int>{});
+
     m_torch_device.def("is_created_on_device", tt::is_created_on_device);
     m_torch_device.def("original_shape", tt::original_shape);
     m_torch_device.def("unique_id", tt::unique_id);

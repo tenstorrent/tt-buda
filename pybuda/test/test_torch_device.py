@@ -229,13 +229,19 @@ def test_link():
 
     os.environ["PYBUDA_DEVMODE"] = "1"
     input = torch.rand(1, 32, 32)
+    input2 = torch.rand(1, 32, 32)
+    input3 = torch.rand(1, 32, 32)
 
     input = input.to("tt")
-    pybuda_mod = torch.compile(Linear().to("tt"), backend=compile_torch)
-    result = pybuda_mod(input)
 
+    pybuda_mod = torch.compile(Linear().to("tt"), backend=compile_torch)
+    result_c = pybuda_mod(input)
     pybuda_mod_2 = torch.compile(Linear().to("tt"), backend=compile_torch)
-    result = pybuda_mod_2(result)
+    result__ = pybuda_mod_2(result_c)
+
+    result_c = pybuda_mod(input)
+    result = pybuda_mod_2(result_c)
+
     result = result.to("cpu")
 
 def test_linear():

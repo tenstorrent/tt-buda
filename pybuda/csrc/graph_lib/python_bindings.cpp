@@ -495,6 +495,20 @@ void GraphModule(py::module &m_graph)
         input->as<graphlib::TaggedNode>()->tag("dont_consteval", "true");
     });
 
+    m_graph.def("add_subgraph_io_link_edge", [](
+          Graph *graph,
+          const graphlib::NodeId start,
+          int out_port_id,
+          const graphlib::NodeId end,
+          int in_port_id)
+    {
+        graphlib::Edge edge(start, (graphlib::PortId)out_port_id, end, (graphlib::PortId)in_port_id, graphlib::EdgeType::kSubgraphLink);
+        graph->add_edge(edge);
+        // Disable consteval for partial datacopy inputs
+        graphlib::Node *input = graph->node_by_id(end);
+        input->as<graphlib::TaggedNode>()->tag("dont_consteval", "true");
+    });
+
     m_graph.def("create_control_edge", [](
           Graph *graph,
           const graphlib::NodeId start,

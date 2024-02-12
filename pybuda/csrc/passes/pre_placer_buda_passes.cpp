@@ -1053,6 +1053,42 @@ void calculate_ublock_order(graphlib::Graph *graph) {
         }
     }
 
+    // Set linking on subgraphs
+    for (Node * node : graph->nodes())
+    {
+        auto is_subgraph_link_edge = [](Edge e) {
+            return (e.edge_type == graphlib::EdgeType::kSubgraphLink);
+        };
+        std::vector<graphlib::Edge> subgraph_link_edge = graph->operand_edges(node, is_subgraph_link_edge);
+
+        if (subgraph_link_edge.empty())
+            continue;
+        
+        // Fetch producers' edges because they are the kData edges that have ublock order
+        auto output_node = graph->node_by_id(subgraph_link_edge[0].producer_node_id);
+        TT_ASSERT(graph->operand_edges(output_node).size() == 1, "Output node should only have 1 producer");
+        auto producer_ublock_order = graph->get_edge_attributes(graph->operand_edges(output_node)[0])->get_ublock_order();
+
+        // Consumer should have the same ublock order as producer
+        for (auto e : graph->user_data_edges(node)) {
+            auto edge_attrs = graph->get_edge_attributes(e);
+            if (edge_attrs->get_ublock_order() != producer_ublock_order) {
+                // Insert NOP to transpose ublock order
+                auto nop = graph->add_node(graphlib::create_node<graphlib::BudaOpNode>(
+                    node->name() + "_subgraph_link_nop", "nop"),
+                    graph->get_subgraph_id_for_node(node->id()));
+                auto original_ublock_order = edge_attrs->get_ublock_order();
+                
+                auto [new_edge0, new_edge1] = graphlib::insert_node_on_edge(graph, e, nop);
+                graph->get_edge_attributes(new_edge0)->set_ublock_order(producer_ublock_order);
+                graph->get_edge_attributes(new_edge1)->set_ublock_order(original_ublock_order);
+                graphlib::calculate_and_set_node_shape(graph, nop);
+            }
+        }
+    }
+
+
+
 #ifdef DEBUG
     //
     // Assert that

@@ -13,6 +13,7 @@
 #include <atomic>
 #include <memory>
 #include <vector>
+#include <optional>
 
 #include "third_party/budabackend/netlist/tt_backend_api_types.hpp"
 #include "third_party/budabackend/netlist/tt_backend.hpp"
@@ -110,6 +111,8 @@ struct Workload
     std::vector<PyBudaTensorDesc> constants;
     std::vector<PyBudaTensorDesc> parameters;
     std::vector<PyBudaTensorDesc> outputs;
+    bool initialized = false;
+    std::unordered_map<int, bool> subgraph_link_tensor_populated;
 
     Workload(
         std::string output_dir,
@@ -149,6 +152,7 @@ struct TTDevice
     std::map<int, std::vector<std::string>> output_runtime_transforms;
     std::shared_ptr<tt_backend> backend;
     bool initialized = false;
+    std::unordered_map<int, std::vector<int>> subgraph_to_tensor_uid_on_device;
 
     TTDevice(
         DEVICE type, ARCH arch, std::string soc_desc_yaml, bool mmio, int index, std::shared_ptr<TTContext> context) :
@@ -170,20 +174,24 @@ std::string device_type_name(c10::DeviceType type, bool lower_case = false);
 torch::Device torch_device_at_index(std::int64_t index);
 
 std::vector<const void*> get_copied_inputs();
-std::shared_ptr<Workload> compile(TTDevice& device, CompileRequest const& compile_request);
+std::shared_ptr<Workload> compile(
+    TTDevice& device, CompileRequest const& compile_request);
 void push_tensor(
     //tt_backend& backend,
     tt_dram_io_desc queue_desc,
     PyBudaTensorDesc const& desc,
     torch::Tensor const& tensor,
-    std::string const& info = "");
+    std::string const& info = "",
+    std::optional<int> ptr = std::nullopt);
+
 std::vector<torch::Tensor> dispatch(
-    TTDevice const& device,
+    TTDevice & device,
     std::shared_ptr<Workload> workload,
     std::vector<Program> const& programs,
     std::vector<torch::Tensor> const& inputs,
     tt::balancer::OutputHostTMMap const& output_host_tms,
-    int subgraph_idx);
+    int subgraph_idx,
+    bool const & is_compile);
 std::string get_device_cluster_yaml(TTDevice const&);
 std::string to_string(TTDevice const& d);
 torch::Device torch_device(TTDevice const& d);

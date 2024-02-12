@@ -25,6 +25,7 @@ enum class EdgeType {
     kAutogradOutputToLoss = 8,
     kAutogradInputToGradientOut = 9,
     kPartialDataCopy = 10,
+    kSubgraphLink = 11,
 };
 using EdgeUniqueId = std::tuple<NodeId, PortId, NodeId, PortId, EdgeType>;
 using EdgeCreationId = std::int64_t;
@@ -88,6 +89,7 @@ inline std::string edge_type_to_string(const EdgeType& edge_type)
         case EdgeType::kAutogradInputToGradientOut: retstring = "AutogradInputToGradientOut"; break;
         case EdgeType::kControlLoop: retstring = "kControlLoop"; break;
         case EdgeType::kPartialDataCopy: retstring = "kPartialDataCopy"; break;
+        case EdgeType::kSubgraphLink: retstring = "kSubgraphLink"; break;
         default: assert(false && "Unimplemented edge_type ostream");
     }
     return retstring;
