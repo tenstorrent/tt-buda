@@ -548,7 +548,13 @@ PostPlacerResults run_post_placer_buda_passes(
     validate_multichip_queue_placements(config, graph, placer_solution);
 
     // Estimate model performance
-    results.perf_model_results = perf_model::run_performance_model(graph, graph_name, device_config, balancer_solution);
+    results.perf_model_results = perf_model::run_performance_model(
+        graph,
+        graph_name,
+        device_config,
+        balancer_solution,
+        config.host_memory_placer_config.input_queues_on_host,
+        config.host_memory_placer_config.output_queues_on_host);
 
     return results;
 }

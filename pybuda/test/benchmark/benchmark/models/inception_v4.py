@@ -17,11 +17,12 @@ def inception_v4(training: bool, config: str, microbatch: int, devtype: str, arc
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"
         os.environ["PYBUDA_RIBBON2"] = "1"
+        os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
         if data_type != "Bfp8_b":
             os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
-        os.environ["PYBUDA_OP_MODEL_COMPARE_VERSION"] = "1"
-
-        os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
+            os.environ["PYBUDA_OP_MODEL_COMPARE_VERSION"] = "1"
+        else:
+            os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
 
     if compiler_cfg.balancer_policy == "Ribbon":
         available_devices = pybuda.detect_available_devices()

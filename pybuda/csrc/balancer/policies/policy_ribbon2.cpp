@@ -26,112 +26,10 @@ using NodeType = tt::graphlib::NodeType;
 namespace tt::balancer
 {
 
-float RibbonSolution::evaluate() const
-{
-    float pipeline_cycles = 0;
-    const int non_matmul_penalty = 128;
-    for (auto &op : ops)
-    {
-        // We have full epoch candidate. Recalculate impact on DRAM BW.
-        //
-        int cycles = get_limiter_cycles(
-            op.model, graph, *device_config, dram_readers_core_count + dram_writers_core_count, &current_epoch_nodes);
-
-        if (cycles > pipeline_cycles)
-            pipeline_cycles = cycles;
-    }
-
-    log_trace(LogBalancer, "RIBBON2: pipeline_cycles = {}", pipeline_cycles);
-
-    float used_cores = 0;
-    float utilization = 0;
-    for (auto &op : ops)
-    {
-        std::uint32_t cores = op.model.grid_shape.volume();
-        used_cores += cores;
-
-        if (op.op->is_matmul_not_sparse())
-        {
-            utilization += cores * (op.model.get_execution_cycles(device_config->arch_name, true) / pipeline_cycles);
-        }
-        else if (!env_as<bool>("PYBUDA_RIBBON2_DISABLE_NON_MATMUL_UTIL", 0) and !op.op->is_buffering_op())
-        {
-            utilization += cores * (op.model.get_execution_cycles(device_config->arch_name, true) / pipeline_cycles) /
-                           non_matmul_penalty;
-        }
-    }
-
-    log_trace(
-        LogBalancer,
-        "RIBBON2: pipeline_cycles = {}, used_cores = {}, utilization = {}",
-        pipeline_cycles,
-        used_cores,
-        utilization);
-
-    return utilization;
-}
-
-void RibbonSolution::print() const
-{
-    for (auto &op : ops)
-    {
-        log_trace(
-            LogBalancer,
-            "RIBBON2: (ribbon={})   {}: {}",
-            ribbon_size,
-            op.op->name(),
-            get_limiter_cycles(op.model, graph, *device_config));
-    }
-}
-
-void RibbonSolution::recalc_nodes()
-{
-    dram_readers_core_count = 0;
-    dram_writers_core_count = 0;
-    current_epoch_ops.clear();
-    current_epoch_nodes.clear();
-    for (const auto &op : ops)
-    {
-        current_epoch_ops.insert(op.op);
-    }
-    current_epoch_nodes = calculate_current_epoch_nodes(graph, current_epoch_ops);
-
-    for (const auto &op : ops)
-    {
-        std::vector<Edge> data_operands = graph->operand_data_edges(op.model.buda_op_node);
-        std::vector<Edge> data_users = graph->user_data_edges(op.model.buda_op_node);
-
-        for (const Edge &edge : data_operands)
-        {
-            bool producer_is_queue =
-                graph->node_by_id(edge.producer_node_id)->node_type() == tt::graphlib::NodeType::kQueue ||
-                graph->node_by_id(edge.producer_node_id)->node_type() == tt::graphlib::NodeType::kInput;
-
-            if (producer_is_queue and !op.model.parameter_buffers[edge.consumer_input_port_id])
-            {
-                dram_readers_core_count += op.model.get_input_grid_shape(edge.consumer_input_port_id).volume();
-            }
-        }
-
-        for (const Edge &edge : data_users)
-        {
-            const tt::graphlib::Node *user_node = graph->node_by_id(edge.consumer_node_id);
-            bool consumer_is_queue = user_node->node_type() == tt::graphlib::NodeType::kQueue ||
-                                     user_node->node_type() == tt::graphlib::NodeType::kOutput ||
-                                     current_epoch_nodes.count(user_node) == 0;
-
-            if (consumer_is_queue)
-            {
-                dram_writers_core_count += op.model.grid_shape.volume();
-            }
-        }
-    }
-}
-
 OpModel get_closest_op_model(
     const legalizer::GraphSolver &graph_solver_snapshot,
-    const RibbonSolution::OpModelPair &op,
-    const DeviceConfig *device_config,
+    const OpModelPair &op,
+    const BalancerConfig *balancer_config,
     const graphlib::Graph *graph,
     std::unordered_set<std::uint64_t> &validated_cache)
 {
@@ -160,11 +58,11 @@ OpModel get_closest_op_model(
         else
         {
             auto my_delta = std::abs(
-                get_limiter_cycles(op_model, graph, *device_config) -
-                get_limiter_cycles(op.model, graph, *device_config));
+                get_limiter_cycles(op_model, graph, *balancer_config) -
+                get_limiter_cycles(op.model, graph, *balancer_config));
             auto best_delta = std::abs(
-                get_limiter_cycles(*closest_model, graph, *device_config) -
-                get_limiter_cycles(op.model, graph, *device_config));
+                get_limiter_cycles(*closest_model, graph, *balancer_config) -
+                get_limiter_cycles(op.model, graph, *balancer_config));
 
             if (my_delta < best_delta)
             {
@@ -203,14 +101,14 @@ RibbonSolution optimize_solution(
 
     std::uint32_t iterations = 0;
     std::uint32_t bad_iterations = 0;  // number of iterations in a row that made thing worse
-    const DeviceConfig *device_config = solution.get_device_config();  // save some typing
+    const BalancerConfig *balancer_config = solution.get_balancer_config();  // save some typing
     while ((bad_iterations < 3) && (iterations < max_iterations))
     {
         // Find the slowest cycle count
         float slowest_cycles = 0;
         for (auto &op : best_solution.get_ops())
         {
-            float cycles = get_limiter_cycles(op.model, graph, *device_config);
+            float cycles = get_limiter_cycles(op.model, graph, *balancer_config);
             if (cycles > slowest_cycles)
                 slowest_cycles = cycles;
         }
@@ -225,12 +123,12 @@ RibbonSolution optimize_solution(
         {
             auto &op = new_solution.get_ops()[op_index];
             bool is_sparse_matmul = op.op->is_sparse_matmul();
-            float cycles = get_limiter_cycles(op.model, graph, *device_config);
+            float cycles = get_limiter_cycles(op.model, graph, *balancer_config);
             if (cycles < target_cycles)
             {
                 log_trace(LogBalancer, "RIBBON2: op {} is fast enough", op.op->name());
                 auto closest_model =
-                    get_closest_op_model(*graph_solver_snapshot, op, device_config, graph, validated_cache);
+                    get_closest_op_model(*graph_solver_snapshot, op, balancer_config, graph, validated_cache);
                 graph_solver_snapshot->set(op.op, closest_model);
                 if (!(closest_model == op.model))
                 {
@@ -238,7 +136,7 @@ RibbonSolution optimize_solution(
                         LogBalancer,
                         "RIBBON2: had to change the grid to {} with cycles {}",
                         closest_model.grid_shape,
-                        get_limiter_cycles(closest_model, graph, *device_config));
+                        get_limiter_cycles(closest_model, graph, *balancer_config));
                     new_solution.update_model(op_index, closest_model);
                 }
             }
@@ -265,7 +163,7 @@ RibbonSolution optimize_solution(
                             LogBalancer,
                             "RIBBON2: trying grid {} with cycles {}, for same ribbon {}",
                             op_model.grid_shape,
-                            get_limiter_cycles(op_model, graph, *device_config),
+                            get_limiter_cycles(op_model, graph, *balancer_config),
                             same_ribbon);
                         if (is_sparse_matmul)
                         {
@@ -273,7 +171,7 @@ RibbonSolution optimize_solution(
                                 LogBalancer,
                                 "RIBBON2: trying sparse_matmul grid {} with cycles {}, u_kt = {}",
                                 op_model.grid_shape,
-                                get_limiter_cycles(op_model, graph, *device_config),
+                                get_limiter_cycles(op_model, graph, *balancer_config),
                                 op_model.input_buffers.at(1).block_shape.ublock.rt);
                         }
 
@@ -290,19 +188,19 @@ RibbonSolution optimize_solution(
                         if (same_ribbon && (op_model.grid_shape.r != (int)new_solution.get_ribbon_size()))
                             continue;
 
-                        if (get_limiter_cycles(op_model, graph, *device_config) >= slowest_cycles)
+                        if (get_limiter_cycles(op_model, graph, *balancer_config) >= slowest_cycles)
                             continue;
 
                         // Find the slowest improvement over the current op_model, to reduce drastic changes
                         if (!new_op_model.has_value() ||  // nothing has been picked
 
                             // current best is improvement, but not +10%
-                            ((get_limiter_cycles(*new_op_model, graph, *device_config) >= target_cycles) &&
-                             (get_limiter_cycles(op_model, graph, *device_config) < target_cycles)) ||
+                            ((get_limiter_cycles(*new_op_model, graph, *balancer_config) >= target_cycles) &&
+                             (get_limiter_cycles(op_model, graph, *balancer_config) < target_cycles)) ||
 
                             // pick slower improvement
-                            (get_limiter_cycles(*new_op_model, graph, *device_config) <
-                             get_limiter_cycles(op_model, graph, *device_config)))
+                            (get_limiter_cycles(*new_op_model, graph, *balancer_config) <
+                             get_limiter_cycles(op_model, graph, *balancer_config)))
                         {
                             bool op_ok = true;
                             if (is_sparse_matmul)
@@ -319,7 +217,7 @@ RibbonSolution optimize_solution(
                                     "RIBBON2: setting new grid for {}: {} with cycles {}",
                                     op.op->name(),
                                     op_model.grid_shape,
-                                    get_limiter_cycles(op_model, graph, *device_config));
+                                    get_limiter_cycles(op_model, graph, *balancer_config));
                             }
                         }
                     }
@@ -345,7 +243,7 @@ RibbonSolution optimize_solution(
                 {
                     // We haven't found anything better, set the same (or closest legal)
                     auto closest_model =
-                        get_closest_op_model(*graph_solver_snapshot, op, device_config, graph, validated_cache);
+                        get_closest_op_model(*graph_solver_snapshot, op, balancer_config, graph, validated_cache);
                     new_solution.update_model(op_index, closest_model);
                     graph_solver_snapshot->set(op.op, closest_model);
                 }
@@ -360,7 +258,7 @@ RibbonSolution optimize_solution(
             std::optional<placer::CoordRange> op_placement;
             int placing_step = 1;
 
-            const RibbonSolution::OpModelPair *next_op =
+            const OpModelPair *next_op =
                 i < new_solution.get_ops().size() - 1 ? &new_solution.get_ops()[i + 1] : nullptr;
 
             // Special case for sparse-dense matmul pairing. We want to always place them atomically together if
@@ -618,7 +516,7 @@ bool apply_solution(
     solution.print();
 
     // Create a map for quicker retrieval as we go through the schedule
-    std::unordered_map<std::string, RibbonSolution::OpModelPair> op_name_to_model;
+    std::unordered_map<std::string, OpModelPair> op_name_to_model;
     for (auto &op : solution.get_ops())
     {
         log_trace(LogBalancer, "RIBBON2: emplacing op {}", op.op->name());
@@ -695,6 +593,63 @@ bool apply_solution(
 
     cut_graph_solver_epoch(graph, interactive_placer, *graph_solver);
     return true;
+}
+
+// Calculates the target cycles for a given epoch and ribbon size.
+// Exploration will start from initial_epoch_target_cycles and calculation will be reinvoked
+// until the result converges or recalc_count reaches limit.
+// Side effect of this function is that GS search space will be narrowed down according to
+// the ribbon size and total grid size which corresponds to the calculated target_cycles.
+// (graph_solver_epoch_snapshot will be updated to reflect this)
+//
+int calculate_epoch_target_cycles(
+    const std::uint32_t epoch,
+    const Graph *graph,
+    const BalancerConfig &config,
+    legalizer::GraphSolver &graph_solver_epoch_snapshot,
+    placer::InteractivePlacer &interactive_placer,
+    placer::InteractivePlacer &ip_fittment_tester,
+    const uint32_t ribbon_size,
+    std::unordered_set<uint64_t> &validated_cache,
+    const std::vector<std::string> &scheduled_ops,
+    const std::unordered_set<std::string> &epoch_break_ops,
+    const graphlib::NodeEpochType current_epoch_type,
+    uint32_t placed_op_index,
+    const int initial_epoch_target_cycles)
+{
+    int epoch_target_cycles = initial_epoch_target_cycles;
+    int recalculated_epoch_target_cycles = initial_epoch_target_cycles;
+    int recalc_count = 0;
+
+    while (recalc_count < 5)
+    {
+        recalculated_epoch_target_cycles = calculate_target_cycles_for_ribbon_size(
+            graph,
+            config,
+            graph_solver_epoch_snapshot,
+            interactive_placer,
+            ip_fittment_tester,
+            ribbon_size,
+            validated_cache,
+            scheduled_ops,
+            epoch_break_ops,
+            current_epoch_type,
+            placed_op_index,
+            epoch_target_cycles);
+
+        if (epoch_target_cycles == recalculated_epoch_target_cycles)
+        {
+            break;
+        }
+
+        epoch_target_cycles = recalculated_epoch_target_cycles;
+        recalc_count++;
+    }
+
+    log_debug(
+        LogBalancer, "Epoch {} setting target_cycles={} for ribbon_size={}.", epoch, epoch_target_cycles, ribbon_size);
+
+    return epoch_target_cycles;
 }
 
 legalizer::GraphSolverSolution run_policy_ribbon2(
@@ -783,8 +738,7 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
                                                         // don't have to validate them again
 
     // In case of recompile, we can offset the target cycles to get a different solution.
-    const int target_cycles =
-        env_as<int>("PYBUDA_RIBBON_TARGET_CYCLES", 95000) + config.target_cycles_offset;
+    const int target_cycles = env_as<int>("PYBUDA_RIBBON_TARGET_CYCLES", 95000) + config.target_cycles_offset;
     const int max_iterations = env_as<int>("PYBUDA_RIBBON2_OPTIMIZATION_ITERATIONS", 0);
 
     TT_ASSERT(config.op_names_to_chip_break.size() == 0, "Ribbon2 policy does not process chip breaks");
@@ -816,7 +770,7 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
         // Per-epoch overrides
         const int force_target_cycles =
             env_as<int>((std::string("PYBUDA_RIBBON2_TARGET_CYCLES_FOR_EPOCH") + std::to_string(epoch)).c_str(), 0);
-        const int epoch_target_cycles = (force_target_cycles != 0) ? force_target_cycles : target_cycles;
+        int epoch_target_cycles = (force_target_cycles != 0) ? force_target_cycles : target_cycles;
 
         const int force_optimization_iterations = env_as<int>(
             (std::string("PYBUDA_RIBBON2_OPTIMIZATION_ITERATIONS_FOR_EPOCH") + std::to_string(epoch)).c_str(), -1);
@@ -843,10 +797,36 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
                 continue;
             }
 
+            auto graph_solver_epoch_snapshot = std::make_unique<legalizer::GraphSolver>(*graph_solver_main);
+            std::vector<OpModelPair> selected_models;
+
             try
             {
-                auto graph_solver_epoch_snapshot = std::make_unique<legalizer::GraphSolver>(*graph_solver_main);
-                std::vector<RibbonSolution::OpModelPair> selected_models;
+                if (force_target_cycles == 0 and env_as<bool>("PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES", false))
+                {
+                    // Legacy target_cycles are passed in as initial seed for calculation.
+                    // This value has modest impact on outcome as
+                    // value too low may limit exploration while value too high may lead to suboptimal solutions with
+                    // slower op model preference. Note that value returned by calculation can be lower than
+                    // target_cycles, this is mostly impacted by ribbon_size and other factors from op_model preference
+                    // function. Generally it seems that value in range 80-120k provide good span of epoch estimates and
+                    // results for current architecture but we can tweak this further in the future.
+                    //
+                    epoch_target_cycles = calculate_epoch_target_cycles(
+                        epoch,
+                        graph,
+                        config,
+                        *graph_solver_epoch_snapshot,
+                        interactive_placer,
+                        ip_fittment_tester,
+                        ribbon_size,
+                        validated_cache,
+                        scheduled_ops,
+                        epoch_break_ops,
+                        current_epoch_type,
+                        placed_op_index,
+                        target_cycles);
+                }
 
                 // Pick op models
                 for (std::uint32_t op_index = placed_op_index; op_index < scheduled_ops.size(); op_index++)
@@ -855,7 +835,7 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
                     if (node->node_type() != NodeType::kBudaOp)
                         continue;
 
-                    const graphlib::BudaOpNode *op = node->as<graphlib::BudaOpNode>();
+                    const graphlib::BudaOpNode *op = static_cast<const graphlib::BudaOpNode *>(node);
 
                     // check if there is a forced break at this op
                     bool new_epoch = (op_index > placed_op_index) && ((epoch_break_ops.count(node->name()) > 0) ||
@@ -881,7 +861,7 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
                             ribbon_size,
                             node->name(),
                             selected_op_model.grid_shape,
-                            get_limiter_cycles(selected_op_model, graph, config.device_config));
+                            get_limiter_cycles(selected_op_model, graph, config));
                         std::optional<placer::CoordRange> op_placement;
                         bool sparse_dense_pair = false;
                         bool op_already_set = false;
@@ -910,43 +890,16 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
                                         validated_cache,
                                         epoch_target_cycles);
 
-                                    // Place pair atomically in case row size matches and we can fit on a single epoch.
+                                    // Place sparse and dense matmul paired and in the same epoch if possible.
                                     //
-                                    if (selected_op_model_dense.grid_shape.r == selected_op_model.grid_shape.r and
-                                        interactive_placer.can_fit_on_single_epoch(
-                                            selected_op_model.grid_shape.r,
-                                            selected_op_model.grid_shape.c + selected_op_model_dense.grid_shape.c,
-                                            true /* allow_transpose */))
-                                    {
-                                        sparse_dense_pair = true;
-                                        op_placement = interactive_placer.place_two_ops_rowwise(
-                                            op->name(),
-                                            selected_op_model.grid_shape,
-                                            dense_matmul_op->name(),
-                                            selected_op_model_dense.grid_shape,
-                                            true);
-                                    }
-                                    // Row size doesn't match, still try placing them within the same epoch if possible.
-                                    //
-                                    else if (can_fit_on_single_epoch(
-                                                 ip_fittment_tester,
-                                                 op->name(),
-                                                 selected_op_model.grid_shape,
-                                                 dense_matmul_op->name(),
-                                                 selected_op_model_dense.grid_shape))
-                                    {
-                                        sparse_dense_pair = true;
-                                        op_placement = interactive_placer.place_op(
-                                            op->name(), selected_op_model.grid_shape, true /* enable_transpose */);
-
-                                        if (op_placement.has_value())
-                                        {
-                                            op_placement = interactive_placer.place_op(
-                                                dense_matmul_op->name(),
-                                                selected_op_model_dense.grid_shape,
-                                                true /* enable_transpose */);
-                                        }
-                                    }
+                                    op_placement = place_sparse_dense_pair(
+                                        op,
+                                        &selected_op_model,
+                                        dense_matmul_op,
+                                        &selected_op_model_dense,
+                                        interactive_placer,
+                                        ip_fittment_tester,
+                                        sparse_dense_pair);
 
                                     // Pair has been placed, mark opmodels, and skip next op as it is already selected
                                     // and set.
@@ -990,7 +943,7 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
                     {
                         TT_ASSERT(!new_epoch || selected_models.size() > 0);
                         // Record the solution
-                        RibbonSolution new_solution(ribbon_size, &config.device_config, selected_models, graph);
+                        RibbonSolution new_solution(ribbon_size, &config, selected_models, graph, epoch_target_cycles);
 
                         // Check if the same solution was provided by another ribbon
                         bool found_same_solution = false;
@@ -1124,6 +1077,14 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
 
         if (applied)
         {
+            log_debug(
+                LogBalancer,
+                "RIBBON2: (epoch={}) applied solution with score: {} ribbon_size: {} pipeline_cycles: {}",
+                epoch,
+                best_solution.get_score(),
+                best_solution.get_ribbon_size(),
+                best_solution.get_pipeline_cycles());
+
             if (placed_op_index >= scheduled_ops.size())
             {
                 Logger<kLoggerABI>::get().log_level_type(

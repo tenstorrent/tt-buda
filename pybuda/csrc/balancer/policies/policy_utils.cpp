@@ -158,6 +158,38 @@ std::vector<uint> get_num_epochs_per_node_epoch_type(Graph const *graph, tt::pla
     return num_epochs_per_node_type;
 }
 
+// Check if this is a linked queue.
+// Linked queues are output queues which have users nodes connected via partial data copy edges.
+//
+bool is_linked_queue(const Graph *graph, const Node *node)
+{
+    return node->node_type() == graphlib::NodeType::kOutput and
+           not graph
+                   ->user_edges(
+                       node, [](graphlib::Edge e) { return e.edge_type == graphlib::EdgeType::kPartialDataCopy; })
+                   .empty();
+}
+
+// Check whether queue is input queue on host, meaning it's data resides on host and is accessed via PCIe.
+//
+bool is_input_host_queue(bool input_queues_on_host, const Node *node)
+{
+    bool input_on_host =
+        input_queues_on_host && node->as<graphlib::QueueNode>()->is_input() &&
+        (node->as<graphlib::InputNode>()->is_activation() or node->as<graphlib::InputNode>()->is_loss());
+
+    return input_on_host;
+}
+
+// Check whether queue is output queue on host, meaning it's data resides on host and is transferred via PCIe.
+//
+bool is_output_host_queue(bool output_queues_on_host, const Graph *graph, const Node *node)
+{
+    bool output_on_host = output_queues_on_host && (node->node_type() == graphlib::NodeType::kOutput) &&
+                          node->as<graphlib::OutputNode>()->untilize() && not is_linked_queue(graph, node);
+    return output_on_host;
+}
+
 void dump_balancer_placer_data(
     Graph const *graph,
     std::vector<std::uint32_t> chip_ids,
@@ -621,6 +653,214 @@ bool close_to_target_exec_cycles(int kernel_exec_cycles, int limiter_cycles, int
     return (limiter_cycles < target) && (kernel_exec_cycles > target * 0.8);
 }
 
+// Place sparse and dense matmul paired and in the same epoch if possible.
+// Used only by RibbonV2 policy.
+//
+std::optional<placer::CoordRange> place_sparse_dense_pair(
+    const graphlib::BudaOpNode *op,
+    const OpModel *prefered_op_model,
+    const graphlib::BudaOpNode *dense_matmul_op,
+    const OpModel *prefered_op_model_dense,
+    tt::placer::InteractivePlacer &interactive_placer,
+    tt::placer::InteractivePlacer &ip_fittment_tester,
+    bool &sparse_dense_pair)
+{
+    std::optional<placer::CoordRange> op_placement;
+
+    // Place pair atomically in case row size matches and we can fit on a single epoch.
+    if (prefered_op_model_dense->grid_shape.r == prefered_op_model->grid_shape.r &&
+        interactive_placer.can_fit_on_single_epoch(
+            prefered_op_model->grid_shape.r,
+            prefered_op_model->grid_shape.c + prefered_op_model_dense->grid_shape.c,
+            true /* allow_transpose */))
+    {
+        sparse_dense_pair = true;
+        op_placement = interactive_placer.place_two_ops_rowwise(
+            op->name(),
+            prefered_op_model->grid_shape,
+            dense_matmul_op->name(),
+            prefered_op_model_dense->grid_shape,
+            true);
+    }
+    // Row size doesn't match, still try placing them within the same epoch if possible.
+    else if (can_fit_on_single_epoch(
+                 ip_fittment_tester,
+                 op->name(),
+                 prefered_op_model->grid_shape,
+                 dense_matmul_op->name(),
+                 prefered_op_model_dense->grid_shape))
+    {
+        sparse_dense_pair = true;
+        op_placement =
+            interactive_placer.place_op(op->name(), prefered_op_model->grid_shape, true /* enable_transpose */);
+
+        if (op_placement.has_value())
+        {
+            op_placement = interactive_placer.place_op(
+                dense_matmul_op->name(), prefered_op_model_dense->grid_shape, true /* enable_transpose */);
+        }
+    }
+
+    return op_placement;
+}
+
+// Iterate over ops and pick "role" op model based on preference function.
+// Use "role" op model as an example of a grid size target with regards to the ribbon size.
+// For each op, in GS filter out op models which do not match the ribbon size or have larger grid.
+// In every step of the way use interactive placer to figure out when is epoch full.
+// When epoch is full, target cycle is the slowest "role" op model placed.
+//
+int calculate_target_cycles_for_ribbon_size(
+    const graphlib::Graph *graph,
+    const BalancerConfig &config,
+    legalizer::GraphSolver &graph_solver,
+    tt::placer::InteractivePlacer &interactive_placer,
+    tt::placer::InteractivePlacer &ip_fittment_tester,
+    const std::uint32_t ribbon_size,
+    std::unordered_set<std::uint64_t> &validated_cache,
+    const std::vector<std::string> &scheduled_ops,
+    const std::unordered_set<string> &epoch_break_ops,
+    const graphlib::NodeEpochType current_epoch_type,
+    const std::uint32_t placed_op_index,
+    const int epoch_target_cycles)
+{
+    TT_ASSERT(interactive_placer.current_epoch_empty());
+    int target_exec_cycles = 0;
+
+    for (std::uint32_t op_index = placed_op_index; op_index < scheduled_ops.size(); op_index++)
+    {
+        const graphlib::Node *node = graph->get_node_by_name(scheduled_ops[op_index]);
+        if (node->node_type() != NodeType::kBudaOp)
+            continue;
+
+        const graphlib::BudaOpNode *op = static_cast<const graphlib::BudaOpNode *>(node);
+
+        // Check if there is a forced break at this op
+        //
+        bool new_epoch = (op_index > placed_op_index) &&
+                         ((epoch_break_ops.count(node->name()) > 0) || (current_epoch_type != op->get_epoch_type()));
+
+        if (new_epoch)
+        {
+            break;
+        }
+
+        bool op_already_set = false;
+        const OpModel *prefered_op_model =
+            pick_preferred_op_model(graph, config, graph_solver, op, ribbon_size, validated_cache, epoch_target_cycles);
+
+        if (nullptr != prefered_op_model)
+        {
+            std::optional<placer::CoordRange> op_placement;
+            bool sparse_dense_pair = false;
+
+            // Special case for sparse matmuls. Try to pair them with the next op if preferable(sparse-dense
+            // like pairs, see should_pair_with_sparse()).
+            //
+            if (op->is_sparse_matmul() and op_index < scheduled_ops.size() - 1)
+            {
+                graphlib::Node *next_node = graph->get_node_by_name(scheduled_ops[op_index + 1]);
+                if (next_node->node_type() == NodeType::kBudaOp)
+                {
+                    const graphlib::BudaOpNode *dense_matmul_op = static_cast<const graphlib::BudaOpNode *>(next_node);
+                    if (dense_matmul_op->should_pair_with_sparse(op, graph))
+                    {
+                        graph_solver.set_filter_grid_size(op, *prefered_op_model);
+                        op_already_set = true;
+                        const OpModel *prefered_op_model_dense = pick_preferred_op_model(
+                            graph,
+                            config,
+                            graph_solver,
+                            dense_matmul_op,
+                            ribbon_size,
+                            validated_cache,
+                            std::max(epoch_target_cycles, get_limiter_cycles(*prefered_op_model, graph, config)));
+                        TT_ASSERT(prefered_op_model_dense != nullptr);
+
+                        op_placement = place_sparse_dense_pair(
+                            op,
+                            prefered_op_model,
+                            dense_matmul_op,
+                            prefered_op_model_dense,
+                            interactive_placer,
+                            ip_fittment_tester,
+                            sparse_dense_pair);
+
+                        // Pair has been placed skip next op as it is already selected
+                        // and calculate dense matmul cycles.
+                        //
+                        if (op_placement.has_value() and sparse_dense_pair)
+                        {
+                            graph_solver.set_filter_grid_size(dense_matmul_op, *prefered_op_model_dense);
+                            target_exec_cycles = std::max(
+                                target_exec_cycles, get_limiter_cycles(*prefered_op_model_dense, graph, config));
+                            op_index++;
+                        }
+                    }
+                }
+            }
+
+            if (!sparse_dense_pair)
+            {
+                op_placement =
+                    interactive_placer.place_op(op->name(), prefered_op_model->grid_shape, true /* enable_transpose */);
+            }
+
+            if (!op_placement.has_value())
+            {
+                break;
+            }
+
+            if (!op_already_set)
+            {
+                graph_solver.set_filter_grid_size(op, *prefered_op_model);
+            }
+
+            target_exec_cycles = std::max(target_exec_cycles, get_limiter_cycles(*prefered_op_model, graph, config));
+        }
+        else
+        {
+            TT_THROW("Failed to find valid op model for op {}", op->name());
+        }
+    }
+
+    interactive_placer.rewind_epoch();
+    return target_exec_cycles;
+}
+
+enum TargetProximity
+{
+    eGood = 0,
+    eWeak,
+    ePoor,
+    eBad,
+    eTerrible
+};
+
+TargetProximity target_proximity(int target, int cycles)
+{
+    if (cycles < target * 2)
+    {
+        return TargetProximity::eGood;
+    }
+    else if (cycles < target * 5)
+    {
+        return TargetProximity::eWeak;
+    }
+    else if (cycles < target * 10)
+    {
+        return TargetProximity::ePoor;
+    }
+    else if (cycles < target * 20)
+    {
+        return TargetProximity::eBad;
+    }
+    else
+    {
+        return TargetProximity::eTerrible;
+    }
+}
+
 // OpModel preference comparison function. Returns true if candidate is better than current pick.
 //
 bool is_candidate_better_than_current(
@@ -629,7 +869,7 @@ bool is_candidate_better_than_current(
     const Graph *graph,
     int ribbon_size,
     int target_exec_cycles,
-    const DeviceConfig &device_config)
+    const BalancerConfig &balancer_config)
 {
     TT_ASSERT(current.buda_op_node == candidate.buda_op_node);
 
@@ -667,8 +907,8 @@ bool is_candidate_better_than_current(
         return false;
     }
 
-    int current_cycles = get_limiter_cycles(current, graph, device_config);
-    int candidate_cycles = get_limiter_cycles(candidate, graph, device_config);
+    int current_cycles = get_limiter_cycles(current, graph, balancer_config);
+    int candidate_cycles = get_limiter_cycles(candidate, graph, balancer_config);
 
     // Both op_models are within target. Prefer smaller number of columns.
     //
@@ -682,6 +922,18 @@ bool is_candidate_better_than_current(
         {
             return false;
         }
+    }
+
+    TargetProximity candidate_proxmity = target_proximity(target_exec_cycles, candidate_cycles);
+    TargetProximity current_proximity = target_proximity(target_exec_cycles, current_cycles);
+
+    if (candidate_proxmity < current_proximity)
+    {
+        return true;
+    }
+    else if (candidate_proxmity > current_proximity)
+    {
+        return false;
     }
 
     bool ukt_ok_candidate = ukt_ok(candidate);
@@ -712,8 +964,8 @@ bool is_candidate_better_than_current(
     // (3) if both are far from target, pick the one that is closer to target (in terms of execution
     // cycles)
 
-    int current_exec_cycles = current.get_execution_cycles(device_config.arch_name);
-    int candidate_exec_cycles = candidate.get_execution_cycles(device_config.arch_name);
+    int current_exec_cycles = current.get_execution_cycles(balancer_config.device_config.arch_name);
+    int candidate_exec_cycles = candidate.get_execution_cycles(balancer_config.device_config.arch_name);
     float current_exec_util = (float)current_exec_cycles / (float)current_cycles;
     float candidate_exec_util = (float)candidate_exec_cycles / (float)candidate_cycles;
 
@@ -1082,8 +1334,32 @@ bool close_to_target(std::uint32_t test, std::uint32_t target) { return (test < 
 int get_limiter_cycles(
     const OpModel &op_model,
     const Graph *graph,
-    const DeviceConfig &device_config,
+    const BalancerConfig &balancer_config,
     const int dram_access_core_count,
+    const int pcie_access_core_count,
+    const std::unordered_set<const tt::graphlib::Node *> *current_epoch_nodes,
+    bool invalidate_cached)
+{
+    return get_limiter_cycles(
+        op_model,
+        graph,
+        balancer_config.device_config,
+        balancer_config.input_queues_on_host,
+        balancer_config.output_queues_on_host,
+        dram_access_core_count,
+        pcie_access_core_count,
+        current_epoch_nodes,
+        invalidate_cached);
+}
+
+int get_limiter_cycles(
+    const OpModel &op_model,
+    const Graph *graph,
+    const DeviceConfig &device_config,
+    const bool input_queues_on_host,
+    const bool output_queues_on_host,
+    const int dram_access_core_count,
+    const int pcie_access_core_count,
     const std::unordered_set<const tt::graphlib::Node *> *current_epoch_nodes,
     bool invalidate_cached)
 {
@@ -1097,6 +1373,7 @@ int get_limiter_cycles(
         return kernel_cycles;
     }
 
+    bool model_pcie_bw = env_as<bool>("PYBUDA_TEMP_BALANCER_MODEL_PCIE_BW", true);
     std::vector<Edge> data_operands = graph->operand_data_edges(op_model.buda_op_node);
     std::vector<Edge> data_users = graph->user_data_edges(op_model.buda_op_node);
 
@@ -1115,18 +1392,36 @@ int get_limiter_cycles(
     float dram_bw = device_config.is_wormhole()
                         ? 20.4 / dram_bw_divider
                         : static_cast<float>(device_config.get_dram_bandwidth_bytes_per_cycle()) / dram_bw_divider;
+    float pcie_bw = static_cast<float>(24) / pcie_access_core_count;
+    if (!model_pcie_bw)
+    {
+        // Temp fallback to legacy dram calc.
+        //
+        pcie_bw = dram_bw;
+    }
+
     int memory_read_cycles = 0;
 
     for (const Edge &edge : data_operands)
     {
-        bool producer_is_queue = graph->node_by_id(edge.producer_node_id)->node_type() == NodeType::kQueue ||
-                                 graph->node_by_id(edge.producer_node_id)->node_type() == NodeType::kInput;
+        Node *producer_node = graph->node_by_id(edge.producer_node_id);
+        bool producer_is_queue =
+            producer_node->node_type() == NodeType::kQueue || producer_node->node_type() == NodeType::kInput;
 
         if (producer_is_queue and !op_model.parameter_buffers[edge.consumer_input_port_id])
         {
-            memory_read_cycles = std::max(
-                memory_read_cycles,
-                static_cast<int>(op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / dram_bw));
+            if (!is_input_host_queue(input_queues_on_host, producer_node))
+            {
+                memory_read_cycles = std::max(
+                    memory_read_cycles,
+                    static_cast<int>(op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / dram_bw));
+            }
+            else
+            {
+                memory_read_cycles = std::max(
+                    memory_read_cycles,
+                    static_cast<int>(op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / pcie_bw));
+            }
         }
         else
         {
@@ -1147,9 +1442,20 @@ int get_limiter_cycles(
 
         if (consumer_is_queue)
         {
-            memory_write_cycles = std::max(
-                memory_write_cycles,
-                static_cast<int>(op_model.output_buffers[edge.producer_output_port_id].total_size_bytes() / dram_bw));
+            if (!is_output_host_queue(output_queues_on_host, graph, user_node))
+            {
+                memory_write_cycles = std::max(
+                    memory_write_cycles,
+                    static_cast<int>(
+                        op_model.output_buffers[edge.producer_output_port_id].total_size_bytes() / dram_bw));
+            }
+            else
+            {
+                memory_write_cycles = std::max(
+                    memory_write_cycles,
+                    static_cast<int>(
+                        op_model.output_buffers[edge.producer_output_port_id].total_size_bytes() / pcie_bw));
+            }
         }
         else
         {
@@ -1239,6 +1545,135 @@ bool buffer_graph(
     }
 
     return graph_modified;
+}
+
+float RibbonSolution::evaluate() const
+{
+    float pipeline_cycles = 0;
+    const int non_matmul_penalty = 128;
+    log_trace(LogBalancer, "RIBBON2: Calculating solution score for ribbon size {}", ribbon_size);
+    for (auto &op : ops)
+    {
+        // We have full epoch candidate. Recalculate impact on data BW.
+        //
+        int cycles = get_limiter_cycles(
+            op.model,
+            graph,
+            *balancer_config,
+            dram_readers_core_count + dram_writers_core_count,
+            pcie_readers_core_count + pcie_writers_core_count,
+            &current_epoch_nodes);
+
+        if (cycles > pipeline_cycles)
+            pipeline_cycles = cycles;
+    }
+
+    log_trace(LogBalancer, "RIBBON2: pipeline_cycles = {}", pipeline_cycles);
+
+    float used_cores = 0;
+    float utilization = 0;
+    for (auto &op : ops)
+    {
+        std::uint32_t cores = op.model.grid_shape.volume();
+        used_cores += cores;
+
+        if (op.op->is_matmul_not_sparse())
+        {
+            utilization += cores * (op.model.get_execution_cycles(balancer_config->device_config.arch_name, true) /
+                                    pipeline_cycles);
+        }
+        else if (!env_as<bool>("PYBUDA_RIBBON2_DISABLE_NON_MATMUL_UTIL", 0) and !op.op->is_buffering_op())
+        {
+            utilization +=
+                cores *
+                (op.model.get_execution_cycles(balancer_config->device_config.arch_name, true) / pipeline_cycles) /
+                non_matmul_penalty;
+        }
+    }
+
+    log_trace(
+        LogBalancer,
+        "RIBBON2: pipeline_cycles = {}, epoch_target_cycles = {}, used_cores = {}, "
+        "utilization = {}",
+        pipeline_cycles,
+        epoch_target_cycles,
+        used_cores,
+        utilization);
+
+    this->pipeline_cycles = pipeline_cycles;
+
+    return utilization;
+}
+
+void RibbonSolution::print() const
+{
+    for (auto &op : ops)
+    {
+        log_trace(
+            LogBalancer,
+            "RIBBON2: (ribbon={})   {}: {}",
+            ribbon_size,
+            op.op->name(),
+            get_limiter_cycles(op.model, graph, *balancer_config));
+    }
+}
+
+void RibbonSolution::recalc_nodes()
+{
+    dram_readers_core_count = 0;
+    dram_writers_core_count = 0;
+    current_epoch_ops.clear();
+    current_epoch_nodes.clear();
+    for (const auto &op : ops)
+    {
+        current_epoch_ops.insert(op.op);
+    }
+    current_epoch_nodes = calculate_current_epoch_nodes(graph, current_epoch_ops);
+
+    for (const auto &op : ops)
+    {
+        std::vector<Edge> data_operands = graph->operand_data_edges(op.model.buda_op_node);
+        std::vector<Edge> data_users = graph->user_data_edges(op.model.buda_op_node);
+
+        for (const Edge &edge : data_operands)
+        {
+            Node *producer_node = graph->node_by_id(edge.producer_node_id);
+            bool producer_is_queue = producer_node->node_type() == tt::graphlib::NodeType::kQueue ||
+                                     producer_node->node_type() == tt::graphlib::NodeType::kInput;
+
+            if (producer_is_queue and !op.model.parameter_buffers[edge.consumer_input_port_id])
+            {
+                if (!is_input_host_queue(balancer_config->input_queues_on_host, producer_node))
+                {
+                    dram_readers_core_count += op.model.get_input_grid_shape(edge.consumer_input_port_id).volume();
+                }
+                else
+                {
+                    pcie_readers_core_count += op.model.get_input_grid_shape(edge.consumer_input_port_id).volume();
+                }
+            }
+        }
+
+        for (const Edge &edge : data_users)
+        {
+            const tt::graphlib::Node *user_node = graph->node_by_id(edge.consumer_node_id);
+            bool consumer_is_queue = user_node->node_type() == tt::graphlib::NodeType::kQueue ||
+                                     user_node->node_type() == tt::graphlib::NodeType::kOutput ||
+                                     current_epoch_nodes.count(user_node) == 0;
+
+            if (consumer_is_queue)
+            {
+                if (!is_output_host_queue(balancer_config->output_queues_on_host, graph, user_node))
+                {
+                    dram_writers_core_count += op.model.grid_shape.volume();
+                }
+                else
+                {
+                    pcie_writers_core_count += op.model.grid_shape.volume();
+                }
+            }
+        }
+    }
 }
 
 }  // namespace tt::balancer

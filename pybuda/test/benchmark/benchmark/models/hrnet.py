@@ -43,6 +43,8 @@ def hrnet(training: bool, config: str, microbatch: int, devtype: str, arch: str,
         if data_type != "Bfp8_b":
             os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
             os.environ["PYBUDA_RIBBON2_DISABLE_NON_MATMUL_UTIL"] = "1"
+            os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
+            os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
         os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
 
     # Manually enable amp light for Ribbon

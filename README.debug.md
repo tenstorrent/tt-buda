@@ -106,6 +106,7 @@
  * PYBUDA\_RIBBON1\_PREPASS\_ENABLED: Whether to use or not suboptimal opmodel invalidation prepass. Default value is False.
  * PYBUDA\_RIBBON2\_OPTIMIZATION\_ITERATIONS: Number of optimization iterations in Ribbon2 balancing policy. Default value is 0.
  * PYBUDA\_RIBBON2\_DISABLE\_CLEANUP\_BUF\_NOPS: Disable cleanup of unneeded buffering nops in Ribbon2. (default: 0/False)
+ * PYBUDA\_RIBBON2\_CALCULATE\_TARGET\_CYCLES: Calculate target cycles for every epoch within Ribbon2 balancing policy. (default: 0/False)
  * PYBUDA\_AUTO\_RECOMPILE: Triggers handling of backend compile error and recompiles the model. (default: 0/False)
  * PYBUDA\_AUTO\_RECOMPILE\_RETRY\_LIMIT: Limits number of attempts to recompile. (default: 10)
  * PYBUDA\_TARGET\_CYCLES\_OFFSET: Sets the desired amount by which to offset the target cycles for balancer. Default value is 0.
@@ -116,3 +117,4 @@
 * PYBUDA\_TEMP\_ELT\_UNARY\_ESTIMATES\_LEGACY: Force legacy path of calculating execution cycles for eltwise unary ops - instead of calling into BBE, use hand-crafted FE-side logic
 * PYBUDA\_TEMP\_ENABLE\_NEW\_FUSED\_ESTIMATES: Apply new formula to estimate the cycle count of fused ops. The formula calls BBE to estimate each subop and sums up the results.
 * PYBUDA\_LEGACY\_KERNEL\_BROADCAST: Use legacy kernel broadcast detection path. Will detect fewer kernel broadcasts, and will oftentimes use more tiles (longer KBs).
+* PYBUDA\_TEMP\_BALANCER\_MODEL\_PCIE\_BW: Estimate PCIe bandwidth in limiter cycles. (default: 1/True)

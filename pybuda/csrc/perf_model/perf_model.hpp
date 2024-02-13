@@ -32,14 +32,20 @@ class PerfModel
         graphlib::Graph *g,
         const std::string &graph_name,
         const DeviceConfig &device_config,
-        const std::shared_ptr<balancer::BalancerSolution> balancer_solution);
+        const std::shared_ptr<balancer::BalancerSolution> balancer_solution,
+        bool input_queues_on_host,
+        bool output_queues_on_host);
 
     using NodeMap = std::unordered_map<graphlib::Node *, NodeP>;
 
     std::unordered_map<std::string, float> get_results() const { return results; }
 
    private:
-    void create_graphs(graphlib::Graph *g, const std::shared_ptr<balancer::BalancerSolution> balancer_solution);
+    void create_graphs(
+        graphlib::Graph *g,
+        const std::shared_ptr<balancer::BalancerSolution> balancer_solution,
+        bool input_queues_on_host,
+        bool output_queues_on_host);
     void calculate_ideal_bws(const SystemSpec &system);
 
     void create_op(
@@ -70,8 +76,9 @@ std::unordered_map<std::string, float> run_performance_model(
     graphlib::Graph *g,
     const std::string &graph_name,
     const DeviceConfig &device_config,
-    const std::shared_ptr<balancer::BalancerSolution> balancer_solution);
+    const std::shared_ptr<balancer::BalancerSolution> balancer_solution,
+    bool input_queues_on_host,
+    bool output_queues_on_host);
 
 }  // namespace perf_model
 }  // namespace tt
-

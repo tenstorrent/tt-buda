@@ -153,12 +153,12 @@ std::vector<NodeP> Graph::get_outputs() const
     return ret;
 }
 
-void OpPerfData::_get_bw_limited_execution_cycles(const DeviceConfig &device_config, const graphlib::Graph *graph)
+void OpPerfData::_get_bw_limited_execution_cycles(const DeviceConfig &device_config, const graphlib::Graph *graph, bool input_queues_on_host, bool output_queues_on_host)
 {
     if (_has_bw_limited_execution_cycles)
         return;
 
-    _cycle_bw_limited = get_limiter_cycles(op_model, graph, device_config);
+    _cycle_bw_limited = get_limiter_cycles(op_model, graph, device_config, input_queues_on_host, output_queues_on_host);
     _has_bw_limited_execution_cycles = true;
 }
 

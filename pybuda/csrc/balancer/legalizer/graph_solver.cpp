@@ -1925,6 +1925,52 @@ void GraphSolver::invalidate_suboptimal_op_models_for_op(
     }
 }
 
+void GraphSolver::set_filter_grid_size(graphlib::Node const* node, OpModel const& role_op_model)
+{
+    const std::vector<tt::balancer::OpModel>& op_models = get_legal_op_models(node);
+
+    Bitset* node_bitset = get_bitset(node->id());
+    Bitset temp_bitset = *node_bitset;
+    std::uint32_t op_model_count = std::min(kNumBitsetBits, std::max(1lu, op_models.size()));
+    Bitset discarded_op_models_bitset;
+    for (size_t i = 0; i < op_model_count; i++)
+    {
+        if (!node_bitset->test(i))
+        {
+            continue;
+        }
+
+        if (op_models[i].grid_shape.c > role_op_model.grid_shape.c || op_models[i].grid_shape.r != role_op_model.grid_shape.r)
+        {
+            discarded_op_models_bitset.set(i);
+        }
+    }
+
+    if (discarded_op_models_bitset.none())
+    {
+        return;
+    }
+
+    temp_bitset &= ~discarded_op_models_bitset;
+
+    TT_ASSERT(temp_bitset.any());
+
+    *node_bitset = temp_bitset;
+
+    auto it = op_disabled_bitset_cache.find(node->id());
+
+    if (it == op_disabled_bitset_cache.end())
+    {
+        op_disabled_bitset_cache.emplace(node->id(), discarded_op_models_bitset);
+    }
+    else
+    {
+        it->second |= discarded_op_models_bitset;
+    }
+
+    update_solver(node);
+}
+
 #ifdef DEBUG
 // Computes and logs if there are valid connections for this edge among paths
 // that were discarded by previously computed edges(edge eliminated by disabling some OpModels).

@@ -262,7 +262,11 @@ void PerfModel::create_queue(
     }
 }
 
-void PerfModel::create_graphs(graphlib::Graph *g, const std::shared_ptr<balancer::BalancerSolution> balancer_solution)
+void PerfModel::create_graphs(
+    graphlib::Graph *g,
+    const std::shared_ptr<balancer::BalancerSolution> balancer_solution,
+    bool input_queues_on_host,
+    bool output_queues_on_host)
 {
     graph = std::make_unique<Graph>();
     NodeMap node_map;                     // map of original graph to perf graph nodes
@@ -290,7 +294,9 @@ void PerfModel::create_graphs(graphlib::Graph *g, const std::shared_ptr<balancer
                         << op->get_perf_data()->op_perf_data.grid.size_c << ", "
                         << op->get_perf_data()->output.size_in_tiles() << ", "
                         << op->get_perf_data()->op_perf_data.cycle_count_ideal(device_config.arch_name) << ", "
-                        << op->get_perf_data()->op_perf_data.cycle_count_bw_limited(device_config, g) << std::endl;
+                        << op->get_perf_data()->op_perf_data.cycle_count_bw_limited(
+                               device_config, g, input_queues_on_host, output_queues_on_host)
+                        << std::endl;
         }
         else if (node->node_type() == graphlib::NodeType::kBudaNaryTM)
             create_tm(g, node->as<graphlib::BudaNaryTMNode>(), balancer_solution, node_map, epoch_node_map);
@@ -543,12 +549,13 @@ PerfModel::PerfModel(
     graphlib::Graph *g,
     const std::string &graph_name,
     const DeviceConfig &device_config,
-    const std::shared_ptr<balancer::BalancerSolution> balancer_solution) :
-    graph_name(graph_name),
-    device_config(device_config)
+    const std::shared_ptr<balancer::BalancerSolution> balancer_solution,
+    bool input_queues_on_host,
+    bool output_queues_on_host) :
+    graph_name(graph_name), device_config(device_config)
 {
     // create main and epoch graphs
-    create_graphs(g, balancer_solution);
+    create_graphs(g, balancer_solution, input_queues_on_host, output_queues_on_host);
     SystemSpec system = SystemSpec::get_for_device(device_config);
 
     // calculate ideal bandwidths for queues and ops
@@ -607,12 +614,13 @@ std::unordered_map<std::string, float> run_performance_model(
     graphlib::Graph *g,
     const std::string &graph_name,
     const DeviceConfig &device_config,
-    const std::shared_ptr<balancer::BalancerSolution> balancer_solution)
+    const std::shared_ptr<balancer::BalancerSolution> balancer_solution,
+    bool input_queues_on_host,
+    bool output_queues_on_host)
 {
     log_info(tt::LogPerfModel, "Running performance model...");
-    PerfModel model = PerfModel(g, graph_name, device_config, balancer_solution);
+    PerfModel model = PerfModel(g, graph_name, device_config, balancer_solution, input_queues_on_host, output_queues_on_host);
     return model.get_results();
 }
 
 }  // namespace tt::perf_model
-

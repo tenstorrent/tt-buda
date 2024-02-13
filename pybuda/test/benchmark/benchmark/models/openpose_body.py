@@ -19,9 +19,8 @@ def openpose_osmr_body(training: bool, config: str, microbatch: int, devtype: st
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"
         os.environ["PYBUDA_RIBBON2"] = "1" 
-        
+
     os.environ["PYBUDA_SUPRESS_T_FACTOR_MM"] = "13"
-    os.environ["PYBUDA_OP_MODEL_COMPARE_VERSION"] = "1"
 
     # These are about to be enabled by default.
     #

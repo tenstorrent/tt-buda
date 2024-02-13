@@ -83,7 +83,7 @@ struct OpPerfData
         _has_execution_cycles = true;
     }
 
-    void _get_bw_limited_execution_cycles(const DeviceConfig &device_config, const graphlib::Graph *graph);
+    void _get_bw_limited_execution_cycles(const DeviceConfig &device_config, const graphlib::Graph *graph, bool input_queues_on_host, bool output_queues_on_host);
 
    public:
     std::uint32_t cycle_count_ideal(std::string const &arch_name)
@@ -96,9 +96,9 @@ struct OpPerfData
         _get_execution_cycles(arch_name);
         return _theoretical_cycles;
     }
-    std::uint32_t cycle_count_bw_limited(const DeviceConfig &device_config, const graphlib::Graph *graph)
+    std::uint32_t cycle_count_bw_limited(const DeviceConfig &device_config, const graphlib::Graph *graph, bool input_queues_on_host, bool output_queues_on_host)
     {
-        _get_bw_limited_execution_cycles(device_config, graph);
+        _get_bw_limited_execution_cycles(device_config, graph, input_queues_on_host, output_queues_on_host);
         return _cycle_bw_limited;
     }
 };

@@ -498,6 +498,7 @@ class GraphSolver
     const CutEdges& get_cut_edges() const { return cut_edges; }
     const OpModels& get_selected_op_models() const { return selected_op_models; }
     void invalidate_suboptimal_op_models(int invalidation_strategy);
+    void set_filter_grid_size(graphlib::Node const* node, OpModel const& role_op_model);
 #ifdef DEBUG
     void compute_edge_elimination_debug_info(
         graphlib::Edge& edge,
