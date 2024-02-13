@@ -268,7 +268,8 @@ std::vector<TTDevice> query_available_tt_devices()
 {
     static std::shared_ptr<TTContext> context = std::make_shared<TTContext>();
     std::vector<TTDevice> d;
-    if (env_as<bool>("PYBUDA_DEVMODE"))
+    auto available_devices = backend::get_device_descs_for_available_devices();
+    if (available_devices.empty())
     {
         constexpr bool mmio = true;
         ARCH arch = env_as<bool>("GOLDEN_WORMHOLE_B0") ? ARCH::WORMHOLE_B0 : ARCH::GRAYSKULL;
@@ -277,7 +278,6 @@ std::vector<TTDevice> query_available_tt_devices()
     }
     else
     {
-        auto available_devices = backend::get_device_descs_for_available_devices();
         int index = 0;
         for (auto desc : available_devices)
         {
