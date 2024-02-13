@@ -331,6 +331,45 @@ torch::Tensor empty(
     return empty_strided(size, stride, dtype, layout, device, pin_memory);
 }
 
+// torch::Tensor to(
+//     const torch::Tensor& self,
+//     c10::optional<c10::ScalarType> dtype,
+//     c10::optional<c10::Layout> layout,
+//     c10::optional<c10::Device> device,
+//     c10::optional<bool> pin_memory,
+//     bool non_blocking,
+//     bool copy,
+//     c10::optional<c10::MemoryFormat> optional_memory_format
+// ) 
+// {
+//     (void)dtype;
+//     (void)layout;
+//     (void)device;
+//     (void)pin_memory;
+//     (void)non_blocking;
+//     (void)copy;
+//     (void)optional_memory_format;
+//     return self;
+// }
+// torch::Tensor _to_copy(
+//     const torch::Tensor& self,
+//     c10::optional<c10::ScalarType> dtype,
+//     c10::optional<c10::Layout> layout,
+//     c10::optional<c10::Device> device,
+//     c10::optional<bool> pin_memory,
+//     bool non_blocking,
+//     c10::optional<c10::MemoryFormat> optional_memory_format)
+// {
+//     (void)dtype;
+//     (void)layout;
+//     (void)device;
+//     (void)pin_memory;
+//     (void)non_blocking;
+//     (void)optional_memory_format;
+//     //TODO: Implement me
+//     return self;
+// }
+
 torch::Tensor _copy_from(const torch::Tensor& self, const torch::Tensor& dest, bool non_blocking)
 {
     PyGILState_STATE gstate=PyGILState_Ensure();
@@ -554,6 +593,8 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
     m.impl("aten::empty.memory_format", &tt::empty);
     m.impl("aten::empty_strided", &tt::empty_strided);
     m.impl("aten::_copy_from", &tt::_copy_from);
+    // m.impl("aten::_to_copy", &tt::_to_copy);
+    // m.impl("aten::to", &tt::to);
     m.impl("aten::_copy_from_and_resize", &tt::_copy_from_and_resize);
     m.impl("aten::_reshape_alias", &tt::_reshape_alias);
     m.impl("aten::as_strided", &tt::as_strided);

@@ -15,7 +15,7 @@ from pybuda._C.graph import get_constant_input_value, Graph
 from pybuda._C.backend_api import translate_addresses
 from pybuda._C.torch_device import get_default_device, push_tensor, is_created_on_device, original_shape, unique_id, PyBudaTensorDesc, CompileRequest, Program 
 from loguru import logger
-from pybuda.capture_fx_graph import append_to_graph
+from pybuda.capture_fx_graph import append_to_graph, is_nop_graph, is_constant_graph, has_output
 from pybuda.tensor import const_eval_tensor, do_runtime_transform
 from pybuda.compiled_graph_state import CompiledGraphState
 _tt0 = None
@@ -394,7 +394,9 @@ def _torch_compile(
 
     rand_inputs = [torch.rand(sample_input.shape).to(sample_input.dtype).to("cpu") for sample_input in sample_inputs]
 
-    # WOrkload needs to know linked tensors
+    if is_nop_graph(aten_module) or is_constant_graph(aten_module) or (not has_output(aten_module)):
+        return module.forward
+
     workload, compiled_graph_state = _compile_cached(
         module, aten_module, module_name, rand_inputs, device, compiler_cfg, cache
     )

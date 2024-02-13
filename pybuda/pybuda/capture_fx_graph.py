@@ -562,7 +562,6 @@ def map_node_name_to_org_name(module, aten_module):
 
 def append_to_graph(graph, module, aten_module, activations, subgraph_idx, inputs_per_subgraph, outputs_per_subgraph):
     param_name_map = map_node_name_to_org_name(module, aten_module)
-    aten_module.graph.print_tabular()
 
     tt_act = [a.to("tt") for a in activations]
     torch.fx.passes.shape_prop.ShapeProp(aten_module).propagate(*tt_act)
@@ -642,3 +641,30 @@ def append_to_graph(graph, module, aten_module, activations, subgraph_idx, input
 
     output_nodes_per_subgraph[subgraph_idx] = output_nids
     return graph, id_to_intermed, output_tensors
+
+
+def call_function_is_nop(node):
+    assert node.op == "call_function"
+    op_name = node.target.__name__
+    if op_name in dynamo_to_pybuda_function:
+        return dynamo_to_pybuda_function[op_name][1] == "nop"
+    else:
+        return False
+
+def is_nop_graph(module):
+    for node in module.graph.nodes:
+        if node.op == "call_function" and not call_function_is_nop(node):
+            return False
+    return True
+
+def is_constant_graph(module):
+    for node in module.graph.nodes:
+        if node.op == "placeholder":
+            return False
+    return True
+
+def has_output(module):
+    for node in module.graph.nodes:
+        if node.op == "output" and len(node.all_input_nodes) > 0:
+            return True
+    return False

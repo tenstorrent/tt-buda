@@ -416,7 +416,6 @@ def test_no_output_graph():
     model = torch.compile(NoOutputGraph(), backend=compile_torch)
     input = torch.tensor([[1.0]])
     tt_res = model(input.to('tt'))
-    tt_res = tt_res.to('cpu')
 
     cpu_res = NoOutputGraph()(input)
     assert cpu_res == tt_res
