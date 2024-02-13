@@ -799,6 +799,7 @@ class TTDevice(Device):
 
         compile_context: Optional[CompileContext] = None
         if should_compile:
+            compiler_cfg.apply_env_config_overrides()
             compile_context = CompileContext(
                 dev=self,
                 graph_name=self.modules[0].get_name(),
@@ -816,7 +817,6 @@ class TTDevice(Device):
 
             if should_compile:
                 assert compile_context is not None
-                compile_context.device_cfg = self.get_device_config(compiler_cfg)
                 self._compile_output = pybuda_compile_from_context(compile_context)
 
                 self._compiled_graph_state = CompiledGraphState.from_compiled_graph(self, self._compile_output)
