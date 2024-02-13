@@ -83,7 +83,7 @@ def test_one_shelf_bert_large_demo(test_device):
         for i in range(num_enc):
             am_consumer_ops.append(f"add_{17+53*i}")
 
-        config.insert_buffering_nop("attention_mask", am_consumer_ops)
+        config.insert_nop("attention_mask", am_consumer_ops)
 
     def apply_config_overrides(config):
         for i in range(num_enc):
@@ -145,10 +145,10 @@ def test_two_shelf_bert_large_demo(test_device):
         for i in range(num_enc):
             am_consumer_ops.append(f"add_{17+53*i}")
 
-        config.insert_buffering_nop("attention_mask", am_consumer_ops)
+        config.insert_nop("attention_mask", am_consumer_ops)
         curr_buffer_name = am_consumer_ops[0]
         for i in range(num_enc):
-            config.insert_buffering_nop(curr_buffer_name, am_consumer_ops[i+1:], hoist_tms=False)
+            config.insert_nop(curr_buffer_name, am_consumer_ops[i+1:], hoist_tms=False)
             curr_buffer_name = f"buffer_0_{curr_buffer_name}_{am_consumer_ops[i+1]}"
 
     def apply_config_overrides(config):

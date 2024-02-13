@@ -1511,7 +1511,7 @@ bool buffer_graph(
 
     for (auto it : inst)
     {
-        if (it.second->instr_type == InsructionType::NopInstruction)
+        if (it.second->instr_type == InstructionType::NopInstruction)
         {
             NopInsertionInstruction *nopInsertInst = static_cast<NopInsertionInstruction *>(it.second.get());
             for (graphlib::Edge edge : graph->get_edges(
@@ -1525,7 +1525,7 @@ bool buffer_graph(
                 buffer_info.emplace_back(edge, nopInsertInst->nop_count, nopInsertInst->hoist_tms);
             }
         }
-        else if (it.second->instr_type == InsructionType::QueueInstruction)
+        else if (it.second->instr_type == InstructionType::QueueInstruction)
         {
             QueueInsertionInstruction *qInsertInst = static_cast<QueueInsertionInstruction *>(it.second.get());
             std::function<bool(Edge)> edge_filter = [qInsertInst](Edge edge)

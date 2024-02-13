@@ -661,7 +661,7 @@ void NopInsertionInstruction::insert(graphlib::Graph *graph)
                     graphlib::create_node<graphlib::BudaOpNode>(op_name(src, original_dest, graph), "nop"),
                     graph->get_subgraph_id_for_node(src->id()));
                 buffer_nop->set_shape(src->shape());
-                buffer_nop->set_buffering_op(true);
+                buffer_nop->set_buffering_op(this->is_fj_buffering);
                 buffer_nop->tag("mergeable", this->mergeable);
 
                 graphlib::BudaOpNode* src_op = dynamic_cast<graphlib::BudaOpNode*>(src);
@@ -1303,7 +1303,7 @@ int buffering_queues_mem_consumption(
     int buff_queue_memory_consumption = 0;
     for (auto instruction : instructions)
     {
-        if (instruction.second->instr_type == InsructionType::QueueInstruction)
+        if (instruction.second->instr_type == InstructionType::QueueInstruction)
         {
             QueueInsertionInstruction *que_instr = static_cast<QueueInsertionInstruction *>(instruction.second.get());
             buff_queue_memory_consumption += que_instr->queue_size;
@@ -1319,17 +1319,17 @@ void insert_queue_ins_to_instructions(
     std::shared_ptr<InsertionInstruction> new_ins)
 {
     TT_ASSERT(
-        new_ins.get()->instr_type == InsructionType::QueueInstruction,
-        "Instruction has to be of type InsructionType::QueueInstruction");
+        new_ins.get()->instr_type == InstructionType::QueueInstruction,
+        "Instruction has to be of type InstructionType::QueueInstruction");
     if (instructions.count(key) > 0)
     {
-        if (instructions[key].get()->instr_type == InsructionType::NopInstruction)
+        if (instructions[key].get()->instr_type == InstructionType::NopInstruction)
         {
             // if instructions contains element with key equal to key and current instruction is NopInstruction,
             // we replace it with queue instruction. This is because if we add queue on the path, we don't need nops on that path.
             instructions[key] = new_ins;
         }
-        else if (instructions[key].get()->instr_type == InsructionType::QueueInstruction)
+        else if (instructions[key].get()->instr_type == InstructionType::QueueInstruction)
         {
             // if instructions contains element with key equal to key and current instruction is QueueInstruction,
             // we update num entries of the queue to the maximum of the num_entries of two instructions.
@@ -1737,8 +1737,15 @@ void add_buffering_on_path(
                     graphlib::Edge e = edges[fork_id];
                     if (e.consumer_node_id == dest->id())
                     {
+                        static const bool fix_2351 = env_as<bool>("PYBUDA_TEMP_FIX_2351", false);
                         InsInstructionUniqueId key = InsInstructionUniqueId(
-                            src->name(), dest->name(), e.consumer_input_port_id, fork_id, merge_nops);
+                            src->name(),
+                            dest->name(),
+                            e.consumer_input_port_id,
+                            fork_id,
+                            merge_nops,
+                            !fix_2351 /* is_fj_buffering */);  // this should be set to true, unless the env is applied
+
                         if (instructions.count(key) > 0)
                         {
                             if (NopInsertionInstruction *nop_instr =
@@ -1764,7 +1771,8 @@ void add_buffering_on_path(
                                 nop_count /* nop_count */,
                                 e.consumer_input_port_id /* input_id */,
                                 fork_id /* fork_id */,
-                                merge_nops);
+                                merge_nops,
+                                true /* is_fj_buffering */);
                             instructions[key] = ins;
                         }
                     }
@@ -1802,11 +1810,11 @@ std::tuple<bool, int, int> is_subset_of_instructions(
         if (previous_instructions.count(key) == 0)
         {
             // if new instructions contain insertion instruction key and previous_instructions don't
-            if (instr->instr_type == InsructionType::QueueInstruction)
+            if (instr->instr_type == InstructionType::QueueInstruction)
             {
                 num_new_queues++;
             }
-            else if (instr->instr_type == InsructionType::NopInstruction)
+            else if (instr->instr_type == InstructionType::NopInstruction)
             {
                 num_new_nops += static_cast<NopInsertionInstruction *>(instr)->nop_count;
             }
@@ -1821,9 +1829,9 @@ std::tuple<bool, int, int> is_subset_of_instructions(
             // if previous_instructions contain instruction key and that instruction is NopInstruction
             // we stil have to check if nop count is unchanged. If nop count is changed then we still return false
             InsertionInstruction *prev_instr = previous_instructions.at(key).get();
-            if (prev_instr->instr_type == InsructionType::NopInstruction)
+            if (prev_instr->instr_type == InstructionType::NopInstruction)
             {
-                if (instr->instr_type == InsructionType::NopInstruction)
+                if (instr->instr_type == InstructionType::NopInstruction)
                 {
                     int prev_nop_count = static_cast<NopInsertionInstruction *>(prev_instr)->nop_count;
                     int curr_nop_count = static_cast<NopInsertionInstruction *>(instr)->nop_count;
@@ -1833,7 +1841,7 @@ std::tuple<bool, int, int> is_subset_of_instructions(
                         num_new_nops += (curr_nop_count - prev_nop_count);
                     }
                 }
-                else if (instr->instr_type == InsructionType::QueueInstruction)
+                else if (instr->instr_type == InstructionType::QueueInstruction)
                 {
                     num_new_queues++;
                 }
@@ -1880,8 +1888,8 @@ append_prev_instr(
             // previous_instructions maps because if queue instruction is in previous_instructions map then that
             // fork-join is resolved and new instructions won't have that queue. however for future it is better to
             // check.
-            if (instr->instr_type == InsructionType::NopInstruction &&
-                combined_instructions.at(key)->instr_type == InsructionType::NopInstruction)
+            if (instr->instr_type == InstructionType::NopInstruction &&
+                combined_instructions.at(key)->instr_type == InstructionType::NopInstruction)
             {
                 // if we already have instructions for nop insertion on that place, we just update nop_count
                 NopInsertionInstruction *nop_instr = static_cast<NopInsertionInstruction *>(instr.get());

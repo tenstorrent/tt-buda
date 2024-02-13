@@ -119,3 +119,5 @@
 * PYBUDA\_LEGACY\_KERNEL\_BROADCAST: Use legacy kernel broadcast detection path. Will detect fewer kernel broadcasts, and will oftentimes use more tiles (longer KBs).
 * PYBUDA\_TEMP\_BALANCER\_MODEL\_PCIE\_BW: Estimate PCIe bandwidth in limiter cycles. (default: 1/True)
 * PYBUDA\_TEMP\_BALANCER\_DISABLE\_TARGET\_PROXIMITY: Disable target proximity in balancer. (default: 0/False)
+* PYBUDA\_TEMP\_DISABLE\_FJ\_NOP\_SCHEDULE\_FIX: This flag disables a fix that forces FJ buffering nops to be scheduled last.
+* PYBUDA\_TEMP\_FIX\_2351: Controls the fix for bug #2351 - fork-join can end up adding buffering nops and queues on same path, this control flag fixes it.

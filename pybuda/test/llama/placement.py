@@ -51,7 +51,7 @@ def manual_placer(config, filename, loops=1, non_fuse_offset=0):
         }
     }
     and uses config.override_op_size, config.override_op_placement,
-    config.insert_buffering_nop, config.add_schedule_constraint,
+    config.insert_nop, config.add_schedule_constraint,
     config.set_chip_break, config.set_epoch_break and INSERT_DRAM_QUEUES
     env variable. Loop offsets are used to apply the same placement to
     multiple epochs from a single file. YMMV. See example_placement.json.
@@ -112,7 +112,7 @@ def manual_placer(config, filename, loops=1, non_fuse_offset=0):
                     transpose = grid_location_properties.get("transpose", False)
 
                 print("Insert nop buffer between {} and {}, hoist_tms: {}".format(op_name_src, op_name_dest, hoist_tms))
-                config.insert_buffering_nop(op_name_src, op_names_dest, hoist_tms=hoist_tms)
+                config.insert_nop(op_name_src, op_names_dest, hoist_tms=hoist_tms)
 
                 if size is not None:
                     config.override_op_size(buffer_node_name, size)
@@ -157,7 +157,7 @@ def manual_placer(config, filename, loops=1, non_fuse_offset=0):
                 op_names_dest = all_op_names_dest[loop:]
 
                 print("Insert daisy chain nop buffer between {} and {}, hoist_tms: {}".format(buffer_name, op_names_dest, hoist_tms))
-                config.insert_buffering_nop(buffer_name, op_names_dest, hoist_tms=hoist_tms)
+                config.insert_nop(buffer_name, op_names_dest, hoist_tms=hoist_tms)
 
                 new_buffer_name = "buffer_0_{}_{}".format(buffer_name, op_names_dest[0])
 

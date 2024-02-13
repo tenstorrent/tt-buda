@@ -442,7 +442,7 @@ def test_pt_encoder_golden_save_and_load(test_device, pybuda_module):
 def test_tti_buffer_queue(test_device, pybuda_module):
     pybuda.config.set_configuration_options()
     pybuda.config.override_op_size("matmul_22", (2,2))
-    pybuda.config.insert_buffering_nop("matmul_22", "matmul_29", hoist_tms = False)
+    pybuda.config.insert_nop("matmul_22", "matmul_29", hoist_tms = False)
     pybuda.config.override_dram_queue_placement("layer.0.attention.self.query.weight", channel=4)
     pybuda_module._save_device_image(
         device_name = "tti_buffer_queue",

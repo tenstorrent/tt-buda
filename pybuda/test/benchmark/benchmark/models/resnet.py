@@ -31,6 +31,7 @@ def resnet(training: bool, config: str, microbatch: int, devtype: str, arch: str
         if data_type != "Bfp8_b":
             os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
             os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES_APPLY_FILTERING"] = "1"
+            os.environ["PYBUDA_TEMP_DISABLE_FJ_NOP_SCHEDULE_FIX"] = "1"
 
     os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
 
@@ -297,7 +298,7 @@ def resnet50_layer(training: bool, config: str, microbatch: int, devtype: str, a
             fractured_conv_sparse_mms = [f"conv2d_0.dc.conv2d.3.dc.conv2d.{1 + i * 2}.dc.sparse_matmul.9.dc.sparse_matmul.1.lc2" for i in range(fracture_factor)]
             fractured_conv_dense_mms = [f"conv2d_0.dc.conv2d.3.dc.conv2d.{1 + i * 2}.dc.matmul.11" for i in range(fracture_factor)]
 
-            pybuda.insert_buffering_nop(
+            pybuda.insert_nop(
                 "input_1",
                 fractured_conv_sparse_mms,
                 hoist_tms=True)

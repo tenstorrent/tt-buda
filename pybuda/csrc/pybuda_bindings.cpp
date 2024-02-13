@@ -226,6 +226,7 @@ PYBIND11_MODULE(_C, m) {
                 bool,
                 bool,
                 bool,
+                bool,
                 bool>(),
             py::arg("src"),
             py::arg("dest"),
@@ -236,14 +237,15 @@ PYBIND11_MODULE(_C, m) {
             py::arg("user_defined") = false,
             py::arg("mergeable") = false,
             py::arg("daisy_chain") = false,
-            py::arg("request_merge") = false)
+            py::arg("request_merge") = false,
+            py::arg("is_fj_buffering") = false)
         .def(py::pickle(
             [](const NopInsertionInstruction &p) {  // __getstate__
                 return py::make_tuple(
-                    p.src, p.dest, p.hoist_tms, p.nop_count, p.input_id, p.fork_id, p.user_defined, p.mergeable, p.daisy_chain, p.request_merge);
+                    p.src, p.dest, p.hoist_tms, p.nop_count, p.input_id, p.fork_id, p.user_defined, p.mergeable, p.daisy_chain, p.request_merge, p.is_fj_buffering);
             },
             [](py::tuple t) {  // __setstate__
-                if (t.size() != 10)
+                if (t.size() != 11)
                     throw std::runtime_error("Invalid state!");
 
                 NopInsertionInstruction p(
@@ -256,7 +258,8 @@ PYBIND11_MODULE(_C, m) {
                     t[6].cast<bool>(),
                     t[7].cast<bool>(),
                     t[8].cast<bool>(),
-                    t[9].cast<bool>());
+                    t[9].cast<bool>(),
+                    t[10].cast<bool>());
                 return p;
             }))
         .def(
@@ -274,6 +277,7 @@ PYBIND11_MODULE(_C, m) {
                 d["mergeable"] = p.mergeable;
                 d["daisy_chain"] = p.daisy_chain;
                 d["request_merge"] = p.request_merge;
+                d["is_fj_buffering"] = p.is_fj_buffering;
                 return d;
             })
         .def(
@@ -303,6 +307,8 @@ PYBIND11_MODULE(_C, m) {
                     nii.daisy_chain = std::get<bool>(match->second);
                 if (auto match = d.find("request_merge"); match != d.end())
                     nii.request_merge = std::get<bool>(match->second);
+                if (auto match = d.find("is_fj_buffering"); match != d.end())
+                    nii.is_fj_buffering = std::get<bool>(match->second);
                 return nii;
             })
         .def("unique_id", &NopInsertionInstruction::unique_id);

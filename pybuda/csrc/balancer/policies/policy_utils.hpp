@@ -23,7 +23,7 @@ namespace tt
 {
 // last bool in InsInstructionUniqueId represents instruction field mergeable. Tells if nop is mergeable (when two nops
 // have the same producer and are flagged as mergeable, they are merged into one that feeds all of their consummers)
-using InsInstructionUniqueId = std::tuple<std::string, std::string, std::uint32_t, std::uint32_t, bool>;
+using InsInstructionUniqueId = std::tuple<std::string, std::string, std::uint32_t, std::uint32_t, bool, bool>;
 struct InsInstructionUniqueIdHash;
 struct InsertionInstruction;
 }  // namespace tt

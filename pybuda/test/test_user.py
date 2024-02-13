@@ -887,7 +887,7 @@ def test_nop_insertion_api(hoist_tms):
     tt0 = pybuda.TTDevice("tt0", module=PyBudaTestQueryKeyModule(f"query_key_module_hoist_tms_{hoist_tms}"))
 
     # Use API to set manual data format override on an op
-    pybuda.insert_buffering_nop("mha_key", "mha_as", hoist_tms=hoist_tms)
+    pybuda.insert_nop("mha_key", "mha_as", hoist_tms=hoist_tms)
     microbatch_size, seq_len, hidden_dim = (1, 128, 128)
     encoder_input = torch.rand(microbatch_size, seq_len, hidden_dim)
 
@@ -899,7 +899,7 @@ def test_nop_fork_insertion_api(hoist_tms):
     tt0 = pybuda.TTDevice("tt0", module=PyBudaTestQueryKeyModule(f"forking_nop_insertion{hoist_tms}"))
 
     # Use API to set manual data format override on an op
-    pybuda.insert_buffering_nop("encoder_input", ["mha_key", "mha_query"], hoist_tms=hoist_tms)
+    pybuda.insert_nop("encoder_input", ["mha_key", "mha_query"], hoist_tms=hoist_tms)
     microbatch_size, seq_len, hidden_dim = (1, 128, 128)
     encoder_input = torch.rand(microbatch_size, seq_len, hidden_dim)
 
@@ -911,9 +911,9 @@ def test_nop_daily_chain_insertion_api(hoist_tms):
     tt0 = pybuda.TTDevice("tt0", module=PyBudaTestForkWithThreeUsers(f"daisy_chain_nop_insertion{hoist_tms}"))
 
     # Use API to set manual data format override on an op
-    pybuda.insert_buffering_nop("encoder_input", ["mm_a", "mm_b", "mm_c"], hoist_tms=hoist_tms)
-    pybuda.insert_buffering_nop("buffer_0_encoder_input_mm_a", ["mm_b", "mm_c"], hoist_tms=hoist_tms)
-    pybuda.insert_buffering_nop("buffer_0_buffer_0_encoder_input_mm_a_mm_b", ["mm_c"], hoist_tms=hoist_tms)
+    pybuda.insert_nop("encoder_input", ["mm_a", "mm_b", "mm_c"], hoist_tms=hoist_tms)
+    pybuda.insert_nop("buffer_0_encoder_input_mm_a", ["mm_b", "mm_c"], hoist_tms=hoist_tms)
+    pybuda.insert_nop("buffer_0_buffer_0_encoder_input_mm_a_mm_b", ["mm_c"], hoist_tms=hoist_tms)
     microbatch_size, seq_len, hidden_dim = (1, 128, 128)
     encoder_input = torch.rand(microbatch_size, seq_len, hidden_dim)
 

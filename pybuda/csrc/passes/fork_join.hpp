@@ -20,13 +20,13 @@ class Node;
 
 // Instruct pre-placer to insert a NOP between src/dest nodes
 // Further information on iteration attempt, etc. can be added in the future to augment this
-enum InsructionType
+enum InstructionType
 {
     NopInstruction,
     QueueInstruction
 };
 
-using InsInstructionUniqueId = std::tuple<std::string, std::string, std::uint32_t, std::uint32_t, bool>;
+using InsInstructionUniqueId = std::tuple<std::string, std::string, std::uint32_t, std::uint32_t, bool, bool>;
 
 struct InsInstructionUniqueIdHash : public std::unary_function<InsInstructionUniqueId, std::size_t>
 {
@@ -38,6 +38,7 @@ struct InsInstructionUniqueIdHash : public std::unary_function<InsInstructionUni
         tt::hash_combine(seed, static_cast<std::size_t>(std::get<2>(instr)));
         tt::hash_combine(seed, static_cast<std::size_t>(std::get<3>(instr)));
         tt::hash_combine(seed, static_cast<std::size_t>(std::get<4>(instr)));
+        tt::hash_combine(seed, static_cast<std::size_t>(std::get<5>(instr)));
         return seed;
     }
 };
@@ -48,16 +49,12 @@ using ForkJoin = std::pair<std::vector<Node *>, std::vector<Node *>>;
 // information on buffered fork-join
 struct FJBufferingInfo
 {
-    Node* join; /* join node ptr */
-    std::uint32_t req; /* required buffering */
+    Node *join;          /* join node ptr */
+    std::uint32_t req;   /* required buffering */
     std::uint32_t avail; /* available buffering */
-    const ForkJoin* fj; /* pointer to buffered fork-join */
+    const ForkJoin *fj;  /* pointer to buffered fork-join */
 
-    FJBufferingInfo(
-        Node* join,
-        std::uint32_t req,
-        std::uint32_t avail,
-        const ForkJoin* fj) :
+    FJBufferingInfo(Node *join, std::uint32_t req, std::uint32_t avail, const ForkJoin *fj) :
         join(join), req(req), avail(avail), fj(fj)
     {
     }
@@ -86,7 +83,7 @@ struct InsertionInstruction
     std::optional<std::uint32_t> input_id;  // input id into dest; if nullopt, use input_id from original edge
     std::optional<std::uint32_t> fork_id;   // index of output from src; if nullopt, use fork_id from original edge
     bool user_defined;                      // whether these requested NOPs were user-defined
-    InsructionType instr_type;
+    InstructionType instr_type;
     InsertionInstruction() = default;
     InsertionInstruction(
         const std::string &src,
@@ -143,6 +140,7 @@ struct NopInsertionInstruction : public InsertionInstruction
     bool mergeable;           // whether to merge user-defined NOPs with the same src
     bool daisy_chain;         // change the behaviour for merging nops with src->multiple consumers
     bool request_merge;       // enable to invoke the API call to perform the daisy-chain/merge
+    bool is_fj_buffering;     // whether this NOP is inserted for FJ buffering
 
     NopInsertionInstruction() : InsertionInstruction() {}
     NopInsertionInstruction(
@@ -155,20 +153,29 @@ struct NopInsertionInstruction : public InsertionInstruction
         bool user_defined = false,
         bool mergeable = false,
         bool daisy_chain = false,
-        bool request_merge = false) :
+        bool request_merge = false,
+        bool is_fj_buffering = false) :
         InsertionInstruction(src, dest, hoist_tms, input_id, fork_id, user_defined),
         nop_count(nop_count),
         mergeable(mergeable),
         daisy_chain(daisy_chain),
-        request_merge(request_merge)
+        request_merge(request_merge),
+        is_fj_buffering(is_fj_buffering)
     {
-        this->instr_type = InsructionType::NopInstruction;
+        this->instr_type = InstructionType::NopInstruction;
     }
 
     InsInstructionUniqueId unique_id() const override
     {
+        static const bool fix_2351 = env_as<bool>("PYBUDA_TEMP_FIX_2351", false);
+
         return std::make_tuple(
-            this->src, this->dest, this->input_id.value_or(-1), this->fork_id.value_or(-1), this->mergeable);
+            this->src,
+            this->dest,
+            this->input_id.value_or(-1),
+            this->fork_id.value_or(-1),
+            this->mergeable,
+            fix_2351 ? false : this->is_fj_buffering);
     }
 
     void insert(graphlib::Graph *graph) override;
@@ -193,14 +200,14 @@ struct QueueInsertionInstruction : public InsertionInstruction
         num_entries(num_entries),
         queue_size(queue_size)
     {
-        this->instr_type = InsructionType::QueueInstruction;
+        this->instr_type = InstructionType::QueueInstruction;
     }
 
     InsInstructionUniqueId unique_id() const override
     {
         // last parameter in unique id is mergeable, and it is false for QueueInsertionInstruction, since we use it only
         // in NopInsertionInstruction. We need uniform paterns for unique id so we fix mergeable to false for queues.
-        return std::make_tuple(this->src, this->dest, this->input_id.value_or(-1), this->fork_id.value_or(-1), false);
+        return std::make_tuple(this->src, this->dest, this->input_id.value_or(-1), this->fork_id.value_or(-1), false, false);
     }
 
     void insert(graphlib::Graph *graph) override;
@@ -210,7 +217,8 @@ struct QueueInsertionInstruction : public InsertionInstruction
 struct FJBufferingResult
 {
     // Instructions generated for fork-join buffering.
-    tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash> instructions;
+    tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
+        instructions;
     // All fork-joins which were buffered with nops.
     std::vector<ForkJoin> nop_buffered_fjs;
 };
@@ -224,7 +232,8 @@ FJBufferingResult insert_fork_join_buffering(
     const tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
         &previous_ins_instructions,
     const int fork_join_tiles_treshold,
-    std::function<int(const tt::balancer::OpModel &)> buffering_factor = [](const tt::balancer::OpModel &) { return 1; });
+    std::function<int(const tt::balancer::OpModel &)> buffering_factor = [](const tt::balancer::OpModel &)
+    { return 1; });
 
 void upsize_dram_input(graphlib::Graph *graph, balancer::OpModelMap &op_models, const std::uint32_t usable_l1_size);
 
@@ -248,13 +257,11 @@ class FJGraph
     // buffered_fjs map contains information about fork-joins that are already buffered. Key to map is fork node id, and
     // value is tuple of: join node id, required buffering, available buffering, and pointer to buffered fork-join
     // itself.
-    std::unordered_map<NodeId, std::vector<FJBufferingInfo>>
-        buffered_fjs;
+    std::unordered_map<NodeId, std::vector<FJBufferingInfo>> buffered_fjs;
     std::unordered_map<const ForkJoin *, const ForkJoin *> parent_fj_map;
-    std::vector<const ForkJoin*> nop_buffered_fjs;
+    std::vector<const ForkJoin *> nop_buffered_fjs;
 
    public:
-
     FJGraph(graphlib::Graph *graph);
 
     void add_edge(std::uint32_t src, std::uint32_t dest);
@@ -265,30 +272,25 @@ class FJGraph
 
     FJBufferingInfo find_sub_fork_join_from_node(const ForkJoin &fj, const std::vector<Node *> &path, Node *fork);
 
-    void update_buffered_fj_map(const ForkJoin& fj, FJBufferingInfo fj_buff_info);
+    void update_buffered_fj_map(const ForkJoin &fj, FJBufferingInfo fj_buff_info);
 
     // getters
     std::unordered_map<const ForkJoin *, const ForkJoin *> &get_parent_fj_map() { return parent_fj_map; }
 
-    const std::unordered_map<NodeId, std::vector<FJBufferingInfo>>
-        &get_buffered_fjs()
-    {
-        return buffered_fjs;
-    }
+    const std::unordered_map<NodeId, std::vector<FJBufferingInfo>> &get_buffered_fjs() { return buffered_fjs; }
 
     std::vector<const ForkJoin *> get_topo_sorted_fjs() { return topo_sort_fjs; }
     std::vector<ForkJoin> &get_fjs() { return fork_joins; }
-    std::vector<const ForkJoin*>& get_nop_buffered_fjs() { return nop_buffered_fjs; }
+    std::vector<const ForkJoin *> &get_nop_buffered_fjs() { return nop_buffered_fjs; }
 
     // setters
 
     // add buffered fork_join info to map of buffered fork-joins
-    void add_elem_to_buffered_fjs(
-        NodeId fork_id, FJBufferingInfo buff_fj_info);
+    void add_elem_to_buffered_fjs(NodeId fork_id, FJBufferingInfo buff_fj_info);
     // erase element with the key fork_id and index idx from the map
     void erase_elem_from_buffered_fjs(NodeId fork_id, std::size_t idx);
 
-    void add_nop_buffered_fj(const ForkJoin* fj) { nop_buffered_fjs.push_back(fj); }
+    void add_nop_buffered_fj(const ForkJoin *fj) { nop_buffered_fjs.push_back(fj); }
 };
 
 }  // namespace tt

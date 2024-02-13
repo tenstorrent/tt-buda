@@ -540,7 +540,8 @@ TEST_F(GraphSolverResolveSanity, nop_insertion)
             int nop_count = 1;
             for (Edge edge : graph->operand_data_edges(node))
             {
-                buffer_info.emplace_back(balancer::legalizer::BufferInfo(edge, nop_count++, true));
+                buffer_info.emplace_back(
+                    balancer::legalizer::BufferInfo(edge, nop_count++, true /* hoist_tms */));
             }
 
             // Check virtual node count is as expected before and after buffering.
@@ -609,9 +610,11 @@ TEST_F(GraphSolverResolveSanity, nop_insertion_forking)
             for (Edge edge : graph->operand_data_edges(node))
             {
                 nop_inserted_gs += nop_count;
-                buffer_info.emplace_back(balancer::legalizer::BufferInfo(edge, nop_count++, false));
+                buffer_info.emplace_back(
+                    balancer::legalizer::BufferInfo(edge, nop_count++, false /* hoist_tms */));
                 nop_inserted_gs_fork1 += nop_count;
-                buffer_info_fork.emplace_back(balancer::legalizer::BufferInfo(edge, nop_count, false));
+                buffer_info_fork.emplace_back(
+                    balancer::legalizer::BufferInfo(edge, nop_count, false /* hoist_tms */));
             }
 
             // Check if virtual node count and graph size are as expected before and after buffering.
@@ -642,7 +645,8 @@ TEST_F(GraphSolverResolveSanity, nop_insertion_forking)
                 vector<balancer::legalizer::BufferInfo> gs_buffer_fork2_buffer_info;
                 for (Edge edge : graph->user_data_edges(node))
                 {
-                    gs_buffer_fork2_buffer_info.emplace_back(balancer::legalizer::BufferInfo(edge, nop_count, false));
+                    gs_buffer_fork2_buffer_info.emplace_back(
+                        balancer::legalizer::BufferInfo(edge, nop_count, false /* hoist_tms */));
                     nop_inserted_gs_fork2 += nop_count;
                 }
 
@@ -770,7 +774,7 @@ TEST_F(GraphSolverResolveSanity, nop_insertion_forking_snapshot)
 
             for (Edge edge : graph->operand_data_edges(node))
             {
-                buffer_info.emplace_back(balancer::legalizer::BufferInfo(edge, nop_count, false));
+                buffer_info.emplace_back(balancer::legalizer::BufferInfo(edge, nop_count, false /* hoist_tms */));
             }
 
             gs_buffer_fork.buffer(buffer_info);
@@ -782,7 +786,8 @@ TEST_F(GraphSolverResolveSanity, nop_insertion_forking_snapshot)
 
                 for (Edge edge : graph->operand_data_edges(node))
                 {
-                    buffer_info.emplace_back(balancer::legalizer::BufferInfo(edge, nop_count, false));
+                    buffer_info.emplace_back(
+                        balancer::legalizer::BufferInfo(edge, nop_count, false /* hoist_tms */));
                 }
 
                 gs_buffer_fork_2.buffer(buffer_info);

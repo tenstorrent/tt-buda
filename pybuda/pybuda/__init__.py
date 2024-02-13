@@ -50,7 +50,7 @@ from .run import run_inference, run_training, shutdown, initialize_pipeline, run
 from .compile import pybuda_compile
 from .torch_compile import compile_torch#, get_default_device, get_available_devices, torch_device
 from .compiled_graph_state import CompiledGraphState 
-from .config import CompilerConfig, CompileDepth, set_configuration_options, set_epoch_break, set_chip_break, override_op_size, PerfTraceLevel, insert_buffering_nop, override_dram_queue_placement, configure_mixed_precision
+from .config import CompilerConfig, CompileDepth, set_configuration_options, set_epoch_break, set_chip_break, override_op_size, PerfTraceLevel, insert_buffering_nop, insert_nop, _internal_insert_fj_buffering_nop, override_dram_queue_placement, configure_mixed_precision
 from .verify import VerifyConfig
 from .pybudaglobal import pybuda_reset, set_device_pipeline, is_silicon, get_tenstorrent_device
 from .parameter import Parameter

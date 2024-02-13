@@ -338,6 +338,7 @@ Schedule run_scheduler(
     std::unordered_map<std::string, std::string> schedule_dependencies = get_schedule_dependencies(config, graph);
     Schedule scheduled_nodes;
 
+    static const bool disable_fj_nop_schedule_fix = env_as<bool>("PYBUDA_TEMP_DISABLE_FJ_NOP_SCHEDULE_FIX");
 
     // declare a function to handle fracture groups
     std::function<void(Node*)> VisitNode;
@@ -499,24 +500,63 @@ Schedule run_scheduler(
         return true;
     };
 
-    VisitNode = [&](Node* node) {
-        if (not requires_visit(visited, node->id())) {
+    std::function<void(Node*)> AddChildNodes = [&](Node* node)
+    {
+        // Skip adding buffering nops, we want them last in schedule, otherwise they might cause early epoch breaks.
+        // They will get traversed when join node is visited, as the algorithm will traverse up the graph since not all
+        // producers of the join node have been visited.
+        //
+        const std::uint32_t num_users = graph->user_data_edges(node).size();
+        std::uint32_t buffering_nop_users = 0;
+
+        for (const Edge& user_edge : graph->user_data_edges(node))
+        {
+            Node* user = graph->node_by_id(user_edge.consumer_node_id);
+            if (!disable_fj_nop_schedule_fix and num_users > 1 and user->node_type() == graphlib::NodeType::kBudaOp and
+                user->as<graphlib::BudaOpNode>()->is_buffering_op())
+            {
+                buffering_nop_users++;
+                continue;
+            }
+            node_queue.push(user);
+        }
+
+        // If buffering_nop_users == graph->user_data_edges(node).size(), we fallback to adding all users
+        //
+        if (!disable_fj_nop_schedule_fix and num_users > 0 and buffering_nop_users == num_users)
+        {
+            for (const Edge& user_edge : graph->user_data_edges(node))
+            {
+                node_queue.push(graph->node_by_id(user_edge.consumer_node_id));
+            }
+        }
+    };
+
+    VisitNode = [&](Node* node)
+    {
+        if (not requires_visit(visited, node->id()))
+        {
             return;
         }
         visited.insert(node->id());
-        for (NodeId predecessor_id : get_operand_node_ids(schedule_dependencies, graph, node)) {
+        for (NodeId predecessor_id : get_operand_node_ids(schedule_dependencies, graph, node))
+        {
             Node* predecessor_node = graph->node_by_id(predecessor_id);
             VisitNode(predecessor_node);
         }
 
         // if the node is a fracture group top, then call the fracture group scheduler
-        if (node->as<graphlib::TaggedNode>()->has_tag("fracture_top")) {
-            // check if this has already been scheduled, because there are multiple tops in a fracture region, and only the first top needs to be called
-            if (std::find(scheduled_nodes.begin(), scheduled_nodes.end(), node->name()) != scheduled_nodes.end()) {
+        if (node->as<graphlib::TaggedNode>()->has_tag("fracture_top"))
+        {
+            // check if this has already been scheduled, because there are multiple tops in a fracture region, and only
+            // the first top needs to be called
+            if (std::find(scheduled_nodes.begin(), scheduled_nodes.end(), node->name()) != scheduled_nodes.end())
+            {
                 return;
             }
             auto scheduled = FracVisit(node);
-            if (scheduled) return;
+            if (scheduled)
+                return;
         }
 
         // Get paired op if it exists so that we can schedule it right after the current op.
@@ -538,10 +578,9 @@ Schedule run_scheduler(
             }
         }
 
-        for (const Edge& user_edge : graph->user_data_edges(node)) {
-            NodeId successor_id = user_edge.consumer_node_id;
-            node_queue.push(graph->node_by_id(successor_id));
-        }
+        // Add users to queue
+        //
+        AddChildNodes(node);
     };
 
     while (not node_queue.empty())
@@ -550,6 +589,7 @@ Schedule run_scheduler(
         VisitNode(node);
         node_queue.pop();
     }
+
     return scheduled_nodes;
 }
 

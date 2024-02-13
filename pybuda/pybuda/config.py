@@ -928,28 +928,17 @@ def override_op_placement(
         else:
             set_chip_break(op_name)
 
-def insert_buffering_nop(src_op: str, dest_ops: Union[str, List[str]], *, hoist_tms: bool = True, nop_count: int = 1, daisy_chain: bool = False):
-    """
-    Instruct pybuda compiler to insert a NOP instruction on the edge identified by the named src/dest pair.
 
-    Parameters
-    ----------
-    src_op: str
-        Name of the src op
+def __insert_nop_impl(
+        src_op: str,
+        dest_ops: Union[str, List[str]],
+        *,
+        hoist_tms: bool = True,
+        nop_count: int = 1,
+        daisy_chain: bool = False,
+        is_fj_buffering = False,
+    ):
 
-    dest_op: str
-        Name of the dest op
-
-    hoist_tms: bool
-        Configure whether the TMs on the original edge should be transfered to
-        (src -> NOP edge) or to the (NOP -> dest edge).
-
-    daisy_chain: bool
-        Sets the merge-strategy for NOPs to `daisy_chain` when there are multiple dest-ops.
-        By default, the merge-strategy will create a single buffer-nop forking to `dest_ops`.
-        When `daisy_chain` is enabled, we will create a daisy-chain of nop operations to dest_ops.
-
-    """
     assert isinstance(src_op, str)
     if isinstance(dest_ops, str):
         dest_ops = [dest_ops]
@@ -972,9 +961,114 @@ def insert_buffering_nop(src_op: str, dest_ops: Union[str, List[str]], *, hoist_
             mergeable=merge_nops,
             daisy_chain=daisy_chain,
             request_merge=request_merge,
+            is_fj_buffering=is_fj_buffering
         )
         g_compiler_config.buffering_nops_to_insert[nop_instr.unique_id()] = nop_instr
 
+
+def insert_nop(src_op: str, dest_ops: Union[str, List[str]], *, hoist_tms: bool = True, nop_count: int = 1, daisy_chain: bool = False):
+    """
+    Instruct pybuda compiler to insert a NOP instruction on the edge identified by the named src/dest pair.
+
+    Parameters
+    ----------
+    src_op: str
+        Name of the src op
+
+    dest_op: str
+        Name of the dest op
+
+    hoist_tms: bool
+        Configure whether the TMs on the original edge should be transfered to
+        (src -> NOP edge) or to the (NOP -> dest edge).
+
+    daisy_chain: bool
+        Sets the merge-strategy for NOPs to `daisy_chain` when there are multiple dest-ops.
+        By default, the merge-strategy will create a single buffer-nop forking to `dest_ops`.
+        When `daisy_chain` is enabled, we will create a daisy-chain of nop operations to dest_ops.
+
+    """
+
+    __insert_nop_impl(
+        src_op=src_op,
+        dest_ops=dest_ops,
+        hoist_tms=hoist_tms,
+        nop_count=nop_count,
+        daisy_chain=daisy_chain,
+        is_fj_buffering=False,
+    )
+
+
+def _internal_insert_fj_buffering_nop(src_op: str, dest_ops: Union[str, List[str]], *, hoist_tms: bool = True, nop_count: int = 1, daisy_chain: bool = False):
+    """
+    Instruct pybuda compiler to insert a fork-join buffering NOP instruction on the edge identified by the named src/dest pair.
+    Note: Adding a fork-join buffering NOP instructions may lead to exceptions!
+
+    Parameters
+    ----------
+    src_op: str
+        Name of the src op
+
+    dest_op: str
+        Name of the dest op
+
+    hoist_tms: bool
+        Configure whether the TMs on the original edge should be transfered to
+        (src -> NOP edge) or to the (NOP -> dest edge).
+
+    daisy_chain: bool
+        Sets the merge-strategy for NOPs to `daisy_chain` when there are multiple dest-ops.
+        By default, the merge-strategy will create a single buffer-nop forking to `dest_ops`.
+        When `daisy_chain` is enabled, we will create a daisy-chain of nop operations to dest_ops.
+
+    """
+    __insert_nop_impl(
+        src_op=src_op,
+        dest_ops=dest_ops,
+        hoist_tms=hoist_tms,
+        nop_count=nop_count,
+        daisy_chain=daisy_chain,
+        is_fj_buffering=True,
+    )
+
+
+def insert_buffering_nop(src_op: str, dest_ops: Union[str, List[str]], *, hoist_tms: bool = True, nop_count: int = 1, daisy_chain: bool = False):
+    """
+    "DEPRECATION WARNING! Please use `insert_nop` instead of `insert_buffering_nop`. To add a buffering nop, use the \
+    internal API `_internal_insert_fj_buffering_nop`."
+
+    Instruct pybuda compiler to insert a buffering NOP instruction on the edge identified by the named src/dest pair.
+    Note: Adding buffering NOP instructions may lead to exceptions!
+
+    Parameters
+    ----------
+    src_op: str
+        Name of the src op
+
+    dest_op: str
+        Name of the dest op
+
+    hoist_tms: bool
+        Configure whether the TMs on the original edge should be transfered to
+        (src -> NOP edge) or to the (NOP -> dest edge).
+
+    daisy_chain: bool
+        Sets the merge-strategy for NOPs to `daisy_chain` when there are multiple dest-ops.
+        By default, the merge-strategy will create a single buffer-nop forking to `dest_ops`.
+        When `daisy_chain` is enabled, we will create a daisy-chain of nop operations to dest_ops.
+
+    """
+
+    logger.warning("DEPRECATION WARNING! Please use `insert_nop` instead of `insert_buffering_nop`. To add fork-join \
+                   buffering nop, use the internal API `_internal_insert_fj_buffering_nop`.")
+
+    _internal_insert_fj_buffering_nop(
+        src_op=src_op,
+        dest_ops=dest_ops,
+        hoist_tms=hoist_tms,
+        nop_count=nop_count,
+        daisy_chain=daisy_chain
+    )
 
 
 def add_schedule_constraint(partial_ordering: List[str]):

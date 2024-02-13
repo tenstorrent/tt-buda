@@ -29,7 +29,7 @@ def inception_v4(training: bool, config: str, microbatch: int, devtype: str, arc
         from pybuda._C.backend_api import BackendDevice
         if available_devices:
             if available_devices[0] == BackendDevice.Grayskull:
-                pybuda.config.insert_buffering_nop("conv2d_28.dc.matmul.11", ["conv2d_43.dc.sparse_matmul.9.dc.sparse_matmul.1.lc2"], nop_count=3)
+                pybuda.config._internal_insert_fj_buffering_nop("conv2d_28.dc.matmul.11", ["conv2d_43.dc.sparse_matmul.9.dc.sparse_matmul.1.lc2"], nop_count=3)
 
     # Set model parameters based on chosen task and model configuration
     if config == "224":

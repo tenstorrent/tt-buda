@@ -46,6 +46,9 @@ def test_whisper_encoder(test_device, variant):
     if variant == "openai/whisper-small" or variant == "openai/whisper-medium" or variant == "openai/whisper-large":
         os.environ["PYBUDA_PAD_MM"] = "{47:48}"
 
+    if variant == "openai/whisper-tiny":
+        os.environ["PYBUDA_TEMP_FIX_2351"] = "1"
+
     class Wrapper(torch.nn.Module):
         def __init__(self, model):
             super().__init__()

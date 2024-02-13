@@ -76,7 +76,7 @@ def hrnet(training: bool, config: str, microbatch: int, devtype: str, arch: str,
         available_devices = pybuda.detect_available_devices()
         if available_devices:
             if available_devices[0] == BackendDevice.Grayskull:
-                pybuda.config.insert_buffering_nop('add_312', ['add_341'], nop_count=2)
+                pybuda.config._internal_insert_fj_buffering_nop('add_312', ['add_341'], nop_count=2)
     else:
         raise RuntimeError("Unknown config")
 

@@ -1900,11 +1900,11 @@ def test_2d_daisy_chain(test_device):
         # insert daisy-chain along each column
         for j in range(columns):
             gelu_rows = [f"gelu_{i}_{j}" for i in range(rows)]
-            pybuda.insert_buffering_nop(input, gelu_rows, daisy_chain=True)
+            pybuda.insert_nop(input, gelu_rows, daisy_chain=True)
 
         # insert daisy-chain across first row
         gelu_first_row = [f"buffer_0_inputs_gelu_{0}_{j}" for j in range(columns)]
-        pybuda.insert_buffering_nop(input, gelu_first_row, daisy_chain=True)
+        pybuda.insert_nop(input, gelu_first_row, daisy_chain=True)
         
         return outputs
 
