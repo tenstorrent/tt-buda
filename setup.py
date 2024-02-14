@@ -133,6 +133,7 @@ bbe_files = {
             "debuda.py",
             "tt_buffer.py",
             "tt_coordinate.py",
+            "tt_debuda_server.py",
             "tt_debug_risc.py",
             "tt_device.py",
             "tt_firmware.py",
