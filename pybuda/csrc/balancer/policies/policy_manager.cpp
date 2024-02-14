@@ -148,6 +148,7 @@ std::tuple<bool, bool, bool> PolicyManager::commit_op(const OpModel& selected_op
         }
 
         current_epoch_ops.insert(current_op_node);
+        current_epoch_selected_models.push_back(OpModelPair{selected_op_model, op});
         epoch_schedule.push_back(current_op_node->name());
     }
 
@@ -224,11 +225,13 @@ void PolicyManager::pair_two_ops_if_possible(
                 if (op_placement.has_value())
                 {
                     current_epoch_ops.insert(buffered_op_model->buda_op_node);
+                    current_epoch_selected_models.emplace_back(OpModelPair{*buffered_op_model, buffered_op_model->buda_op_node});
                     epoch_schedule.push_back(buffered_op_model->buda_op_node->name());
                     set_op_model_for_node_ribbon(
                         *graph_solver_main, current_op_node, selected_op_model, current_ribbon_size);
                     update_ribbon_size();
                     current_epoch_ops.insert(op);
+                    current_epoch_selected_models.emplace_back(OpModelPair{selected_op_model, op});
                     epoch_schedule.push_back(op->name());
                 }
             }
@@ -253,11 +256,13 @@ void PolicyManager::pair_two_ops_if_possible(
                     if (op_placement.has_value())
                     {
                         current_epoch_ops.insert(buffered_op_model->buda_op_node);
+                        current_epoch_selected_models.push_back(OpModelPair{*buffered_op_model, buffered_op_model->buda_op_node});
                         epoch_schedule.push_back(buffered_op_model->buda_op_node->name());
                         set_op_model_for_node_ribbon(
                             *graph_solver_main, current_op_node, selected_op_model, current_ribbon_size);
                         update_ribbon_size();
                         current_epoch_ops.insert(op);
+                        current_epoch_selected_models.push_back(OpModelPair{selected_op_model, op});
                         epoch_schedule.push_back(op->name());
                         skip_op_set = true;
                     }
@@ -288,6 +293,7 @@ void PolicyManager::pair_two_ops_if_possible(
             if (op_placement.has_value())
             {
                 current_epoch_ops.insert(buffered_op_model->buda_op_node);
+                current_epoch_selected_models.push_back(OpModelPair{*buffered_op_model, buffered_op_model->buda_op_node});
                 epoch_schedule.push_back(buffered_op_model->buda_op_node->name());
             }
         }
@@ -362,6 +368,9 @@ bool PolicyManager::finish_current_epoch()
             return false;
     }
 
+    TT_ASSERT(current_epoch_ops.size() == current_epoch_selected_models.size(), "Epoch ops and selected op models mismatch!");
+    epoch_solutions.emplace_back(current_ribbon_size, &config, current_epoch_selected_models, graph, -1);
+
     if (!balancing_complete)
     {
         start_new_epoch(current_op_node->as<graphlib::BudaOpNode>()->get_epoch_type());
@@ -417,6 +426,7 @@ void PolicyManager::start_new_epoch(graphlib::NodeEpochType epoch_type)
         processed_nodes.insert(current_epoch_ops.begin(), current_epoch_ops.end());
         processed_schedule.insert(processed_schedule.end(), epoch_schedule.begin(), epoch_schedule.end());
         current_epoch_ops.clear();
+        current_epoch_selected_models.clear();
         epoch_schedule.clear();
         inst.clear();
 
@@ -492,6 +502,7 @@ bool PolicyManager::buffer_epoch()
         // Reset current epoch nodes and traversal context to old state(snapshot).
         //
         current_epoch_ops.clear();
+        current_epoch_selected_models.clear();
         epoch_schedule.clear();
         traversal_context = graph_solver_main->get_graph_traversal_context();
         if (graph_modified)
@@ -598,6 +609,7 @@ void PolicyManager::rewind_epoch()
     graph_solver_main = std::make_unique<legalizer::GraphSolver>(*graph_solver_epoch_snapshot);
     pre_buffering_epoch_ops.clear();
     current_epoch_ops.clear();
+    current_epoch_selected_models.clear();
     epoch_schedule.clear();
     buffered_op_model.reset();
     graph_solver_pairing_checkpoint = nullptr;
@@ -693,6 +705,7 @@ tt::placer::PlacerSolution PolicyManager::commit_solution()
     placer_solution.fork_join_buffered = use_interactive_fj_buffering;
 
     validate_solution(scheduled_ops, placer_solution);
+    score_solution(epoch_solutions, config.device_config);
 
     return placer_solution;
 }

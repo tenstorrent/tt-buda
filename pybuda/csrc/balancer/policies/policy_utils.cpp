@@ -1550,7 +1550,7 @@ bool buffer_graph(
     return graph_modified;
 }
 
-float RibbonSolution::evaluate() const
+float EpochSolution::evaluate() const
 {
     float pipeline_cycles = 0;
     const int non_matmul_penalty = 128;
@@ -1608,7 +1608,7 @@ float RibbonSolution::evaluate() const
     return utilization;
 }
 
-void RibbonSolution::print() const
+void EpochSolution::print() const
 {
     for (auto &op : ops)
     {
@@ -1621,7 +1621,7 @@ void RibbonSolution::print() const
     }
 }
 
-void RibbonSolution::recalc_nodes()
+void EpochSolution::recalc_nodes()
 {
     dram_readers_core_count = 0;
     dram_writers_core_count = 0;
@@ -1677,6 +1677,17 @@ void RibbonSolution::recalc_nodes()
             }
         }
     }
+}
+
+void score_solution(const std::vector<EpochSolution> &solutions, const DeviceConfig &device_config)
+{
+    float total_pipeline_cycles = 0;
+    for (const auto &solution : solutions)
+    {
+        total_pipeline_cycles += solution.get_pipeline_cycles();
+    }
+
+    log_info(LogBalancer, "Balancer perf score : {}", device_config.get_clock_freq() / total_pipeline_cycles);
 }
 
 }  // namespace tt::balancer

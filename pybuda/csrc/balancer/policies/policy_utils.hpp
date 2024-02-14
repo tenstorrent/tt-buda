@@ -34,22 +34,21 @@ namespace tt::balancer
 struct OpModelPair
 {
     OpModel model;
-    const graphlib::BudaOpNode *op;
+    const graphlib::BudaOpNode* op;
 };
 
-class RibbonSolution
+class EpochSolution
 {
    public:
-
-    std::unordered_set<const tt::graphlib::Node *> current_epoch_nodes;
-    std::unordered_set<const tt::graphlib::Node *> current_epoch_ops;
+    std::unordered_set<const tt::graphlib::Node*> current_epoch_nodes;
+    std::unordered_set<const tt::graphlib::Node*> current_epoch_ops;
 
    private:
     std::uint32_t ribbon_size;
     std::vector<OpModelPair> ops;
     float utilization;
-    const BalancerConfig *balancer_config;
-    const Graph *graph;
+    const BalancerConfig* balancer_config;
+    const Graph* graph;
     int dram_readers_core_count;
     int dram_writers_core_count;
     int pcie_readers_core_count;
@@ -61,19 +60,24 @@ class RibbonSolution
     void recalc_nodes();
 
    public:
-    RibbonSolution(
+    EpochSolution(
         std::uint32_t ribbon_size,
-        const BalancerConfig *balancer_config,
-        std::vector<OpModelPair> &ops,
-        const Graph *graph,
+        const BalancerConfig* balancer_config,
+        std::vector<OpModelPair>& ops,
+        const Graph* graph,
         int epoch_target_cycles) :
-        ribbon_size(ribbon_size), ops(ops), utilization(0.0f), balancer_config(balancer_config), graph(graph), epoch_target_cycles(epoch_target_cycles)
+        ribbon_size(ribbon_size),
+        ops(ops),
+        utilization(0.0f),
+        balancer_config(balancer_config),
+        graph(graph),
+        epoch_target_cycles(epoch_target_cycles)
     {
         recalc_nodes();
         utilization = evaluate();
     }
 
-    void update_model(std::uint32_t index, const OpModel &model)
+    void update_model(std::uint32_t index, const OpModel& model)
     {
         ops[index].model = model;
         recalc_nodes();
@@ -89,11 +93,11 @@ class RibbonSolution
 
     void print() const;
     float get_score() const { return utilization; }
-    const BalancerConfig *get_balancer_config() const { return balancer_config; }
-    const std::vector<OpModelPair> &get_ops() const { return ops; }
+    const BalancerConfig* get_balancer_config() const { return balancer_config; }
+    const std::vector<OpModelPair>& get_ops() const { return ops; }
     std::uint32_t get_ribbon_size() const { return ribbon_size; }
-    const std::unordered_set<const tt::graphlib::Node *>& get_current_epoch_ops() { return current_epoch_ops; }
-    const std::unordered_set<const tt::graphlib::Node *>& get_current_epoch_nodes() { return current_epoch_nodes; }
+    const std::unordered_set<const tt::graphlib::Node*>& get_current_epoch_ops() { return current_epoch_ops; }
+    const std::unordered_set<const tt::graphlib::Node*>& get_current_epoch_nodes() { return current_epoch_nodes; }
     int get_pipeline_cycles() const { return pipeline_cycles; }
 };
 
@@ -193,14 +197,14 @@ int get_limiter_cycles(
     bool invalidate_cached = false);
 
 int get_limiter_cycles(
-    const OpModel &op_model,
-    const Graph *graph,
-    const DeviceConfig &device_config,
+    const OpModel& op_model,
+    const Graph* graph,
+    const DeviceConfig& device_config,
     const bool input_queues_on_host,
     const bool output_queues_on_host,
     const int dram_access_core_count = 0,
     const int pcie_access_core_count = 0,
-    const std::unordered_set<const tt::graphlib::Node *> *current_epoch_nodes = nullptr,
+    const std::unordered_set<const tt::graphlib::Node*>* current_epoch_nodes = nullptr,
     bool invalidate_cached = false);
 
 bool is_output_write_to_dram_over_target(
@@ -287,13 +291,13 @@ bool can_fit_on_single_epoch(
     bool enable_transpose = true);
 
 std::optional<placer::CoordRange> place_sparse_dense_pair(
-    const graphlib::BudaOpNode *op,
-    const OpModel *prefered_op_model,
-    const graphlib::BudaOpNode *dense_matmul_op,
-    const OpModel *prefered_op_model_dense,
-    tt::placer::InteractivePlacer &interactive_placer,
-    tt::placer::InteractivePlacer &ip_fittment_tester,
-    bool &sparse_dense_pair);
+    const graphlib::BudaOpNode* op,
+    const OpModel* prefered_op_model,
+    const graphlib::BudaOpNode* dense_matmul_op,
+    const OpModel* prefered_op_model_dense,
+    tt::placer::InteractivePlacer& interactive_placer,
+    tt::placer::InteractivePlacer& ip_fittment_tester,
+    bool& sparse_dense_pair);
 
 int calculate_target_cycles_for_ribbon_size(
     const graphlib::Graph* graph,
@@ -353,8 +357,7 @@ const OpModel* pick_preferred_op_model(
         }
 
         // If we already have valid op model selected compare it with new one and select better.
-        if (is_candidate_better_than_current(
-                *prefered_op_model, op_model, graph, ribbon_size, target_cycles, config))
+        if (is_candidate_better_than_current(*prefered_op_model, op_model, graph, ribbon_size, target_cycles, config))
         {
             prefered_op_model = &op_model;
         }
@@ -389,4 +392,6 @@ bool buffer_graph(
         std::shared_ptr<tt::InsertionInstruction>,
         tt::InsInstructionUniqueIdHash>& inst,
     legalizer::GraphSolver& graph_solver);
+
+void score_solution(const std::vector<EpochSolution>& solutions, const DeviceConfig& device_config);
 }  // namespace tt::balancer

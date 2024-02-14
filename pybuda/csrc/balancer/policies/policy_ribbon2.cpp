@@ -86,8 +86,8 @@ OpModel get_closest_op_model(
 // improves the utilization of the epoch. We ideally try to stick to the same ribbon size, but if
 // that's not possible, we'll bump up the grid to anything available that's slightly better than
 // the current grid.
-RibbonSolution optimize_solution(
-    RibbonSolution &solution,
+EpochSolution optimize_solution(
+    EpochSolution &solution,
     const legalizer::GraphSolver &graph_solver,
     placer::InteractivePlacer &interactive_placer,
     const graphlib::Graph *graph,
@@ -97,7 +97,7 @@ RibbonSolution optimize_solution(
     log_trace(LogBalancer, "RIBBON2: optimize solution, score {}, coming in:", solution.get_score());
     solution.print();
 
-    RibbonSolution best_solution = solution;
+    EpochSolution best_solution = solution;
 
     std::uint32_t iterations = 0;
     std::uint32_t bad_iterations = 0;  // number of iterations in a row that made thing worse
@@ -320,8 +320,8 @@ bool handle_fork_join_nop_overflow(
     graphlib::Graph const *graph,
     const BalancerConfig &config,
     std::vector<std::vector<std::string>> &op_names_to_epoch_break,
-    RibbonSolution &solution,
-    std::unique_ptr<RibbonSolution> &pre_buffered_solution,
+    EpochSolution &solution,
+    std::unique_ptr<EpochSolution> &pre_buffered_solution,
     std::unique_ptr<legalizer::GraphSolver> &graph_solver,
     std::unique_ptr<legalizer::GraphSolver> &pre_buffered_graph_snapshot,
     std::unordered_set<std::string> &epoch_break_ops,
@@ -422,7 +422,7 @@ bool apply_solution(
     graphlib::Graph const *graph,
     const BalancerConfig &config,
     std::vector<std::vector<std::string>> &op_names_to_epoch_break,
-    RibbonSolution &solution,
+    EpochSolution &solution,
     std::unique_ptr<legalizer::GraphSolver> &graph_solver,
     std::unique_ptr<legalizer::GraphSolver> &graph_solver_epoch_snapshot,
     placer::InteractivePlacer &interactive_placer,
@@ -727,6 +727,7 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
     std::unordered_set<const tt::graphlib::Node *> processed_nodes;
     std::vector<tt::scheduler::Schedule> op_names_to_epoch_break = config.op_names_to_epoch_break;
     tt::scheduler::Schedule processed_schedule;
+    std::vector<EpochSolution> applied_solutions;
 
     std::unique_ptr<legalizer::GraphSolver> graph_solver_main = std::make_unique<legalizer::GraphSolver>(graph_solver);
     std::unique_ptr<graphlib::GraphTraversalContext> traversal_context =
@@ -750,7 +751,7 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
     std::unique_ptr<legalizer::GraphSolver>
         pre_buffered_graph_snapshot;                        // snapshot before any fork-join buffering
                                                             // graph modifications were made for the current epoch
-    std::unique_ptr<RibbonSolution> pre_buffered_solution;  // current epoch solution before the last fork-join
+    std::unique_ptr<EpochSolution> pre_buffered_solution;  // current epoch solution before the last fork-join
                                                             // buffering attempt - used to check if added buffering
                                                             // caused any fork-join to split accross epochs
     std::vector<const Node *>
@@ -763,7 +764,7 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
     while (!done)
     {
         // Try placing an epoch for each ribbon size, and figure out the score for each
-        std::vector<RibbonSolution> solutions;
+        std::vector<EpochSolution> solutions;
         std::exception_ptr first_error = nullptr;
         bool first_error_is_fatal = false;
 
@@ -943,7 +944,7 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
                     {
                         TT_ASSERT(!new_epoch || selected_models.size() > 0);
                         // Record the solution
-                        RibbonSolution new_solution(ribbon_size, &config, selected_models, graph, epoch_target_cycles);
+                        EpochSolution new_solution(ribbon_size, &config, selected_models, graph, epoch_target_cycles);
 
                         // Check if the same solution was provided by another ribbon
                         bool found_same_solution = false;
@@ -1129,6 +1130,7 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
             pre_buffered_graph_snapshot.reset();
             pre_buffered_solution.reset();
             fork_and_join_nodes.clear();
+            applied_solutions.push_back(best_solution);
         }
         else
         {
@@ -1140,13 +1142,14 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
                 pre_buffered_graph_snapshot = std::move(graph_solver_snapshot);
             }
 
-            pre_buffered_solution = std::make_unique<RibbonSolution>(best_solution);
+            pre_buffered_solution = std::make_unique<EpochSolution>(best_solution);
         }
     }
 
     placer_solution = interactive_placer.commit();
     placer_solution.value().fork_join_buffered = true;
     validate_solution(scheduled_ops, placer_solution.value());
+    score_solution(applied_solutions, config.device_config);
 
     return graph_solver_main->finish();
 }
