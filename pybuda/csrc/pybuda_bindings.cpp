@@ -519,6 +519,7 @@ PYBIND11_MODULE(_C, m) {
         .def_readonly("zdim", &sparse::SparseBUDA::zdim)
         .def_readonly("bcast_factor", &sparse::SparseBUDA::bcast_factor)
         .def("get_sparse_tile_ptr_bits", &sparse::SparseBUDA::get_sparse_tile_ptr_bits)
+        .def("get_sparse_ublock_idx_bits", &sparse::SparseBUDA::get_sparse_ublock_idx_bits)
         .def("get_sparse_tiles_and_encodings", [](tt::sparse::SparseBUDA &self, int grid_r) {
             return self.get_sparse_tiles_and_encodings(grid_r);
         });

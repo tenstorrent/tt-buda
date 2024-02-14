@@ -246,7 +246,7 @@ class StripAllocator
         ++num_strips;
     }
 
-    void repeat(int n, int num_strips, int sparse_tile_ptr_bits)
+    void repeat(int n, int num_strips, int sparse_ublock_idx_bits)
     {
         if (n <= 1 or not prev_strip_ptr)
             return;
@@ -281,7 +281,7 @@ class StripAllocator
             std::uint8_t* src = base_ptr();
             std::uint8_t* dst = base_ptr() + orig_size * i;
             memcpy(dst, src, orig_size);
-            patch_strip_indices(dst, orig_size, num_strips * i, sparse_tile_ptr_bits);
+            patch_strip_indices(dst, orig_size, num_strips * i, sparse_ublock_idx_bits);
         }
 
         // Update the prev_strip_ptr to point at the new end
@@ -317,7 +317,7 @@ class StripAllocator
     }
 
     static void patch_strip_indices(
-        std::uint8_t* base, std::size_t size, std::size_t strip_offset, int sparse_tile_ptr_bits)
+        std::uint8_t* base, std::size_t size, std::size_t strip_offset, int sparse_ublock_idx_bits)
     {
         using IndexType = std::remove_extent_t<decltype(strip_info_struct::F::index_array)>;
 
@@ -325,7 +325,7 @@ class StripAllocator
         constexpr int kTileElems = TILE_DIM * TILE_DIM;
         constexpr int kTileSizeBytes = kTileElems * kElemSize;
         int num_tiles = static_cast<int>((size + kTileSizeBytes - 1) / kTileSizeBytes);
-        int ublock_tile_index_bytes = 16 - sparse_tile_ptr_bits;
+        int ublock_tile_index_bytes = 16 - sparse_ublock_idx_bits;
 
         for (int tile_id = 0; tile_id < num_tiles; ++tile_id)
         {
@@ -347,7 +347,7 @@ class StripAllocator
                 for (int ublock_i = 0; ublock_i < info->f.nz_ublocks; ++ublock_i)
                 {
                     IndexType encoded = info->f.index_array[i++];
-                    IndexType nz_tiles_in_ublock = encoded >> sparse_tile_ptr_bits;
+                    IndexType nz_tiles_in_ublock = encoded >> sparse_ublock_idx_bits;
                     nz_tiles_in_ublock =
                         (nz_tiles_in_ublock == 0u) ? (1u << ublock_tile_index_bytes) : nz_tiles_in_ublock;
                     i += nz_tiles_in_ublock;
@@ -507,16 +507,16 @@ static std::pair<std::vector<std::int32_t>, int> encode_strips(
         allocator.push_strip(strip_info_struct(curr_strip_index, 0, true), {});
     }
 
-    allocator.repeat(t_factor_c, m_k * dimz, sparse_tile_ptr_bits);
+    allocator.repeat(t_factor_c, m_k * dimz, sparse_ublock_idx_bits);
 
     return allocator.finish_buda_strips();
 }
 
 static void print_info_indices(
-    std::vector<std::int32_t> const& buda_indices, int sparse_tile_ptr_bits, int sparse_ublock_idx_bits)
+    std::vector<std::int32_t> const& buda_indices, int sparse_ublock_idx_bits)
 {
     using IndexType = std::remove_extent_t<decltype(strip_info_struct::F::index_array)>;
-    int ublock_tile_index_bytes = 16 - sparse_tile_ptr_bits;
+    int ublock_tile_index_bytes = 16 - sparse_ublock_idx_bits;
     std::uint8_t const* base_ptr = reinterpret_cast<std::uint8_t const*>(buda_indices.data());
     TT_ASSERT((int)buda_indices.size() % (TILE_DIM * TILE_DIM) == 0);
     for (int tile_id = 0; tile_id < (int)(buda_indices.size() / (TILE_DIM * TILE_DIM)); ++tile_id)
@@ -605,7 +605,7 @@ int SparseBUDA::get_sparse_tile_ptr_bits(int grid_r, int t_factor_r, int u_rt) c
         throw std::runtime_error(fmt::format("Num row tiles {} exceeds max {}", max_ublocks_r + 1, kMaxUblocksR));
     }
 
-    std::uint32_t max_num = std::max(num_sparse_tiles, max_ublocks_r);
+    std::uint32_t max_num = num_sparse_tiles;
     int num_lz = 32 - __builtin_clz(max_num);
     return num_lz;
 }
@@ -956,7 +956,7 @@ SparseBUDA::get_sparse_tiles_and_encodings(
         if (env_as<bool>("PYBUDA_SPARSE_PRINT_INDICES"))
         {
             fmt::print("Grid_r[{}] {} {}\n", g_r, layout, t_factor_r);
-            print_info_indices(buda_indices.back(), sparse_tile_ptr_bits, sparse_ublock_idx_bits);
+            print_info_indices(buda_indices.back(), sparse_ublock_idx_bits);
         }
     }
 

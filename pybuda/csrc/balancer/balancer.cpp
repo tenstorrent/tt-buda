@@ -296,11 +296,11 @@ static void insert_sparse_dataflow_tms(
 }
 
 void print_perf_input_data(
-    tt::sparse::EncodingTiles const& buda_indices_all_rows, int sparse_tile_ptr_bits, balancer::OpModel const& op_model)
+    tt::sparse::EncodingTiles const& buda_indices_all_rows, int sparse_ublock_idx_bits, balancer::OpModel const& op_model)
 {
     constexpr int TILE_DIM = tt::sparse::TILE_DIM;
     using IndexType = std::remove_extent_t<decltype(tt::sparse::strip_info_struct::F::index_array)>;
-    const int ublock_tile_index_bytes = 16 - sparse_tile_ptr_bits;
+    const int ublock_tile_index_bytes = 16 - sparse_ublock_idx_bits;
     const int grid_r = buda_indices_all_rows.size();
 
     fmt::print("~~ Node: {}\n", op_model.buda_op_node->name());
@@ -343,7 +343,7 @@ void print_perf_input_data(
                 for (int ublock_i = 0; ublock_i < info->f.nz_ublocks; ++ublock_i)
                 {
                     IndexType encoded = info->f.index_array[i++];
-                    IndexType nz_tiles_in_ublock = encoded >> sparse_tile_ptr_bits;
+                    IndexType nz_tiles_in_ublock = encoded >> sparse_ublock_idx_bits;
                     nz_tiles_in_ublock =
                         (nz_tiles_in_ublock == 0u) ? (1u << ublock_tile_index_bytes) : nz_tiles_in_ublock;
                     cnt_nz_tiles += nz_tiles_in_ublock;

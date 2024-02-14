@@ -201,6 +201,7 @@ def lower(type, attr, buda_attr, lc, ops, outputs):
         grid_c = 1  # this is always 1 by default, before balancing, needed for buda eval
 
         sparse_tile_ptr_bits = sparse_buda.get_sparse_tile_ptr_bits(grid_r, t_factor_r, u_rt)  # Do we need to calculate this here at all? Can't we push a dummy value to buda attrs?
+        sparse_ublock_idx_bits = sparse_buda.get_sparse_ublock_idx_bits(grid_r, t_factor_r, u_rt)
         sparse, encodings, _s_shape, _e_shape, _num_strips = sparse_buda.get_sparse_tiles_and_encodings(grid_r)
         sparse, encodings = shapeify_sparse_tiles_and_encodings(
             sparse=sparse,
@@ -227,10 +228,10 @@ def lower(type, attr, buda_attr, lc, ops, outputs):
         buda_attrs["num_sparse_tiles"] = sparse.shape[-1] // TILE_DIM
         buda_attrs["num_index_tiles"] = encodings.shape[-1] // TILE_DIM
         buda_attrs["sparse_tile_ptr_bits"] = sparse_tile_ptr_bits
-        buda_attrs["sparse_ublock_idx_bits"] = sparse_tile_ptr_bits
+        buda_attrs["sparse_ublock_idx_bits"] = sparse_ublock_idx_bits
         buda_attrs["fracture_factor"] = fracture_factor
         # We need fracture_factor in attributes as well, since shape() function doesn't get buda attrs
-        lc.op("matmul", [in0, in1, in2], (accumulate, is_sparse, sparse_tile_ptr_bits, 1, zdim, picker.shape[-2], in1.shape[-1], fracture_factor, u_rt, u_kt, u_ct, grid_c, t_factor_r, t_factor_c, sparse_tile_ptr_bits), buda_attrs)
+        lc.op("matmul", [in0, in1, in2], (accumulate, is_sparse, sparse_tile_ptr_bits, 1, zdim, picker.shape[-2], in1.shape[-1], fracture_factor, u_rt, u_kt, u_ct, grid_c, t_factor_r, t_factor_c, sparse_ublock_idx_bits), buda_attrs)
     else:
         # Find proper tile sizes
         if bool(int(os.environ.get("PYBUDA_ENABLE_TINY_TILE", "0"))):
