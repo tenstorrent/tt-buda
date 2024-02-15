@@ -22,15 +22,14 @@ from transformers import AutoImageProcessor, AutoModelForImageClassification
 from transformers import MobileNetV2FeatureExtractor, MobileNetV2ForSemanticSegmentation
 
 def generate_model_mobilenetV2_imgcls_torchhub_pytorch(test_device, variant):
-    if test_device.arch == BackendDevice.Grayskull:
-        pytest.skip("Failing on GS with: Core (c=0,y=8,x=1) [routing]  (c=0,y=6,x=0) [worker] [op_name=conv2d_483.dc.matmul.12] exceeded resource constraints: active dram queues used: 63 limit: 40")
-    
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = (
         pybuda.config._get_global_compiler_config()
     )  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
+    if test_device.arch == BackendDevice.Grayskull:
+        compiler_cfg.balancer_policy = "CNN"
 
     # STEP 2: Create PyBuda module from PyTorch model
     model = download_model(torch.hub.load,
@@ -160,15 +159,14 @@ def test_mobilenetv2_160(test_device):
     )
 
 def generate_model_mobilenetV2I244_imgcls_hf_pytorch(test_device, variant):
-    if test_device.arch == BackendDevice.Grayskull:
-        pytest.skip("Failing on GS with: Core (c=0,y=8,x=1) [routing]  (c=0,y=6,x=0) [worker] [op_name=conv2d_496.dc.matmul.12] exceeded resource constraints: active dram queues used: 63 limit: 40")
-    
     # Set PyBuda configuration parameters
     compiler_cfg = (
         pybuda.config._get_global_compiler_config()
     )  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
+    if test_device.arch == BackendDevice.Grayskull:
+        os.environ["PYBUDA_RIBBON2"] = "1"
 
     # Create PyBuda module from PyTorch model
     preprocessor = download_model(AutoImageProcessor.from_pretrained,
@@ -209,15 +207,14 @@ def test_mobilenetv2_224(test_device):
     )
     
 def generate_model_mobilenetV2_imgcls_timm_pytorch(test_device, variant):
-    if test_device.arch == BackendDevice.Grayskull:
-        pytest.skip("Failing on GS with: Core (c=0,y=8,x=1) [routing]  (c=0,y=6,x=0) [worker] [op_name=conv2d_483.dc.matmul.12] exceeded resource constraints: active dram queues used: 63 limit: 40")
-    
     # Set PyBuda configuration parameters
     compiler_cfg = (
         pybuda.config._get_global_compiler_config()
     )  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
+    if test_device.arch == BackendDevice.Grayskull:
+        os.environ["PYBUDA_RIBBON2"] = "1"
 
     # Create PyBuda module from PyTorch model
     model = download_model(timm.create_model, variant, pretrained=True)
