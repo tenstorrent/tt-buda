@@ -2411,13 +2411,9 @@ std::pair<OpModel, OpModelFailureReason> calculate_op_model(
     std::optional<int> output_buffer_factor_override,
     bool fallback_single_buffer)
 {
-    OpModel op_model;
-    OpModelFailureReason failure_reason;
-    bool retry = true;
-    while (retry)
+    while (true)
     {
-        retry = false;
-        std::tie(op_model, failure_reason) = calculate_op_model_impl(
+        auto [op_model, failure_reason] = calculate_op_model_impl(
             graph,
             cache_collection,
             op_node,
@@ -2441,10 +2437,12 @@ std::pair<OpModel, OpModelFailureReason> calculate_op_model(
             dst_size_tiles > 1)
         {
             dst_size_tiles /= 2;
-            retry = true;
+        }
+        else
+        {
+            return std::make_pair(op_model, failure_reason);
         }
     }
-    return std::make_pair(op_model, failure_reason);
 }
 
 // Calculate legal OpModels for a graph.
