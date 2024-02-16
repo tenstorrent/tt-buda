@@ -195,7 +195,6 @@ def test_vilt_maskedlm_hf_pytorch(variant, test_device):
     model, inputs, _ = generate_model_vilt_maskedlm_hf_pytorch(
         test_device, variant,
     )
-    pcc = 0.98 if test_device.arch == BackendDevice.Wormhole_B0 else 0.99
     verify_module(
         model,
         input_shapes=[(inputs[0].shape,inputs[1].shape)],
@@ -205,6 +204,6 @@ def test_vilt_maskedlm_hf_pytorch(variant, test_device):
             devtype=test_device.devtype,
             devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
-            pcc=pcc,
+            pcc=0.98,
         )
     )
