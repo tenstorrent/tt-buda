@@ -110,10 +110,12 @@ def generate_model_yoloV5I640_imgcls_torchhub_pytorch(test_device, variant, size
             os.environ["PYBUDA_RIBBON2"] = "1"
             if size in ["x"]:
                 compiler_cfg.place_on_new_epoch("conv2d_210.dc.matmul.11")
+                os.environ["PYBUDA_TEMP_BALANCER_DISABLE_TARGET_PROXIMITY"] = "1"
         if size in ["m"]:
             os.environ["PYBUDA_RIBBON2"] = "1"
             os.environ["PYBUDA_INSERT_SLICE_FOR_CONCAT"] = "1"
             os.environ["PYBUDA_CONCAT_SLICE_Y"] = "10"
+            os.environ["PYBUDA_TEMP_BALANCER_DISABLE_TARGET_PROXIMITY"] = "1"
 
     elif test_device.arch == BackendDevice.Wormhole_B0:
         os.environ["PYBUDA_PAD_SPARSE_MM"] = "{13:16, 3:4}"
@@ -150,6 +152,7 @@ def generate_model_yoloV5I640_imgcls_torchhub_pytorch(test_device, variant, size
             os.environ["PYBUDA_RIBBON2"] = "1"
             compiler_cfg.enable_tm_cpu_fallback = True
             os.environ["PYBUDA_DISABLE_CAP_SPARSE_MM_FIDELITY"] = "0"
+            os.environ["PYBUDA_TEMP_BALANCER_DISABLE_TARGET_PROXIMITY"] = "1"
 
     name = "yolov5" + size
     model = download_model(torch.hub.load, variant, name, pretrained=True)

@@ -444,7 +444,7 @@ std::tuple<scheduler::Schedule, std::unordered_set<string>, std::unordered_set<s
         config.use_interactive_placer);
     std::unordered_set<string> chip_break_ops = placer::lowering::tag_ops_for_chip_break(
         config.device_config.arch_name, op_names_to_chip_break, scheduled_ops, graph, config.use_interactive_placer);
-
+ 
     return make_tuple(std::move(scheduled_ops), std::move(epoch_break_ops), std::move(chip_break_ops));
 }
 
@@ -924,16 +924,19 @@ bool is_candidate_better_than_current(
         }
     }
 
-    TargetProximity candidate_proxmity = target_proximity(target_exec_cycles, candidate_cycles);
-    TargetProximity current_proximity = target_proximity(target_exec_cycles, current_cycles);
+    if (!env_as<bool>("PYBUDA_TEMP_BALANCER_DISABLE_TARGET_PROXIMITY", false))
+    {
+        TargetProximity candidate_proxmity = target_proximity(target_exec_cycles, candidate_cycles);
+        TargetProximity current_proximity = target_proximity(target_exec_cycles, current_cycles);
 
-    if (candidate_proxmity < current_proximity)
-    {
-        return true;
-    }
-    else if (candidate_proxmity > current_proximity)
-    {
-        return false;
+        if (candidate_proxmity < current_proximity)
+        {
+            return true;
+        }
+        else if (candidate_proxmity > current_proximity)
+        {
+            return false;
+        }
     }
 
     bool ukt_ok_candidate = ukt_ok(candidate);
