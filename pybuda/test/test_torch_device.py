@@ -382,3 +382,31 @@ def test_push(shape, mb, loop, native):
     print(
         f"Batch[{mb:2}] Loop[{loop:2}] Native[{native:1}] Data[{data}mB] Elapsed[{elapsed:2.4}sec]"
     )
+
+foobar = 5.0
+class DisjointedGraphs(torch.nn.Module):
+    def forward(self, a):
+        a = a + 1
+        a = a.to('cpu')
+        if a[0] > foobar:
+            b = a + 2
+        else:
+            b = a + 3
+
+        return b
+
+def test_disjointed_graphs():
+    model = torch.compile(DisjointedGraphs(), backend=compile_torch)
+    input = torch.tensor([[1.0]])
+    tt_res = model(input.to('tt'))
+    tt_res = tt_res.to('cpu')
+
+    cpu_res = DisjointedGraphs()(input)
+    assert cpu_res == tt_res
+
+    input = torch.tensor([[2.5]])
+    tt_res = model(input.to('tt'))
+    tt_res = tt_res.to('cpu')
+
+    cpu_res = DisjointedGraphs()(input)
+    assert cpu_res == tt_res

@@ -380,6 +380,7 @@ dynamo_to_pybuda_function = {
     "_unsafe_view"                         : (process_reshape, "reshape"),
     "where"                                : (process_dummy_no_attr, "where"),
     "pow"                                  : (process_power, ""),
+    "gt"                                   : (process_dummy_no_attr, "greater"),
 }
 
 torch_constant_ops = {
