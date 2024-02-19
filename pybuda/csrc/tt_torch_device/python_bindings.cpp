@@ -60,13 +60,13 @@ void TorchDeviceModule(py::module &m_torch_device)
             py::arg("output_runtime_transforms"));
 
     py::class_<tt::Workload, std::shared_ptr<tt::Workload>>(m_torch_device, "Workload")
-        .def_readonly("backend", &tt::Workload::backend)
         .def_readonly("inputs", &tt::Workload::inputs)
         .def_readonly("constants", &tt::Workload::constants)
         .def_readonly("parameters", &tt::Workload::parameters)
         .def_readonly("outputs", &tt::Workload::outputs);
 
     py::class_<tt::TTDevice>(m_torch_device, "TTDevice")
+        .def_readonly("backend", &tt::TTDevice::backend)
         .def_readonly("type", &tt::TTDevice::type)
         .def_readonly("arch", &tt::TTDevice::arch)
         .def_readonly("mmio", &tt::TTDevice::mmio)

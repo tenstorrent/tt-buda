@@ -282,12 +282,12 @@ class compiledModel(torch.nn.Module):
         for desc in self.workload.parameters:
             name = desc.name
             value = self.compiled_graph_state.post_const_eval_parameters[name]
-            push_tensor(self.workload.backend.get_queue_descriptor(desc.name), desc, value, "")
+            push_tensor(self.device.backend.get_queue_descriptor(desc.name), desc, value, "")
 
         for desc in self.workload.constants:
             name = desc.name
             value = self.compiled_graph_state.post_const_eval_constants[name]
-            push_tensor(self.workload.backend.get_queue_descriptor(desc.name), desc, value, "")
+            push_tensor(self.device.backend.get_queue_descriptor(desc.name), desc, value, "")
         # self.module.to(dev)
 
 from torch._decomp import core_aten_decompositions, get_decompositions
@@ -317,6 +317,7 @@ def compile_torch(
         apply_torch_reconstruct_patterns(aten)
         return _torch_compile(module, sample_inputs, aten, original_torch_device=torch_device)
 
+_device = None
 def _torch_compile(
     module,
     sample_inputs,
@@ -337,8 +338,10 @@ def _torch_compile(
     logger.info("Torch Compile")
     strip_overloads(aten_module)
 
-    if device is None:
-        device = get_default_device()
+    global _device
+    if _device is None:
+        _device = get_default_device()
+    device = _device
 
     if compiler_cfg is None:
         compiler_cfg = pybuda.config._get_global_compiler_config()

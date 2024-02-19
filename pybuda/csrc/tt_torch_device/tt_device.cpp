@@ -42,7 +42,6 @@ std::shared_ptr<Workload> compile(TTDevice& device, CompileRequest const& compil
     TT_ASSERT(device.arch == compile_request.backend_config.arch);
 
     std::shared_ptr<Workload> workload = std::make_shared<Workload>(
-        tt_backend::create(compile_request.netlist_path, compile_request.backend_config),
         compile_request.output_dir,
         compile_request.inputs,
         compile_request.constants,
@@ -55,10 +54,23 @@ std::shared_ptr<Workload> compile(TTDevice& device, CompileRequest const& compil
     device.output_runtime_transforms = compile_request.output_runtime_transforms;
     
     tt::tt_compile_result result;
-    if (workload->backend->initialize(&result) != DEVICE_STATUS_CODE::Success)
+    if (device.initialized)
+    {
+        std::cout << "Device already initialized" << std::endl;
+        device.backend->finish();
+        if (device.context->initialized.load(std::memory_order_relaxed))
+            backend::finish_child_process();
+    }
+    else
+    {
+        std::cout << "Device not initialized" << std::endl;
+    }
+    device.backend = tt_backend::create(compile_request.netlist_path, compile_request.backend_config);
+
+    if (device.backend->initialize(&result) != DEVICE_STATUS_CODE::Success)
         log_fatal(LogTTDevice, "Backend compile failed: {}", tt::get_string(result));
 
-    workload->initialized = true;
+    device.initialized = true;
 
     return workload;
 }
@@ -241,13 +253,13 @@ std::vector<torch::Tensor> dispatch(
         {
             std::string runtime_transform = device.input_runtime_transforms.at(input_idx);
             std::vector<int> tile_bcast_dims = device.input_tile_bcast_dims.at(input_idx);
-            auto [transformed_input, q_updated] = eval_runtime_transform(input.to(torch::kCPU), runtime_transform, tile_bcast_dims, workload->backend->get_queue_descriptor(desc.name));
+            auto [transformed_input, q_updated] = eval_runtime_transform(input.to(torch::kCPU), runtime_transform, tile_bcast_dims, device.backend->get_queue_descriptor(desc.name));
             input_meta->runtime_transformed = true;
             push_tensor(q_updated, desc, transformed_input, fmt::format("input[{}]", input_idx));
         }
         else
         {
-            push_tensor(workload->backend->get_queue_descriptor(desc.name), desc, input, fmt::format("input[{}]", input_idx));
+            push_tensor(device.backend->get_queue_descriptor(desc.name), desc, input, fmt::format("input[{}]", input_idx));
         }
         // TT_ASSERT(copied_inputs.at(input_idx) == input.const_data_ptr(), "Incorrect input pointer, input tensors need to be copied to device in the same order as they'll be consumed");
         ++input_idx;
@@ -255,7 +267,7 @@ std::vector<torch::Tensor> dispatch(
 
     for (Program const& program : programs)
     {
-        auto status = workload->backend->run_program(program.name, program.parameters);
+        auto status = device.backend->run_program(program.name, program.parameters);
         if (status != DEVICE_STATUS_CODE::Success)
             log_fatal(LogTTDevice, "Failed to run_program: {} {}", program.name, status);
     }
@@ -269,7 +281,7 @@ std::vector<torch::Tensor> dispatch(
         if (output_host_tms.count(desc.name))
             output_host_tm = output_host_tms.at(desc.name);
 
-        torch::Tensor output = pop_tensor(*workload->backend, desc, output_host_tm);
+        torch::Tensor output = pop_tensor(*device.backend, desc, output_host_tm);
         std::string runtime_transform = device.output_runtime_transforms.at(i);
         register_output_runtime_transform(output, runtime_transform);
         outputs.emplace_back(output);

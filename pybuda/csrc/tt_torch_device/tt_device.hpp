@@ -104,38 +104,24 @@ struct CompileRequest
 
 struct Workload
 {
-    std::shared_ptr<tt_backend> backend;
     std::string output_dir;
     std::vector<PyBudaTensorDesc> inputs;
     std::vector<PyBudaTensorDesc> constants;
     std::vector<PyBudaTensorDesc> parameters;
     std::vector<PyBudaTensorDesc> outputs;
-    bool initialized = false;
 
     Workload(
-        std::shared_ptr<tt_backend> backend,
         std::string output_dir,
         std::vector<PyBudaTensorDesc> const& inputs,
         std::vector<PyBudaTensorDesc> const& constants,
         std::vector<PyBudaTensorDesc> const& parameters,
         std::vector<PyBudaTensorDesc> const& outputs) :
-        backend(backend),
         output_dir(output_dir),
         inputs(inputs),
         constants(constants),
         parameters(parameters),
         outputs(outputs)
     {
-    }
-
-    ~Workload()
-    {
-        if (initialized)
-        {
-            TT_ASSERT(bool(backend));
-            backend->finish();
-        }
-
     }
 };
 
@@ -160,6 +146,8 @@ struct TTDevice
     std::vector<std::string> input_runtime_transforms;
     std::vector<std::vector<int>> input_tile_bcast_dims;
     std::vector<std::string> output_runtime_transforms;
+    std::shared_ptr<tt_backend> backend;
+    bool initialized = false;
 
     TTDevice(
         DEVICE type, ARCH arch, std::string soc_desc_yaml, bool mmio, int index, std::shared_ptr<TTContext> context) :
