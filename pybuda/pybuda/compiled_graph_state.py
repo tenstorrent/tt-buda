@@ -238,3 +238,24 @@ class CompiledGraphState:
 
     def get_parameter_tensor(self, name):
         return self.get_tensor(self.post_const_eval_parameters, name)
+
+    def get_ordered_input_names_for_subgraph(self, subgraph_idx):
+        return [name for i, name in enumerate(self.ordered_input_names) if self.ordered_input_subgraph_indices[i] == subgraph_idx]
+
+    def get_ordered_input_shapes_for_subgraph(self, subgraph_idx):
+        return [shape for i, shape in enumerate(self.ordered_input_shapes) if self.ordered_input_subgraph_indices[i] == subgraph_idx]
+
+    def get_ordered_input_runtime_transforms_for_subgraph(self, subgraph_idx):
+        return [transform for i, transform in enumerate(self.ordered_input_runtime_tensor_transforms) if self.ordered_input_subgraph_indices[i] == subgraph_idx]
+
+    def get_ordered_input_tile_broadcast_dims_for_subgraph(self, subgraph_idx):
+        return [tile_dims for i, tile_dims in enumerate(self.ordered_input_tile_broadcast_dims) if self.ordered_input_subgraph_indices[i] == subgraph_idx]
+
+    def get_ordered_output_names_for_subgraph(self, subgraph_idx):
+        return [name for i, name in enumerate(self.ordered_output_names) if self.ordered_output_subgraph_indices[i] == subgraph_idx]
+
+    def get_ordered_output_shapes_for_subgraph(self, subgraph_idx):
+        return [shape for i, shape in enumerate(self.ordered_output_shapes) if self.ordered_output_subgraph_indices[i] == subgraph_idx]
+
+    def get_ordered_output_runtime_transforms_for_subgraph(self, subgraph_idx):
+        return [transform for i, transform in enumerate(self.ordered_output_runtime_tensor_transforms) if self.ordered_output_subgraph_indices[i] == subgraph_idx]

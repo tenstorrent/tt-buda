@@ -586,8 +586,13 @@ void Graph::update_node_name(Node *node, const std::string &new_name) {
     node_name_to_node_id_[new_name] = node_id;
 }
 
-void Graph::register_module_inputs(const std::vector<NodeId>& module_inputs) {
-    this->ordered_module_input_node_ids_ = module_inputs;
+void Graph::register_module_inputs(const std::vector<NodeId>& module_inputs, bool append) {
+    if (!append) {
+        this->ordered_module_input_node_ids_.clear();
+    }
+    for (NodeId module_input : module_inputs) {
+        this->ordered_module_input_node_ids_.push_back(module_input);
+    }
 }
 
 std::size_t Graph::remove_module_input(NodeId input)
@@ -668,9 +673,14 @@ void Graph::copy_module_targets(Graph *old_graph, const std::unordered_map<Node 
 
 
 
-void Graph::register_module_outputs(const std::vector<NodeId>& module_outputs, std::vector<bool> requires_grad) {
+void Graph::register_module_outputs(const std::vector<NodeId>& module_outputs, std::vector<bool> requires_grad, bool append) {
     TT_ASSERT(module_outputs.size() == requires_grad.size());
-    this->ordered_module_output_node_ids_ = module_outputs;
+    if (!append) {
+        this->ordered_module_output_node_ids_.clear();
+    }
+    for (NodeId module_output : module_outputs) {
+        this->ordered_module_output_node_ids_.push_back(module_output);
+    }
     for (std::size_t i=0; i < module_outputs.size(); i++)
     {
         OutputNode *out = node_by_id(module_outputs[i])->as<OutputNode>();

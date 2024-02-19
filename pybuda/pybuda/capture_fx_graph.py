@@ -611,6 +611,6 @@ def append_to_graph(graph, module, aten_module, activations, subgraph_idx):
         else:
             assert False, f"Unsupported op {node.op}"
 
-    graph.register_module_inputs(module_inputs)
-    graph.register_module_outputs(output_nids, output_requires_grad)
+    graph.register_module_inputs(module_inputs, append=True)
+    graph.register_module_outputs(output_nids, output_requires_grad, append=True)
     return graph, id_to_intermed, output_tensors

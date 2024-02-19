@@ -137,6 +137,7 @@ static tt_PytorchTensorDesc to_pytorch_tensor_desc(torch::Tensor const& tensor)
         tensor.data_ptr(), tensor.element_size(), torch_scalar_type_to_df(tensor.scalar_type()), shape, strides, 4);
 }
 
+std::unordered_set<std::string> pushed;
 void push_tensor(
     //tt_backend& backend,
     tt_dram_io_desc queue_desc,
@@ -144,6 +145,18 @@ void push_tensor(
     torch::Tensor const& tensor,
     std::string const& info)
 {
+    /*if (pushed.find(desc.name) != pushed.end())
+    {
+        std::cout << "Already pushed " << desc.name << std::endl;
+        return;
+    }
+    
+    // Only record if the name doesn't start with arg
+    if (desc.name.find("arg") != 0)
+    {
+        pushed.insert(desc.name);
+    }*/
+
     log_debug(
         LogTTDevice,
         "Pushing tensor({})[{}][{}] to device[{}]",

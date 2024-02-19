@@ -73,7 +73,7 @@ def torch_device(index=0):
     return get_available_devices()[index].torch_device()
 
 
-def _build_backend_compile_request(device, compiler_cfg, compiled_graph_state):
+def _build_backend_compile_request(device, compiler_cfg, compiled_graph_state, subgraph_idx):
     soc_desc_yaml = (
         compiler_cfg.backend_device_descriptor_path
         if compiler_cfg.backend_device_descriptor_path == ""
@@ -100,15 +100,15 @@ def _build_backend_compile_request(device, compiler_cfg, compiled_graph_state):
     inputs = [
         PyBudaTensorDesc(name, shape)
         for name, shape in zip(
-            compiled_graph_state.ordered_input_names, compiled_graph_state.ordered_input_shapes
+            compiled_graph_state.get_ordered_input_names_for_subgraph(subgraph_idx), compiled_graph_state.get_ordered_input_shapes_for_subgraph(subgraph_idx)
         )
     ]
 
     input_runtime_transforms = [
-        json.dumps(transform.to_json()) for transform in compiled_graph_state.ordered_input_runtime_tensor_transforms
+        json.dumps(transform.to_json()) for transform in compiled_graph_state.get_ordered_input_runtime_transforms_for_subgraph(subgraph_idx)
     ]
 
-    input_tile_bcast_dims = compiled_graph_state.ordered_input_tile_broadcast_dims
+    input_tile_bcast_dims = compiled_graph_state.get_ordered_input_tile_broadcast_dims_for_subgraph(subgraph_idx)
 
     constants = [
         PyBudaTensorDesc(
@@ -127,11 +127,11 @@ def _build_backend_compile_request(device, compiler_cfg, compiled_graph_state):
     outputs = [
         PyBudaTensorDesc(name, shape)
         for name, shape in zip(
-            compiled_graph_state.ordered_output_names, compiled_graph_state.ordered_output_shapes
+            compiled_graph_state.get_ordered_output_names_for_subgraph(subgraph_idx), compiled_graph_state.get_ordered_output_shapes_for_subgraph(subgraph_idx)
         )
     ]
     output_runtime_transforms = [
-        json.dumps(transform.to_json()) for transform in compiled_graph_state.ordered_output_runtime_tensor_transforms
+        json.dumps(transform.to_json()) for transform in compiled_graph_state.get_ordered_output_runtime_transforms_for_subgraph(subgraph_idx)
     ]
 
     logger.debug("Build CompileRequest")
@@ -195,7 +195,7 @@ def _compile(module, aten_module, module_name, sample_inputs, device, compiler_c
     logger.debug("Backend Compile")
     compiled_graph_state = CompiledGraphState.from_compiled_graph(_tt0, fe_compile_result)
     workload = device.compile(
-        _build_backend_compile_request(device, compiler_cfg, compiled_graph_state)
+        _build_backend_compile_request(device, compiler_cfg, compiled_graph_state, _subgraph_index - 1)
     )
 
     return workload, compiled_graph_state
@@ -276,7 +276,6 @@ class compiledModel(torch.nn.Module):
         logger.info(f"Running run_fwd_{self.index}")
 
         outputs = self.device.dispatch(self.workload, [program], list(inputs), self.compiled_graph_state.output_host_tms)
-
         return outputs
     
     def to(self, dev):

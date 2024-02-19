@@ -222,8 +222,8 @@ class Graph
 
     void update_node_name(Node *node, const std::string &new_name);
 
-    void register_module_inputs(const std::vector<NodeId> &module_inputs);
-    void register_module_outputs(const std::vector<NodeId> &module_outputs, std::vector<bool> requires_grad);
+    void register_module_inputs(const std::vector<NodeId> &module_inputs, bool append = false);
+    void register_module_outputs(const std::vector<NodeId> &module_outputs, std::vector<bool> requires_grad, bool append = false);
     void register_module_targets(const std::vector<NodeId> &module_targets);
     void copy_module_inputs(Graph *old_graph, const std::unordered_map<Node *, Node *> &old_to_new);
     void copy_module_outputs(Graph *old_graph, const std::unordered_map<Node *, Node *> &old_to_new);
