@@ -22,7 +22,7 @@ bbe_files = {
     },
     "bin": {
         "path": "build/bin" ,
-        "files": ["net2pipe", "pipegen2", "op_model"],
+        "files": ["net2pipe", "pipegen2", "op_model", "dpnra"],
     },
     "device_descriptors": {
         "path": "device",
@@ -223,6 +223,7 @@ class MyBuild(build_ext):
             env.update(additional_env_variables)
             nproc = os.cpu_count()
             subprocess.check_call(["make", f"-j{nproc}", "pybuda", r'DEVICE_VERSIM_INSTALL_ROOT=\$$ORIGIN/../..'], env=env)
+            subprocess.check_call([f"cd third_party/budabackend && make -j{nproc} netlist_analyzer"], env=env, shell=True)
 
             src = "build/lib/libpybuda_csrc.so"
             self.copy_file(src, os.path.join(build_lib, filename))
