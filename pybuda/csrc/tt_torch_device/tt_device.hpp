@@ -70,24 +70,24 @@ struct CompileRequest
     std::string output_dir;
     tt::tt_backend_config backend_config;
     std::vector<PyBudaTensorDesc> inputs;
-    std::vector<std::string> input_runtime_transforms;
-    std::vector<std::vector<int>> input_tile_bcast_dims;
+    std::map<int, std::vector<std::string>> input_runtime_transforms;
+    std::map<int, std::vector<std::vector<int>>> input_tile_bcast_dims;
     std::vector<PyBudaTensorDesc> constants;
     std::vector<PyBudaTensorDesc> parameters;
     std::vector<PyBudaTensorDesc> outputs;
-    std::vector<std::string> output_runtime_transforms;
+    std::map<int, std::vector<std::string>> output_runtime_transforms;
 
     CompileRequest(
         std::string const& netlist_path,
         std::string output_dir,
         tt::tt_backend_config const& backend_config,
         std::vector<PyBudaTensorDesc> const& inputs,
-        std::vector<std::string> const& input_runtime_transforms,
-        std::vector<std::vector<int>> const& input_tile_bcast_dims,
+        std::map<int, std::vector<std::string>> const& input_runtime_transforms,
+        std::map<int, std::vector<std::vector<int>>> const& input_tile_bcast_dims,
         std::vector<PyBudaTensorDesc> const& constants,
         std::vector<PyBudaTensorDesc> const& parameters,
         std::vector<PyBudaTensorDesc> const& outputs,
-        std::vector<std::string> const& output_runtime_transforms) :
+        std::map<int, std::vector<std::string>> const& output_runtime_transforms) :
         netlist_path(netlist_path),
         output_dir(output_dir),
         backend_config(backend_config),
@@ -143,9 +143,9 @@ struct TTDevice
     bool mmio;
     int index;
     std::shared_ptr<TTContext> context;
-    std::vector<std::string> input_runtime_transforms;
-    std::vector<std::vector<int>> input_tile_bcast_dims;
-    std::vector<std::string> output_runtime_transforms;
+    std::map<int, std::vector<std::string>> input_runtime_transforms;
+    std::map<int, std::vector<std::vector<int>>> input_tile_bcast_dims;
+    std::map<int, std::vector<std::string>> output_runtime_transforms;
     std::shared_ptr<tt_backend> backend;
     bool initialized = false;
 
@@ -181,7 +181,8 @@ std::vector<torch::Tensor> dispatch(
     std::shared_ptr<Workload> workload,
     std::vector<Program> const& programs,
     std::vector<torch::Tensor> const& inputs,
-    tt::balancer::OutputHostTMMap const& output_host_tms);
+    tt::balancer::OutputHostTMMap const& output_host_tms,
+    int subgraph_idx);
 std::string get_device_cluster_yaml(TTDevice const&);
 std::string to_string(TTDevice const& d);
 torch::Device torch_device(TTDevice const& d);

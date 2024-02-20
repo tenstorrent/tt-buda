@@ -48,7 +48,8 @@ std::shared_ptr<Workload> compile(TTDevice& device, CompileRequest const& compil
         compile_request.parameters,
         compile_request.outputs);
 
-    register__ordered_input_runtime_transforms(compile_request.input_runtime_transforms);
+    // Todo: add transforms per subgraph to torch device so we can eval on tensot.to("tt")
+    // register__ordered_input_runtime_transforms(compile_request.input_runtime_transforms);
     device.input_runtime_transforms = compile_request.input_runtime_transforms;
     device.input_tile_bcast_dims = compile_request.input_tile_bcast_dims;
     device.output_runtime_transforms = compile_request.output_runtime_transforms;
@@ -229,7 +230,8 @@ std::vector<torch::Tensor> dispatch(
     std::shared_ptr<Workload> workload,
     std::vector<Program> const& programs,
     std::vector<torch::Tensor> const& inputs,
-    tt::balancer::OutputHostTMMap const& output_host_tms)
+    tt::balancer::OutputHostTMMap const& output_host_tms,
+    int subgraph_idx)
 {
     bool expected = false;
     if (device.context->initialized.compare_exchange_strong(
@@ -251,8 +253,8 @@ std::vector<torch::Tensor> dispatch(
         TT_ASSERT (input_meta != nullptr);
         if (!input_meta->runtime_transformed)
         {
-            std::string runtime_transform = device.input_runtime_transforms.at(input_idx);
-            std::vector<int> tile_bcast_dims = device.input_tile_bcast_dims.at(input_idx);
+            std::string runtime_transform = device.input_runtime_transforms.at(subgraph_idx).at(input_idx);
+            std::vector<int> tile_bcast_dims = device.input_tile_bcast_dims.at(subgraph_idx).at(input_idx);
             auto [transformed_input, q_updated] = eval_runtime_transform(input.to(torch::kCPU), runtime_transform, tile_bcast_dims, device.backend->get_queue_descriptor(desc.name));
             input_meta->runtime_transformed = true;
             push_tensor(q_updated, desc, transformed_input, fmt::format("input[{}]", input_idx));
@@ -282,7 +284,7 @@ std::vector<torch::Tensor> dispatch(
             output_host_tm = output_host_tms.at(desc.name);
 
         torch::Tensor output = pop_tensor(*device.backend, desc, output_host_tm);
-        std::string runtime_transform = device.output_runtime_transforms.at(i);
+        std::string runtime_transform = device.output_runtime_transforms.at(subgraph_idx).at(i);
         register_output_runtime_transform(output, runtime_transform);
         outputs.emplace_back(output);
     }

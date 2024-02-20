@@ -104,11 +104,15 @@ def _build_backend_compile_request(device, compiler_cfg, compiled_graph_state, s
         )
     ]
 
-    input_runtime_transforms = [
-        json.dumps(transform.to_json()) for transform in compiled_graph_state.get_ordered_input_runtime_transforms_for_subgraph(subgraph_idx)
-    ]
+    input_runtime_transforms = {}
+    for i in range(subgraph_idx + 1):
+        input_runtime_transforms[i] = [
+            json.dumps(transform.to_json()) for transform in compiled_graph_state.get_ordered_input_runtime_transforms_for_subgraph(i)
+        ]
 
-    input_tile_bcast_dims = compiled_graph_state.get_ordered_input_tile_broadcast_dims_for_subgraph(subgraph_idx)
+    input_tile_bcast_dims = {}
+    for i in range(subgraph_idx + 1):
+        input_tile_bcast_dims[i] = compiled_graph_state.get_ordered_input_tile_broadcast_dims_for_subgraph(i)
 
     constants = [
         PyBudaTensorDesc(
@@ -130,9 +134,11 @@ def _build_backend_compile_request(device, compiler_cfg, compiled_graph_state, s
             compiled_graph_state.get_ordered_output_names_for_subgraph(subgraph_idx), compiled_graph_state.get_ordered_output_shapes_for_subgraph(subgraph_idx)
         )
     ]
-    output_runtime_transforms = [
-        json.dumps(transform.to_json()) for transform in compiled_graph_state.get_ordered_output_runtime_transforms_for_subgraph(subgraph_idx)
-    ]
+    output_runtime_transforms = {}
+    for i in range(subgraph_idx + 1):
+        output_runtime_transforms[i] = [
+            json.dumps(transform.to_json()) for transform in compiled_graph_state.get_ordered_output_runtime_transforms_for_subgraph(i)
+        ]
 
     logger.debug("Build CompileRequest")
     return CompileRequest(
@@ -275,7 +281,7 @@ class compiledModel(torch.nn.Module):
         program = Program(f"run_fwd_{self.index}", program_params)
         logger.info(f"Running run_fwd_{self.index}")
 
-        outputs = self.device.dispatch(self.workload, [program], list(inputs), self.compiled_graph_state.output_host_tms)
+        outputs = self.device.dispatch(self.workload, [program], list(inputs), self.compiled_graph_state.output_host_tms, self.index)
         return outputs
     
     def to(self, dev):
