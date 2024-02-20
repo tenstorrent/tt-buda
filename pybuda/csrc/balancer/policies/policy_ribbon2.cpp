@@ -28,25 +28,25 @@ namespace tt::balancer
 
 OpModel get_closest_op_model(
     const legalizer::GraphSolver &graph_solver_snapshot,
-    const OpModelPair &op,
+    const OpModel &op_model_target,
     const BalancerConfig *balancer_config,
     const graphlib::Graph *graph,
     std::unordered_set<std::uint64_t> &validated_cache)
 {
     std::optional<OpModel> closest_model = std::nullopt;
-    bool is_sparse_matmul = op.op->is_sparse_matmul();
-    for (auto op_model : graph_solver_snapshot.at(op.op))
+    bool is_sparse_matmul = op_model_target.buda_op_node->is_sparse_matmul();
+    for (const auto &op_model : graph_solver_snapshot.at(op_model_target.buda_op_node))
     {
         if (is_sparse_matmul)
         {
-            if (!validate_sparse_matmul_model(op.op, op_model, graph, validated_cache))
+            if (!validate_sparse_matmul_model(op_model_target.buda_op_node, op_model, graph, validated_cache))
             {
                 continue;
             }
         }
 
         // try to set the same op model as before, if possible. If not, then pick the closest one
-        if (op_model == op.model)
+        if (op_model == op_model_target)
         {
             closest_model = op_model;
             break;
@@ -59,10 +59,10 @@ OpModel get_closest_op_model(
         {
             auto my_delta = std::abs(
                 get_limiter_cycles(op_model, graph, *balancer_config) -
-                get_limiter_cycles(op.model, graph, *balancer_config));
+                get_limiter_cycles(op_model_target, graph, *balancer_config));
             auto best_delta = std::abs(
                 get_limiter_cycles(*closest_model, graph, *balancer_config) -
-                get_limiter_cycles(op.model, graph, *balancer_config));
+                get_limiter_cycles(op_model_target, graph, *balancer_config));
 
             if (my_delta < best_delta)
             {
@@ -71,7 +71,7 @@ OpModel get_closest_op_model(
             else if (my_delta == best_delta)
             {
                 // Prefer the same shape
-                if (op.model.grid_shape == op_model.grid_shape)
+                if (op_model_target.grid_shape == op_model.grid_shape)
                 {
                     closest_model = op_model;
                 }
@@ -106,9 +106,9 @@ EpochSolution optimize_solution(
     {
         // Find the slowest cycle count
         float slowest_cycles = 0;
-        for (auto &op : best_solution.get_ops())
+        for (const auto &op_model : best_solution.get_selected_op_models())
         {
-            float cycles = get_limiter_cycles(op.model, graph, *balancer_config);
+            float cycles = get_limiter_cycles(op_model, graph, *balancer_config);
             if (cycles > slowest_cycles)
                 slowest_cycles = cycles;
         }
@@ -119,18 +119,18 @@ EpochSolution optimize_solution(
         auto target_cycles = 0.9 * slowest_cycles;
         std::vector<OpModel> blacklisted_models;  // models from previous bad iterations that shouldn't be tried again
         log_trace(LogBalancer, "RIBBON2: target_cycles = {}", target_cycles);
-        for (std::size_t op_index = 0; op_index < new_solution.get_ops().size(); op_index++)
+        for (std::size_t op_index = 0; op_index < new_solution.get_selected_op_models().size(); op_index++)
         {
-            auto &op = new_solution.get_ops()[op_index];
-            bool is_sparse_matmul = op.op->is_sparse_matmul();
-            float cycles = get_limiter_cycles(op.model, graph, *balancer_config);
+            const auto &op_model = new_solution.get_selected_op_models()[op_index];
+            bool is_sparse_matmul = op_model.buda_op_node->is_sparse_matmul();
+            float cycles = get_limiter_cycles(op_model, graph, *balancer_config);
             if (cycles < target_cycles)
             {
-                log_trace(LogBalancer, "RIBBON2: op {} is fast enough", op.op->name());
+                log_trace(LogBalancer, "RIBBON2: op {} is fast enough", op_model.buda_op_node->name());
                 auto closest_model =
-                    get_closest_op_model(*graph_solver_snapshot, op, balancer_config, graph, validated_cache);
-                graph_solver_snapshot->set(op.op, closest_model);
-                if (!(closest_model == op.model))
+                    get_closest_op_model(*graph_solver_snapshot, op_model, balancer_config, graph, validated_cache);
+                graph_solver_snapshot->set(op_model.buda_op_node, closest_model);
+                if (!(closest_model == op_model))
                 {
                     log_trace(
                         LogBalancer,
@@ -144,20 +144,20 @@ EpochSolution optimize_solution(
             {
                 // Bump up the grid
                 // Ideally, use the same ribbon size first
-                log_trace(LogBalancer, "RIBBON2: op {} is too slow, bumping up grid", op.op->name());
+                log_trace(LogBalancer, "RIBBON2: op {} is too slow, bumping up grid", op_model.buda_op_node->name());
                 std::optional<OpModel> new_op_model = std::nullopt;
                 for (bool same_ribbon : {true, false})
                 {
                     // Check for the case where none of the grids can have prologue, and then waive it
                     bool waive_prologue = true;
-                    for (const auto &op_model : graph_solver_snapshot->at(op.op))
+                    for (const auto &op_model : graph_solver_snapshot->at(op_model.buda_op_node))
                         if (prologue_ok(op_model))
                         {
                             waive_prologue = false;
                             break;
                         }
 
-                    for (const auto &op_model : graph_solver_snapshot->at(op.op))
+                    for (const auto &op_model : graph_solver_snapshot->at(op_model.buda_op_node))
                     {
                         log_trace(
                             LogBalancer,
@@ -206,7 +206,8 @@ EpochSolution optimize_solution(
                             if (is_sparse_matmul)
                             {
                                 // Make sure that this sparse model can be encoded correctly
-                                op_ok = validate_sparse_matmul_model(op.op, op_model, graph, validated_cache);
+                                op_ok = validate_sparse_matmul_model(
+                                    op_model.buda_op_node, op_model, graph, validated_cache);
                             }
 
                             if (op_ok)
@@ -215,7 +216,7 @@ EpochSolution optimize_solution(
                                 log_trace(
                                     LogBalancer,
                                     "RIBBON2: setting new grid for {}: {} with cycles {}",
-                                    op.op->name(),
+                                    op_model.buda_op_node->name(),
                                     op_model.grid_shape,
                                     get_limiter_cycles(op_model, graph, *balancer_config));
                             }
@@ -232,51 +233,61 @@ EpochSolution optimize_solution(
                     log_trace(
                         LogBalancer,
                         "RIBBON2: bumping up {} from {} to {}",
-                        op.op->name(),
-                        op.model.grid_shape,
+                        op_model.buda_op_node->name(),
+                        op_model.grid_shape,
                         new_op_model->grid_shape);
                     new_solution.update_model(op_index, new_op_model.value());
-                    graph_solver_snapshot->set(op.op, new_op_model.value());
+                    graph_solver_snapshot->set(op_model.buda_op_node, new_op_model.value());
                     blacklisted_models.push_back(new_op_model.value());  // record in case this bump ended up being bad
                 }
                 else
                 {
                     // We haven't found anything better, set the same (or closest legal)
                     auto closest_model =
-                        get_closest_op_model(*graph_solver_snapshot, op, balancer_config, graph, validated_cache);
+                        get_closest_op_model(*graph_solver_snapshot, op_model, balancer_config, graph, validated_cache);
                     new_solution.update_model(op_index, closest_model);
-                    graph_solver_snapshot->set(op.op, closest_model);
+                    graph_solver_snapshot->set(op_model.buda_op_node, closest_model);
                 }
             }
         }
 
         // We need to place this new solution to see how much of it actually fits
         std::size_t placed_ops = 0;
-        for (std::size_t i = 0; i < new_solution.get_ops().size(); i++)
+        for (std::size_t i = 0; i < new_solution.get_selected_op_models().size(); i++)
         {
-            auto &op = new_solution.get_ops()[i];
+            const auto &op_model = new_solution.get_selected_op_models()[i];
             std::optional<placer::CoordRange> op_placement;
             int placing_step = 1;
 
-            const OpModelPair *next_op =
-                i < new_solution.get_ops().size() - 1 ? &new_solution.get_ops()[i + 1] : nullptr;
+            const OpModel *next_op = i < new_solution.get_selected_op_models().size() - 1
+                                         ? &new_solution.get_selected_op_models()[i + 1]
+                                         : nullptr;
 
             // Special case for sparse-dense matmul pairing. We want to always place them atomically together if
             // possible.
             //
-            if (next_op and
-                can_bind_sparse_dense_matmul_pair(
-                    graph, op.op, op.model, next_op->op, next_op->model, interactive_placer, true /*allow_transpose*/))
+            if (next_op and can_bind_sparse_dense_matmul_pair(
+                                graph,
+                                op_model.buda_op_node,
+                                op_model,
+                                next_op->buda_op_node,
+                                *next_op,
+                                interactive_placer,
+                                true /*allow_transpose*/))
             {
                 op_placement = interactive_placer.place_two_ops_rowwise(
-                    op.op->name(), op.model.grid_shape, next_op->op->name(), next_op->model.grid_shape, true);
+                    op_model.buda_op_node->name(),
+                    op_model.grid_shape,
+                    next_op->buda_op_node->name(),
+                    next_op->grid_shape,
+                    true);
 
                 placing_step = 2;
                 i++;
             }
             else
             {
-                op_placement = interactive_placer.place_op(op.op->name(), op.model.grid_shape, true);
+                op_placement = interactive_placer.place_op(op_model.buda_op_node->name(), op_model.grid_shape, true);
             }
 
             if (op_placement.has_value())
@@ -289,7 +300,7 @@ EpochSolution optimize_solution(
             }
         }
         interactive_placer.rewind_epoch();  // rewind, we were just testing what fits
-        if (placed_ops < new_solution.get_ops().size())
+        if (placed_ops < new_solution.get_selected_op_models().size())
         {
             // Trim the solution
             new_solution.set_op_count(placed_ops);
@@ -352,9 +363,9 @@ bool handle_fork_join_nop_overflow(
 
     // Get all ops in current epoch.
     std::unordered_set<const Node *> ops_in_curr_epoch;
-    for (auto &op : solution.get_ops())
+    for (const auto &op_model : solution.get_selected_op_models())
     {
-        ops_in_curr_epoch.insert(op.op);
+        ops_in_curr_epoch.insert(op_model.buda_op_node);
     }
 
     // Check if all fork and join nodes are in this epoch.
@@ -377,13 +388,13 @@ bool handle_fork_join_nop_overflow(
     // Get all ops which we wanted to place in this epoch (pre_buffered_solution) and make explicit epoch breaks
     // for all of the ops which didn't fit.
     scheduler::Schedule epoch_break;
-    for (auto &op : pre_buffered_solution->get_ops())
+    for (const auto &op_model : pre_buffered_solution->get_selected_op_models())
     {
         // We don't mark nops for epoch break, since they won't exist when we revert the graph to the pre-buffered
         // snapshot.
-        if (!ops_in_curr_epoch.count(op.op) and !op.op->is_buffering_op())
+        if (!ops_in_curr_epoch.count(op_model.buda_op_node) and !op_model.buda_op_node->is_buffering_op())
         {
-            epoch_break.push_back(op.op->name());
+            epoch_break.push_back(op_model.buda_op_node->name());
         }
     }
 
@@ -441,11 +452,15 @@ bool apply_solution(
     // buffer them appropriately. Otherwise, we will be buffering a local copy of models in the solution,
     // which will eventually get discarded.
 
-    TT_LOG_ASSERT(solution.get_ops().size() > 0, "Solution should have at least one op placed");
-    for (auto &op : solution.get_ops())
+    TT_LOG_ASSERT(solution.get_selected_op_models().size() > 0, "Solution should have at least one op placed");
+    for (const auto &op_model : solution.get_selected_op_models())
     {
-        log_trace(LogBalancer, "RIBBON2: Graph solver set for {} with grid {}", op.op->name(), op.model.grid_shape);
-        graph_solver->set(op.op, op.model);
+        log_trace(
+            LogBalancer,
+            "RIBBON2: Graph solver set for {} with grid {}",
+            op_model.buda_op_node->name(),
+            op_model.grid_shape);
+        graph_solver->set(op_model.buda_op_node, op_model);
     }
     OpModels *op_models = graph_solver->get_selected_op_models_for_buffering(solution.get_current_epoch_ops());
 
@@ -516,11 +531,11 @@ bool apply_solution(
     solution.print();
 
     // Create a map for quicker retrieval as we go through the schedule
-    std::unordered_map<std::string, OpModelPair> op_name_to_model;
-    for (auto &op : solution.get_ops())
+    std::unordered_map<std::string, OpModel> op_name_to_model;
+    for (const auto &op_model : solution.get_selected_op_models())
     {
-        log_trace(LogBalancer, "RIBBON2: emplacing op {}", op.op->name());
-        op_name_to_model.emplace(op.op->name(), op);
+        log_trace(LogBalancer, "RIBBON2: emplacing op {}", op_model.buda_op_node->name());
+        op_name_to_model.emplace(op_model.buda_op_node->name(), op_model);
     }
 
     std::uint32_t solution_ops_placed = 0;
@@ -537,7 +552,7 @@ bool apply_solution(
 
         // Special case for sparse-dense matmul pairing. We want to always place them atomically together.
         //
-        if (op->is_sparse_matmul() and solution_ops_placed < solution.get_ops().size() - 1)
+        if (op->is_sparse_matmul() and solution_ops_placed < solution.get_selected_op_models().size() - 1)
         {
             graphlib::Node *next_node = graph->get_node_by_name(scheduled_ops[placed_op_index + 1]);
             const graphlib::BudaOpNode *dense_matmul_op = static_cast<graphlib::BudaOpNode *>(next_node);
@@ -546,19 +561,15 @@ bool apply_solution(
             if (can_bind_sparse_dense_matmul_pair(
                     graph,
                     op,
-                    it->second.model,
+                    it->second,
                     dense_matmul_op,
-                    it_dense->second.model,
+                    it_dense->second,
                     interactive_placer,
                     true /*allow_transpose*/))
             {
                 sparse_dense_pair = true;
                 op_placement = interactive_placer.place_two_ops_rowwise(
-                    op->name(),
-                    it->second.model.grid_shape,
-                    dense_matmul_op->name(),
-                    it_dense->second.model.grid_shape,
-                    true);
+                    op->name(), it->second.grid_shape, dense_matmul_op->name(), it_dense->second.grid_shape, true);
 
                 if (op_placement.has_value())
                 {
@@ -573,8 +584,7 @@ bool apply_solution(
 
         if (!sparse_dense_pair)
         {
-            op_placement =
-                interactive_placer.place_op(scheduled_ops[placed_op_index], it->second.model.grid_shape, true);
+            op_placement = interactive_placer.place_op(scheduled_ops[placed_op_index], it->second.grid_shape, true);
         }
 
         TT_ASSERT(op_placement.has_value(), "Failed to re-place the solution on op {}", scheduled_ops[placed_op_index]);
@@ -584,7 +594,7 @@ bool apply_solution(
         placed_op_index++;
         solution_ops_placed++;
 
-        if (solution_ops_placed == solution.get_ops().size())
+        if (solution_ops_placed == solution.get_selected_op_models().size())
         {
             // We've placed all the ops in the solution, so we're done
             break;
@@ -749,11 +759,11 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
     std::uint32_t placed_op_index = 0;
     std::uint32_t nodes_to_process = scheduled_ops.size();
     std::unique_ptr<legalizer::GraphSolver>
-        pre_buffered_graph_snapshot;                        // snapshot before any fork-join buffering
-                                                            // graph modifications were made for the current epoch
+        pre_buffered_graph_snapshot;                       // snapshot before any fork-join buffering
+                                                           // graph modifications were made for the current epoch
     std::unique_ptr<EpochSolution> pre_buffered_solution;  // current epoch solution before the last fork-join
-                                                            // buffering attempt - used to check if added buffering
-                                                            // caused any fork-join to split accross epochs
+                                                           // buffering attempt - used to check if added buffering
+                                                           // caused any fork-join to split accross epochs
     std::vector<const Node *>
         fork_and_join_nodes;  // fork and join nodes of every nop-buffered fork-join in current epoch.
     bool epoch_breaks_added = false;
@@ -799,7 +809,7 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
             }
 
             auto graph_solver_epoch_snapshot = std::make_unique<legalizer::GraphSolver>(*graph_solver_main);
-            std::vector<OpModelPair> selected_models;
+            std::vector<OpModel> selected_models;
 
             try
             {
@@ -846,7 +856,7 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
                     {
                         // Pick the best op model.
                         //
-                        auto selected_op_model = select_best_op_model_ribbon(
+                        const OpModel &selected_op_model = select_best_op_model_ribbon(
                             *graph_solver_epoch_snapshot,
                             op,
                             ribbon_size,
@@ -882,7 +892,7 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
                                     graph_solver_epoch_snapshot->set(op, selected_op_model);
                                     op_already_set = true;
 
-                                    auto selected_op_model_dense = select_best_op_model_ribbon(
+                                    const OpModel &selected_op_model_dense = select_best_op_model_ribbon(
                                         *graph_solver_epoch_snapshot,
                                         dense_matmul_op,
                                         ribbon_size,
@@ -907,8 +917,8 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
                                     //
                                     if (op_placement.has_value())
                                     {
-                                        selected_models.push_back({selected_op_model, op});
-                                        selected_models.push_back({selected_op_model_dense, dense_matmul_op});
+                                        selected_models.push_back(selected_op_model);
+                                        selected_models.push_back(selected_op_model_dense);
                                         graph_solver_epoch_snapshot->set(dense_matmul_op, selected_op_model_dense);
                                         op_index++;
                                     }
@@ -927,7 +937,7 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
                         {
                             if (!sparse_dense_pair)
                             {
-                                selected_models.push_back({selected_op_model, op});
+                                selected_models.push_back(selected_op_model);
                                 if (!op_already_set)
                                 {
                                     graph_solver_epoch_snapshot->set(op, selected_op_model);
@@ -948,16 +958,16 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
 
                         // Check if the same solution was provided by another ribbon
                         bool found_same_solution = false;
-                        for (auto &s : solutions)
+                        for (const auto &s : solutions)
                         {
                             if ((s.get_score() != new_solution.get_score()) ||
-                                (s.get_ops().size() != selected_models.size()))
+                                (s.get_selected_op_models().size() != selected_models.size()))
                                 continue;
 
                             bool same = true;
-                            for (std::size_t i = 0; i < s.get_ops().size(); i++)
+                            for (std::size_t i = 0; i < s.get_selected_op_models().size(); i++)
                             {
-                                if (!(s.get_ops()[i].model.id == selected_models[i].model.id))
+                                if (!(s.get_selected_op_models()[i].id == selected_models[i].id))
                                 {
                                     same = false;
                                     break;

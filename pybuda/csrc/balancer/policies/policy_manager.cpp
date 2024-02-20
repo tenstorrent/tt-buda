@@ -31,8 +31,8 @@ PolicyManager::PolicyManager(
     graph_solver_buffering_snapshot = nullptr;
     traversal_context = graph_solver_main->get_graph_traversal_context();
 
-    std::tie(scheduled_ops, epoch_break_ops, chip_break_ops) =
-        policy_run_scheduler(graph, config, processed_nodes, processed_schedule, op_names_to_epoch_break, op_names_to_chip_break);
+    std::tie(scheduled_ops, epoch_break_ops, chip_break_ops) = policy_run_scheduler(
+        graph, config, processed_nodes, processed_schedule, op_names_to_epoch_break, op_names_to_chip_break);
     op_nodes_to_process = scheduled_ops.size();
 
     if (ribbon_policy)
@@ -147,9 +147,7 @@ std::tuple<bool, bool, bool> PolicyManager::commit_op(const OpModel& selected_op
                 *graph_solver_main, current_op_node, selected_op_model, config.device_config.arch_name);
         }
 
-        current_epoch_ops.insert(current_op_node);
-        current_epoch_selected_models.push_back(OpModelPair{selected_op_model, op});
-        epoch_schedule.push_back(current_op_node->name());
+        register_op_in_current_epoch(selected_op_model);
     }
 
     // Return if op is commited, if current epoch is completed, and if switch to new epoch was forced.
@@ -218,21 +216,17 @@ void PolicyManager::pair_two_ops_if_possible(
                     buffered_op_model->grid_shape,
                     op->name(),
                     selected_op_model.grid_shape,
-                    try_transpose_op, /* enable_transpose */
+                    try_transpose_op,                                       /* enable_transpose */
                     chip_break_ops.find(op->name()) != chip_break_ops.end() /* chip_break */
                 );
 
                 if (op_placement.has_value())
                 {
-                    current_epoch_ops.insert(buffered_op_model->buda_op_node);
-                    current_epoch_selected_models.emplace_back(OpModelPair{*buffered_op_model, buffered_op_model->buda_op_node});
-                    epoch_schedule.push_back(buffered_op_model->buda_op_node->name());
+                    register_op_in_current_epoch(*buffered_op_model);
                     set_op_model_for_node_ribbon(
                         *graph_solver_main, current_op_node, selected_op_model, current_ribbon_size);
                     update_ribbon_size();
-                    current_epoch_ops.insert(op);
-                    current_epoch_selected_models.emplace_back(OpModelPair{selected_op_model, op});
-                    epoch_schedule.push_back(op->name());
+                    register_op_in_current_epoch(selected_op_model);
                 }
             }
             // Rowsize does not match. Still try to place them next to each other in a single epoch.
@@ -255,15 +249,11 @@ void PolicyManager::pair_two_ops_if_possible(
 
                     if (op_placement.has_value())
                     {
-                        current_epoch_ops.insert(buffered_op_model->buda_op_node);
-                        current_epoch_selected_models.push_back(OpModelPair{*buffered_op_model, buffered_op_model->buda_op_node});
-                        epoch_schedule.push_back(buffered_op_model->buda_op_node->name());
+                        register_op_in_current_epoch(*buffered_op_model);
                         set_op_model_for_node_ribbon(
                             *graph_solver_main, current_op_node, selected_op_model, current_ribbon_size);
                         update_ribbon_size();
-                        current_epoch_ops.insert(op);
-                        current_epoch_selected_models.push_back(OpModelPair{selected_op_model, op});
-                        epoch_schedule.push_back(op->name());
+                        register_op_in_current_epoch(selected_op_model);
                         skip_op_set = true;
                     }
                     else
@@ -292,9 +282,7 @@ void PolicyManager::pair_two_ops_if_possible(
 
             if (op_placement.has_value())
             {
-                current_epoch_ops.insert(buffered_op_model->buda_op_node);
-                current_epoch_selected_models.push_back(OpModelPair{*buffered_op_model, buffered_op_model->buda_op_node});
-                epoch_schedule.push_back(buffered_op_model->buda_op_node->name());
+                register_op_in_current_epoch(*buffered_op_model);
             }
         }
 
@@ -368,8 +356,9 @@ bool PolicyManager::finish_current_epoch()
             return false;
     }
 
-    TT_ASSERT(current_epoch_ops.size() == current_epoch_selected_models.size(), "Epoch ops and selected op models mismatch!");
-    epoch_solutions.emplace_back(current_ribbon_size, &config, current_epoch_selected_models, graph, -1);
+    TT_ASSERT(
+        current_epoch_ops.size() == current_epoch_selected_models.size(), "Epoch ops and selected op models mismatch!");
+    epoch_solutions.emplace_back(current_ribbon_size, &config, current_epoch_selected_models, graph);
 
     if (!balancing_complete)
     {
@@ -510,8 +499,8 @@ bool PolicyManager::buffer_epoch()
             // If we added new non queue nodes we need to rerun scheduler.
             // Make scheduler ignore already processed nodes.
             //
-            std::tie(scheduled_ops, epoch_break_ops, chip_break_ops) =
-                policy_run_scheduler(graph, config, processed_nodes, processed_schedule, op_names_to_epoch_break, op_names_to_chip_break);
+            std::tie(scheduled_ops, epoch_break_ops, chip_break_ops) = policy_run_scheduler(
+                graph, config, processed_nodes, processed_schedule, op_names_to_epoch_break, op_names_to_chip_break);
             op_nodes_to_process = scheduled_ops.size() + processed_nodes.size();
             op_index = 0;
             last_epoch_start = 0;
@@ -598,6 +587,15 @@ const graphlib::Node* PolicyManager::get_next_op()
     return current_op_node;
 }
 
+// Register OP(selected op model) in current epoch and update all relevant structures.
+//
+void PolicyManager::register_op_in_current_epoch(const OpModel& selected_op_model)
+{
+    current_epoch_ops.insert(selected_op_model.buda_op_node);
+    current_epoch_selected_models.push_back(selected_op_model);
+    epoch_schedule.push_back(selected_op_model.buda_op_node->name());
+}
+
 // Rewinds epoch in progress from interactive placer. Reverts GS state to epoch start snapshot.
 // Resets all epoch related counters.
 //
@@ -619,8 +617,8 @@ void PolicyManager::rewind_epoch()
     //
     if (graph_solver_buffering_snapshot or overflow_set_for_epoch)
     {
-        std::tie(scheduled_ops, epoch_break_ops, chip_break_ops) =
-            policy_run_scheduler(graph, config, processed_nodes, processed_schedule, op_names_to_epoch_break, op_names_to_chip_break);
+        std::tie(scheduled_ops, epoch_break_ops, chip_break_ops) = policy_run_scheduler(
+            graph, config, processed_nodes, processed_schedule, op_names_to_epoch_break, op_names_to_chip_break);
         op_nodes_to_process = scheduled_ops.size() + processed_nodes.size();
 
         if (ribbon_policy)
@@ -695,10 +693,16 @@ tt::placer::PlacerSolution PolicyManager::commit_solution()
         //
         std::unordered_set<const tt::graphlib::Node*> empty_set_processed_nodes;
         tt::scheduler::Schedule empty_processed_schedule;
-        // op_names_to_epoch_break and op_names_to_chip_break are empty by now because processed nodes are removed as the placement was done
-        // we want original epoch_breaks and chip_breaks, hence, we pass in config.op_names_to_epoch_break and config.op_names_to_chip_break
-        std::tie(scheduled_ops, epoch_break_ops, chip_break_ops) =
-            policy_run_scheduler(graph, config, empty_set_processed_nodes, empty_processed_schedule, config.op_names_to_epoch_break, config.op_names_to_chip_break);
+        // op_names_to_epoch_break and op_names_to_chip_break are empty by now because processed nodes are removed as
+        // the placement was done we want original epoch_breaks and chip_breaks, hence, we pass in
+        // config.op_names_to_epoch_break and config.op_names_to_chip_break
+        std::tie(scheduled_ops, epoch_break_ops, chip_break_ops) = policy_run_scheduler(
+            graph,
+            config,
+            empty_set_processed_nodes,
+            empty_processed_schedule,
+            config.op_names_to_epoch_break,
+            config.op_names_to_chip_break);
     }
 
     tt::placer::PlacerSolution placer_solution = interactive_placer.commit(chip_break_ops);

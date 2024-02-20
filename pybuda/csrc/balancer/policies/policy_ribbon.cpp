@@ -37,7 +37,8 @@ legalizer::GraphSolverSolution run_policy_ribbon(
     PolicyManager policy_manager(graph, config, graph_solver, true /*ribbon_policy*/);
     if (env_as<bool>("PYBUDA_RIBBON1_PREPASS_ENABLED", false))
     {
-    policy_manager.invalidate_suboptimal_op_models(legalizer::MatmulSparseDenseGridPairing | legalizer::DenseMatmulPrologue | legalizer::DenseMatmulBetterUkt);
+        policy_manager.invalidate_suboptimal_op_models(
+            legalizer::MatmulSparseDenseGridPairing | legalizer::DenseMatmulPrologue | legalizer::DenseMatmulBetterUkt);
     }
 
     bool epoch_completed = false;
@@ -45,8 +46,7 @@ legalizer::GraphSolverSolution run_policy_ribbon(
                                                         // don't have to validate them again
 
     // In case of recompile, we can offset the target cycles to get a different solution.
-    const int target_cycles =
-        env_as<int>("PYBUDA_RIBBON_TARGET_CYCLES", 45000) + config.target_cycles_offset;
+    const int target_cycles = env_as<int>("PYBUDA_RIBBON_TARGET_CYCLES", 45000) + config.target_cycles_offset;
 
     // Pick op models.
     //
@@ -54,7 +54,7 @@ legalizer::GraphSolverSolution run_policy_ribbon(
     {
         const graphlib::BudaOpNode *op = node->as<graphlib::BudaOpNode>();
 
-        const auto &selected_op_model = select_best_op_model_ribbon(
+        const OpModel &selected_op_model = select_best_op_model_ribbon(
             policy_manager,
             op,
             policy_manager.get_current_ribbon_size(),
