@@ -9,6 +9,7 @@ from pybuda.tensor import Tensor
 import numpy as np
 import torch
 from .transpose import TransposeTM
+from ..buda.exp import Exp as BudaExp
 
 import os
 
@@ -164,7 +165,8 @@ def lower(type, attr, lc, ops, outputs):
         #lc.op("power_binary", ops, attr)  # 'power' backend op is unary
         ln_x = lc.op("log", [ops[0]])
         y_ln_x = lc.op("multiply", (ops[1], ln_x)) 
-        lc.op("exp", [y_ln_x], [], {"approximate_mode": "true" if "PYBUDA_EXP_APPROX" in os.environ else "false"})      
+        approximate_mode = True if "PYBUDA_EXP_APPROX" in os.environ else False
+        lc.op(BudaExp.create(approximate_mode=approximate_mode), [y_ln_x])            
     else:
         # Find proper tile sizes
         if bool(int(os.environ.get("PYBUDA_ENABLE_TINY_TILE", "0"))):

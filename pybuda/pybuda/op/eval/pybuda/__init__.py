@@ -5,6 +5,7 @@ import importlib
 from types import ModuleType
 from functools import lru_cache
 from .transpose import TransposeTM
+from .exp import Exp
 
 op_to_module_map = {
         "add":           "eltwise_binary",
@@ -26,7 +27,7 @@ op_to_module_map = {
 
         "nop":             "eltwise_unary",
         "buffer":          "eltwise_unary",
-        "exp":             "eltwise_unary",
+        "exp":              Exp,
         "reciprocal":      "eltwise_unary",
         "sqrt":            "eltwise_unary",
         "relu":            "eltwise_unary",

@@ -11,6 +11,8 @@ import torch.nn.functional as F
 from ..common import to_torch_operands
 from . import reduce
 
+from .exp import Exp
+
 
 
 def eval(op_type, attr, ops):
@@ -468,9 +470,10 @@ def decompose_post_autograd(op_type, attr, dc, inputs):
         if stable and dc.get_compiler_cfg().enable_stable_softmax:
             res_max = dc.op("reduce_max", (x, ), (dim, ))
             res_x_max = dc.op("subtract", (x, res_max), ())
-            res_exp = dc.op("exp", (res_x_max, ), ())
+            res_exp = dc.op(Exp.create(), (res_x_max, ), ())
         else:
-            res_exp = dc.op("exp", (x, ), ())
+            res_exp = dc.op(Exp.create(), (x, ), ())
+            
 
         res_exp_sum = dc.op("reduce_sum", (res_exp, ), (dim, ))
         res_exp_sum = dc.op("add", (res_exp_sum, dc.tensor(torch.zeros(res_exp_sum.shape.as_list()) + 1e-10)), ())

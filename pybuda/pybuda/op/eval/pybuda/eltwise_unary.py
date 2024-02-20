@@ -12,6 +12,9 @@ from ....tensor import buda_dataformat_to_pytorch_dtype
 import numpy as np
 from pybuda.op.eval.common import calculate_tile_size
 
+from ..buda.exp import Exp as BudaExp
+from .exp import Exp
+
 M_2_SQRTPI  = 1.12837916709551257390	# 2/sqrt(pi) 
 M_SQRT2     = 1.41421356237309504880	# sqrt(2) 
 M_SQRT1_2   = 0.7071067811865476
@@ -327,7 +330,8 @@ def lower(type, attr, lc, ops, outputs):
 
             ln_x = lc.op("log", ops)
             y_ln_x = lc.op("multiply", (lc.tensor(torch.zeros(shape) + exponent_value), ln_x)) 
-            lc.op("exp", [y_ln_x], [], {"approximate_mode": "true" if "PYBUDA_EXP_APPROX" in os.environ else "false"})      
+            approximate_mode = True if "PYBUDA_EXP_APPROX" in os.environ else False
+            lc.op(BudaExp.create(approximate_mode=approximate_mode), [y_ln_x])          
 
     else:
         # Find proper tile sizes
@@ -523,7 +527,7 @@ def decompose(type, attr, dc, inputs):
         minus_one = dc.tensor(torch.ones([1,1]) * -1)
         plus_one = dc.tensor(torch.ones([1,1]))
         neg_ = dc.op("multiply", [inp, minus_one])
-        exp_ = dc.op("exp", [neg_])
+        exp_ = dc.op(Exp.create(), [neg_])
         result = dc.op("add", [plus_one, exp_])
         result = dc.op("reciprocal", [result])
         dc.fuse(result)

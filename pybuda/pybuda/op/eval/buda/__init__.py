@@ -6,6 +6,7 @@ from types import ModuleType
 from functools import lru_cache
 from .transpose import TransposeTM
 from .splice import Splice
+from .exp import Exp
 
 op_to_module_map = {
         "add":             "eltwise_binary",
@@ -26,7 +27,7 @@ op_to_module_map = {
         "ethernet_datacopy":    "eltwise_unary",
         "nop":             "eltwise_unary",
         "buffer":          "eltwise_unary",
-        "exp":             "eltwise_unary",
+        "exp":              Exp,
         "reciprocal":      "eltwise_unary",
         "sqrt":            "eltwise_unary",
         "lrelu":           "eltwise_unary",
