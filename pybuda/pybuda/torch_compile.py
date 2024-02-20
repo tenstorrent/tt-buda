@@ -344,6 +344,7 @@ def _torch_compile(
     logger.info("Torch Compile")
     strip_overloads(aten_module)
 
+    # TODO: Remove me, needs to be persistant
     global _device
     if _device is None:
         _device = get_default_device()
