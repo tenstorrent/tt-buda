@@ -16,6 +16,7 @@ from .tanh import Tanh
 from .log import Log
 from .nop import Nop
 from .buffer import Buffer
+from .sqrt import Sqrt
 
 op_to_module_map = {
         "add":             "eltwise_binary",
@@ -37,7 +38,7 @@ op_to_module_map = {
         "nop":             Nop,
         "buffer":          Buffer,
         "reciprocal":      Reciprocal,
-        "sqrt":            "eltwise_unary",
+        "sqrt":             Sqrt,
         "lrelu":           "eltwise_unary",
         "gelu":            "eltwise_unary",
         "gelu_derivative": "eltwise_unary",

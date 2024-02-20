@@ -16,7 +16,6 @@ from pybuda.parameter import Parameter
 import pybuda.torch_optimizers
 from pybuda.torch_optimizers import AdamNoBiasCorrection
 
-
 class Optimizer:
     """
     Optimizer base class
@@ -358,6 +357,8 @@ class Adam(Optimizer):
             "add", (variance_times_beta2, gradient_squared_times_one_minus_beta2)
         )
         from pybuda.op.eval.pybuda.reciprocal import Reciprocal
+        #import Sqrt module locally to avoid circular dependency
+        from pybuda.op.eval.pybuda.sqrt import Sqrt
         if self.bias_correction:
             # bias_correction1 = 1 - beta1 ** step
             beta1_one = ac.constant(1.0)
@@ -371,14 +372,14 @@ class Adam(Optimizer):
             beta2_pow = ac.input("beta2_pow", (1,), disable_consteval=True) # stores beta2 ** step
             updated_beta2_pow = ac.op("multiply", (beta2_pow, beta2))
             bias_correction2 = ac.op("subtract", (beta2_one, updated_beta2_pow))
-            sqrt_bias_correction2 = ac.op("sqrt", (bias_correction2,))
+            sqrt_bias_correction2 = ac.op(Sqrt.create(), (bias_correction2,))
             reciprocal_sqrt_bias_correction2 = ac.op(Reciprocal.create(), (sqrt_bias_correction2,))
 
             # sqrt_of_variance / sqrt_bias_correction2
-            sqrt_of_variance_biased = ac.op("sqrt", (updated_variance,))
+            sqrt_of_variance_biased = ac.op(Sqrt.create(), (updated_variance,))
             sqrt_of_variance = ac.op("multiply", (sqrt_of_variance_biased, reciprocal_sqrt_bias_correction2))
         else:
-            sqrt_of_variance = ac.op("sqrt", (updated_variance,))
+            sqrt_of_variance = ac.op(Sqrt.create(), (updated_variance,))
 
         epsilon = ac.constant(self.epsilon)
         sqrt_of_variance_plus_epsilon = ac.op("add", (sqrt_of_variance, epsilon))
@@ -693,13 +694,16 @@ class LAMB(Optimizer):
         if len(phi_norm_shape) > 1:
             phi_norm = ac.op("reduce_sum", (phi_norm, ), (-2, ))
         phi_norm = ac.op("reduce_sum", (phi_norm, ), (-1, ))
-        phi_norm = ac.op("sqrt", (phi_norm, ))
+
+        #importing locally to avoid circular dependency from Dataformats
+        from pybuda.op.eval.pybuda.sqrt import Sqrt
+        phi_norm = ac.op(Sqrt.create(), (phi_norm, ))
 
         epsilon = ac.tensor(torch.zeros(param_shape) + self.eps)
         weight_decay = ac.tensor(torch.zeros(param_shape) + self.weight_decay)
 
         # adam ratio, ratio of corrected mean and corrected variance stabilized with epsilon
-        r_t = ac.op("sqrt", (updated_variance, ))
+        r_t = ac.op(Sqrt.create(), (updated_variance, ))
         r_t = ac.op("add", (r_t, epsilon))
         from pybuda.op.eval.pybuda.reciprocal import Reciprocal
         r_t = ac.op("multiply", (updated_mean,  ac.op(Reciprocal.create(), (r_t, ))))
@@ -713,7 +717,7 @@ class LAMB(Optimizer):
         if len(r_t_norm_shape) > 1:
             r_t_norm = ac.op("reduce_sum", (r_t_norm, ), (-2, ))
         r_t_norm = ac.op("reduce_sum", (r_t_norm, ), (-1, ))
-        r_t_norm = ac.op("sqrt", (r_t_norm, ))
+        r_t_norm = ac.op(Sqrt.create(), (r_t_norm, ))
 
         #
         #   IF phi_norm != 0 AND r_t_norm != 0:
@@ -975,14 +979,16 @@ class LARS(Optimizer):
         if len(weight_norm_shape) > 1:
             weight_norm = ac.op("reduce_sum", (weight_norm, ), (-2, ))
         weight_norm = ac.op("reduce_sum", (weight_norm, ), (-1, ))
-        weight_norm = ac.op("sqrt", (weight_norm, ))
+        #importing locally to avoid circular dependency from Dataformats
+        from pybuda.op.eval.pybuda.sqrt import Sqrt
+        weight_norm = ac.op(Sqrt.create(), (weight_norm, ))
 
         grad_norm = ac.op("multiply", (grad, grad))
         grad_norm_shape = grad_norm.shape.as_list()
         if len(grad_norm_shape) > 1:
             grad_norm = ac.op("reduce_sum", (grad_norm, ), (-2, ))
         grad_norm = ac.op("reduce_sum", (grad_norm, ), (-1, ))
-        grad_norm = ac.op("sqrt", (grad_norm, ))
+        grad_norm = ac.op(Sqrt.create(), (grad_norm, ))
  
         #
         #   IF weight_norm != 0 AND grad_norm != 0:

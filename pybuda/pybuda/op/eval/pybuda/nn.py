@@ -13,6 +13,7 @@ from . import reduce
 from .exp import Exp
 from .reciprocal import Reciprocal
 from .log import Log
+from .sqrt import Sqrt
 
 
 def eval(op_type, attr, ops):
@@ -419,7 +420,7 @@ def decompose(op_type, attr, dc, inputs):
 
         # decompose
         var_eps = dc.op("add", (running_var, eps_tensor), ())
-        sqrt = dc.op("sqrt", (var_eps,), ())
+        sqrt = dc.op(Sqrt.create(), (var_eps,), ())
         recipro = dc.op(Reciprocal.create(), (sqrt,), ())
         weighted = dc.op("multiply", (recipro, weight), ())
         neg_mean = dc.op("multiply", (neg_one, running_mean), ())
@@ -543,7 +544,7 @@ def decompose_post_autograd(op_type, attr, dc, inputs):
         # var_plus_eps = dc.op("add", (var, epsilon_tensor), ())
         var_add = dc.op("add", (var, epsilon_tensor), ())
         # std = dc.op("sqrt", (var_plus_eps, ), ())
-        std = dc.op("sqrt", (var_add, ), ())
+        std = dc.op(Sqrt.create(), (var_add, ), ())
         # recip = dc.op("reciprocal", (std, ), ())
         ivar = dc.op(Reciprocal.create(), (std, ), ())
         # normalized = dc.op("multiply", (x_minus_mean, recip), ())

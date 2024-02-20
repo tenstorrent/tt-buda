@@ -41,8 +41,8 @@ class Reciprocal(PyEltwiseUnaryOp):
 
     def lower(self, lc, tensors, outputs):
         assert len(tensors) == 1, "Reciprocal should  have one input"
-        approximate_mode = True if "PYBUDA_EXP_APPROX" in os.environ else False
-        lc.op(BudaReciprocal.create(), tensors)
+        approximate_mode = "true" if "PYBUDA_EXP_APPROX" in os.environ else "false"
+        lc.op(BudaReciprocal.create(approximate_mode=approximate_mode), tensors)
 
     def backward(self, ac, operand, inputs, output, grad):
         assert len(inputs) == 1, "Reciprocal should have one input"
