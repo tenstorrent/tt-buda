@@ -14,6 +14,7 @@ from pybuda.op.eval.common import calculate_tile_size
 
 from ..buda.exp import Exp as BudaExp
 from .exp import Exp
+from .reciprocal import Reciprocal
 
 M_2_SQRTPI  = 1.12837916709551257390	# 2/sqrt(pi) 
 M_SQRT2     = 1.41421356237309504880	# sqrt(2) 
@@ -383,7 +384,7 @@ def backward(type, attr, ac, operand, inputs, output, grad):
         return ac.op("multiply", (neg, grad))
 
     if type == "sqrt": # 0.5 / f(x)
-        rec = ac.op("reciprocal", (output,))
+        rec = ac.op(Reciprocal.create(), (output,))
         mult = ac.op("multiply", (rec, ac.constant(0.5)))
         return ac.op("multiply", (mult, grad))
 
@@ -429,7 +430,7 @@ def backward(type, attr, ac, operand, inputs, output, grad):
         return ac.op("multiply", (gelud, grad))
 
     if type == "log":
-        recip = ac.op("reciprocal", (inputs[0],))
+        recip = ac.op(Reciprocal.create(), (inputs[0],))
         return ac.op("multiply", (recip, grad))
 
     if type == "sigmoid":
@@ -477,8 +478,7 @@ def backward(type, attr, ac, operand, inputs, output, grad):
     elif type == "pow":
         exponent_value = attr[0]
         shape = list(inputs[0].shape.as_list())
-              
-        recip = ac.op("reciprocal", (inputs[0],))
+        recip = ac.op(Reciprocal.create(), (inputs[0],))
         partial_grad = ac.op("multiply", (output, recip))  
         pow_grad = ac.op("multiply", (ac.tensor(torch.zeros(shape) + exponent_value), partial_grad))
         return ac.op("multiply", (pow_grad, grad))
@@ -529,7 +529,7 @@ def decompose(type, attr, dc, inputs):
         neg_ = dc.op("multiply", [inp, minus_one])
         exp_ = dc.op(Exp.create(), [neg_])
         result = dc.op("add", [plus_one, exp_])
-        result = dc.op("reciprocal", [result])
+        result = dc.op(Reciprocal.create(), [result])
         dc.fuse(result)
 
     elif type == "gelu" and bool(int(os.environ.get("PYBUDA_DECOMPOSE_GELU", "0"))):

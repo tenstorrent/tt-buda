@@ -10,6 +10,7 @@ from .logical_not import LogicalNot
 from .sine import Sine
 from .cosine import Cosine
 from .ethernet_datacopy import EthernetDatacopy
+from .reciprocal import Reciprocal
 
 op_to_module_map = {
         "add":           "eltwise_binary",
@@ -32,7 +33,7 @@ op_to_module_map = {
         "nop":             "eltwise_unary",
         "buffer":          "eltwise_unary",
         "exp":              Exp,
-        "reciprocal":      "eltwise_unary",
+        "reciprocal":      Reciprocal,
         "sqrt":            "eltwise_unary",
         "relu":            "eltwise_unary",
         "leaky_relu":      "eltwise_unary",

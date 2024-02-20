@@ -356,13 +356,14 @@ class Adam(Optimizer):
         updated_variance = ac.op(
             "add", (variance_times_beta2, gradient_squared_times_one_minus_beta2)
         )
+        from pybuda.op.eval.pybuda.reciprocal import Reciprocal
         if self.bias_correction:
             # bias_correction1 = 1 - beta1 ** step
             beta1_one = ac.constant(1.0)
             beta1_pow = ac.input("beta1_pow", (1,), disable_consteval=True) # stores beta1 ** step
             updated_beta1_pow = ac.op("multiply", (beta1_pow, beta1))
             bias_correction1  = ac.op("subtract", (beta1_one, updated_beta1_pow))
-            reciprocal_bias_correction1 = ac.op("reciprocal", (bias_correction1,))
+            reciprocal_bias_correction1 = ac.op(Reciprocal.create(), (bias_correction1,))
 
             # bias_correction2 = 1 - beta2 ** step
             beta2_one = ac.constant(1.0)
@@ -370,7 +371,7 @@ class Adam(Optimizer):
             updated_beta2_pow = ac.op("multiply", (beta2_pow, beta2))
             bias_correction2 = ac.op("subtract", (beta2_one, updated_beta2_pow))
             sqrt_bias_correction2 = ac.op("sqrt", (bias_correction2,))
-            reciprocal_sqrt_bias_correction2 = ac.op("reciprocal", (sqrt_bias_correction2,))
+            reciprocal_sqrt_bias_correction2 = ac.op(Reciprocal.create(), (sqrt_bias_correction2,))
 
             # sqrt_of_variance / sqrt_bias_correction2
             sqrt_of_variance_biased = ac.op("sqrt", (updated_variance,))
@@ -381,7 +382,7 @@ class Adam(Optimizer):
         epsilon = ac.constant(self.epsilon)
         sqrt_of_variance_plus_epsilon = ac.op("add", (sqrt_of_variance, epsilon))
         reciprocal_of_sqrt_of_variance_plus_epsilon = ac.op(
-            "reciprocal", (sqrt_of_variance_plus_epsilon,)
+            Reciprocal.create(), (sqrt_of_variance_plus_epsilon,)
         )
 
         if self.bias_correction:
@@ -697,7 +698,8 @@ class LAMB(Optimizer):
         # adam ratio, ratio of corrected mean and corrected variance stabilized with epsilon
         r_t = ac.op("sqrt", (updated_variance, ))
         r_t = ac.op("add", (r_t, epsilon))
-        r_t = ac.op("multiply", (updated_mean,  ac.op("reciprocal", (r_t, ))))
+        from pybuda.op.eval.pybuda.reciprocal import Reciprocal
+        r_t = ac.op("multiply", (updated_mean,  ac.op(Reciprocal.create(), (r_t, ))))
 
         if self.weight_decay != 0:
             decayed_param = ac.op("multiply", (parameter, weight_decay))
@@ -737,7 +739,7 @@ class LAMB(Optimizer):
         phi_norm_eq = ac.op("equal", (phi_norm, zero))
         r_t_norm_ne = ac.op("not_equal", (r_t_norm, zero))
         r_t_norm_eq = ac.op("equal", (r_t_norm, zero))
-        trust_ratio = ac.op("reciprocal", (r_t_norm, ))
+        trust_ratio = ac.op(Reciprocal.create(), (r_t_norm, ))
         trust_ratio = ac.op("multiply", (phi_norm, trust_ratio))
         trust_ratio = ac.op("clip", (trust_ratio, ), (self.clip_value[0], self.clip_value[1]))
         trust_ratio = ac.op("multiply", (trust_ratio, r_t_norm_ne))
@@ -1016,7 +1018,8 @@ class LARS(Optimizer):
         local_learning_rate = ac.op("multiply", (weight_decay, weight_norm))
         local_learning_rate = ac.op("add", (grad_norm, local_learning_rate))
         local_learning_rate = ac.op("add", (epsilon, local_learning_rate))
-        local_learning_rate = ac.op("reciprocal", (local_learning_rate, ))
+        from pybuda.op.eval.pybuda.reciprocal import Reciprocal
+        local_learning_rate = ac.op(Reciprocal.create(), (local_learning_rate, ))
         local_learning_rate = ac.op("multiply", (weight_norm, local_learning_rate))
         local_learning_rate = ac.op("multiply", (lars_coeff, local_learning_rate))
 

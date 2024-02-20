@@ -10,9 +10,8 @@ import torch.nn.functional as F
 
 from ..common import to_torch_operands
 from . import reduce
-
 from .exp import Exp
-
+from .reciprocal import Reciprocal
 
 
 def eval(op_type, attr, ops):
@@ -420,7 +419,7 @@ def decompose(op_type, attr, dc, inputs):
         # decompose
         var_eps = dc.op("add", (running_var, eps_tensor), ())
         sqrt = dc.op("sqrt", (var_eps,), ())
-        recipro = dc.op("reciprocal", (sqrt,), ())
+        recipro = dc.op(Reciprocal.create(), (sqrt,), ())
         weighted = dc.op("multiply", (recipro, weight), ())
         neg_mean = dc.op("multiply", (neg_one, running_mean), ())
         weighted_mean = dc.op("multiply", (weighted, neg_mean), ())
@@ -477,7 +476,7 @@ def decompose_post_autograd(op_type, attr, dc, inputs):
 
         res_exp_sum = dc.op("reduce_sum", (res_exp, ), (dim, ))
         res_exp_sum = dc.op("add", (res_exp_sum, dc.tensor(torch.zeros(res_exp_sum.shape.as_list()) + 1e-10)), ())
-        res_exp_sum_recip = dc.op("reciprocal", (res_exp_sum, ), ())
+        res_exp_sum_recip = dc.op(Reciprocal.create(), (res_exp_sum, ), ())
         result = dc.op("multiply", (res_exp, res_exp_sum_recip), ())
         dc.fuse(result)
         return
@@ -545,7 +544,7 @@ def decompose_post_autograd(op_type, attr, dc, inputs):
         # std = dc.op("sqrt", (var_plus_eps, ), ())
         std = dc.op("sqrt", (var_add, ), ())
         # recip = dc.op("reciprocal", (std, ), ())
-        ivar = dc.op("reciprocal", (std, ), ())
+        ivar = dc.op(Reciprocal.create(), (std, ), ())
         # normalized = dc.op("multiply", (x_minus_mean, recip), ())
         xhat = dc.op("multiply", (xmu, ivar), ())
         # normalized_weighted = dc.op("multiply", (normalized, weights), ())

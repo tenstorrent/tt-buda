@@ -10,6 +10,7 @@ import numpy as np
 import torch
 from .transpose import TransposeTM
 from ..buda.exp import Exp as BudaExp
+from .reciprocal import Reciprocal
 
 import os
 
@@ -242,7 +243,7 @@ def backward(op_type, attr, ac, operand, inputs, output, grad):
 
     elif op_type == "power": 
         if operand == 0: # dx = y * (x^y) * recp(x)
-            recip = ac.op("reciprocal", (inputs[0],))
+            recip = ac.op(Reciprocal.create(), (inputs[0],))
             partial_grad = ac.op("multiply", (output, recip))  
             pow_grad = ac.op("multiply", (inputs[1], partial_grad))
         if operand == 1: # dy = (x^y) * ln(x)
@@ -350,7 +351,7 @@ def decompose(op_type, attr, dc, inputs):
             raise RuntimeError(f"Found BinaryStack op with axis {axis}")
 
     elif op_type == "divide":
-        recip = dc.op("reciprocal", [inputs[1]])
+        recip = dc.op(Reciprocal.create(), [inputs[1]])
         result = dc.op("multiply", [inputs[0], recip])
         dc.fuse(result)
         return
