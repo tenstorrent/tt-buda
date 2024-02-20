@@ -101,7 +101,6 @@
  * PYBUDA\_DISABLE\_CAP\_SPARSE\_MM\_FIDELITY: Disables an optimization to cap the fidelity phases of sparse matmul to at most HiFi2.
  * PYBUDA\_DISABLE\_EXPLICIT\_DRAM\_IO: Disables the FE from programming netlist attribute `input_dram_io_buf_size_tiles`.  Instead the FE will leave this attribute as `0` which implicitly means that the backend will handle the allocation of this buffer.
  * PYBUDA\_CONCAT\_ON\_HOST: Lower concatenate ops on output nodes into runtime transforms so that they're done on host.
- * PYBUDA\_BALANCER\_LEGACY\_CYCLES\_CALC: Use kernel cycles instead of limiter cycles(kernel + mem BW) for estimation.
  * PYBUDA\_OP\_MODEL\_COMPARE\_VERSION: Version of op model comparision function. Can be used to compare effect of different comparison logic on performance.
  * PYBUDA\_RIBBON1\_PREPASS\_ENABLED: Whether to use or not suboptimal opmodel invalidation prepass. Default value is False.
  * PYBUDA\_RIBBON2\_OPTIMIZATION\_ITERATIONS: Number of optimization iterations in Ribbon2 balancing policy. Default value is 0.

@@ -1371,11 +1371,6 @@ int get_limiter_cycles(
     TT_ASSERT(op_model.buda_op_node);
     int kernel_cycles = op_model.get_execution_cycles(device_config.arch_name, false, invalidate_cached);
 
-    if (env_as<bool>("PYBUDA_BALANCER_LEGACY_CYCLES_CALC", false))
-    {
-        return kernel_cycles;
-    }
-
     bool model_pcie_bw = env_as<bool>("PYBUDA_TEMP_BALANCER_MODEL_PCIE_BW", true);
     std::vector<Edge> data_operands = graph->operand_data_edges(op_model.buda_op_node);
     std::vector<Edge> data_users = graph->user_data_edges(op_model.buda_op_node);
