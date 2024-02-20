@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import os
 import inspect
+from loguru import logger
 from typing import List, Tuple, Union, Optional, Dict
 import time
 import threading
@@ -42,6 +43,9 @@ import benchmark.models.vovnet_v2
 import benchmark.models.whisper
 import benchmark.models.yolo_v3
 import benchmark.models.yolo_v5
+
+import benchmark.models.custom.custom_resnet_highres
+import benchmark.models.custom.custom_vit_highres
 
 
 def single_thread_generative_model_run(args, first_device, last_device, inputs, targets, output_q, num_tokens_to_generate, first_current_index, pad_token_id, write_index):
@@ -537,6 +541,9 @@ if __name__ == "__main__":
         exit(0)
         
     duts, inputs, targets, other = model_config
+    implied_microbatch = inputs[0].shape[0]
+    if (implied_microbatch != args.microbatch):
+        logger.warning(f"Model configuration implies microbatch size of {implied_microbatch}, but command line specifies {args.microbatch}. Overriding microbatch size to {implied_microbatch}.")
     try:
         result = run(args, duts, inputs, targets, other)
 
