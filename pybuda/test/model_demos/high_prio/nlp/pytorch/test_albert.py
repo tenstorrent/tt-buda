@@ -30,8 +30,6 @@ def test_albert_masked_lm_pytorch(size, variant, test_device):
         amp_level=2,
     )
     compiler_cfg = pybuda.config._get_global_compiler_config()
-    # Temporary disabling t-streaming for this albert case
-    compiler_cfg.enable_t_streaming = False
 
     if ("xxlarge" in model_ckpt):
         if test_device.arch == BackendDevice.Grayskull:
