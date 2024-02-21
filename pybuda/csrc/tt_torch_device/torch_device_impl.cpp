@@ -76,7 +76,7 @@ class TorchDeviceImpl : public c10::impl::DeviceGuardImplInterface
         return tt_devices[current_device.index()];
     }
 
-    TTDevice getDefaultTTDevice() const
+    const TTDevice& getDefaultTTDevice() const
     {
         TT_ASSERT(not tt_devices.empty());
         return tt_devices.front();
@@ -98,7 +98,7 @@ class TorchDeviceImpl : public c10::impl::DeviceGuardImplInterface
 // register backend
 c10::impl::DeviceGuardImplRegistrar tt_device_impl_reg(TT, &TorchDeviceImpl::get());
 
-TTDevice get_default_tt_device() { return TorchDeviceImpl::get().getDefaultTTDevice(); }
+const TTDevice& get_default_tt_device() { return TorchDeviceImpl::get().getDefaultTTDevice();}
 std::vector<TTDevice> get_available_tt_devices() { return TorchDeviceImpl::get().getTTDevices(); }
 
 struct Mallocator final : public c10::Allocator

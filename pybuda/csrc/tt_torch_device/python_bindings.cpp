@@ -10,7 +10,7 @@ namespace tt {
 
 void TorchDeviceModule(py::module &m_torch_device)
 {
-    m_torch_device.def("get_default_device", []() { return tt::get_default_tt_device(); });
+    m_torch_device.def("get_default_device", &tt::get_default_tt_device, py::return_value_policy::reference);
     m_torch_device.def("get_available_devices", []() { return tt::get_available_tt_devices(); });
 
     py::class_<tt::PyBudaTensorDesc>(m_torch_device, "PyBudaTensorDesc")

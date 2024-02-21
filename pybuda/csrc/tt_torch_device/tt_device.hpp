@@ -168,7 +168,7 @@ void register_output_runtime_transform(torch::Tensor const& tensor, std::string 
 void register__ordered_input_runtime_transforms(std::vector<std::string> input_transforms);
 std::string get_runtime_transform(torch::Tensor const& tensor);
 std::vector<TTDevice> query_available_tt_devices();
-TTDevice get_default_tt_device();
+const TTDevice& get_default_tt_device();
 std::vector<TTDevice> get_available_tt_devices();
 std::string device_type_name(c10::DeviceType type, bool lower_case = false);
 torch::Device torch_device_at_index(std::int64_t index);

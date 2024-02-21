@@ -371,10 +371,10 @@ def _torch_compile(
 
     strip_overloads(aten_module)
 
-    # TODO: Remove me, needs to be persistant
     global _device
     if _device is None:
         _device = get_default_device()
+        assert _device is get_default_device()
     device = _device
 
     if compiler_cfg is None:
