@@ -20,11 +20,7 @@ from pybuda.verify import verify_module
 from pybuda.verify.config import TestKind
 from pybuda.config import _get_global_compiler_config
 
-def test_onnx_quantized_mb_v2_depth(test_kind, test_device):
-    # Skip training
-    if test_kind.is_training():
-        pytest.skip()
-
+def test_onnx_quantized_mb_v2_depth(test_device):
     # Download ONNX model
     save_path = "third_party/confidential_customer_models/quantized/mb_v2_depthwise-Int8.onnx"
     if not os.path.exists(save_path):
@@ -58,18 +54,14 @@ def test_onnx_quantized_mb_v2_depth(test_kind, test_device):
         verify_cfg=VerifyConfig(
             arch=test_device.arch,
             devtype=test_device.devtype,
-            test_kind=test_kind,
+            test_kind=TestKind.INFERENCE,
             verify_pybuda_codegen_vs_framework=True,
             verify_all=True
         ),
     )
 
 
-def test_onnx_quantized_mb_v2(test_kind, test_device):
-    # Skip training
-    if test_kind.is_training():
-        pytest.skip()
-
+def test_onnx_quantized_mb_v2(test_device):
     # Download ONNX model
     save_path = "third_party/confidential_customer_models/quantized/mobilenet_v2-Int8.onnx"
     if not os.path.exists(save_path):
@@ -110,7 +102,7 @@ def test_onnx_quantized_mb_v2(test_kind, test_device):
         verify_cfg=VerifyConfig(
             arch=test_device.arch,
             devtype=test_device.devtype,
-            test_kind=test_kind,
+            test_kind=TestKind.INFERENCE,
             # verify_pybuda_codegen_vs_framework=True,
             # verify_all=True
         ),

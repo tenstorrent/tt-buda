@@ -20,12 +20,8 @@ from pybuda.verify import verify_module
 from pybuda.verify.config import TestKind
 from pybuda.config import _get_global_compiler_config
 
-def test_int8_onnx_vit_calibrated(test_kind, test_device):
+def test_int8_onnx_vit_calibrated(test_device):
     if test_device.arch == BackendDevice.Grayskull:
-        pytest.skip()
-
-    # Skip training
-    if test_kind.is_training():
         pytest.skip()
 
     # Download ONNX model
@@ -67,6 +63,6 @@ def test_int8_onnx_vit_calibrated(test_kind, test_device):
         verify_cfg=VerifyConfig(
             arch=test_device.arch,
             devtype=test_device.devtype,
-            test_kind=test_kind,
+            test_kind=TestKind.INFERENCE,
         ),
     )

@@ -23,12 +23,8 @@ from pybuda.config import _get_global_compiler_config
 
 
 
-def test_onnx_quantized_resnet(test_kind, test_device):
+def test_onnx_quantized_resnet(test_device):
     if test_device.arch == BackendDevice.Grayskull:
-        pytest.skip()
-
-    # Skip training
-    if test_kind.is_training():
         pytest.skip()
 
     # Download ONNX model
@@ -93,7 +89,7 @@ def test_onnx_quantized_resnet(test_kind, test_device):
         verify_cfg=VerifyConfig(
             arch=test_device.arch,
             devtype=test_device.devtype,
-            test_kind=test_kind,
+            test_kind=TestKind.INFERENCE,
             # verify_pybuda_codegen_vs_framework=True,
             verify_all=True,
         ),

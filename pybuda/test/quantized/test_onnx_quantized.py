@@ -20,11 +20,8 @@ from pybuda.verify import verify_module
 from pybuda.verify.config import TestKind
 from pybuda.config import _get_global_compiler_config
 
-def test_onnx_quantized_mlp_gelu(test_kind, test_device):
+def test_onnx_quantized_mlp_gelu(test_device):
     pytest.skip()
-    # Skip training
-    if test_kind.is_training():
-        pytest.skip()
 
     # Download ONNX model
     save_path = "pybuda/test/quantized/simple_models/mlp_gelu-QOperator.onnx"
@@ -58,16 +55,13 @@ def test_onnx_quantized_mlp_gelu(test_kind, test_device):
         verify_cfg=VerifyConfig(
             arch=test_device.arch,
             devtype=test_device.devtype,
-            test_kind=test_kind,
+            test_kind=TestKind.INFERENCE,
             verify_pybuda_codegen_vs_framework=True,
         ),
     )
 
-def test_onnx_quantized_mlp(test_kind, test_device):
+def test_onnx_quantized_mlp(test_device):
     pytest.skip()
-    # Skip training
-    if test_kind.is_training():
-        pytest.skip()
 
     # Download ONNX model
     save_path = "pybuda/test/quantized/simple_models/mlp-QOperator.onnx"
@@ -101,17 +95,14 @@ def test_onnx_quantized_mlp(test_kind, test_device):
         verify_cfg=VerifyConfig(
             arch=test_device.arch,
             devtype=test_device.devtype,
-            test_kind=test_kind,
+            test_kind=TestKind.INFERENCE,
             verify_pybuda_codegen_vs_framework=True,
         ),
     )
 
 
-def test_onnx_quantized_conv(test_kind, test_device):
+def test_onnx_quantized_conv(test_device):
     pytest.skip()
-    # Skip training
-    if test_kind.is_training():
-        pytest.skip()
 
     # Download ONNX model
     save_path = "pybuda/test/quantized/simple_models/conv2d_with_bias-Int8.onnx"
@@ -171,11 +162,8 @@ def test_onnx_quantized_conv(test_kind, test_device):
     #     ),
     # )
 
-def test_onnx_quantized_mm_int8_no_bias(test_kind, test_device):
+def test_onnx_quantized_mm_int8_no_bias(test_device):
     pytest.skip()
-    # Skip training
-    if test_kind.is_training():
-        pytest.skip()
 
     # Download ONNX model
     save_path = "pybuda/test/quantized/simple_models/matmul_no_bias-Int8.onnx"
@@ -209,17 +197,14 @@ def test_onnx_quantized_mm_int8_no_bias(test_kind, test_device):
         verify_cfg=VerifyConfig(
             arch=test_device.arch,
             devtype=test_device.devtype,
-            test_kind=test_kind,
+            test_kind=TestKind.INFERENCE,
             verify_pybuda_codegen_vs_framework=True,
             # verify_all=True, # need to update matmul eval in buda 
         ),
     )
 
-def test_onnx_quantized_mm_int8_bias(test_kind, test_device):
+def test_onnx_quantized_mm_int8_bias(test_device):
     pytest.skip()
-    # Skip training
-    if test_kind.is_training():
-        pytest.skip()
 
     # Download ONNX model
     save_path = "pybuda/test/quantized/simple_models/matmul_with_bias-Int8.onnx"
@@ -253,17 +238,14 @@ def test_onnx_quantized_mm_int8_bias(test_kind, test_device):
         verify_cfg=VerifyConfig(
             arch=test_device.arch,
             devtype=test_device.devtype,
-            test_kind=test_kind,
+            test_kind=TestKind.INFERENCE,
             verify_pybuda_codegen_vs_framework=True,
             # verify_all=True,
         ),
     )
 
-def test_onnx_quantized_mm_uint8_no_bias(test_kind, test_device):
+def test_onnx_quantized_mm_uint8_no_bias(test_device):
     pytest.skip()
-    # Skip training
-    if test_kind.is_training():
-        pytest.skip()
 
     # Download ONNX model
     save_path = "pybuda/test/quantized/simple_models/matmul_no_bias-UInt8.onnx"
@@ -297,7 +279,7 @@ def test_onnx_quantized_mm_uint8_no_bias(test_kind, test_device):
         verify_cfg=VerifyConfig(
             arch=test_device.arch,
             devtype=test_device.devtype,
-            test_kind=test_kind,
+            test_kind=TestKind.INFERENCE,
             verify_pybuda_codegen_vs_framework=True,
             verify_all=True,
         ),
