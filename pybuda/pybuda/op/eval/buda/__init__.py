@@ -7,6 +7,7 @@ from functools import lru_cache
 from .transpose import TransposeTM
 from .splice import Splice
 from .exp import Exp
+from .sine import Sine
 
 op_to_module_map = {
         "add":             "eltwise_binary",
@@ -41,7 +42,7 @@ op_to_module_map = {
         "abs":             "eltwise_unary",
         "dropout":         "eltwise_unary",
         "cosine":          "eltwise_unary",
-        "sine":            "eltwise_unary",
+        "sine":            Sine,
         "power":           "eltwise_unary",
         "tilizer":         "eltwise_unary",
 

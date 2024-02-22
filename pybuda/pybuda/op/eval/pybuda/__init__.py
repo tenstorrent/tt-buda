@@ -7,6 +7,7 @@ from functools import lru_cache
 from .transpose import TransposeTM
 from .exp import Exp
 from .logical_not import LogicalNot
+from .sine import Sine
 
 op_to_module_map = {
         "add":           "eltwise_binary",
@@ -40,7 +41,7 @@ op_to_module_map = {
         "clip":            "eltwise_unary",
         "abs":             "eltwise_unary",
         "cosine":          "eltwise_unary",
-        "sine":            "eltwise_unary",
+        "sine":            Sine,
         "tile_broadcast":  "eltwise_unary",
         "argmax":          "eltwise_unary",
         "tanh":            "eltwise_unary",
