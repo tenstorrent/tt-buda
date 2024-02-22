@@ -8,6 +8,7 @@ from .transpose import TransposeTM
 from .exp import Exp
 from .logical_not import LogicalNot
 from .sine import Sine
+from .cosine import Cosine
 
 op_to_module_map = {
         "add":           "eltwise_binary",
@@ -40,8 +41,9 @@ op_to_module_map = {
         "sigmoid":         "eltwise_unary",
         "clip":            "eltwise_unary",
         "abs":             "eltwise_unary",
-        "cosine":          "eltwise_unary",
         "sine":            Sine,
+        "cosine":          Cosine,
+        "sine":            "eltwise_unary",
         "tile_broadcast":  "eltwise_unary",
         "argmax":          "eltwise_unary",
         "tanh":            "eltwise_unary",

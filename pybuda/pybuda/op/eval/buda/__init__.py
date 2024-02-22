@@ -8,6 +8,7 @@ from .transpose import TransposeTM
 from .splice import Splice
 from .exp import Exp
 from .sine import Sine
+from .cosine import Cosine
 
 op_to_module_map = {
         "add":             "eltwise_binary",
@@ -41,8 +42,9 @@ op_to_module_map = {
         "tanh":            "eltwise_unary",
         "abs":             "eltwise_unary",
         "dropout":         "eltwise_unary",
-        "cosine":          "eltwise_unary",
         "sine":            Sine,
+        "cosine":          Cosine,
+        "sine":            "eltwise_unary",
         "power":           "eltwise_unary",
         "tilizer":         "eltwise_unary",
 
