@@ -12,6 +12,7 @@ from ....tensor import buda_dataformat_to_pytorch_dtype
 import numpy as np
 from pybuda.op.eval.common import calculate_tile_size
 from .tanh import Tanh
+from ..buda.log import Log as BudaLog
 
 from ..buda.exp import Exp as BudaExp
 from .exp import Exp
@@ -329,8 +330,7 @@ def lower(type, attr, lc, ops, outputs):
         else:
             exponent_value = attr[0]
             shape = list(ops[0].shape.as_list()) 
-
-            ln_x = lc.op("log", ops)
+            ln_x = lc.op(BudaLog.create(), ops)
             y_ln_x = lc.op("multiply", (lc.tensor(torch.zeros(shape) + exponent_value), ln_x)) 
             approximate_mode = "true" if "PYBUDA_EXP_APPROX" in os.environ else "false"
             lc.op(BudaExp.create(approximate_mode=approximate_mode), [y_ln_x])          

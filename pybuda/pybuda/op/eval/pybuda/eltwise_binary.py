@@ -11,8 +11,8 @@ import torch
 from .transpose import TransposeTM
 from ..buda.exp import Exp as BudaExp
 from .reciprocal import Reciprocal
-
-import os
+from .log import Log
+from ..buda.log import Log as BudaLog
 
 from ..common import to_torch_operands
 from pybuda.utils import align_up_tile
@@ -164,7 +164,7 @@ def lower(type, attr, lc, ops, outputs):
             ne(A, B)
     elif type == "power":
         #lc.op("power_binary", ops, attr)  # 'power' backend op is unary
-        ln_x = lc.op("log", [ops[0]])
+        ln_x = lc.op(BudaLog.create(), [ops[0]])
         y_ln_x = lc.op("multiply", (ops[1], ln_x)) 
         approximate_mode = "true" if "PYBUDA_EXP_APPROX" in os.environ else "false"
         lc.op(BudaExp.create(approximate_mode=approximate_mode), [y_ln_x])            
@@ -247,7 +247,7 @@ def backward(op_type, attr, ac, operand, inputs, output, grad):
             partial_grad = ac.op("multiply", (output, recip))  
             pow_grad = ac.op("multiply", (inputs[1], partial_grad))
         if operand == 1: # dy = (x^y) * ln(x)
-            ln_x = ac.op("log", [inputs[0]])
+            ln_x = ac.op(Log.create(), [inputs[0]])
             pow_grad = ac.op("multiply", (output, ln_x)) 
         return ac.op("multiply", (pow_grad, grad))
 

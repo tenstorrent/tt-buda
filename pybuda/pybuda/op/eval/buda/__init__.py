@@ -13,6 +13,7 @@ from .ethernet_datacopy import EthernetDatacopy
 from .reciprocal import Reciprocal
 from .abs import Abs
 from .tanh import Tanh
+from .log import Log
 
 op_to_module_map = {
         "add":             "eltwise_binary",
@@ -39,7 +40,7 @@ op_to_module_map = {
         "lrelu":           "eltwise_unary",
         "gelu":            "eltwise_unary",
         "gelu_derivative": "eltwise_unary",
-        "log":             "eltwise_unary",
+        "log":             Log,
         "sigmoid":         "eltwise_unary",
         "clip":            "eltwise_unary",
         "reduce":          "eltwise_unary",
