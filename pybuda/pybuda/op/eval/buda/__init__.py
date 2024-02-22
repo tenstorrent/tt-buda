@@ -11,6 +11,7 @@ from .sine import Sine
 from .cosine import Cosine
 from .ethernet_datacopy import EthernetDatacopy
 from .reciprocal import Reciprocal
+from .abs import Abs
 
 op_to_module_map = {
         "add":             "eltwise_binary",
@@ -42,7 +43,7 @@ op_to_module_map = {
         "clip":            "eltwise_unary",
         "reduce":          "eltwise_unary",
         "tanh":            "eltwise_unary",
-        "abs":             "eltwise_unary",
+        "abs":             Abs,
         "dropout":         "eltwise_unary",
         "sine":            Sine,
         "cosine":          Cosine,
