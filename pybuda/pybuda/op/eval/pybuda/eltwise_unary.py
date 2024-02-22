@@ -11,6 +11,7 @@ from ....pybudaglobal import TILE_DIM
 from ....tensor import buda_dataformat_to_pytorch_dtype
 import numpy as np
 from pybuda.op.eval.common import calculate_tile_size
+from .tanh import Tanh
 
 from ..buda.exp import Exp as BudaExp
 from .exp import Exp
@@ -544,7 +545,7 @@ def decompose(type, attr, dc, inputs):
         x_cuber_times_const = dc.op("multiply", [x_cubed, const])
         plus_x = dc.op("add", [x_cuber_times_const, inp_node])
         times_sqrt_2pi = dc.op("multiply", [plus_x, sqrt_2pi])
-        tanh = dc.op("tanh", [times_sqrt_2pi])
+        tanh = dc.op(Tanh.create(), [times_sqrt_2pi])
         plus_one = dc.op("add", [tanh, one])
         times_x = dc.op("multiply", [plus_one, inp_node])
         result = dc.op("multiply", [times_x, one_half])
