@@ -1620,8 +1620,11 @@ void EpochSolution::recalc_nodes()
 {
     dram_readers_core_count = 0;
     dram_writers_core_count = 0;
+    pcie_readers_core_count = 0;
+    pcie_writers_core_count = 0;
     current_epoch_ops.clear();
     current_epoch_nodes.clear();
+
     for (const auto &op : ops)
     {
         current_epoch_ops.insert(op.op);
