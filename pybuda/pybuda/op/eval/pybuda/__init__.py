@@ -6,6 +6,7 @@ from types import ModuleType
 from functools import lru_cache
 from .transpose import TransposeTM
 from .exp import Exp
+from .logical_not import LogicalNot
 
 op_to_module_map = {
         "add":           "eltwise_binary",
@@ -44,7 +45,7 @@ op_to_module_map = {
         "argmax":          "eltwise_unary",
         "tanh":            "eltwise_unary",
         "cumsum":          "eltwise_unary",
-        "logical_not":     "eltwise_unary",
+        "logical_not":     LogicalNot,
         "dropout":         "eltwise_unary",
         "pow":             "eltwise_unary",
         "tilizer":          "eltwise_unary",
