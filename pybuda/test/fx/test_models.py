@@ -195,4 +195,3 @@ def test_bert():
     result = [r.to("cpu") for r in result]
     for i, (g, r) in enumerate(zip(golden, result)):
         assert pybuda.op.eval.compare_tensor_to_golden(f"bert_{i}", g, r, is_buda=True, pcc=0.99)
-

@@ -242,7 +242,7 @@ class PyTorchModule(Module):
             if name in recorded_names:
                 continue
             pybuda_param = Parameter(
-                param,
+                param.cpu().detach().clone(),
                 requires_grad = param.requires_grad,
                 name=name)
             params.append(pybuda_param)

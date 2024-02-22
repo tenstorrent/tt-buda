@@ -156,6 +156,7 @@ class TTDevice(Device):
         self.allocated_blocks = []
         self.current_host_address = 0
         self._active_subgraph = 0
+        self._parameters = None
         reset_unique_node_id()
 
         if module is not None:
@@ -251,13 +252,16 @@ class TTDevice(Device):
 
 
     def place_module(self, module: Union[Module, Tuple[Module], List[Module]]):
-
         if not isinstance(module, (tuple, list)):
             module = (module,)
 
         for m in module:
             if not isinstance(m, Module):
                 raise RuntimeError("Only PyBuda modules can be placed on TTDevices at this time.")
+            else:
+                if self._parameters is None:
+                    self._parameters = []
+                self._parameters.extend(m.get_parameters())
 
         Device.place_module(self, module)
 
@@ -1176,7 +1180,10 @@ class TTDevice(Device):
             If true, any parameter not being recorded by the graph-trace (i.e. parameter is unused in
             graph execution) is not included in the returned list to user.
         """
-        ret: List[Parameter] = []
+
+        # In traing mode, we need to gather gradients from the modules, so can't use pre-stored parameters
+        is_training = self.optimizer is not None
+        ret: List[Parameter] = [] if (self._parameters is None or is_training) else self._parameters
         for module in self.modules:
             ret.extend(module.get_parameters())
 
