@@ -30,6 +30,13 @@ struct InsertionInstruction;
 
 namespace tt::balancer
 {
+
+struct OpModelPair
+{
+    OpModel model;
+    const graphlib::BudaOpNode* op;
+};
+
 class EpochSolution
 {
    public:
@@ -38,7 +45,7 @@ class EpochSolution
 
    private:
     std::uint32_t ribbon_size;
-    std::vector<OpModel> selected_op_models;
+    std::vector<OpModelPair> ops;
     float utilization;
     const BalancerConfig* balancer_config;
     const Graph* graph;
@@ -56,11 +63,11 @@ class EpochSolution
     EpochSolution(
         std::uint32_t ribbon_size,
         const BalancerConfig* balancer_config,
-        std::vector<OpModel>& selected_op_models,
+        std::vector<OpModelPair>& ops,
         const Graph* graph,
-        int epoch_target_cycles = -1) :
+        int epoch_target_cycles) :
         ribbon_size(ribbon_size),
-        selected_op_models(selected_op_models),
+        ops(ops),
         utilization(0.0f),
         balancer_config(balancer_config),
         graph(graph),
@@ -72,14 +79,14 @@ class EpochSolution
 
     void update_model(std::uint32_t index, const OpModel& model)
     {
-        selected_op_models[index] = model;
+        ops[index].model = model;
         recalc_nodes();
         utilization = evaluate();
     }
 
     void set_op_count(std::size_t op_count)
     {
-        selected_op_models.resize(op_count);
+        ops.resize(op_count);
         recalc_nodes();
         utilization = evaluate();
     }
@@ -87,7 +94,7 @@ class EpochSolution
     void print() const;
     float get_score() const { return utilization; }
     const BalancerConfig* get_balancer_config() const { return balancer_config; }
-    const std::vector<OpModel>& get_selected_op_models() const { return selected_op_models; }
+    const std::vector<OpModelPair>& get_ops() const { return ops; }
     std::uint32_t get_ribbon_size() const { return ribbon_size; }
     const std::unordered_set<const tt::graphlib::Node*>& get_current_epoch_ops() { return current_epoch_ops; }
     const std::unordered_set<const tt::graphlib::Node*>& get_current_epoch_nodes() { return current_epoch_nodes; }
@@ -360,7 +367,7 @@ const OpModel* pick_preferred_op_model(
 }
 
 template <typename T>
-const OpModel& select_best_op_model_ribbon(
+OpModel select_best_op_model_ribbon(
     const T& current_graph_solver,
     const graphlib::BudaOpNode* op,
     const std::uint32_t current_ribbon_size,

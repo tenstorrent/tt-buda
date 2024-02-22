@@ -1550,12 +1550,12 @@ float EpochSolution::evaluate() const
     float pipeline_cycles = 0;
     const int non_matmul_penalty = 128;
     log_trace(LogBalancer, "RIBBON2: Calculating solution score for ribbon size {}", ribbon_size);
-    for (const auto &op_model : selected_op_models)
+    for (auto &op : ops)
     {
         // We have full epoch candidate. Recalculate impact on data BW.
         //
         int cycles = get_limiter_cycles(
-            op_model,
+            op.model,
             graph,
             *balancer_config,
             dram_readers_core_count + dram_writers_core_count,
@@ -1570,21 +1570,21 @@ float EpochSolution::evaluate() const
 
     float used_cores = 0;
     float utilization = 0;
-    for (const auto &op_model : selected_op_models)
+    for (auto &op : ops)
     {
-        std::uint32_t cores = op_model.grid_shape.volume();
+        std::uint32_t cores = op.model.grid_shape.volume();
         used_cores += cores;
 
-        if (op_model.buda_op_node->is_matmul_not_sparse())
+        if (op.op->is_matmul_not_sparse())
         {
-            utilization += cores * (op_model.get_execution_cycles(balancer_config->device_config.arch_name, true) /
+            utilization += cores * (op.model.get_execution_cycles(balancer_config->device_config.arch_name, true) /
                                     pipeline_cycles);
         }
-        else if (!env_as<bool>("PYBUDA_RIBBON2_DISABLE_NON_MATMUL_UTIL", 0) and !op_model.buda_op_node->is_buffering_op())
+        else if (!env_as<bool>("PYBUDA_RIBBON2_DISABLE_NON_MATMUL_UTIL", 0) and !op.op->is_buffering_op())
         {
             utilization +=
                 cores *
-                (op_model.get_execution_cycles(balancer_config->device_config.arch_name, true) / pipeline_cycles) /
+                (op.model.get_execution_cycles(balancer_config->device_config.arch_name, true) / pipeline_cycles) /
                 non_matmul_penalty;
         }
     }
@@ -1605,14 +1605,14 @@ float EpochSolution::evaluate() const
 
 void EpochSolution::print() const
 {
-    for (const auto &op_model : selected_op_models)
+    for (auto &op : ops)
     {
         log_trace(
             LogBalancer,
             "RIBBON2: (ribbon={})   {}: {}",
             ribbon_size,
-            op_model.buda_op_node->name(),
-            get_limiter_cycles(op_model, graph, *balancer_config));
+            op.op->name(),
+            get_limiter_cycles(op.model, graph, *balancer_config));
     }
 }
 
@@ -1622,16 +1622,16 @@ void EpochSolution::recalc_nodes()
     dram_writers_core_count = 0;
     current_epoch_ops.clear();
     current_epoch_nodes.clear();
-    for (const auto &op_model : selected_op_models)
+    for (const auto &op : ops)
     {
-        current_epoch_ops.insert(op_model.buda_op_node);
+        current_epoch_ops.insert(op.op);
     }
     current_epoch_nodes = calculate_current_epoch_nodes(graph, current_epoch_ops);
 
-    for (const auto &op_model : selected_op_models)
+    for (const auto &op : ops)
     {
-        std::vector<Edge> data_operands = graph->operand_data_edges(op_model.buda_op_node);
-        std::vector<Edge> data_users = graph->user_data_edges(op_model.buda_op_node);
+        std::vector<Edge> data_operands = graph->operand_data_edges(op.model.buda_op_node);
+        std::vector<Edge> data_users = graph->user_data_edges(op.model.buda_op_node);
 
         for (const Edge &edge : data_operands)
         {
@@ -1639,15 +1639,15 @@ void EpochSolution::recalc_nodes()
             bool producer_is_queue = producer_node->node_type() == tt::graphlib::NodeType::kQueue ||
                                      producer_node->node_type() == tt::graphlib::NodeType::kInput;
 
-            if (producer_is_queue and !op_model.parameter_buffers[edge.consumer_input_port_id])
+            if (producer_is_queue and !op.model.parameter_buffers[edge.consumer_input_port_id])
             {
                 if (!is_input_host_queue(balancer_config->input_queues_on_host, producer_node))
                 {
-                    dram_readers_core_count += op_model.get_input_grid_shape(edge.consumer_input_port_id).volume();
+                    dram_readers_core_count += op.model.get_input_grid_shape(edge.consumer_input_port_id).volume();
                 }
                 else
                 {
-                    pcie_readers_core_count += op_model.get_input_grid_shape(edge.consumer_input_port_id).volume();
+                    pcie_readers_core_count += op.model.get_input_grid_shape(edge.consumer_input_port_id).volume();
                 }
             }
         }
@@ -1663,11 +1663,11 @@ void EpochSolution::recalc_nodes()
             {
                 if (!is_output_host_queue(balancer_config->output_queues_on_host, graph, user_node))
                 {
-                    dram_writers_core_count += op_model.grid_shape.volume();
+                    dram_writers_core_count += op.model.grid_shape.volume();
                 }
                 else
                 {
-                    pcie_writers_core_count += op_model.grid_shape.volume();
+                    pcie_writers_core_count += op.model.grid_shape.volume();
                 }
             }
         }

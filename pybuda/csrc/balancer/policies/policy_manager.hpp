@@ -11,6 +11,7 @@ namespace tt::balancer
 {
 
 class EpochSolution;
+struct OpModelPair;
 
 // Class that decouples interactive placer and graphsolver from balancer policy logic.
 // Op placement, epoch switches and inline fork-join buffering are handled by PolicyManager.
@@ -37,7 +38,7 @@ class PolicyManager
     tt::scheduler::Schedule processed_schedule;
     tt::scheduler::Schedule epoch_schedule;
     std::vector<EpochSolution> epoch_solutions;
-    std::vector<OpModel> current_epoch_selected_models;
+    std::vector<OpModelPair> current_epoch_selected_models;
     std::vector<tt::scheduler::Schedule> op_names_to_epoch_break;
     std::vector<tt::scheduler::Schedule> op_names_to_chip_break;
     bool overflow_set_for_epoch = false;
@@ -65,7 +66,6 @@ class PolicyManager
     std::uint32_t epoch_start_ribbon_size = 0;
     void update_ribbon_size();
 
-    void register_op_in_current_epoch(const OpModel& selected_op_model);
     bool buffer_epoch();
     bool handle_epoch_buffering_overflow();
     void start_new_epoch(graphlib::NodeEpochType epoch_type);
