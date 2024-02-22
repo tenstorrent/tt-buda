@@ -9,6 +9,7 @@ from .exp import Exp
 from .logical_not import LogicalNot
 from .sine import Sine
 from .cosine import Cosine
+from .ethernet_datacopy import EthernetDatacopy
 
 op_to_module_map = {
         "add":           "eltwise_binary",
@@ -67,6 +68,7 @@ op_to_module_map = {
         "depthwise": "depthwise",
 
         "embedding": "embedding",
+        "ethernet_datacopy": EthernetDatacopy,
 
         "transpose":                   TransposeTM,
         "adv_index":                   "tm",

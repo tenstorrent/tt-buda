@@ -9,6 +9,7 @@ from .splice import Splice
 from .exp import Exp
 from .sine import Sine
 from .cosine import Cosine
+from .ethernet_datacopy import EthernetDatacopy
 
 op_to_module_map = {
         "add":             "eltwise_binary",
@@ -25,8 +26,7 @@ op_to_module_map = {
         "less_equal":      "eltwise_binary",
         "equal":           "eltwise_binary",
         "not_equal":       "eltwise_binary",
-        
-        "ethernet_datacopy":    "eltwise_unary",
+        "ethernet_datacopy": EthernetDatacopy,
         "nop":             "eltwise_unary",
         "buffer":          "eltwise_unary",
         "exp":              Exp,
