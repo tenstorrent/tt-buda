@@ -206,7 +206,8 @@ def generate_model_vovnet_imgcls_timm_pytorch(test_device, variant):
     
     # tenstorrent/pybuda#915
     if test_device.arch == BackendDevice.Grayskull and variant == "ese_vovnet39b":
-        compiler_cfg.enable_auto_fusing = False
+        compiler_cfg.balancer_policy = "Ribbon"
+        os.environ["PYBUDA_RIBBON2"] = "1"
 
     # STEP 2: Create PyBuda module from PyTorch model
     tt_model = pybuda.PyTorchModule(variant+"_pt", model)
@@ -220,9 +221,6 @@ def test_vovnet_timm_pytorch(variant, test_device):
     model, inputs, _ = generate_model_vovnet_imgcls_timm_pytorch(
         test_device, variant,
     )
-
-    if test_device.arch == BackendDevice.Grayskull and variant == "ese_vovnet39b":
-        os.environ["PYBUDA_LEGACY_KERNEL_BROADCAST"] = "1"
 
     verify_module(
         model,
