@@ -407,6 +407,36 @@ def test_push(shape, mb, loop, native):
         f"Batch[{mb:2}] Loop[{loop:2}] Native[{native:1}] Data[{data}mB] Elapsed[{elapsed:2.4}sec]"
     )
 
+class NoOutputGraph(torch.nn.Module):
+    def forward(self, a):
+        a = a + 1
+        a = 3 * a
+
+def test_no_output_graph():
+    model = torch.compile(NoOutputGraph(), backend=compile_torch)
+    input = torch.tensor([[1.0]])
+    tt_res = model(input.to('tt'))
+    tt_res = tt_res.to('cpu')
+
+    cpu_res = NoOutputGraph()(input)
+    assert cpu_res == tt_res
+
+class DanglingOps(torch.nn.Module):
+    def forward(self, a):
+        a = a + 1
+        b = a + 2
+        c = b * 12
+        return a
+
+def test_dangling_ops():
+    model = torch.compile(DanglingOps(), backend=compile_torch)
+    input = torch.tensor([[1.0]])
+    tt_res = model(input.to('tt'))
+    tt_res = tt_res.to('cpu')
+
+    cpu_res = DanglingOps()(input)
+    assert cpu_res == tt_res
+
 foobar = 5.0
 class DisjointedGraphs(torch.nn.Module):
     def forward(self, a):
@@ -434,3 +464,4 @@ def test_disjointed_graphs():
 
     cpu_res = DisjointedGraphs()(input)
     assert cpu_res == tt_res
+
