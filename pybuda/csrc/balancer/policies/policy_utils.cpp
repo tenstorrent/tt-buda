@@ -444,7 +444,7 @@ std::tuple<scheduler::Schedule, std::unordered_set<string>, std::unordered_set<s
         config.use_interactive_placer);
     std::unordered_set<string> chip_break_ops = placer::lowering::tag_ops_for_chip_break(
         config.device_config.arch_name, op_names_to_chip_break, scheduled_ops, graph, config.use_interactive_placer);
- 
+
     return make_tuple(std::move(scheduled_ops), std::move(epoch_break_ops), std::move(chip_break_ops));
 }
 
@@ -727,6 +727,10 @@ int calculate_target_cycles_for_ribbon_size(
     TT_ASSERT(interactive_placer.current_epoch_empty());
     int target_exec_cycles = 0;
 
+    // Should we apply filtering on GS search space while producing target cycles.
+    //
+    static const bool apply_filtering = env_as<bool>("PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES_APPLY_FILTERING", false);
+
     for (std::uint32_t op_index = placed_op_index; op_index < scheduled_ops.size(); op_index++)
     {
         const graphlib::Node *node = graph->get_node_by_name(scheduled_ops[op_index]);
@@ -765,7 +769,11 @@ int calculate_target_cycles_for_ribbon_size(
                     const graphlib::BudaOpNode *dense_matmul_op = static_cast<const graphlib::BudaOpNode *>(next_node);
                     if (dense_matmul_op->should_pair_with_sparse(op, graph))
                     {
-                        graph_solver.set_filter_grid_size(op, *prefered_op_model);
+                        if (apply_filtering)
+                        {
+                            graph_solver.set_filter_grid_size(op, *prefered_op_model);
+                        }
+
                         op_already_set = true;
                         const OpModel *prefered_op_model_dense = pick_preferred_op_model(
                             graph,
@@ -791,7 +799,10 @@ int calculate_target_cycles_for_ribbon_size(
                         //
                         if (op_placement.has_value() and sparse_dense_pair)
                         {
-                            graph_solver.set_filter_grid_size(dense_matmul_op, *prefered_op_model_dense);
+                            if (apply_filtering)
+                            {
+                                graph_solver.set_filter_grid_size(dense_matmul_op, *prefered_op_model_dense);
+                            }
                             target_exec_cycles = std::max(
                                 target_exec_cycles, get_limiter_cycles(*prefered_op_model_dense, graph, config));
                             op_index++;
@@ -811,7 +822,7 @@ int calculate_target_cycles_for_ribbon_size(
                 break;
             }
 
-            if (!op_already_set)
+            if (apply_filtering and !op_already_set)
             {
                 graph_solver.set_filter_grid_size(op, *prefered_op_model);
             }

@@ -803,6 +803,9 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
 
             try
             {
+                std::unique_ptr<graphlib::GraphTraversalContext> epoch_snapshot_traversal_context =
+                    graph_solver_epoch_snapshot->get_graph_traversal_context();
+
                 if (force_target_cycles == 0 and env_as<bool>("PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES", false))
                 {
                     // Legacy target_cycles are passed in as initial seed for calculation.

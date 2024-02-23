@@ -24,13 +24,15 @@ def openpose_osmr_body(training: bool, config: str, microbatch: int, devtype: st
 
     # These are about to be enabled by default.
     #
+    os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
+
     if data_type != "Bfp8_b":
         os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
     else:
         # tenstorrent/pybuda#2228
         os.environ["PYBUDA_LEGACY_KERNEL_BROADCAST"] = "1"
-
-    os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
+        os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
+        os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
 
     # Set model parameters based on chosen task and model configuration
     model_name = ""

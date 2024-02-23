@@ -30,6 +30,7 @@ def resnet(training: bool, config: str, microbatch: int, devtype: str, arch: str
         os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
         if data_type != "Bfp8_b":
             os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
+            os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES_APPLY_FILTERING"] = "1"
 
     os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
 

@@ -106,6 +106,7 @@
  * PYBUDA\_RIBBON2\_OPTIMIZATION\_ITERATIONS: Number of optimization iterations in Ribbon2 balancing policy. Default value is 0.
  * PYBUDA\_RIBBON2\_DISABLE\_CLEANUP\_BUF\_NOPS: Disable cleanup of unneeded buffering nops in Ribbon2. (default: 0/False)
  * PYBUDA\_RIBBON2\_CALCULATE\_TARGET\_CYCLES: Calculate target cycles for every epoch within Ribbon2 balancing policy. (default: 0/False)
+ * PYBUDA\_RIBBON2\_CALCULATE\_TARGET\_CYCLES\_APPLY\_FILTERING: Apply filtering on GS search space while calculating dynamic cycles per epoch within Ribbon2 balancing policy. (default: 0/False)
  * PYBUDA\_AUTO\_RECOMPILE: Triggers handling of backend compile error and recompiles the model. (default: 0/False)
  * PYBUDA\_AUTO\_RECOMPILE\_RETRY\_LIMIT: Limits number of attempts to recompile. (default: 10)
  * PYBUDA\_TARGET\_CYCLES\_OFFSET: Sets the desired amount by which to offset the target cycles for balancer. Default value is 0.
