@@ -1610,6 +1610,24 @@ void fuse_ops(
     std::vector<FusionGroupP> fused_ops;
     FusionGroupP fused_op = std::make_shared<FusionGroup>();
     auto topo = graphlib::topological_sort(*graph);
+    bool bisect_fusing = env_as<bool>("PYBUDA_BISECT_FUSING", false);
+    // To start, fuse first half of the model and then edit boundaries.
+    int first_ind_to_fuse = env_as<int>("PYBUDA_FUSE_OP_FIRST_IND", 0);
+    int last_ind_to_fuse = env_as<int>("PYBUDA_FUSE_OP_LAST_IND", floor((topo.size() - 1)/2)); 
+    int node_ind = 0;
+    if (bisect_fusing)
+    {
+        for (Node *node : topo)
+        {
+            if (node_ind < first_ind_to_fuse || node_ind > last_ind_to_fuse)
+            {
+                log_debug(LogFuser, "skip fusing for node: {}, node index: {}", node->name(), node_ind);
+                node->as<graphlib::TaggedNode>()->tag("dont_fuse");
+            }
+            node_ind ++;
+        }
+    }
+
     for (Node *node : topo)
     {
         if (node->node_type() == graphlib::kBudaOp)

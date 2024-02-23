@@ -72,6 +72,9 @@
  * PYBUDA\_REPLACE\_INF\_IN\_TVM\_PARAMS: Replace -inf and inf values from TVM parameters during PyBuda code generation.
  * PYBUDA\_FORCE\_ALLOW\_FRACTURING: All convs will be candidates for fracturing - this does NOT mean that all convs will fracture (search for is_kernel_fracturing_candidate)
  * PYBUDA\_DISABLE\_FUSE\_TAGS: Specify a list of ops (comma delimited) by original_op_type/op_type that will be exempt from fusion (e.g. PYBUDA\_DISABLE\_FUSE\_TAGS="reciprocal,softmax").
+ * PYBUDA\_BISECT\_FUSING: bool, false by default. When it is set to true, we bisect fusing by defining PYBUDA\_FUSE\_OP\_FIRST\_IND and PYBUDA\_FUSE\_OP\_LAST\_IND.
+ * PYBUDA\_FUSE\_OP\_FIRST\_IND: First index in topologically sorted graph of ops to fuse.
+ * PYBUDA\_FUSE\_OP\_LAST\_IND: Last index in topologically sorted graph of ops to fuse.
  * PYBUDA\_SINGLE\_OP\_EPOCHS: Place every single op on a new epoch.
  * PYBUDA\_FORK\_JOIN\_BUF\_QUEUES: Turn on adding buffering queues instead of nops in fork joins that need a lot of buffering (have one path much larger than the other).
  * PYBUDA\_RESNET\_BUFF\_QUEUE\_OVERRIDE: Turn off adding buffering queues in graph solver cut. Temporal fix for ResNet perf.
