@@ -74,8 +74,6 @@ def test_fork_join_variant(test_kind, test_device, input_shape, config):
                 if config is "m" then apropriate node is matmul, and if it is "e", then node is element-wise op.
     """
     num_in_channels = 1
-    compiler_cfg = pybuda.config._get_global_compiler_config()
-    compiler_cfg.enable_t_streaming = False
     relative_atol, pcc = get_relaxed_atol_pcc(test_kind, test_device)
     verify_module(ForkJoinVariant("test_fork_join_variant", input_shape, config), [(1, num_in_channels, input_shape[0], input_shape[1])],
             VerifyConfig(test_kind=test_kind, devtype=test_device.devtype, arch=test_device.arch, pcc=pcc, relative_atol=relative_atol))

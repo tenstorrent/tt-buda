@@ -913,44 +913,63 @@ void GraphSolver::update_solver(graphlib::Node const* root, bool expand_root, bo
         {
             path_set->update(bitsets);
         }
-    }
 
-    if (expand_root)
-    {
         // When node bitsets are updated(set of valid op models), we need to update paths for all operands and users.
         //
         add_operands_and_users(graph, root, needs_update);
     }
 
+    // Iterate through the nodes that need to be updated and update their operand and user path sets.
     while (not needs_update.empty())
     {
         auto node = needs_update.back();
 
+        // Get path sets for incoming edges
         auto operand_path_sets = get_operand_path_sets_pts(node);
+        // Get path sets for outgoing edges
         auto user_path_sets = get_user_path_sets_pts(node);
 
         bool path_changed = false;
-
-        // Cumulative cost of operand edges coming into this consumer
-        path_changed |= apply_cumulative_costs<true>(operand_path_sets, node, EdgeCost::consumer_cost_fns);
-        // Cumulative cost of user edges going out of this producer
-        path_changed |= apply_cumulative_costs<false>(user_path_sets, node, EdgeCost::producer_cost_fns);
-
         bool edge_changed = false;
-        for (auto path_set : operand_path_sets)
-        {
-            bool producers_changed = path_set->update(bitsets);
 
-            if (path_set->empty(bitsets))
+        std::vector<bool> producers_changed(operand_path_sets.size());
+        for (size_t i = 0; i < operand_path_sets.size(); i++)
+        {
+            auto operand_path_set = operand_path_sets[i];
+            producers_changed[i] = operand_path_set->update(bitsets);
+
+            if (operand_path_set->empty(bitsets))
             {
                 return handle_no_paths_left_on_update(invoked_by_set, root->name(), node->name());
             }
+        }
 
-            if (path_changed or producers_changed)
+        // Cumulative cost of operand edges coming into this consumer
+        path_changed |= apply_cumulative_costs<true>(operand_path_sets, node, EdgeCost::consumer_cost_fns);
+
+        std::vector<bool> consumers_changed(user_path_sets.size());
+        for (size_t i = 0; i < user_path_sets.size(); i++)
+        {
+            auto user_path_set = user_path_sets[i];
+            consumers_changed[i] = user_path_set->update(bitsets);
+
+            if (user_path_set->empty(bitsets))
             {
-                const Node* producer_node = path_set->get_producer_node();
+                return handle_no_paths_left_on_update(invoked_by_set, root->name(), node->name());
+            }
+        }
+
+        // Cumulative cost of user edges going out of this producer
+        path_changed |= apply_cumulative_costs<false>(user_path_sets, node, EdgeCost::producer_cost_fns);
+
+        // If any of the paths between producer and this consumer changed, we need to visit producer node and add its operands and users to the needs_update list.
+        for(size_t i = 0; i < producers_changed.size(); i++)
+        {
+            if (path_changed || producers_changed[i])
+            {
+                const Node* producer_node = operand_path_sets[i]->get_producer_node();
                 needs_update.push_back(producer_node);
-                if (producers_changed)
+                if (producers_changed[i])
                 {
                     add_operands_and_users(graph, producer_node, needs_update, node);
                 }
@@ -959,19 +978,14 @@ void GraphSolver::update_solver(graphlib::Node const* root, bool expand_root, bo
             }
         }
 
-        for (auto path_set : user_path_sets)
+        // If any of the paths between this producer and consumer changed, we need to visit consumer node and add its operands and users to the needs_update list.
+        for(size_t i = 0; i < consumers_changed.size(); i++)
         {
-            bool consumers_changed = path_set->update(bitsets);
-            if (path_set->empty(bitsets))
+            if (path_changed || consumers_changed[i])
             {
-                return handle_no_paths_left_on_update(invoked_by_set, root->name(), node->name());
-            }
-
-            if (path_changed or consumers_changed)
-            {
-                const Node* consumer_node = path_set->get_consumer_node();
+                const Node* consumer_node = user_path_sets[i]->get_consumer_node();
                 needs_update.push_back(consumer_node);
-                if (consumers_changed)
+                if (consumers_changed[i])
                 {
                     add_operands_and_users(graph, consumer_node, needs_update, node);
                 }
