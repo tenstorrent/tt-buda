@@ -42,7 +42,7 @@ def test_perceiver_for_image_classification_onnx(test_device, model_name):
         compiler_cfg.balancer_op_override("multiply_3103", "t_stream_shape", (1,1))
         compiler_cfg.balancer_op_override("multiply_3123", "t_stream_shape", (1,1))
 
-    onnx_model_path = "pybuda/test/model_demos/utils/cnn/onnx/weights/perceiver/" + str(model_name.split("/")[-1]) + "/"+ "model.onnx"
+    onnx_model_path = "third_party/confidential_customer_models/generated/files/" + str(model_name).split("/")[-1].replace("-","_") + ".onnx"
     
     # Sample Image
     pixel_values = get_sample_data(model_name)
@@ -50,7 +50,7 @@ def test_perceiver_for_image_classification_onnx(test_device, model_name):
     # Load the onnx model
     onnx_model = onnx.load(onnx_model_path)
     onnx.checker.check_model(onnx_model)
-    print("model loaded")
+
         
     # Create PyBuda module from Onnx model
     tt_model = pybuda.OnnxModule(str(model_name.split("/")[-1].replace("-","_"))+"_onnx",onnx_model,onnx_model_path)
