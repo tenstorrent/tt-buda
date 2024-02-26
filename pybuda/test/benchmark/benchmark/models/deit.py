@@ -20,7 +20,6 @@ def deit(training: bool, config: str, microbatch: int, devtype: str, arch: str, 
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"
         os.environ["PYBUDA_RIBBON2"] = "1"
-        os.environ["PYBUDA_RIBBON2_OPTIMIZATION_ITERATIONS"] = "10"
 
         # These are about to be enabled by default.
         #
@@ -35,6 +34,7 @@ def deit(training: bool, config: str, microbatch: int, devtype: str, arch: str, 
         pybuda.config.configure_mixed_precision(op_type="reciprocal", output_df=pybuda.DataFormat.Float16_b)
         os.environ["PYBUDA_TEMP_BALANCER_MODEL_PCIE_BW"] = "0"
         os.environ["PYBUDA_TEMP_DISABLE_FJ_NOP_SCHEDULE_FIX"] = "1"
+        os.environ["PYBUDA_RIBBON2_OPTIMIZATION_ITERATIONS"] = "10"
 
     # Determine model variant
     if config == "base":
