@@ -5,7 +5,7 @@
       - docs/public/md
   needs: 
     - pybuda-wh-b0-wheel
-    - seeded-venv
+    - !reference [.common_deps, needs]
   tags:
     - 8-core
   script: 

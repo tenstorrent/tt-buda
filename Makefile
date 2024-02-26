@@ -90,7 +90,7 @@ ifeq ($(SKIP_SUBMODULE_UPDATE), 0)
 endif
 	touch $@
 
-build: pybuda third_party/tvm ;
+build: pybuda third_party/tvm torchvision ;
 
 third_party/tvm: $(SUBMODULESDIR)/third_party/tvm.build ;
 
@@ -98,9 +98,20 @@ $(SUBMODULESDIR)/third_party/tvm.build: python_env $(SUBMODULESDIR)/third_party/
 	bash -c "source $(PYTHON_ENV)/bin/activate && ./third_party/tvm/install.sh"
 	touch $@
 
+torchvision: python_env
+	pip3 install -r python_env/requirements.txt -f https://download.pytorch.org/whl/cpu/torch_stable.html
+	# apt-get install libpng-dev -y
+	git clone https://github.com/pytorch/vision.git
+	cd vision && git checkout v0.16.0 && git submodule update --init --recursive
+	cd vision && PYTORCH_VERSION=2.1.0 _GLIBCXX_USE_CXX11_ABI=1 python3 setup.py bdist_wheel -d build_out/
+	cp -r vision/build_out build_out
+	pip install build_out/torchvision*.whl
+
 clean: third_party/budabackend/clean
 	rm -rf $(OUT)
 	rm -rf third_party/tvm/build
+	rm -rf build_out/
+	rm -rf vision/
 
 clean_no_python:
 	find $(OUT)/ -maxdepth 1 -mindepth 1 -type d -not -name 'python_env' -print0 | xargs -0 -I {} rm -Rf {}
