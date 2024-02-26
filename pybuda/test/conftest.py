@@ -314,6 +314,8 @@ def pytest_runtest_logreport(report):
             else:
                 _set_pybuda_override_veto({
                     "backend_output_dir": "",
+                    "backend_runtime_params_path": "",
+                    "harvesting_mask": "",
 
                     # Level 1 overrides
                     "balancer_policy": "",
