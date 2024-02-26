@@ -350,6 +350,8 @@ def op_model_to_desc(type: str, arch_name: str, op_model: OpModel, sub_op_model:
             desc.ublock_kt = sub_op_model.ublock_kt
         elif (desc.type == "reduce"):
             desc.op_attr = sub_op_model.reduce_dim
+
+        desc.approx_mode = "PYBUDA_EXP_APPROX" in os.environ
     else:
         desc.type = type
         desc.mblock_m = op_model.output_buffers[0].block_shape.mblock_m
@@ -406,7 +408,10 @@ def op_model_to_desc(type: str, arch_name: str, op_model: OpModel, sub_op_model:
         if type == "reduce" and op_model.buda_op_attrs()["dim"] == "z":
             desc.reduce_z = op_model.buda_op_attrs()["z"]
 
-    desc.approx_mode = "PYBUDA_EXP_APPROX" in os.environ
+    try:
+        desc.approx_mode = True if 'true' == op_model.buda_op_attrs()['approximate_mode'] else False
+    except KeyError as ke:
+        pass
 
     return desc
 
