@@ -165,7 +165,7 @@ def _compile(module, aten_module, module_name, sample_inputs, device, compiler_c
     global _graph
 
     if _tt0 is None:
-        _tt0 = pybuda.TTDevice("tt0", arch=device.arch)
+        _tt0 = pybuda.TTDevice("tt0", arch=device.arch, devtype=device.type)
     else:
         _tt0.remove_modules()
 

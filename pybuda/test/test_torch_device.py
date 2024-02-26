@@ -451,9 +451,10 @@ class DisjointedGraphs(torch.nn.Module):
 def test_disjointed_graphs():
     model = torch.compile(DisjointedGraphs(), backend=compile_torch)
     input = torch.tensor([[1.0]])
+    tt_res_ = model(input.to('tt'))
+    tt_res_ = tt_res_.to('cpu')
     tt_res = model(input.to('tt'))
     tt_res = tt_res.to('cpu')
-
     cpu_res = DisjointedGraphs()(input)
     assert cpu_res == tt_res
 
