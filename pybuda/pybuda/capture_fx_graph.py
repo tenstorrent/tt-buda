@@ -592,17 +592,26 @@ def append_to_graph(graph, module, aten_module, activations, subgraph_idx, input
             pybuda_node = get_pybuda_node(op_name, node)
             node_to_id[node] = add_op(graph, node, node.name, pybuda_node, subgraph_idx)
 
+    # Traverse up the graph from output nodes to populate consumed nodes set
     consumed = set()
+    working_nodes = []
     for node in aten_module.graph.nodes:
+        if node.op == "output":
+            working_nodes.append(node)
+            consumed.add(node)
+
+    while len(working_nodes) > 0:
+        node = working_nodes.pop(0)
         for arg in node.args:
-            if isinstance(arg, torch.fx.node.Node):
+            if isinstance(arg, torch.fx.node.Node) and arg not in consumed:
                 consumed.add(arg)
+                working_nodes.append(arg)
             elif isinstance(arg, (list, tuple)):
                 for a in arg:
-                    if isinstance(a, torch.fx.node.Node):
+                    if isinstance(a, torch.fx.node.Node) and arg not in consumed:
                         consumed.add(a)
-        if node.op == "output":
-            consumed.add(node)
+                        working_nodes.append(a)
+
 
     input_index = 0
     for index, node in enumerate(aten_module.graph.nodes):
