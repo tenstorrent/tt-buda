@@ -1379,6 +1379,7 @@ int get_limiter_cycles(
 {
     const float inefficency_divider = 2.0;
     const float subchannel_oversub_coeff = 1.5;
+    const float pcie_theoretical_max = 24;
     TT_ASSERT(op_model.buda_op_node);
     int kernel_cycles = op_model.get_execution_cycles(device_config.arch_name, false, invalidate_cached);
 
@@ -1401,7 +1402,7 @@ int get_limiter_cycles(
     float dram_bw = device_config.is_wormhole()
                         ? 20.4 / dram_bw_divider
                         : static_cast<float>(device_config.get_dram_bandwidth_bytes_per_cycle()) / dram_bw_divider;
-    float pcie_bw = static_cast<float>(24) / pcie_access_core_count;
+    float pcie_bw = 0 == pcie_access_core_count ? pcie_theoretical_max : pcie_theoretical_max / pcie_access_core_count;
     if (!model_pcie_bw)
     {
         // Temp fallback to legacy dram calc.
@@ -1427,6 +1428,12 @@ int get_limiter_cycles(
             }
             else
             {
+                if (0 == pcie_access_core_count)
+                {
+                    pcie_bw =
+                        pcie_theoretical_max / op_model.get_input_grid_shape(edge.consumer_input_port_id).volume();
+                }
+
                 memory_read_cycles = std::max(
                     memory_read_cycles,
                     static_cast<int>(op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / pcie_bw));
@@ -1441,6 +1448,11 @@ int get_limiter_cycles(
     }
 
     int memory_write_cycles = 0;
+
+    if (0 == pcie_access_core_count)
+    {
+        pcie_bw = pcie_theoretical_max / op_model.grid_shape.volume();
+    }
 
     for (const Edge &edge : data_users)
     {
