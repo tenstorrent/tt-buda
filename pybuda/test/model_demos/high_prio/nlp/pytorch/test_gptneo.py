@@ -39,13 +39,8 @@ def test_gptneo_causal_lm(variant, test_device):
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     # Temporary disabling t-streaming for gpt-neo
     compiler_cfg.enable_t_streaming = False
-
-    if variant == "EleutherAI/gpt-neo-2.7B" and test_device.arch == BackendDevice.Grayskull:
-        compiler_cfg.balancer_policy = "Ribbon"
-
-    if variant == "EleutherAI/gpt-neo-1.3B" and test_device.arch == BackendDevice.Wormhole_B0:
-        os.environ["PYBUDA_RIBBON2"] = "1"
-        compiler_cfg.balancer_policy = "Ribbon"
+    os.environ["PYBUDA_RIBBON2"] = "1"
+    compiler_cfg.balancer_policy = "Ribbon"
 
     if variant == "EleutherAI/gpt-neo-2.7B" and test_device.arch == BackendDevice.Wormhole_B0:
         os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "65536"
