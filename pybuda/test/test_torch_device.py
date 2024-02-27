@@ -259,8 +259,8 @@ def test_linear():
     inputs = [torch.rand(1, 32, 32), torch.rand(1, 32, 64)]
     golden = model(*inputs)
     # inputs = [i.to("tt") for i in inputs]
-    pybuda_mod = torch.compile(model, backend=compile_torch)
-    result = pybuda_mod(*inputs)
+    pybuda_mod = torch.compile(model.to("tt"), backend=compile_torch)
+    result = pybuda_mod(*[i.to("tt") for i in inputs])
     result = result.to("cpu")
 
     assert pybuda.op.eval.compare_tensor_to_golden(f"linear", golden, result, is_buda=True, pcc=0.99)

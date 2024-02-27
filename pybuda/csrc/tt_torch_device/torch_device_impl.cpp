@@ -64,6 +64,13 @@ class TorchDeviceImpl : public c10::impl::DeviceGuardImplInterface
     static TorchDeviceImpl& get()
     {
         static TorchDeviceImpl tt_device_impl(query_available_tt_devices());
+
+        if (env_as<bool>("PYBUDA_DEVMODE")) {
+            // If we are in dev mode, we want to mark all devices as golden
+            for (auto & dev : tt_device_impl.tt_devices) {
+                dev.type = tt::DEVICE::Golden;
+            }
+        }
         return tt_device_impl;
     }
     std::int64_t get_index() { return current_device.index(); }
