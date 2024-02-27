@@ -109,7 +109,8 @@ def preprocess_steps(model_type):
 def generate_model_vovnet39_imgcls_stigma_pytorch(test_device, variant):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
-    compiler_cfg.balancer_policy = "CNN"
+    compiler_cfg.balancer_policy = "Ribbon"
+    os.environ["PYBUDA_RIBBON2"] = "1"
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
    
     # STEP 2: Create PyBuda module from PyTorch model 
@@ -124,9 +125,6 @@ def test_vovnet_v1_39_stigma_pytorch(test_device, enable_default_dram_parameters
     model, inputs, _ = generate_model_vovnet39_imgcls_stigma_pytorch(
         test_device, None,
     )
-
-    if enable_default_dram_parameters == True:
-        os.environ["PYBUDA_LEGACY_KERNEL_BROADCAST"] = "1"
 
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.default_dram_parameters = enable_default_dram_parameters

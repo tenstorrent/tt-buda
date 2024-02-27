@@ -63,6 +63,7 @@ def test_int8_onnx_vit_calibrated(test_device):
         verify_cfg=VerifyConfig(
             arch=test_device.arch,
             devtype=test_device.devtype,
+            devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
         ),
     )

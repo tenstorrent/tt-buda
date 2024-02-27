@@ -54,6 +54,7 @@ def test_onnx_quantized_mb_v2_depth(test_device):
         verify_cfg=VerifyConfig(
             arch=test_device.arch,
             devtype=test_device.devtype,
+            devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
             verify_pybuda_codegen_vs_framework=True,
             verify_all=True
@@ -102,6 +103,7 @@ def test_onnx_quantized_mb_v2(test_device):
         verify_cfg=VerifyConfig(
             arch=test_device.arch,
             devtype=test_device.devtype,
+            devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
             # verify_pybuda_codegen_vs_framework=True,
             # verify_all=True

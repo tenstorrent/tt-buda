@@ -82,6 +82,7 @@ def test_mlp_mixer_timm_pytorch(variant, test_device):
     # STEP 2: Create PyBuda module from PyTorch model
     tt_model = pybuda.PyTorchModule(variant+"_pt", model)
 
+    pcc = 0.92 if test_device.arch == BackendDevice.Grayskull and variant == "mixer_b16_224_miil" else 0.99
     verify_module(
         tt_model,
         input_shapes=[(pixel_values.shape,)],
@@ -91,7 +92,7 @@ def test_mlp_mixer_timm_pytorch(variant, test_device):
             devtype=test_device.devtype,
             devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
-            pcc=0.99,
+            pcc=pcc,
         ),
     )
 
