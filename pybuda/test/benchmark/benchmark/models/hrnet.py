@@ -34,18 +34,17 @@ def hrnet(training: bool, config: str, microbatch: int, devtype: str, arch: str,
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"
         os.environ["PYBUDA_RIBBON2"] = "1"
-        os.environ["PYBUDA_RIBBON2_OPTIMIZATION_ITERATIONS"] = "10"
-        os.environ["PYBUDA_SUPRESS_T_FACTOR_MM"] = "46" # removing causes hang #2139
-        os.environ["PYBUDA_LEGACY_KERNEL_BROADCAST"] = "1"  # #2130
 
-        # These are about to be enabled by default.
-        #
-        os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
-        os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
-        os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
-        if data_type != "Bfp8_b":
-            os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
-            os.environ["PYBUDA_RIBBON2_DISABLE_NON_MATMUL_UTIL"] = "1"
+    os.environ["PYBUDA_SUPRESS_T_FACTOR_MM"] = "46" # removing causes hang #2139
+
+    # These are about to be enabled by default.
+    #
+    os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
+    os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
+    os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
+    if data_type == "Fp16_b":
+        os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
+        os.environ["PYBUDA_RIBBON2_OPTIMIZATION_ITERATIONS"] = "10"
 
     # Manually enable amp light for Ribbon
     if compiler_cfg.balancer_policy == "Ribbon":

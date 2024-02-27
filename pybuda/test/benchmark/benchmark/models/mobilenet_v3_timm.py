@@ -17,14 +17,15 @@ def mobilenet_v3_timm(training: bool, config: str, microbatch: int, devtype: str
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"
         os.environ["PYBUDA_RIBBON2"] = "1" 
-        os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
-        os.environ["PYBUDA_BALANCER_PREPASS_DISABLED"] = "1"
 
-        # These are about to be enabled by default.
-        #
-        os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
-        if data_type != "Bfp8_b":
-            os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
+    os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
+    os.environ["PYBUDA_BALANCER_PREPASS_DISABLED"] = "1"
+
+    # These are about to be enabled by default.
+    #
+    os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
+    if data_type == "Fp16_b":
+        os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
 
     if arch == "grayskull":
         os.environ["PYBUDA_MAXIMIZE_SPARSE_UBLOCK"] = "1" 

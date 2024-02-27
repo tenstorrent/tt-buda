@@ -21,20 +21,21 @@ def deit(training: bool, config: str, microbatch: int, devtype: str, arch: str, 
         compiler_cfg.balancer_policy = "Ribbon"
         os.environ["PYBUDA_RIBBON2"] = "1"
 
-        # These are about to be enabled by default.
-        #
-        if data_type != "Bfp8_b":
-            os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
-            os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
-            os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
-            os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES_APPLY_FILTERING"] = "1"
-        os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
+    os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
+
+    # These are about to be enabled by default.
+    #
+    os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
+    os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
+    os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
+
+    if data_type == "Fp16_b":
+        os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
+        os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES_APPLY_FILTERING"] = "1"
+        os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
 
     if data_type == "Bfp8_b":
         pybuda.config.configure_mixed_precision(op_type="reciprocal", output_df=pybuda.DataFormat.Float16_b)
-        os.environ["PYBUDA_TEMP_BALANCER_MODEL_PCIE_BW"] = "0"
-        os.environ["PYBUDA_TEMP_DISABLE_FJ_NOP_SCHEDULE_FIX"] = "1"
-        os.environ["PYBUDA_RIBBON2_OPTIMIZATION_ITERATIONS"] = "10"
 
     # Determine model variant
     if config == "base":

@@ -17,8 +17,6 @@ def mobilenet_v2_timm(training: bool, config: str, microbatch: int, devtype: str
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"
 
-    # os.environ["PYBUDA_PAD_SPARSE_MM"] = "{25:26}"
-
     # Set model parameters based on chosen task and model configuration
     if config != "224":
         raise RuntimeError("Unknown config")

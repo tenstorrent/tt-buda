@@ -113,7 +113,7 @@
 
 ## Temp overrides
 * PYBUDA\_TEMP\_ENABLE\_NEW\_SPARSE\_ESTIMATES: Apply new formula to estimate the cycle count of sparse matmul ops (currently only support LoFi and HiFi2 fidelities)
-* PYBUDA\_TEMP\_SCALE\_ESTIMATE\_ARGS: Scale counts of non-zero tiles, ublocks and strips to reflect the numbers that would end up on a single core, since BBE estimates always assume grid_size [1,1].
+* PYBUDA\_TEMP\_SCALE\_SPARSE\_ESTIMATE\_ARGS: Scale counts of non-zero tiles, ublocks and strips to reflect the numbers that would end up on a single core, since BBE estimates always assume grid_size [1,1].
 * PYBUDA\_TEMP\_ELT\_UNARY\_ESTIMATES\_LEGACY: Force legacy path of calculating execution cycles for eltwise unary ops - instead of calling into BBE, use hand-crafted FE-side logic
 * PYBUDA\_TEMP\_ENABLE\_NEW\_FUSED\_ESTIMATES: Apply new formula to estimate the cycle count of fused ops. The formula calls BBE to estimate each subop and sums up the results.
 * PYBUDA\_LEGACY\_KERNEL\_BROADCAST: Use legacy kernel broadcast detection path. Will detect fewer kernel broadcasts, and will oftentimes use more tiles (longer KBs).
@@ -121,3 +121,4 @@
 * PYBUDA\_TEMP\_BALANCER\_DISABLE\_TARGET\_PROXIMITY: Disable target proximity in balancer. (default: 0/False)
 * PYBUDA\_TEMP\_DISABLE\_FJ\_NOP\_SCHEDULE\_FIX: This flag disables a fix that forces FJ buffering nops to be scheduled last.
 * PYBUDA\_TEMP\_FIX\_2351: Controls the fix for bug #2351 - fork-join can end up adding buffering nops and queues on same path, this control flag fixes it.
+* PYBUDA\_TEMP\_DISABLE\_MODEL\_KB\_PROLOGUE\_BW: Disables bandwidth modelling for kernel broadcasted and prologued inputs.

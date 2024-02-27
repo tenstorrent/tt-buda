@@ -61,7 +61,7 @@ def flan_t5(training: bool, config: str, microbatch: int, devtype: str, arch: st
     
     if data_type == "Bfp8_b":
         # tenstorrent/pybuda#2228
-        os.environ["PYBUDA_LEGACY_KERNEL_BROADCAST"] = "1"
+        # os.environ["PYBUDA_LEGACY_KERNEL_BROADCAST"] = "1"
         pybuda.config.configure_mixed_precision(op_type="add", output_df=pybuda.DataFormat.Float16_b)
         pybuda.config.configure_mixed_precision(op_type="subtract", output_df=pybuda.DataFormat.Float16_b)
         pybuda.config.configure_mixed_precision(op_type="reciprocal", output_df=pybuda.DataFormat.Float16_b)

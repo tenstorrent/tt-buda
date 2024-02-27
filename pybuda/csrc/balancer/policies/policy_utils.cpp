@@ -1383,7 +1383,8 @@ int get_limiter_cycles(
     TT_ASSERT(op_model.buda_op_node);
     int kernel_cycles = op_model.get_execution_cycles(device_config.arch_name, false, invalidate_cached);
 
-    bool model_pcie_bw = env_as<bool>("PYBUDA_TEMP_BALANCER_MODEL_PCIE_BW", true);
+    static const bool model_pcie_bw = env_as<bool>("PYBUDA_TEMP_BALANCER_MODEL_PCIE_BW", true);
+    static const bool disable_model_kb_prologue_bw = env_as<bool>("PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW", false);
     std::vector<Edge> data_operands = graph->operand_data_edges(op_model.buda_op_node);
     std::vector<Edge> data_users = graph->user_data_edges(op_model.buda_op_node);
 
@@ -1418,32 +1419,117 @@ int get_limiter_cycles(
         bool producer_is_queue =
             producer_node->node_type() == NodeType::kQueue || producer_node->node_type() == NodeType::kInput;
 
-        if (producer_is_queue and !op_model.parameter_buffers[edge.consumer_input_port_id])
+        const bool input_is_host_queue = producer_is_queue && is_input_host_queue(input_queues_on_host, producer_node);
+        const bool input_is_kb = op_model.input_buffers[edge.consumer_input_port_id].kernel_broadcast_tiles;
+        const bool input_is_prologue = op_model.parameter_buffers[edge.consumer_input_port_id] &&
+                                       op_model.parameter_buffers[edge.consumer_input_port_id].l1_size_tiles > 0;
+
+        // Legacy path for modelling BW
+        //
+        if (disable_model_kb_prologue_bw)
         {
-            if (!is_input_host_queue(input_queues_on_host, producer_node))
+            if (producer_is_queue and !input_is_prologue)
             {
-                memory_read_cycles = std::max(
-                    memory_read_cycles,
-                    static_cast<int>(op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / dram_bw));
+                if (!input_is_host_queue)
+                {
+                    memory_read_cycles = std::max(
+                        memory_read_cycles,
+                        static_cast<int>(
+                            op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / dram_bw));
+                }
+                else
+                {
+                    if (0 == pcie_access_core_count)
+                    {
+                        pcie_bw =
+                            pcie_theoretical_max / op_model.get_input_grid_shape(edge.consumer_input_port_id).volume();
+                    }
+
+                    memory_read_cycles = std::max(
+                        memory_read_cycles,
+                        static_cast<int>(
+                            op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / pcie_bw));
+                }
             }
             else
             {
-                if (0 == pcie_access_core_count)
-                {
-                    pcie_bw =
-                        pcie_theoretical_max / op_model.get_input_grid_shape(edge.consumer_input_port_id).volume();
-                }
-
                 memory_read_cycles = std::max(
                     memory_read_cycles,
-                    static_cast<int>(op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / pcie_bw));
+                    static_cast<int>(op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / noc_bw));
             }
         }
         else
         {
-            memory_read_cycles = std::max(
-                memory_read_cycles,
-                static_cast<int>(op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / noc_bw));
+            // Non-legacy path for modelling BW
+            //
+            // 5 cases:
+            //   1. kernel broadcast (from queue)
+            //   2. prologue (from queue)
+            //   3. streaming (queue -> op)
+            //   4. streaming (host -> op)
+            //   5. streaming (op -> op),
+            //
+            if (producer_is_queue)
+            {
+                if (input_is_kb)
+                {
+                    // kb (queue -> op)
+                    //
+                    TT_ASSERT(!input_is_prologue);
+                    memory_read_cycles = std::max(
+                        memory_read_cycles,
+                        static_cast<int>(
+                            (op_model.input_buffers[edge.consumer_input_port_id].kernel_broadcast_tiles *
+                             tile_size_bytes(op_model.input_buffers[edge.consumer_input_port_id].data_format)) /
+                            dram_bw / graph->get_microbatch()));  // divide by microbatch as we only transfer data once
+                                                                  // per input in epoch
+                }
+                else if (input_is_prologue)
+                {
+                    // prologue (queue -> op)
+                    //
+                    TT_ASSERT(!input_is_kb);
+                    memory_read_cycles = std::max(
+                        memory_read_cycles,
+                        static_cast<int>(
+                            op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / dram_bw /
+                            graph->get_microbatch()));  // divide by microbatch as we only transfer data once per input
+                                                        // in epoch
+                }
+                else if (input_is_host_queue)
+                {
+                    // streaming (host -> op)
+                    //
+                    TT_ASSERT(!input_is_prologue and !input_is_kb);
+                    if (0 == pcie_access_core_count)
+                    {
+                        pcie_bw =
+                            pcie_theoretical_max / op_model.get_input_grid_shape(edge.consumer_input_port_id).volume();
+                    }
+                    memory_read_cycles = std::max(
+                        memory_read_cycles,
+                        static_cast<int>(
+                            op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / pcie_bw));
+                }
+                else
+                {
+                    // streaming (queue -> op)
+                    //
+                    memory_read_cycles = std::max(
+                        memory_read_cycles,
+                        static_cast<int>(
+                            op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / dram_bw));
+                }
+            }
+            else
+            {
+                // streaming (op -> op)
+                //
+                TT_ASSERT(!producer_is_queue and !input_is_prologue and !input_is_kb);
+                memory_read_cycles = std::max(
+                    memory_read_cycles,
+                    static_cast<int>(op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / noc_bw));
+            }
         }
     }
 
@@ -1461,9 +1547,11 @@ int get_limiter_cycles(
                                  user_node->node_type() == NodeType::kOutput ||
                                  (nullptr != current_epoch_nodes && current_epoch_nodes->count(user_node) == 0);
 
+        const bool output_is_host_queue = is_output_host_queue(output_queues_on_host, graph, user_node);
+
         if (consumer_is_queue)
         {
-            if (!is_output_host_queue(output_queues_on_host, graph, user_node))
+            if (!output_is_host_queue)
             {
                 memory_write_cycles = std::max(
                     memory_write_cycles,
@@ -1603,7 +1691,8 @@ float EpochSolution::evaluate() const
             utilization += cores * (op_model.get_execution_cycles(balancer_config->device_config.arch_name, true) /
                                     pipeline_cycles);
         }
-        else if (!env_as<bool>("PYBUDA_RIBBON2_DISABLE_NON_MATMUL_UTIL", 0) and !op_model.buda_op_node->is_buffering_op())
+        else if (
+            !env_as<bool>("PYBUDA_RIBBON2_DISABLE_NON_MATMUL_UTIL", 0) and !op_model.buda_op_node->is_buffering_op())
         {
             utilization +=
                 cores *

@@ -27,12 +27,11 @@ def vovnet_v2(training: bool, config: str, microbatch: int, devtype: str, arch: 
     os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
     os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
 
+    if data_type == "Bfp8_b":
+        os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
+
     if config == "39" and data_type != "Bfp8_b":
         compiler_cfg.enable_amp_light()
-
-    if data_type == "Bfp8_b":
-        # tenstorrent/pybuda#2228
-        os.environ["PYBUDA_LEGACY_KERNEL_BROADCAST"] = "1"
 
     # Set model parameters based on chosen task and model configuration
     img_res = 224

@@ -114,6 +114,8 @@ def bert(training: bool, config: str, microbatch: int, devtype: str, arch: str, 
                 pybuda.config.configure_mixed_precision(op_type="add", output_df=pybuda.DataFormat.Float16_b)
                 pybuda.config.configure_mixed_precision(op_type="subtract", output_df=pybuda.DataFormat.Float16_b)
                 pybuda.config.configure_mixed_precision(op_type="reciprocal", output_df=pybuda.DataFormat.Float16_b)
+            if data_type == "Fp16_b":
+                os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
     else:
         raise RuntimeError("Unknown config")
 
