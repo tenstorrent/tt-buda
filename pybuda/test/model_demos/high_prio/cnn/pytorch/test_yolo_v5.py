@@ -116,6 +116,10 @@ def generate_model_yoloV5I640_imgcls_torchhub_pytorch(test_device, variant, size
             os.environ["PYBUDA_INSERT_SLICE_FOR_CONCAT"] = "1"
             os.environ["PYBUDA_CONCAT_SLICE_Y"] = "10"
             os.environ["PYBUDA_TEMP_BALANCER_DISABLE_TARGET_PROXIMITY"] = "1"
+            compiler_cfg.place_on_new_epoch("conv2d_27.dc.matmul.8")
+        if size in ["l"]:
+            compiler_cfg.place_on_new_epoch("conv2d_313.dc.matmul.8")
+
 
     elif test_device.arch == BackendDevice.Wormhole_B0:
         os.environ["PYBUDA_PAD_SPARSE_MM"] = "{13:16, 3:4}"
