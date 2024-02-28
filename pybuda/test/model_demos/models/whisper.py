@@ -137,30 +137,18 @@ def generate_model_whisper_enc_dec(test_device, variant):
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.amp_level = 1
     compiler_cfg.enable_tvm_cpu_fallback = False  # Run full model on silicon
-    compiler_cfg.input_queues_on_host = True
     compiler_cfg.compile_subgraphs = True
     compiler_cfg.enable_link_past_cache_ios = True
-    compiler_cfg.backend_opt_level = 3
-    #compiler_cfg.enable_auto_fusing = True
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
 
     os.environ["PYBUDA_FORCE_SEQUENTIAL"] = "1"
-    os.environ["PYBUDA_DISABLE_STREAM_OUTPUT"] = "1"  # Disable streaming for LM head to output queue (perf)
     os.environ["PYBUDA_PAD_OUTPUT_BUFFER"] = "1"
     os.environ["PYBUDA_PAD_OUTPUT_BUFFER_THRESHOLD_TILES"] = "1536"
-
     os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
-    os.environ["TT_BACKEND_MULTI_THREADED_PUSH"] = "1"
-    os.environ["TT_BACKEND_DRAM_POLLING_FREQUENCY"] = "64"
-    os.environ["TT_BACKEND_PROFILER"] = "1"
-    os.environ["PYBUDA_NOP_ON_DIRECT_SHORT_PATH"] = "1"
 
     if variant == "openai/whisper-base":
         os.environ["PYBUDA_GRAPHSOLVER_SELF_CUT_TYPE"] = "None"
         compiler_cfg.enable_auto_fusing = False
-
-    if variant == "openai/whisper-medium" or variant == "openai/whisper-large":
-        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "0"
 
     run_encoder_on_tt = ("tiny" in variant) or ("base" in variant) or ("small" in variant)
 
