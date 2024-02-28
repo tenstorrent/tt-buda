@@ -82,8 +82,9 @@ def test_whisper_enc_dec(test_device, variant):
     compiler_cfg.enable_link_past_cache_ios = True
     compiler_cfg.backend_opt_level = 4
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
+    compiler_cfg.balancer_policy = "Ribbon"
     os.environ["PYBUDA_FORCE_SEQUENTIAL"] = "1"
-
+    os.environ["PYBUDA_RIBBON2"] = "1"
     if test_device.arch == BackendDevice.Wormhole_B0:
         compiler_cfg.amp_level = 1
         os.environ["PYBUDA_DISABLE_STREAM_OUTPUT"] = "1"  # Disable streaming for LM head to output queue (perf)
