@@ -52,9 +52,9 @@ def test_ddrnet(variant, test_device):
         input_shapes=([img_tensor.shape]),
         inputs=([img_tensor]),
         verify_cfg=VerifyConfig(
-            test_kind=TestKind.INFERENCE,
             arch=test_device.arch,
             devtype=test_device.devtype,
             devmode=test_device.devmode,
+            test_kind=TestKind.INFERENCE,
         ),
     )
