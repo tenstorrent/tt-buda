@@ -61,10 +61,10 @@ def test_hardnet_onnx(variant, test_device):
         input_shapes=([img_tensor.shape]),
         inputs=([img_tensor]),
         verify_cfg=VerifyConfig(
-            test_kind=TestKind.INFERENCE,
             arch=test_device.arch,
             devtype=test_device.devtype,
             devmode=test_device.devmode,
+            test_kind=TestKind.INFERENCE,
             pcc=0.98,
         ),
     )
