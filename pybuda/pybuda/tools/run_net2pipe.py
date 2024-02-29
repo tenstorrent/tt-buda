@@ -247,6 +247,7 @@ def net2pipe(
 ):
     net2pipe_output_dir = "net2pipe_output"
     stdout = f"{net2pipe_output_dir}/net2pipe.stdout"
+    stderr = f"{net2pipe_output_dir}/net2pipe.stderr"
     subprocess.run(["rm", "-rf", net2pipe_output_dir])
     subprocess.run(["mkdir", "-p", net2pipe_output_dir])
     if "BUDA_HOME" not in os.environ:
@@ -270,10 +271,13 @@ def net2pipe(
     try:
         with open(stdout, "wb") as fd:
             fd.write(p.stdout)
+        with open(stderr, "wb") as fd:
+            fd.write(p.stderr)
     except:
         pass
     if verbose:
         sys.stdout.buffer.write(p.stdout)
+        sys.stderr.buffer.write(p.stderr)
     if p.returncode != 0:
         pytest = ""
         repro = " ".join(cmd)
@@ -287,6 +291,9 @@ def net2pipe(
         for l in p.stdout.decode("utf-8").split("\n"):
             found |= "ERROR" in l
             if found and l != "":
+                error_message += l
+        for l in p.stderr.decode("utf-8").split("\n"):
+            if l != "":
                 error_message += l
 
     if p.returncode == 0 and stats:
