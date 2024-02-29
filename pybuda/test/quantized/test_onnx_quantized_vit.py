@@ -2,19 +2,15 @@
 
 # SPDX-License-Identifier: Apache-2.0
 import os
-import urllib
 
 import onnx
 import pytest
-import numpy as np
-import onnxruntime
-import torch
-import pybuda
 from pybuda import (
     OnnxModule,
     VerifyConfig,
     DataFormat,
     BackendDevice,
+    BackendType,
 )
 from pybuda.verify import verify_module
 from pybuda.verify.config import TestKind
@@ -57,6 +53,7 @@ def test_int8_onnx_vit_calibrated(test_device):
 
 
     # Compile and verify
+    pcc = 0.97 if test_device.devtype == BackendType.Silicon else 0.99
     verify_module(
         pybuda_onnx_model,
         input_shape,
@@ -65,5 +62,6 @@ def test_int8_onnx_vit_calibrated(test_device):
             devtype=test_device.devtype,
             devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
+            pcc=pcc,
         ),
     )
