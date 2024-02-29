@@ -3,7 +3,6 @@
 
 import sys
 import os
-import json
 from elasticsearch import Elasticsearch
 import tabulate
 
@@ -87,8 +86,9 @@ def compare_perf(build_ids: list):
 
 def main():
     if len(sys.argv) != 3:
-        print_red("Usage: python compare_perf.py <build_id1> <build_id2>")
+        print("Usage: python compare_perf.py <build_id1> <build_id2>")
         sys.exit(1)
+
     build_ids = sys.argv[1:]
 
     # correct the build ids prefix
