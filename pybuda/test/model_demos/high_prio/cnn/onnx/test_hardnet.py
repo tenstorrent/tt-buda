@@ -20,7 +20,6 @@ def test_hardnet_onnx(variant, test_device):
     compiler_cfg.enable_t_streaming = True
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
     os.environ["PYBUDA_RIBBON2"] = "1"
-    os.environ["PYBUDA_FORCE_EMULATE_HARVESTED"] = "1"
 
     if variant == "hardnet68ds":
         os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
@@ -48,7 +47,9 @@ def test_hardnet_onnx(variant, test_device):
     input_tensor = preprocess(input_image)
     img_tensor = input_tensor.unsqueeze(0)
 
-    load_path = f"third_party/confidential_customer_models/generated/files/{variant}.onnx"
+    load_path = (
+        f"third_party/confidential_customer_models/generated/files/{variant}.onnx"
+    )
     model_name = f"{variant}_onnx"
 
     # Create PyBuda module from onnx weights
