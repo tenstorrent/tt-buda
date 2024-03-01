@@ -3,8 +3,9 @@
 
 import sys
 import os
+import math
 from elasticsearch import Elasticsearch
-import tabulate
+import pandas as pd
 
 # add project root to search path
 project_root_path = os.path.join(os.path.dirname(__file__), "..")
@@ -48,40 +49,32 @@ def compare_perf(build_ids: list):
         data.extend(es_res)
         print(f"Got perf for build id: {build_id} with {len(es_res)} records")
 
-    # Build the table
-    keys = set()
-    build_ids = set()
-    for d in data:
-        keys.add(d["index"])
-        build_ids.add(d["build_id"])
-    build_ids = list(build_ids)
+    df = pd.DataFrame.from_records(data)
+    ids = df['build_id'].unique()
 
-    table = {}
-    for d in data:
-        if not d['index'] in table:
-            row = {"arch": d["arch"], "config": d["config"], "dataformat": d["dataformat"], "model": d["model"]}
-            for b in build_ids:
-                row[b] = 0.0
-            table[d['index']] = row
-        score = d['samples_per_sec']
-        if not isinstance(score, float):
-            score = 0
-        table[d['index']][d['build_id']] = score
+    # pivot table on build_id
+    pivot_table = df.pivot_table(index=['index', 'arch', 'config', 'dataformat', 'model'], columns='build_id', values='samples_per_sec', aggfunc='max')
+    df = pd.DataFrame(pivot_table.to_records())
 
-    # Add perf diff - assume we are comparing only two build ids
-    for k, v in table.items():
-        perf_dif = v[build_ids[1]] - v[build_ids[0]]
-        max_val = max(v[build_ids[1]], v[build_ids[0]])
-        table[k]["diff"] = f"{perf_dif:.2f}"
-        if max_val > 0:
-            table[k]["diff_pct"] = f"{ 100 * perf_dif / max_val :.2f}%"
+    # add pct_diff column
+    df.drop(columns=['index'], inplace=True)
+    df['pct_diff'] = ((df[ids[1]] - df[ids[0]]) / df[ids[0]]) * 100
+
+    # format the pct_diff column
+    def format_value(value):
+        if not math.isnan(value):
+            if value > 1:
+                return f'\x1b[32m{value:.2f}%\x1b[0m'  # ANSI code for green color
+            elif value < -1:
+                return f'\x1b[31m{value:.2f}%\x1b[0m'  # ANSI code for red color
+            else:
+                return f'\x1b[37m{value:.2f}%\x1b[0m'  # ANSI code for red color
         else:
-            table[k]["diff_pct"] = "N/A"
+            return 'N/A'
 
-    # Print the table
-    rows = [r for r in table.values()]
-    print("\nPerf comparison\n")
-    print(tabulate.tabulate(rows, headers="keys"))
+    df['pct_diff'] = df['pct_diff'].apply(format_value)
+    df = df.round(2)
+    print(df)
 
 
 def main():
