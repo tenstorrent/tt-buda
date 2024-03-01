@@ -331,7 +331,7 @@ def lower(type, attr, lc, ops, outputs):
 
             ln_x = lc.op("log", ops)
             y_ln_x = lc.op("multiply", (lc.tensor(torch.zeros(shape) + exponent_value), ln_x)) 
-            approximate_mode = True if "PYBUDA_EXP_APPROX" in os.environ else False
+            approximate_mode = "true" if "PYBUDA_EXP_APPROX" in os.environ else "false"
             lc.op(BudaExp.create(approximate_mode=approximate_mode), [y_ln_x])          
 
     else:

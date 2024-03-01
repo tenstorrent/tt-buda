@@ -45,7 +45,7 @@ class Exp(PyEltwiseUnaryOp):
 
     def lower(self, lc, tensors, outputs):
         assert len(tensors) == 1, "Exp should  have one input"
-        approximate_mode = True if "PYBUDA_EXP_APPROX" in os.environ else False
+        approximate_mode = "true" if "PYBUDA_EXP_APPROX" in os.environ else "false"
         lc.op(BudaExp.create(approximate_mode=approximate_mode), tensors)
 
     def initial_flops_estimate(self, tensor_shapes):

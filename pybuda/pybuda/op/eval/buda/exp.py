@@ -24,9 +24,10 @@ from pybuda._C.graph import UBlockOrder, Shape
 
 class Exp(BudaEltwiseUnaryOp):
     @classmethod
-    def create(cls, approximate_mode=False):
+    def create(cls, approximate_mode=None):
         self = cls("exp")
-        self.set_buda_attr("approximate_mode", approximate_mode)
+        if approximate_mode is not None:
+            self.set_buda_attr("approximate_mode", approximate_mode)
         return self
 
     def eval(self, tensors):
