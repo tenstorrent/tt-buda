@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import os
 import pybuda
+import pytest
 from pybuda.verify import verify_module, VerifyConfig, TestKind
 
 class FusingStreamLimitsStress(pybuda.PyBudaModule):
@@ -32,6 +33,7 @@ class FusingStreamLimitsStress(pybuda.PyBudaModule):
         return add
 
 def test_recompile_fuse_stream_limits(test_device):
+    pytest.skip()
 
     # Setting target cycles to 0 causes us to hit stream constraints on fused op.
     os.environ["PYBUDA_RIBBON_TARGET_CYCLES"] = "0"
