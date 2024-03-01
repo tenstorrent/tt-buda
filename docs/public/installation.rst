@@ -167,6 +167,9 @@ You may need to append each ``apt-get`` command with ``sudo`` if you do not have
 Additional PyBUDA Compile Dependencies
 -----------------------------
 
+OS Level Dependencies
+^^^^^^^^^^^^^^^^^^^^^
+
 Additional dependencies to compile PyBUDA from source after running `Backend Compiler Dependencies <#backend-compiler-dependencies>`_
 
 You may need to append each ``apt-get`` command with ``sudo`` if you do not have root permissions.
@@ -176,6 +179,40 @@ You may need to append each ``apt-get`` command with ``sudo`` if you do not have
   apt-get install -y libyaml-cpp-dev python3-pip sudo git git-lfs
   apt-get install -y wget cmake cmake-data libgtest-dev libgmock-dev
   pip3 install pyyaml
+
+Package Level Dependencies
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+In addition, if you intend to utilize ``torchvision`` for your model development, we strongly recommend installing it using a specific method that ensures optimal compatibility with PyBUDA. This method involves building and installing `torchvision` from its source code, which allows for the necessary dependencies and configurations to be correctly set up.
+
+To do this, you should use the following commands:
+
+.. code-block:: bash
+
+  export TORCH_VISION_INSTALL=1
+  make torchvision
+
+The ``export TORCH_VISION_INSTALL=1`` command sets an environment variable that our Makefile script uses to determine whether to install ``torchvision``. By setting this variable to 1, you're instructing the script to proceed with the ``torchvision`` installation.
+
+The ``make torchvision`` command then triggers the build and installation process. This process includes cloning the ``torchvision`` repository, checking out the desired version, and building ``torchvision`` using its ``setup.py`` script.
+
+By following these steps, ``torchvision`` will be installed in a way that ensures it works effectively with PyBUDA.
+
+.. note::
+
+  The ``TORCH_VISION_INSTALL`` flag is not limited to the ``make torchvision`` command. It can also be used with the standard ``make build`` command. When this flag is set to 1, the build process will include the installation of ``torchvision``, regardless of the specific ``make`` command used. This allows for flexibility in your build process, enabling you to include or exclude the ``torchvision`` installation as needed.
+
+.. note::
+
+  For your convenience, the ``torchvision`` wheel file is already included in the PyBUDA release bundle. This means that if you're using the release bundle, you won't need to build ``torchvision`` from source unless you want to use a different version or need to modify the source code. Simply install the provided wheel file using pip to add ``torchvision`` to your Python environment.
+
+  Here's an example of how you can install the ``torchvision`` wheel file:
+
+  .. code-block:: bash
+
+    pip install /path/to/your/wheel/file/torchvision*.whl
+
+  Replace ``/path/to/your/wheel/file/torchvision*.whl`` with the actual path to the ``torchvision`` wheel file in the PyBUDA release bundle.
 
 TT-SMI
 ------
