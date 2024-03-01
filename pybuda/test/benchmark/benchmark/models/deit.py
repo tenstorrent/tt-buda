@@ -16,12 +16,11 @@ def deit(training: bool, config: str, microbatch: int, devtype: str, arch: str, 
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_auto_transposing_placement = True
+    os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
 
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"
         os.environ["PYBUDA_RIBBON2"] = "1"
-
-    os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
 
     # These are about to be enabled by default.
     #

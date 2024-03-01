@@ -2,7 +2,6 @@
 
 # SPDX-License-Identifier: Apache-2.0
 import os
-
 import pybuda
 
 from pybuda._C.backend_api import BackendDevice
@@ -15,6 +14,7 @@ from pybuda.config import _get_global_compiler_config
 def t5(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str):
 
     compiler_cfg = _get_global_compiler_config()
+    os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
 
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"

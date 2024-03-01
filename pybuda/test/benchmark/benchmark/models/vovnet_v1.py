@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: © 2024 Tenstorrent AI ULC
 
 # SPDX-License-Identifier: Apache-2.0
+import os
 import pybuda
 import torch
 
@@ -12,6 +13,7 @@ from pytorchcv.model_provider import get_model as ptcv_get_model
 @benchmark_model(configs=["27s", "39", "57"])
 def vovnet_v1(training: bool, config: str, microbatch: int, devtype: str, arch: str):
     compiler_cfg = _get_global_compiler_config()
+    os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
 
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"

@@ -17,6 +17,7 @@ from .implementations.yolo_v3.holli_src.yolov3 import *
 def yolo_v3(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str):
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_auto_transposing_placement = True
+    os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
 
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"
@@ -29,7 +30,8 @@ def yolo_v3(training: bool, config: str, microbatch: int, devtype: str, arch: st
     os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
     os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
     os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
-    if data_type != "Bfp8_b":
+
+    if data_type == "Fp16_b":
         os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
 
     if data_type == "Bfp8_b":

@@ -25,6 +25,7 @@ def openpose_hand(training: bool, config: str, microbatch: int, devtype: str, ar
     # Configurations
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.enable_auto_transposing_placement = True
+    os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
 
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"

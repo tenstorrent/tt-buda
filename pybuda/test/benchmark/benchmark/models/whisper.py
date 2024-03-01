@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import pybuda
 import torch
+import os
 
 from ..common import benchmark_model, generate_test_device
 from pybuda.config import _get_global_compiler_config
@@ -36,6 +37,7 @@ def whisper_decoder(training: bool, config: str, microbatch: int, devtype: str, 
 def whisper(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str):
 
     compiler_cfg = _get_global_compiler_config()
+    os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
 
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"

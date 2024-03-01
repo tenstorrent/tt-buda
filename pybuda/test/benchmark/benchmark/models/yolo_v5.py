@@ -13,12 +13,17 @@ from pybuda.config import _get_global_compiler_config
 @benchmark_model(configs=["s", "m"])
 def yolo_v5(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str):
     compiler_cfg = _get_global_compiler_config()
+    os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
 
-    from pybuda._C.backend_api import BackendDevice
 
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"
         os.environ["PYBUDA_RIBBON2"] = "1"
+
+    from pybuda._C.backend_api import BackendDevice
+    available_devices = pybuda.detect_available_devices()
+    if available_devices[0] == BackendDevice.Wormhole_B0:
+        os.environ["PYBUDA_SUPRESS_T_FACTOR_MM"] = "49"
 
     # These are about to be enabled by default.
     #
@@ -33,12 +38,9 @@ def yolo_v5(training: bool, config: str, microbatch: int, devtype: str, arch: st
         os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES_APPLY_FILTERING"] = "1"
         os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
 
-    available_devices = pybuda.detect_available_devices()
     if available_devices[0] == BackendDevice.Grayskull:
         compiler_cfg.enable_tm_cpu_fallback = True
 
-    elif available_devices[0] == BackendDevice.Wormhole_B0:
-        os.environ["PYBUDA_SUPRESS_T_FACTOR_MM"] = "49"
 
     # Set model parameters based on chosen task and model configuration
     config_name = ""

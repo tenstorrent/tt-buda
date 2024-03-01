@@ -14,15 +14,22 @@ from pybuda.config import _get_global_compiler_config
 def inception_v4(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str):
     compiler_cfg = _get_global_compiler_config()
 
+    os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
+
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"
         os.environ["PYBUDA_RIBBON2"] = "1"
-        os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
-        if data_type != "Bfp8_b":
-            os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
-            os.environ["PYBUDA_OP_MODEL_COMPARE_VERSION"] = "1"
-        else:
-            os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
+
+    # These are about to be enabled by default.
+    #
+    os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
+    os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
+
+    if data_type == "Fp16_b":
+        os.environ["PYBUDA_OP_MODEL_COMPARE_VERSION"] = "1"
+
+    if data_type == "Bfp8_b":
+        os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
 
     if compiler_cfg.balancer_policy == "Ribbon":
         available_devices = pybuda.detect_available_devices()

@@ -18,6 +18,7 @@ def resnet(training: bool, config: str, microbatch: int, devtype: str, arch: str
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_auto_transposing_placement = True
+    os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
 
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"
@@ -32,8 +33,6 @@ def resnet(training: bool, config: str, microbatch: int, devtype: str, arch: str
 
     if data_type == "Fp16_b":
         os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES_APPLY_FILTERING"] = "1"
-
-    os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
 
     if arch != "wormhole_b0":
         os.environ["PYBUDA_EXTRA_L1_MARGIN"] = "100000"
