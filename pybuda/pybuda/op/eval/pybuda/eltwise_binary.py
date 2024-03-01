@@ -111,7 +111,8 @@ def lower(type, attr, lc, ops, outputs):
         A = ops[0]
         B = ops[1]
         in_shape = A.shape.as_list()
-        amplification = 1e4
+        # we have to amplify the difference between A and B to make sure absolute diff is greater than 1.
+        amplification = 1e10
 
         if len(in_shape) > 4:
             raise RuntimeError("Shape size is out of range.")

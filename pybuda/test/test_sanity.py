@@ -482,6 +482,25 @@ def test_argmax(dim):
     x = Tensor.create_from_torch(torch.rand((1, 2, 384, 384), requires_grad=False))
     simple_argmax(x)
 
+@pytest.mark.parametrize("dim", [-1, 0])
+@pytest.mark.parametrize("input_shape", [(1,1,1,32), (1,1,3,32)])
+@pytest.mark.parametrize("max_value", [0.5, 0, 1, 5])
+def test_argmax_multiple_maximums(dim, input_shape, max_value):
+    verify_cfg=VerifyConfig(run_golden=False) # argmax not supported
+    x = torch.zeros(input_shape)
+    for i in range(input_shape[0]):
+        x[0,0,i,2] = max_value
+        x[0,0,i,4] = max_value
+        x[0,0,i,6] = max_value
+    x = Tensor.create_from_torch(x)
+    @run(
+        verify_cfg=verify_cfg,
+    )
+    def simple_argmax(x):
+        return pybuda.op.Argmax("argmax0", x, dim=dim)
+
+    simple_argmax(x)
+
 def test_passthrough():
 
     @compile(compiler_cfg=CompilerConfig(enable_training=False))
