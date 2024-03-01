@@ -1,6 +1,5 @@
 import pybuda, os
 import torch
-from test.model_demos.models.ddrnet import DualResNet_23, DualResNet_39, BasicBlock
 from torchvision import transforms
 import requests
 from PIL import Image
@@ -8,6 +7,10 @@ import pytest
 from pybuda.verify.backend import verify_module
 from pybuda.verify.config import TestKind
 from pybuda import VerifyConfig
+import sys
+
+sys.path.append("third_party/confidential_customer_models/generated/scripts/")
+from model_ddrnet import DualResNet_23, DualResNet_39, BasicBlock
 
 
 variants = ["ddrnet23s", "ddrnet23", "ddrnet39"]
@@ -22,7 +25,6 @@ def test_ddrnet_pytorch(variant, test_device):
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
     os.environ["PYBUDA_RIBBON2"] = "1"
-    os.environ["PYBUDA_FORCE_EMULATE_HARVESTED"] = "1"
 
     # STEP 2: Create PyBuda module from PyTorch model
     if variant == "ddrnet23s":
@@ -71,7 +73,7 @@ def test_ddrnet_pytorch(variant, test_device):
     )
     input_tensor = preprocess(input_image)
     input_batch = input_tensor.unsqueeze(0)
-    
+
     verify_module(
         tt_model,
         input_shapes=([input_batch.shape]),

@@ -20,7 +20,6 @@ def test_ddrnet(variant, test_device):
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
     os.environ["PYBUDA_RIBBON2"] = "1"
-    os.environ["PYBUDA_FORCE_EMULATE_HARVESTED"] = "1"
 
     # STEP 2: # Create PyBuda module from onnx weights
     model_name = f"{variant}_onnx"
