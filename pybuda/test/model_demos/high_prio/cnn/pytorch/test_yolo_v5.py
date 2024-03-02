@@ -141,7 +141,6 @@ def generate_model_yoloV5I640_imgcls_torchhub_pytorch(test_device, variant, size
         if size == "n":
             compiler_cfg.balancer_op_override("concatenate_19.dc.concatenate.30.dc.concatenate.1.dc.buffer.0", "t_stream_shape", (3,1))
         if size == "m":
-            #compiler_cfg.balancer_op_override("concatenate_260.dc.concatenate.0", "grid_shape", (1,1))
             compiler_cfg.balancer_op_override("concatenate_332.dc.concatenate.7", "grid_shape", (1,1))
             os.environ["PYBUDA_RIBBON2"] = "1"
             os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"]  = f"{112*1024}"

@@ -67,6 +67,8 @@ def generate_model_bert_qa_hf_pytorch(test_device, variant):
 
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object 
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
+    compiler_cfg.balancer_policy = "Ribbon"
+    os.environ["PYBUDA_RIBBON2"] = "1"
 
     # Load data sample from SQuADv1.1
     context = """Super Bowl 50 was an American football game to determine the champion of the National Football League
@@ -99,10 +101,6 @@ def test_bert_question_answering_pytorch(test_device):
     model, inputs, _ = generate_model_bert_qa_hf_pytorch(
         test_device, "bert-large-cased-whole-word-masking-finetuned-squad",
     )
-
-    compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
-    # Temporary disabling t-streaming for this bert case
-    compiler_cfg.enable_t_streaming = False
 
     verify_module(
         model,
