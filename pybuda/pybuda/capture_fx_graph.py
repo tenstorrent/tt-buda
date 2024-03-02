@@ -607,10 +607,10 @@ def append_to_graph(graph, module, aten_module, activations, subgraph_idx, input
                 consumed.add(arg)
                 working_nodes.append(arg)
             elif isinstance(arg, (list, tuple)):
-                for a in arg:
-                    if isinstance(a, torch.fx.node.Node) and arg not in consumed:
-                        consumed.add(a)
-                        working_nodes.append(a)
+                for item in arg:
+                    if isinstance(item, torch.fx.node.Node) and item not in consumed:
+                        consumed.add(item)
+                        working_nodes.append(item)
 
 
     input_index = 0
