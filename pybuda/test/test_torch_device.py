@@ -465,3 +465,21 @@ def test_disjointed_graphs():
     cpu_res = DisjointedGraphs()(input)
     assert cpu_res == tt_res
 
+# Clip-like argmax code that does argmax followed by index
+class ClipArgmax(torch.nn.Module):
+    def forward(self, last_hidden_state, input_ids):
+        pooled_output = last_hidden_state[
+                torch.arange(last_hidden_state.shape[0], device=last_hidden_state.device),
+                input_ids.to(dtype=torch.int, device=last_hidden_state.device).argmax(dim=-1),
+            ]
+        return pooled_output
+
+def test_clip_argmax():
+    model = torch.compile(ClipArgmax(), backend=compile_torch)
+    input = (torch.rand(1, 128, 768), torch.randint(0, 30000, (1, 128)))
+    tt_input = (input[0].to('tt'), input[1].to('tt'))
+    tt_res = model(*tt_input)
+    tt_res = tt_res.to('cpu')
+
+    cpu_res = ClipArgmax()(*input)
+    assert cpu_res == tt_res
