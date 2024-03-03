@@ -2,25 +2,18 @@
 
 # SPDX-License-Identifier: Apache-2.0
 
-from loguru import logger
+# 
+# Functions that convert FX nodes to PyBuda
+#
+
+import sys
+import math
+from typing import List
 
 import torch
 
-from pybuda.config import _get_global_compiler_config
-import pybuda
-from pybuda.tensor import to_buda_tensors, to_pt_tensors
-from pybuda.tvm_utils import flatten_inputs
-
-from pybuda._C.graph import Graph, create_op_node, create_data_edge, create_parameter_input, create_activation_input, create_output, create_constant_input, create_target_input, add_partial_datacopy_edge, RuntimeTensorTransform, RuntimeTensorTransformType, Shape, OpType, add_subgraph_io_link_edge
-
+from pybuda._C.graph import OpType
 from pybuda.tensor import pytorch_dtype_to_buda_dataformat
-import os
-import sys
-import math
-
-from typing import List
-from pybuda.tvm_to_python import Operation
-from pybuda.python_codegen import PyTorchWriter, PyBudaWriter, PythonWriter
 
 class PyBudaNode:
     def __init__(self, op: OpType, args: List[torch.fx.node.Node]):
@@ -28,7 +21,7 @@ class PyBudaNode:
         self.args = args
         self.shape = None
         self.dtype = None
-        self.wrap_tuple = None
+        self.wrap_tuple = False
 
 def process_dummy_no_attr(node, pybuda_op_name):
     return PyBudaNode(OpType(pybuda_op_name, []), node.args)
@@ -336,7 +329,6 @@ def process_cat(node, pybuda_op_name):
     pybuda_node = PyBudaNode(OpType(pybuda_op_name, [dim, ]), node.args[0])
     return pybuda_node
 
-
 dynamo_to_pybuda_function = {
     "_softmax"                             : (process_softmax, "softmax"),
     "add"                                  : (process_dummy_no_attr, "add"),
@@ -391,20 +383,17 @@ torch_constant_ops = {
     "empty"                           : torch.empty,
 }
 
-# graph = None
-node_to_id = {}
-param_to_id = {}
-const_to_id = {}
-id_to_intermed = {}
-output_nodes_per_subgraph = {}
+
+def is_supported_op(torch_op_name):
+    return torch_op_name in dynamo_to_pybuda_function
 
 def get_pybuda_node(torch_op_name, node):
-    if torch_op_name in dynamo_to_pybuda_function:
-        return dynamo_to_pybuda_function[torch_op_name][0](node, dynamo_to_pybuda_function[torch_op_name][1])
-    else:
+    if not is_supported_op(torch_op_name):
         print(f"Unsupported op {torch_op_name}")
         breakpoint()
         assert False, f"Unsupported op {torch_op_name}"
+    
+    return dynamo_to_pybuda_function[torch_op_name][0](node, dynamo_to_pybuda_function[torch_op_name][1])
 
 # Check to see if subgraph is already on device
 def is_on_device(subgraph_idx: int):
@@ -659,21 +648,3 @@ def call_function_is_nop(node):
         return dynamo_to_pybuda_function[op_name][1] == "nop"
     else:
         return False
-
-def is_nop_graph(module):
-    for node in module.graph.nodes:
-        if node.op == "call_function" and not call_function_is_nop(node):
-            return False
-    return True
-
-def is_constant_graph(module):
-    for node in module.graph.nodes:
-        if node.op == "placeholder":
-            return False
-    return True
-
-def has_output(module):
-    for node in module.graph.nodes:
-        if node.op == "output" and len(node.all_input_nodes) > 0:
-            return True
-    return False

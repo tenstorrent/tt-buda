@@ -1,32 +1,27 @@
 # SPDX-FileCopyrightText: © 2024 Tenstorrent AI ULC
 
 # SPDX-License-Identifier: Apache-2.0
-import copy
 import hashlib
 import os
 import pybuda
-import sys
 import torch
-import types
 import io
 import json
 from contextlib import redirect_stdout
-from pybuda._C.graph import get_constant_input_value, Graph
-from pybuda._C.backend_api import translate_addresses
-from pybuda._C.torch_device import get_default_device, push_tensor, is_created_on_device, original_shape, unique_id, PyBudaTensorDesc, CompileRequest, Program 
+from pybuda._C.torch_device import get_default_device, push_tensor, unique_id, PyBudaTensorDesc, CompileRequest, Program 
 from loguru import logger
-from pybuda.capture_fx_graph import append_to_graph, is_nop_graph, is_constant_graph, has_output
-from pybuda.tensor import const_eval_tensor, do_runtime_transform
 from pybuda.compiled_graph_state import CompiledGraphState
+from pybuda.fx.capture import CaptureFX
+from pybuda.fx.nodes import call_function_is_nop
+
+
 _tt0 = None
 _compile_cache = None
 _compile_cache_dir = os.environ.get("PYBUDA_COMPILE_CACHE_DIR", "tt_build")
-_graph = None
+_capture: CaptureFX = CaptureFX()
 _subgraph_index = 0
 _module_index = 0
 _tensor_to_unique_id = {}
-_ordered_inputs_per_subgraph = {}
-_ordered_outputs_per_subgraph = {}
 _link_subgraph_unique_tensor_ids = []
 """
 There are dummy enums defined in pytorch, like PrivateUse1 that can be used
@@ -43,9 +38,8 @@ def reset_state():
     _tt0 = None
     global _compile_cache 
     _compile_cache = None
-    global _graph
-    _graph = None
     global _subgraph_index
+    _capture.reset_state()
     _subgraph_index = 0
     # do not reset module index, we need unique name for bbe compile in case filename cannot be extracted
     logger.debug("Resetting state")
@@ -162,7 +156,6 @@ def _build_backend_compile_request(device, compiler_cfg, compiled_graph_state, s
 def _compile(module, aten_module, module_name, sample_inputs, device, compiler_cfg):
     global _tt0
     global _subgraph_index
-    global _graph
 
     if os.environ.get("PRINT_PT2_GRAPH", "0") == "1":
         aten_module.graph.print_tabular()    
@@ -174,10 +167,6 @@ def _compile(module, aten_module, module_name, sample_inputs, device, compiler_c
 
     _tt0.place_module(pybuda.module.PyTorchModule(module_name, module))
 
-    if _graph is None:
-        logger.debug("Creating New graph")
-        _graph = Graph(module_name)
-    
     assert (
         _tt0.arch == device.arch
     ), f"Mismatch in the arch compiling for vs the currently bound device {_tt0.arch} != {device.arch}"
@@ -187,11 +176,10 @@ def _compile(module, aten_module, module_name, sample_inputs, device, compiler_c
 
     # Frontend Compile
     logger.debug("Appending to Graph")
-    _graph, intermediate_tensors, output_tensors = append_to_graph(
-        _graph, module, aten_module, sample_inputs, _subgraph_index, _ordered_inputs_per_subgraph, _ordered_outputs_per_subgraph)
-    logger.debug(f"Appending to graph done, captured {len(_graph.nodes())} nodes")
+    intermediate_tensors, output_tensors = _capture.append_to_graph(
+        module_name, module, aten_module, sample_inputs, _subgraph_index)
     _subgraph_index += 1
-    _tt0.graph = _graph.clone()
+    _tt0.graph = _capture.get_buda_graph().clone()
     _tt0.intermediate_tensors = intermediate_tensors
     _tt0.output_tensors = [pybuda.Tensor.create_from_torch(output_tensor) for output_tensor in output_tensors]
     logger.debug("Frontend Compile")
@@ -304,10 +292,11 @@ class compiledModel(torch.nn.Module):
         for out in outputs:
             _tensor_to_unique_id[unique_id(out)] = out
 
-        global _ordered_outputs_per_subgraph
-        _ordered_outputs_per_subgraph[self.index] = [unique_id(out) for out in outputs]
-        print (f"ordered_inputs_per_subgraph: {_ordered_inputs_per_subgraph}")
-        print (f"ordered_outputs_per_subgraph: {_ordered_outputs_per_subgraph}")
+        #global _ordered_outputs_per_subgraph
+        #_ordered_outputs_per_subgraph[self.index] = [unique_id(out) for out in outputs]
+        _capture.capture_sample_outputs(outputs, self.index)
+        #print (f"ordered_inputs_per_subgraph: {_ordered_inputs_per_subgraph}")
+        #print (f"ordered_outputs_per_subgraph: {_ordered_outputs_per_subgraph}")
         # CHeck previous outputs and push to new param queue
         return outputs
     
@@ -369,8 +358,8 @@ def _torch_compile(
     which has the device target information to decouple it from the runtime device.
     """
     logger.info("Torch Compile")
-    global _ordered_inputs_per_subgraph
-    _ordered_inputs_per_subgraph[_subgraph_index] = [unique_id(inp) for inp in sample_inputs]
+    #global _ordered_inputs_per_subgraph
+    #_ordered_inputs_per_subgraph[_subgraph_index] = [unique_id(inp) for inp in sample_inputs]
 
     strip_overloads(aten_module)
 
@@ -395,13 +384,11 @@ def _torch_compile(
 
     cache &= not bool(os.environ.get("PYBUDA_DISABLE_COMPILE_CACHE", "0"))
 
-    rand_inputs = [torch.rand(sample_input.shape).to(sample_input.dtype).to("cpu") for sample_input in sample_inputs]
-
     if is_nop_graph(aten_module) or is_constant_graph(aten_module) or (not has_output(aten_module)):
         return module.forward
 
     workload, compiled_graph_state = _compile_cached(
-        module, aten_module, module_name, rand_inputs, device, compiler_cfg, cache
+        module, aten_module, module_name, sample_inputs, device, compiler_cfg, cache
     )
 
 
@@ -412,5 +399,23 @@ def _torch_compile(
     if original_torch_device is not None:
         module = module.to(original_torch_device)
     return compiled_model
+    
+def is_nop_graph(module):
+    for node in module.graph.nodes:
+        if node.op == "call_function" and not call_function_is_nop(node):
+            return False
+    return True
+
+def is_constant_graph(module):
+    for node in module.graph.nodes:
+        if node.op == "placeholder":
+            return False
+    return True
+
+def has_output(module):
+    for node in module.graph.nodes:
+        if node.op == "output" and len(node.all_input_nodes) > 0:
+            return True
+    return False
 
 # compile_torch = aot_autograd(fw_compiler=_torch_compile, decompositions={**core_aten_decompositions(), **pybuda_decompositions})
