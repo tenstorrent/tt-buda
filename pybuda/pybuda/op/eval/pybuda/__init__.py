@@ -18,6 +18,7 @@ from .nop import Nop
 from .buffer import Buffer
 from .sqrt import Sqrt
 from .tilizer import Tilizer
+from .clip import Clip
 
 op_to_module_map = {
         "add":           "eltwise_binary",
@@ -48,7 +49,7 @@ op_to_module_map = {
         "gelu_derivative": "eltwise_unary",
         "log":             Log,
         "sigmoid":         "eltwise_unary",
-        "clip":            "eltwise_unary",
+        "clip":            Clip,
         "sine":            Sine,
         "cosine":          Cosine,
         "abs":             Abs,

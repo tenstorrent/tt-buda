@@ -748,7 +748,8 @@ class LAMB(Optimizer):
         r_t_norm_eq = ac.op("equal", (r_t_norm, zero))
         trust_ratio = ac.op(Reciprocal.create(), (r_t_norm, ))
         trust_ratio = ac.op("multiply", (phi_norm, trust_ratio))
-        trust_ratio = ac.op("clip", (trust_ratio, ), (self.clip_value[0], self.clip_value[1]))
+        from pybuda.op.eval.pybuda.clip import Clip
+        trust_ratio = ac.op(Clip.create(min=self.clip_value[0], max=self.clip_value[1]), (trust_ratio, ))
         trust_ratio = ac.op("multiply", (trust_ratio, r_t_norm_ne))
         trust_ratio = ac.op("add", (trust_ratio, r_t_norm_eq))
         trust_ratio = ac.op("multiply", (trust_ratio, phi_norm_ne))

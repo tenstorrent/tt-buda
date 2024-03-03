@@ -363,7 +363,7 @@ def Clip(
         Buda tensor
     """
 
-    return op("clip", name, operandA, attrs=(min, max)).get_tensor()
+    return op("clip", name, operandA, min=min, max=max).get_tensor()
 
 def Sine(
         name: str,
