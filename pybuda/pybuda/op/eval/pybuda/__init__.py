@@ -17,6 +17,7 @@ from .log import Log
 from .nop import Nop
 from .buffer import Buffer
 from .sqrt import Sqrt
+from .tilizer import Tilizer
 
 op_to_module_map = {
         "add":           "eltwise_binary",
@@ -51,7 +52,6 @@ op_to_module_map = {
         "sine":            Sine,
         "cosine":          Cosine,
         "abs":             Abs,
-        "sine":            "eltwise_unary",
         "tile_broadcast":  "eltwise_unary",
         "argmax":          "eltwise_unary",
         "tanh":            Tanh,
@@ -59,7 +59,7 @@ op_to_module_map = {
         "logical_not":     LogicalNot,
         "dropout":         "eltwise_unary",
         "pow":             "eltwise_unary",
-        "tilizer":          "eltwise_unary",
+        "tilizer":          Tilizer,
         "erf":             "eltwise_unary",
 
         "conv_sum":        "eltwise_nary",
