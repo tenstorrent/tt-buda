@@ -553,7 +553,15 @@ def append_to_graph(graph, module, aten_module, activations, subgraph_idx, input
     param_name_map = map_node_name_to_org_name(module, aten_module)
 
     tt_act = [a.to("tt") for a in activations]
-    torch.fx.passes.shape_prop.ShapeProp(aten_module).propagate(*tt_act)
+
+    # Run static shape propagation on aten module
+    shape_prop = torch.fx.passes.shape_prop.ShapeProp(aten_module)
+    if shape_prop.fake_mode is not None:
+        fake_args = [shape_prop.fake_mode.from_tensor(t, static_shapes=True) if isinstance(t, torch.Tensor) else t for t in tt_act]
+    else:
+        fake_args = tt_act
+    shape_prop.run(*fake_args)
+
     aten_module = aten_module.to("cpu")
 
     module_inputs = []
