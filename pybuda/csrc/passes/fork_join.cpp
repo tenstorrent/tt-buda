@@ -1351,7 +1351,15 @@ void insert_queue_ins_to_instructions(
     }
 }
 
-uint32_t expand_output_buffer(balancer::OpModel& op_model, float scale_usable_l1_size, uint32_t usable_l1_size)
+uint32_t expand_output_buffer(
+    const Graph *graph,
+    const Node *node,
+    balancer::OpModel& op_model,
+    float scale_usable_l1_size,
+    uint32_t usable_l1_size,
+    balancer::OpModelMap *op_models_post_placer,
+    balancer::OpModels *op_models
+)
 {
     if (scale_usable_l1_size * usable_l1_size <= op_model.get_l1_memory_usage())
     {
@@ -1375,12 +1383,94 @@ uint32_t expand_output_buffer(balancer::OpModel& op_model, float scale_usable_l1
         return 0;
     }
 
-    const auto factors = balancer::FactorizedInt(t_dim);
+    const balancer::FactorizedInt t_dim_factors = balancer::FactorizedInt(t_dim);
 
     // Backend constraint is that the size of the output buffer in macro blocks must be divisible by t (or vice versa).
     // Since we will buffer at most t macro blocks (whole output),
     // take nearest factor of t less than or equal to the actual limit.
-    const uint32_t size_in_mb = factors.get_nearest_factor_le(mb_limit);
+    uint32_t size_in_mb = t_dim_factors.get_nearest_factor_le(mb_limit);
+
+    if (size_in_mb * 2 == initial_mb)
+    {
+        // No change.
+        return 0;
+    }
+
+    // Adjust for some, but not all constrains in budabackend/src/net2pipe/src/tile_maps.cpp::check_phased_stack.
+    // One of them is that the stack_factor must be divisible by the product of it's corresponding grid dimension and buf_size_mb / 2 (size_in_mb).
+    // There are a lot more and they are not implemented here.
+    for (const Edge& edge : graph->user_data_edges(node))
+    {
+        Node* consumer_node = graph->node_by_id(edge.consumer_node_id);
+        if (consumer_node->node_type() != graphlib::NodeType::kBudaOp)
+        {
+            continue;
+        }
+
+        const balancer::OpModel& consumer_op_model = get_op_model(op_models_post_placer, op_models, consumer_node);
+
+        const uint32_t t_stream_r = op_model.t_stream_factor.r;
+        const uint32_t consumer_t_stream_r = consumer_op_model.t_stream_factor.r;
+
+        // Need to vstack.
+        if (t_stream_r > consumer_t_stream_r)
+        {
+            if (t_stream_r % consumer_t_stream_r != 0)
+            {
+                // T stream factor must be a divisible by the consumer t stream factor.
+                // Cannot calculate constraints for this case.
+                continue;
+            }
+            const uint32_t vstack_factor = t_stream_r / consumer_t_stream_r;
+            const uint32_t consumer_grid_r = consumer_op_model.grid_shape.r;
+
+            if (vstack_factor > size_in_mb and vstack_factor > consumer_grid_r)
+            {
+                if (vstack_factor % consumer_grid_r != 0)
+                {
+                    // VStack factor must be divisible by the grid r of the consumer op.
+                    continue;
+                }
+                const uint32_t vstack_factor_per_core = vstack_factor / consumer_grid_r;
+
+                if (vstack_factor_per_core % size_in_mb != 0)
+                {
+                    size_in_mb = (t_dim_factors & balancer::FactorizedInt(vstack_factor_per_core)).get_nearest_factor_le(mb_limit);
+                }
+            }
+        }
+
+        const uint32_t t_stream_c = op_model.t_stream_factor.c;
+        const uint32_t consumer_t_stream_c = consumer_op_model.t_stream_factor.c;
+        
+        // Need to hstack.
+        if (t_stream_c > consumer_t_stream_c)
+        {
+            if (t_stream_c % consumer_t_stream_c != 0)
+            {
+                // T stream factor must be a divisible by the consumer t stream factor.
+                // Cannot calculate constraints for this case.
+                continue;
+            }
+            const uint32_t hstack_factor = t_stream_c / consumer_t_stream_c;
+            const uint32_t consumer_grid_c = consumer_op_model.grid_shape.c;
+
+            if (hstack_factor > size_in_mb and hstack_factor > consumer_grid_c)
+            {
+                if (hstack_factor % consumer_grid_c != 0)
+                {
+                    // HStack factor must be divisible by the grid c of the consumer op.
+                    continue;
+                }
+                const uint32_t hstack_factor_per_core = hstack_factor / consumer_grid_c;
+
+                if (hstack_factor_per_core % size_in_mb != 0)
+                {
+                    size_in_mb = (t_dim_factors & balancer::FactorizedInt(hstack_factor_per_core)).get_nearest_factor_le(mb_limit);
+                }
+            }
+        }
+    }
 
     output_buffer.buffer_factor = size_in_mb * 2;
     output_buffer.l1_size_tiles = tiles_per_mb * output_buffer.buffer_factor;
@@ -1469,7 +1559,7 @@ void add_buffering_on_path(
                 // 100% of the allocated input buffers.
                 //
                 // To workaround this limitation, we need to additionally expand output buffer of the fork node.
-                uint32_t added_tiles = expand_output_buffer(op_model, scale_usable_l1_size, usable_l1_size);
+                uint32_t added_tiles = expand_output_buffer(graph, node, op_model, scale_usable_l1_size, usable_l1_size, op_models_post_placer, op_models);
 
                 if (added_tiles > 0)
                 {
@@ -1495,7 +1585,7 @@ void add_buffering_on_path(
         // If enabled, expand output buffer - except for join node since that doesn't help with fork-join buffering.
         if (expand_output_buffers && path.back() != node)
         {
-            output_buffer_tiles_added = expand_output_buffer(op_model, scale_usable_l1_size, usable_l1_size);
+            output_buffer_tiles_added = expand_output_buffer(graph, node, op_model, scale_usable_l1_size, usable_l1_size, op_models_post_placer, op_models);
         }
 
         float next_output_multiplier = 1.0;

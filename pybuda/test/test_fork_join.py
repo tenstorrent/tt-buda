@@ -830,3 +830,28 @@ def test_fork_join_hrnet(test_kind, test_device):
     verify_module(HRNetForkJoin("test_fork_join_hrnet"), [(1, channels, height, width)],
                   VerifyConfig(test_kind=test_kind, devtype=test_device.devtype, arch=test_device.arch, pcc=pcc, relative_atol=relative_atol))
 
+class ForkJoinExpandOutputBuffer(pybuda.PyBudaModule):
+    def __init__(self, name):
+        super().__init__(name)
+        self.weights0 = pybuda.Parameter(1, 64, 128, requires_grad=False)
+
+    def forward(self, act1):
+        fork = pybuda.op.Matmul("matmul", act1, self.weights0)
+        left = pybuda.op.Exp("exp", fork)
+        right = pybuda.op.Buffer("buffer", fork)
+        join = pybuda.op.Add("add", left, right)
+        return join
+
+# Test implementation of Backend constrains for buf_size_mb.
+def test_fork_join_expand_output_buffer_constraints(test_kind, test_device):
+    if test_kind.is_training():
+        pytest.skip("Skipping training test")
+        
+    pybuda.config.override_op_size("matmul", (2, 1))
+    pybuda.config.override_op_size("exp", (2, 4))
+    pybuda.config.override_t_stream_shape("matmul", (10, 1))
+    pybuda.config.override_t_stream_shape("exp", (1, 1))
+
+    relative_atol, pcc = get_relaxed_atol_pcc(test_kind, test_device)
+    verify_module(ForkJoinExpandOutputBuffer("test_fork_join_expand_output_buffer_constraints"), [(1, 1, 6400, 64)],
+                  VerifyConfig(test_kind=test_kind, devtype=test_device.devtype, arch=test_device.arch, pcc=pcc, relative_atol=relative_atol))
