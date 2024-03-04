@@ -41,7 +41,6 @@ def whisper(training: bool, config: str, microbatch: int, devtype: str, arch: st
 
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"
-        import os
         os.environ["PYBUDA_RIBBON2"] = "1"
 
     # Determine model variant
