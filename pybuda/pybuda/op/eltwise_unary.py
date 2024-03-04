@@ -481,7 +481,7 @@ def CumSum(
     
     assert not exclusive, "Currently not supported"        
 
-    return op("cumsum", name, operandA, attrs=(axis, exclusive)).get_tensor()
+    return op("cumsum", name, operandA, axis=axis, exclusive=exclusive).get_tensor()
 
 
 def LogicalNot(

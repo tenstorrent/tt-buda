@@ -19,6 +19,7 @@ from .buffer import Buffer
 from .sqrt import Sqrt
 from .tilizer import Tilizer
 from .clip import Clip
+from .cumulativesum import CumulativeSum
 
 op_to_module_map = {
         "add":           "eltwise_binary",
@@ -56,7 +57,7 @@ op_to_module_map = {
         "tile_broadcast":  "eltwise_unary",
         "argmax":          "eltwise_unary",
         "tanh":            Tanh,
-        "cumsum":          "eltwise_unary",
+        "cumsum":          CumulativeSum,
         "logical_not":     LogicalNot,
         "dropout":         "eltwise_unary",
         "pow":             "eltwise_unary",
