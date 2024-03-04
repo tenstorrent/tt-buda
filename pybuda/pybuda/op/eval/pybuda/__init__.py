@@ -20,6 +20,7 @@ from .sqrt import Sqrt
 from .tilizer import Tilizer
 from .clip import Clip
 from .cumulativesum import CumulativeSum
+from .argmax import Argmax
 
 op_to_module_map = {
         "add":           "eltwise_binary",
@@ -55,9 +56,9 @@ op_to_module_map = {
         "cosine":          Cosine,
         "abs":             Abs,
         "tile_broadcast":  "eltwise_unary",
-        "argmax":          "eltwise_unary",
         "tanh":            Tanh,
         "cumsum":          CumulativeSum,
+        "argmax":          Argmax,
         "logical_not":     LogicalNot,
         "dropout":         "eltwise_unary",
         "pow":             "eltwise_unary",

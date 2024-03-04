@@ -333,7 +333,10 @@ def Argmax(
         Buda tensor
     """
 
-    return op("argmax", name, operandA, attrs=((dim,) if dim is not None else ())).get_tensor()
+    if  dim is not None:
+        return op("argmax", name, operandA, dim=dim ).get_tensor()
+    else:
+        return op("argmax", name, operandA).get_tensor()
 
 def Clip(
         name: str,
