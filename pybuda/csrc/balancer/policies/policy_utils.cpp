@@ -1428,7 +1428,7 @@ int get_limiter_cycles(
         //
         if (disable_model_kb_prologue_bw)
         {
-            if (producer_is_queue and !input_is_prologue)
+            if (producer_is_queue and !op_model.parameter_buffers[edge.consumer_input_port_id])
             {
                 if (!input_is_host_queue)
                 {
