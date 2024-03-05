@@ -218,6 +218,7 @@ def run_tests():
     parser.add_argument("-co", "--collect-only", help="Collect error logs based on failed variants", action="store_true")
     parser.add_argument("-d", "--date", help="Specify date of run in format dd_mm (e.g. 27_03)")
     parser.add_argument("-s", "--sha", help="Specify short commit sha on which this script is run. Has to be 9 char long (e.g. a5d778af5)")
+    parser.add_argument("-po", "--print-only", help="Instead of running, just prints out the test list", action="store_true")
     
     parser.add_argument("-ovc", "--override-veto-compile", help="Compile list of each variant configuration set in test (both general and env based configs)", action="store_true")
 
@@ -258,6 +259,12 @@ def run_tests():
     # Generate or fetch test list
     if testlist == []:
         testlist = generate_test_list()
+
+    if args.print_only:
+        for i, test in enumerate(testlist):
+            print(f"{test}")
+        return
+
     test_count = len(testlist)
     
     if args.reverse:
