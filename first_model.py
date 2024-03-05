@@ -1,8 +1,6 @@
 import pybuda
 import pybuda.op
-
 from pybuda.tensor import TensorFromPytorch
-
 import torch
 from torch import nn
 from pybuda import PyBudaModule, TTDevice
