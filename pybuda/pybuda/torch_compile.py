@@ -312,17 +312,11 @@ class compiledModel(torch.nn.Module):
             push_tensor(self.device.backend.get_queue_descriptor(desc.name), desc, value, "")
         # self.module.to(dev)
 
-from torch._decomp import core_aten_decompositions, get_decompositions
-from torch._functorch.aot_autograd import aot_module_simplified, aot_function, aot_module
-from torch._dynamo.backends.common import aot_autograd
+from torch._decomp import core_aten_decompositions
 from torch.fx.experimental.proxy_tensor import make_fx
-from torch.fx.experimental.proxy_tensor import DecompositionInterpreter
-from torch.fx.interpreter import Interpreter
-from torch.fx import subgraph_rewriter
-
 from torch._functorch.compile_utils import strip_overloads
 
-from pybuda.torch_decomp_reconstruct import get_pybuda_decompositions, apply_torch_reconstruct_patterns
+from pybuda.fx.torch_decomp_reconstruct import get_pybuda_decompositions, apply_torch_reconstruct_patterns
 
 def compile_torch(
     module,
