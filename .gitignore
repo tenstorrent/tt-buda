@@ -11,6 +11,12 @@ build
 net2pipe_output/
 third_party/llvm
 
+# ignore virtualenvs
+venv
+
+# ginore wheel files
+*.whl
+
 /llk_out/
 
 /test_*
