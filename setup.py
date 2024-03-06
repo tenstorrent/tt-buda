@@ -97,6 +97,7 @@ bbe_files = {
             "scratch_api.h",
             "__init__.py",
             "data_movement_perf_sweep.py",
+            "fork_join.py",
             "logger_utils.py",
             "op_perf_test.py",
             "ops.py",
