@@ -32,7 +32,20 @@ def pytest_generate_tests(metafunc):
             test_count = int(os.environ["RANDOM_TEST_COUNT"])
         else:
             test_count = 5
-        metafunc.parametrize("test_index", range(test_count))
+        tests_selected_indecies = []
+        if "RANDOM_TESTS_SELECTED" in os.environ:
+            tests_selected = os.environ["RANDOM_TESTS_SELECTED"]
+            tests_selected = tests_selected.strip()
+            if len(tests_selected) > 0:
+                tests_selected_indecies = tests_selected.split(",")
+                tests_selected_indecies = [int(i) for i in tests_selected_indecies]
+        if len(tests_selected_indecies) > 0:
+            metafunc.parametrize("test_index", tests_selected_indecies)
+            last_test_selected = max(tests_selected_indecies)
+            if test_count < last_test_selected + 1:
+                test_count = last_test_selected + 1
+        else:
+            metafunc.parametrize("test_index", range(test_count))
 
         global seeds
         if len(seeds) > 0:

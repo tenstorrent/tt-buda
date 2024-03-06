@@ -30,7 +30,8 @@ class ThreeOpModel(torch.nn.Module):
             raise Exception("Unknown op1")
 
         if self.op2 == "sqrt":
-            b = torch.sqrt(a)
+            # sqrt accepts only positive numbers
+            b = torch.sqrt(torch.relu(a))
         elif self.op2 == "tanh":
             b = torch.tanh(a)
         elif self.op2 == "add":
@@ -39,7 +40,12 @@ class ThreeOpModel(torch.nn.Module):
             raise Exception("Unknown op2")
 
         if self.op3 == "matmul":
-            c = torch.matmul(a, torch.transpose(b, 1, 2))
+            # if first operation was conv2d last dim must move to second
+            if self.op1 == "conv2d":
+                a = a.permute(0, 3, 1, 2)
+                b = b.permute(0, 3, 1, 2)
+            # transpose should use last 2 columns, in case of conv there are 4 dimensions
+            c = torch.matmul(a, torch.transpose(b, b.dim()-2, b.dim()-1))
         elif self.op3 == "eltwise":
             c = a + b
         else:
@@ -49,10 +55,14 @@ class ThreeOpModel(torch.nn.Module):
 
 
 def test_three_ops(test_index, random_seeds, test_device):
-    rng = random.Random(random_seeds[test_index])
-    rows = rng.randint(16, 512)
-    cols1 = rng.randint(16, 512)
-    cols2 = rng.randint(16, 512)
+    random_seed = random_seeds[test_index]
+    rng = random.Random(random_seed)
+    # smaller feature_size_factor results in less failed tests
+    feature_size_factor = 2
+    # feature_size_factor = 16
+    rows = rng.randint(16, 32 * feature_size_factor)
+    cols1 = rng.randint(16, 32 * feature_size_factor)
+    cols2 = rng.randint(16, 32 * feature_size_factor)
     microbatch_size = rng.randint(1, 8)
 
     model = ThreeOpModel(rng, cols1, cols2)
