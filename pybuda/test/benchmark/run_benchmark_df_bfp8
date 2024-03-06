@@ -16,6 +16,7 @@ pybuda/test/benchmark/benchmark.py -m mobilenet_v1 -c 224 -mf HiFi2 -o perf.json
 pybuda/test/benchmark/benchmark.py -m mobilenet_v2 -c 224 -mf HiFi2 -o perf.json
 
 # Mobilenet v3
+# Low accuracy.
 pybuda/test/benchmark/benchmark.py -m mobilenet_v3_timm -c large -o perf.json
 
 # Vit
@@ -28,6 +29,7 @@ pybuda/test/benchmark/benchmark.py -m deit -c base -o perf.json
 pybuda/test/benchmark/benchmark.py -m vovnet_v2 -c 39 -o perf.json
 
 # OpenPose Body
+# Low accuracy.
 pybuda/test/benchmark/benchmark.py -m openpose_osmr_body -c 2d -o perf.json
 
 # OpenPose Hand
@@ -40,6 +42,7 @@ pybuda/test/benchmark/benchmark.py -m hrnet -c v2_w64 -o perf.json
 pybuda/test/benchmark/benchmark.py -m yolo_v3 -c default -mb 32 -o perf.json
 
 # YOLOv5
+# Low accuracy.
 pybuda/test/benchmark/benchmark.py -m yolo_v5 -c s -o perf.json
 
 # Inception v4
@@ -52,12 +55,15 @@ pybuda/test/benchmark/benchmark.py -m unet -c 256 -mb 48 -mf HiFi2 -o perf.json
 pybuda/test/benchmark/benchmark.py -m bert -c large_tc -o perf.json
 
 # Whisper
+# Low accuracy.
 pybuda/test/benchmark/benchmark.py -m whisper -c small --loop_count 1 -mb 1 --single-thread --generative -o perf.json
 
 # T5
+# Low accuracy.
 pybuda/test/benchmark/benchmark.py -m t5 -c base --loop_count 1 -mb 1 --single-thread --generative -o perf.json
 pybuda/test/benchmark/benchmark.py -m t5 -c large --loop_count 1 -mb 1 --single-thread --generative -o perf.json
 
 # Flan-T5
+# Low accuracy.
 pybuda/test/benchmark/benchmark.py -m flan_t5 -c base --loop_count 1 -mb 1 -mf HiFi2 --single-thread --generative -o perf.json
 pybuda/test/benchmark/benchmark.py -m flan_t5 -c large --loop_count 1 -mb 1 -mf HiFi2 --single-thread --generative -o perf.json
