@@ -325,6 +325,7 @@ def pytest_runtest_logreport(report):
                     "backend_output_dir": "",
                     "backend_runtime_params_path": "",
                     "harvesting_mask": "",
+                    "cpu_fallback_ops": "",
 
                     # Level 1 overrides
                     "balancer_policy": "",
