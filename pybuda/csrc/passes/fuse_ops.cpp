@@ -47,6 +47,7 @@ class FusionGroup
     std::uint32_t reduce_dim = 0;
 
     std::vector<BudaOpNode *> topo_order;
+    BudaOpNode* output_op = nullptr;
 
     // Remove the cases where one part of the fork is inside the fused op, and the other is not, "wrapping" around other
     // ops
@@ -111,6 +112,7 @@ class FusionGroup
     bool has_broadcast_c_tm() const { return has_broadcast_c; }
     bool has_reduce_op() const { return has_reduce; }
     std::uint32_t get_reduce_dim() const { return reduce_dim; }
+    Node* get_output_op() const { return output_op; }
 
     void set_reduce_op(uint32_t reduce_dim)
     {
@@ -928,13 +930,27 @@ bool is_tile_broadcast_replaceable(
             return false;
         }
 
+        // Before swapping the operands, check if the edge which is currently on port 1
+        // contains tile_broadcast tm. If it does, we can't swap the operands.
+        auto operand_edges = graph->operand_data_edges(user_node);
+        for (auto operand_edge : operand_edges)
+        {
+            if (operand_edge.consumer_input_port_id == 1
+                && graph->get_edge_attributes(operand_edge)->has_tm("tile_broadcast"))
+            {
+                return false;
+            }
+        }
+
         graphlib::swap_operands(graph, user_node);
+        edge.consumer_input_port_id = 1;
     }
 
     // Edge can handle only one tile broadcast operation.
     // If this is second don't allow merge.
-    std::shared_ptr<EdgeAttributes> attr = graph->get_edge_attributes(edge);
-    for (auto tm : attr->get_tms())
+    EdgeAttributes attr(graph->get_edge_attributes(edge)->edge_type());
+    attr.copy_from(*graph->get_edge_attributes(edge));
+    for (auto tm : attr.get_tms())
     {
         if ("tile_broadcast" == tm.op)
         {
@@ -947,9 +963,9 @@ bool is_tile_broadcast_replaceable(
     if (fused_op != fused_nodes.end() && fused_op->second != nullptr)
     {
         // Add source edge TMs to already initialized user edge attributes.
-        for (auto edge : src_edges) attr->append_tms(graph->get_edge_attributes(edge)->get_tms());
+        for (auto edge : src_edges) attr.append_tms(graph->get_edge_attributes(edge)->get_tms());
 
-        if (!are_allowed_tms(attr->get_tms()))
+        if (!are_allowed_tms(attr.get_tms()))
             return false;
     }
 
@@ -990,6 +1006,16 @@ void replace_tile_broadcasts(
     Node *brcst_node = graph->data_operands(op)[brcst_operand];
     auto user_edges = graph->user_edges(op);
     bool all_ok = true;
+    if (fused_nodes.count(op->id()) > 0)
+    {
+        FusionGroupP fused_group = fused_nodes[op->id()];
+        if (fused_group != nullptr && fused_group->get_output_op() == op)
+        {
+            // Don't replace tile broadcast when it's the output of the fused op.
+            return;
+        }
+    }
+
     for (Edge user_edge : user_edges)
     {
         std::vector<Edge> src_edges = graph->get_edges(src_node, op);
@@ -1324,7 +1350,9 @@ void FusionGroup::pick_first_output(
         if (first_output != nullptr)
             break;
     }
+
     TT_ASSERT(first_output != nullptr, "There must be an output somewhere");
+    output_op = first_output->as<BudaOpNode>();
 
     // Only nodes in this output's input cone are allowed.
     std::unordered_set<BudaOpNode *> node_set;

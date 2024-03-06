@@ -539,6 +539,9 @@ std::shared_ptr<EdgeAttributes> Graph::remove_edge(const Edge &edge)
     for (auto &operand_edge : operand_edges_to_remove) {
         this->operands_map_[edge.consumer_node_id].erase(operand_edge);
     }
+
+    TT_DBG_ASSERT(operand_edges_to_remove.size(), "Edge not found in graph");
+
     return attr;
 }
 
