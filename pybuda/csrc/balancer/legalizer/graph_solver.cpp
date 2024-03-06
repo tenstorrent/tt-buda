@@ -345,7 +345,11 @@ bool GraphSolver::resolve_step(const bool self_cut_allowed)
                     if (fast_cut_used)
                     {
                         *consumer_bitset = kBitsetAll;
-                        continue;
+                        // Fast cut can expand the recomputed_legal_op_models vector for this consumer and make
+                        // consumer_op_models reference invalid. Instead of continuing with the remaining edges
+                        // for this consumer, we break here and move on to the next consumer. We will re-resolve
+                        // the whole graph later.
+                        break;
                     }
                     else
                     {
