@@ -593,8 +593,8 @@ void apply_mixed_a_optimization(const Graph *graph)
 
 enum class MixedPrecisionSetting {
     None = 0,
-    Mixed_A_Formats = 1,
-    Mixed_B_Formats = 2,
+    Mixed_B_Formats = 1,
+    Mixed_A_Formats = 2,
 };
 using OptToFunctionMapping = std::unordered_map<MixedPrecisionSetting, std::function<void(Graph*)>>;
 const OptToFunctionMapping opt_dispatch_table = {
@@ -622,7 +622,7 @@ void const_tag_propagation(Graph *graph)
 
 static bool is_valid_opt_level(const int opt_level)
 {
-    return opt_level >= static_cast<int>(MixedPrecisionSetting::None) and opt_level <= static_cast<int>(MixedPrecisionSetting::Mixed_B_Formats);
+    return opt_level >= static_cast<int>(MixedPrecisionSetting::None) and opt_level <= static_cast<int>(MixedPrecisionSetting::Mixed_A_Formats);
 }
 
 MixedPrecisionSetting get_mixed_precision_settings(

@@ -187,7 +187,13 @@ inline bool is_b_data_format(DataFormat df)
 
 inline bool is_a_data_format(DataFormat df)
 {
-    return not is_b_data_format(df);
+    switch(df){
+        case DataFormat::Float16:
+        case DataFormat::Bfp8:
+        case DataFormat::Bfp4:
+        case DataFormat::Bfp2: return true;
+        default: return false;
+    }
 }
 
 inline DataFormat to_a_data_format(DataFormat df)
