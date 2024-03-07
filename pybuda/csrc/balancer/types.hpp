@@ -236,6 +236,16 @@ struct BufferModel
     std::size_t single_buffered_size_bytes() const;
     std::size_t total_size_bytes() const;
     operator bool() const { return buffer_factor > 0; }
+    bool operator==(BufferModel const &other) const
+    {
+        return block_shape == other.block_shape
+        and buffer_factor == other.buffer_factor
+        and l1_size_tiles == other.l1_size_tiles
+        and data_format == other.data_format
+        and size_tiles_override == other.size_tiles_override
+        and minimize_input_buffer == other.minimize_input_buffer
+        and kernel_broadcast_tiles == other.kernel_broadcast_tiles;
+    }
 };
 
 struct Padding
@@ -245,6 +255,7 @@ struct Padding
 
     Padding() = default;
     Padding(int rt, int ct) : rt(rt), ct(ct) {}
+    bool operator==(const Padding &p) const { return rt == p.rt and ct == p.ct; }
 };
 
 // Do not add new fields to OpModel as it is very perf sensitive structure.
@@ -362,6 +373,22 @@ struct OpModel
     }
 
     bool operator==(OpModel const &other) const { return id == other.id; }
+
+    bool is_similar(OpModel const &other) const
+    {
+        return buda_op_node == other.buda_op_node
+        and grid_shape == other.grid_shape
+        and t_stream_factor == other.t_stream_factor
+        and fracture_factor == other.fracture_factor
+        and input_prologue == other.input_prologue
+        and sparse_buffer == other.sparse_buffer
+        and nz_tiles == other.nz_tiles
+        and nz_ublocks == other.nz_ublocks
+        and nz_strips == other.nz_strips
+        and padding == other.padding
+        and input_buffers == other.input_buffers
+        and output_buffers == other.output_buffers;
+    }
 
     TensorShape get_out_shape(bool post_t_stream = true) const
     {

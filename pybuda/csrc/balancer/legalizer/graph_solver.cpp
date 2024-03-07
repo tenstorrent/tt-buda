@@ -1141,6 +1141,22 @@ void GraphSolver::set(graphlib::Node const* node, OpModel const& op_model, bool 
 
     Bitset* node_bitset = get_bitset(node->id());
 
+    // If op models were recomputed for this node it might happen that balancer has cached old version.
+    // Using old version of opmodel will cause IDs to mismatch.
+    // Try matching on similarity instead.
+    //
+    if (selection == op_models.size() and op_model_recompute_version.find(node) != op_model_recompute_version.end())
+    {
+        for (std::size_t i = 0; i < op_models.size(); ++i)
+        {
+            if (node_bitset->test(i) and op_models[i].is_similar(op_model))
+            {
+                selection = i;
+                break;
+            }
+        }
+    }
+
     TT_LOG_ASSERT(selection != op_models.size(), "OpModel not found in legal OpModels for node {}!", node->name());
     TT_LOG_ASSERT((*node_bitset)[selection], "Selection not in legal OpModel set");
 
@@ -1979,7 +1995,8 @@ void GraphSolver::set_filter_grid_size(graphlib::Node const* node, OpModel const
             continue;
         }
 
-        if (op_models[i].grid_shape.c > role_op_model.grid_shape.c || op_models[i].grid_shape.r != role_op_model.grid_shape.r)
+        if (op_models[i].grid_shape.c > role_op_model.grid_shape.c ||
+            op_models[i].grid_shape.r != role_op_model.grid_shape.r)
         {
             discarded_op_models_bitset.set(i);
         }
