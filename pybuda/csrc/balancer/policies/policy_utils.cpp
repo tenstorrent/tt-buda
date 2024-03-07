@@ -1467,7 +1467,8 @@ int get_limiter_cycles(
             //   2. prologue (from queue)
             //   3. streaming (queue -> op)
             //   4. streaming (host -> op)
-            //   5. streaming (op -> op),
+            //   5. streaming (op -> op) with kernel broadcast
+            //   6. streaming (op -> op)
             //
             if (producer_is_queue)
             {
@@ -1523,12 +1524,28 @@ int get_limiter_cycles(
             }
             else
             {
-                // streaming (op -> op)
-                //
-                TT_ASSERT(!producer_is_queue and !input_is_prologue and !input_is_kb);
-                memory_read_cycles = std::max(
-                    memory_read_cycles,
-                    static_cast<int>(op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / noc_bw));
+                if (input_is_kb)
+                {
+                    // streaming (op -> op) with kernel broadcast
+                    //
+                    TT_ASSERT(!producer_is_queue and !input_is_prologue);
+                    memory_read_cycles = std::max(
+                        memory_read_cycles,
+                        static_cast<int>(
+                            (op_model.input_buffers[edge.consumer_input_port_id].kernel_broadcast_tiles *
+                             tile_size_bytes(op_model.input_buffers[edge.consumer_input_port_id].data_format)) /
+                            noc_bw));
+                }
+                else
+                {
+                    // streaming (op -> op)
+                    //
+                    TT_ASSERT(!producer_is_queue and !input_is_prologue and !input_is_kb);
+                    memory_read_cycles = std::max(
+                        memory_read_cycles,
+                        static_cast<int>(
+                            op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / noc_bw));
+                }
             }
         }
     }

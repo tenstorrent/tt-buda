@@ -1823,7 +1823,7 @@ static void try_promote_kernel_broadcast_inputs(
 
         // Do not kernel broadcast params/consts when the force_dram_parameter is set to true.
         // In this case, we don't want to prologue, but stream from DRAM.
-        if(is_input_node_parameter_or_constant(producer) and force_dram_parameters)
+        if(force_dram_parameters and is_input_node_parameter_or_constant(producer))
         {
             continue;
         }
