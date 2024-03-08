@@ -1349,12 +1349,11 @@ void GraphSolver::cut(std::vector<graphlib::Edge> const& edges, bool epoch_cut)
         Node* src = graph->node_by_id(edge.producer_node_id);
         Node* dest = graph->node_by_id(edge.consumer_node_id);
 
-#ifdef DEBUG
         // Cutting between non-op nodes will make GraphSolver sad.
         //
-        TT_ASSERT(dest->node_type() == graphlib::NodeType::kBudaOp, "Only cutting between BudaOps is supported!");
-        TT_ASSERT(src->node_type() == graphlib::NodeType::kBudaOp, "Only cutting between BudaOps is supported!");
-#endif
+        TT_DBG_ASSERT(dest->node_type() == graphlib::NodeType::kBudaOp, "Only cutting between BudaOps is supported!");
+        TT_DBG_ASSERT(src->node_type() == graphlib::NodeType::kBudaOp, "Only cutting between BudaOps is supported!");
+
         TT_ASSERT(cut_edges.count(edge) == 0, "Same edge should not be cut twice!");
         TT_LOG_ASSERT(
             selected_op_models.count(src) == 0 or selected_op_models.count(dest) == 0,

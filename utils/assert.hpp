@@ -135,3 +135,12 @@ void tt_assert(
     ::tt::assert::tt_assert<true>(__FILE__, __LINE__, "TT_ASSERT", #condition, f, ##__VA_ARGS__) : void()
 #define TT_THROW(...) \
     ::tt::assert::tt_assert<false>(__FILE__, __LINE__, "TT_THROW", "tt::exception", std::string_view{}, ##__VA_ARGS__)
+
+#ifndef DEBUG
+// Do nothing in release mode.
+#define TT_DBG_ASSERT(condition, ...) ((void)0)
+#else
+#define TT_DBG_ASSERT(condition, ...) \
+    __builtin_expect(not (condition), 0) ? \
+    ::tt::assert::tt_assert<false>(__FILE__, __LINE__, "TT_DBG_ASSERT", #condition, std::string_view{}, ##__VA_ARGS__) : void()
+#endif
