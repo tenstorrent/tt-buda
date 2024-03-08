@@ -83,6 +83,10 @@ bbe_files = {
         "path": "src/ckernels", # TODO clean up, maybe we don't need *everything* here?
         "files": "*" 
     },
+    "third_party_grayskull": {
+        "path": "third_party/tt_llk_grayskull",
+        "files": "*"
+    },
     "kernel_gen": {
         "path": "build/src/ckernels/gen/out",
         "files": "*",
