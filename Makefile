@@ -99,13 +99,10 @@ third_party/tvm: $(SUBMODULESDIR)/third_party/tvm.build ;
 torchvision: python_env
 ifeq ($(TORCH_VISION_INSTALL), 1)
 	@if [ ! -d $(TORCHVISIONDIR) ]; then \
-		echo "Installing torchvision requirements..."; \
-		pip3 install -r python_env/requirements.txt -f https://download.pytorch.org/whl/cpu/torch_stable.html; \
-		git clone https://github.com/pytorch/vision.git $(TORCHVISIONDIR); \
-		cd $(TORCHVISIONDIR) && git checkout v0.16.0; \
+		git clone --branch v0.16.0 https://github.com/pytorch/vision.git $(TORCHVISIONDIR); \
 	fi
 	echo "Building torchvision..."
-	cd $(TORCHVISIONDIR) && PYTORCH_VERSION=2.1.0 _GLIBCXX_USE_CXX11_ABI=1 python3 setup.py bdist_wheel -d build_out/
+	bash -c "source $(PYTHON_ENV)/bin/activate && cd $(TORCHVISIONDIR) && PYTORCH_VERSION=2.1.0 _GLIBCXX_USE_CXX11_ABI=1 python3 setup.py bdist_wheel -d build_out/"
 	cp -r $(TORCHVISIONDIR)/build_out build_out
 	pip install build_out/torchvision*.whl
 	touch $(SUBMODULESDIR)/third_party/$@.build
