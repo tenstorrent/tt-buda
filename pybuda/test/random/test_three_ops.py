@@ -54,15 +54,16 @@ class ThreeOpModel(torch.nn.Module):
         return c
 
 
-def test_three_ops(test_index, random_seeds, test_device):
+def test_three_ops(test_index, random_seeds, test_device, randomizer_config):
     random_seed = random_seeds[test_index]
     rng = random.Random(random_seed)
-    # smaller feature_size_factor results in less failed tests
-    feature_size_factor = 2
-    # feature_size_factor = 16
-    rows = rng.randint(16, 32 * feature_size_factor)
-    cols1 = rng.randint(16, 32 * feature_size_factor)
-    cols2 = rng.randint(16, 32 * feature_size_factor)
+
+    min_op_size = randomizer_config.min_op_size
+    max_op_size = randomizer_config.max_op_size
+    
+    rows = rng.randint(min_op_size, max_op_size)
+    cols1 = rng.randint(min_op_size, max_op_size)
+    cols2 = rng.randint(min_op_size, max_op_size)
     microbatch_size = rng.randint(1, 8)
 
     model = ThreeOpModel(rng, cols1, cols2)

@@ -6,6 +6,8 @@ import random
 import os
 import pybuda
 
+from .rgg import get_randomizer_config_default
+
 test_rg = random.Random()
 seeds = []
     
@@ -27,6 +29,18 @@ def run_test(test_index, random_seeds):
     yield
 
 def pytest_generate_tests(metafunc):
+    if "randomizer_config" in metafunc.fixturenames:
+        configs = []
+        for (build_model_from_code,) in [
+            (True,),
+            # (False,),
+        ]:
+            config = get_randomizer_config_default()
+            # config.build_model_from_code = build_model_from_code
+            # config.debug_forward = not build_model_from_code
+            # config.print_code = not build_model_from_code
+            configs.append(config)
+        metafunc.parametrize("randomizer_config", configs)
     if "test_index" in metafunc.fixturenames:
         if "RANDOM_TEST_COUNT" in os.environ:
             test_count = int(os.environ["RANDOM_TEST_COUNT"])
