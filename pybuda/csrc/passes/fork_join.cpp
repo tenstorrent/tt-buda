@@ -1424,6 +1424,11 @@ uint32_t expand_output_buffer(
             const uint32_t vstack_factor = t_stream_r / consumer_t_stream_r;
             const uint32_t consumer_grid_r = consumer_op_model.grid_shape.r;
 
+            if (vstack_factor > size_in_mb)
+            {
+                size_in_mb = (t_dim_factors & balancer::FactorizedInt(vstack_factor)).get_nearest_factor_le(mb_limit);
+            }
+
             if (vstack_factor > size_in_mb and vstack_factor > consumer_grid_r)
             {
                 if (vstack_factor % consumer_grid_r != 0)
@@ -1454,6 +1459,11 @@ uint32_t expand_output_buffer(
             }
             const uint32_t hstack_factor = t_stream_c / consumer_t_stream_c;
             const uint32_t consumer_grid_c = consumer_op_model.grid_shape.c;
+
+            if (hstack_factor > size_in_mb and hstack_factor % size_in_mb != 0)
+            {
+                size_in_mb = (t_dim_factors & balancer::FactorizedInt(hstack_factor)).get_nearest_factor_le(mb_limit);
+            }
 
             if (hstack_factor > size_in_mb and hstack_factor > consumer_grid_c)
             {

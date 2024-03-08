@@ -27,8 +27,6 @@ def test_distilbert_masked_lm_pytorch(variant, test_device):
 
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object 
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
-    # Temporary disabling t-streaming for distilbert
-    compiler_cfg.enable_t_streaming = False
     
     # Load data sample
     sample_text = "The capital of France is [MASK]."
