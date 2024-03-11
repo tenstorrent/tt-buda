@@ -5,6 +5,7 @@ import pytest
 from tensorflow.security.fuzzing import py
 import torch
 from pybuda.torch_compile import compile_torch
+import copy
 
 class NoOutputGraph(torch.nn.Module):
     def forward(self, a):
@@ -81,4 +82,34 @@ def test_longint():
 
     original_data = original_data.to(dtype=torch.int)
     assert torch.allclose(original_data, tensor)
+
+class DisjointedGraphsWithParams(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.linear1 = torch.nn.Linear(1, 1, bias=False)
+        self.linear2 = torch.nn.Linear(1, 1, bias=False)
+    def forward(self, a):
+        a = self.linear1(a)
+        a = a.to('cpu')
+        if a[0] > 1:
+            b = a + 2
+        else:
+            b = self.linear2(a) 
+
+        return b
+
+def test_disjointed_graphs_with_params():
+    torch.set_num_threads(1) # TODO: Multi-thread seems to cause data mismatch
+    cpu_model = DisjointedGraphsWithParams()
+    input = torch.tensor([[1.0]])
+    cpu_res = cpu_model(input)
+    model = torch.compile(cpu_model.to('tt'), backend=compile_torch)
+    tt_res = model(input.to('tt'))
+
+    # Inference
+    tt_res = model(input.to('tt'))
+    tt_res = tt_res.to('cpu')
+
+    assert cpu_res == tt_res
+
 

@@ -14,7 +14,7 @@ from .mixed_graph import MixedGraph, reduce_graph
 from pybuda._C.graph import create_op_node, create_data_edge, create_parameter_input, create_activation_input, create_output, create_constant_input, OpType, add_subgraph_io_link_edge
 from pybuda.tensor import pytorch_dtype_to_buda_dataformat
 from pybuda.fx.nodes import get_pybuda_node, torch_constant_ops, is_supported_op, get_unsupported_nodes
-
+from pybuda.config import _get_global_compiler_config
 import pybuda
 
 class CaptureFX:
@@ -281,7 +281,7 @@ class CaptureFX:
             if node.op == "placeholder":
                 assert self.graph
                 uid = self.graph.get_subgraph_input(subgraph_idx, input_index)
-                if uid != -1:
+                if uid != -1 and _get_global_compiler_config().enable_pt2_fx_graph_link:
                     # this input is on device, don't create input node, add edge to corresponding output
                     self.node_to_id[node] = self.add_input(node, subgraph_idx, module_inputs)
     

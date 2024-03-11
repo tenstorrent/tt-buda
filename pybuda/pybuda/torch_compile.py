@@ -161,7 +161,7 @@ def _compile(module, aten_module, module_name, sample_inputs, device, compiler_c
         aten_module.graph.print_tabular()    
 
     if _tt0 is None:
-        _tt0 = pybuda.TTDevice("tt0", arch=device.arch)
+        _tt0 = pybuda.TTDevice("tt0", arch=device.arch, devtype=device.type)
 
     _tt0.place_module(pybuda.module.PyTorchModule(module_name, module))
 

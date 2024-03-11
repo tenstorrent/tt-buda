@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import os
 from pybuda.torch_compile import compile_torch
+from pybuda.config import _get_global_compiler_config
 
 def test_link():
     class Linear(nn.Module):
@@ -18,6 +19,7 @@ def test_link():
             m1 = self.linear(x1)
             return m1
 
+    _get_global_compiler_config().enable_pt2_fx_graph_link = True
     os.environ["PYBUDA_DEVMODE"] = "1"
     input = torch.rand(1, 32, 32)
     input2 = torch.rand(1, 32, 32)

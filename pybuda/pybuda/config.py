@@ -162,6 +162,7 @@ class CompilerConfig:
     use_interactive_placer: bool = True     # use interactive placer if chosen policy supports it
     enable_enumerate_u_kt: bool = True      # Enable searching all possible matmul u_kts
     enable_link_past_cache_ios: bool = False # Enable auto detection and linking of past key-value pairs
+    enable_pt2_fx_graph_link: bool = False  # Enable linking of past key-value pairs in the graph
 
     compile_depth: int = field(default=CompileDepth.FULL, metadata=as_json(CompileDepth))  # Defines compilation depth. Used to limit scope of some unit tests
 

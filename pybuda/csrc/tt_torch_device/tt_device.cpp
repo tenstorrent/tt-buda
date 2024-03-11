@@ -303,7 +303,7 @@ std::vector<torch::Tensor> dispatch(
                 } 
                 else {
                     // Assign ptr = 0 since we are reading from RAM
-                    log_info(LogTTDevice, "Graph Linking: compile tage --- Push {} to device", desc.name);
+                    log_info(LogTTDevice, "Graph Linking: compile stage --- Push {} to device", desc.name);
                     push_tensor(device.backend->get_queue_descriptor(desc.name), desc, input, fmt::format("input[{}]", input_idx), 0/* ptr */);
                 }                
             }
