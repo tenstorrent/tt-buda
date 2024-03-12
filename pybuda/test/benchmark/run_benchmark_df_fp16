@@ -65,3 +65,4 @@ pybuda/test/benchmark/benchmark.py -m t5 -c large --loop_count 1 -mb 1 -df Fp16_
 pybuda/test/benchmark/benchmark.py -m flan_t5 -c base --loop_count 1 -mb 1 -df Fp16_b -mf HiFi3 --single-thread --generative -o perf.json
 pybuda/test/benchmark/benchmark.py -m flan_t5 -c large --loop_count 1 -mb 1 -df Fp16_b -mf HiFi3 --single-thread --generative -o perf.json
 
+
