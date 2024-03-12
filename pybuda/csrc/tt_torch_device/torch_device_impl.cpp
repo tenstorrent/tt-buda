@@ -443,11 +443,13 @@ torch::Tensor _copy_from(const torch::Tensor& self, const torch::Tensor& dest, b
         // barrier self
         // barrier dest
         // dest = self
-
-        log_fatal(
-            "Unsupported (for now) _copy_from TTDevice[{}] to TTDevice[{}]",
-            self.device().index(),
-            dest.device().index());
+        
+        //log_fatal(
+        //    "Unsupported (for now) _copy_from TTDevice[{}] to TTDevice[{}]",
+        //    self.device().index(),
+        //    dest.device().index());
+        TT_ASSERT(dest_nbytes <= self_nbytes, dest_nbytes, self_nbytes);
+        std::memcpy(dest_tensor_data, self_tensor_data, dest_nbytes);
     }
     else
     {

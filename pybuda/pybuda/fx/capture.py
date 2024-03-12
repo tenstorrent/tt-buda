@@ -10,10 +10,10 @@ from typing import Dict, List, Optional
 import torch
 from loguru import logger
 
-from .mixed_graph import MixedGraph
+from .mixed_graph import MixedGraph, reduce_graph
 from pybuda._C.graph import create_op_node, create_data_edge, create_parameter_input, create_activation_input, create_output, create_constant_input, OpType, add_subgraph_io_link_edge
 from pybuda.tensor import pytorch_dtype_to_buda_dataformat
-from pybuda.fx.nodes import get_pybuda_node, torch_constant_ops, is_supported_op
+from pybuda.fx.nodes import get_pybuda_node, torch_constant_ops, is_supported_op, get_unsupported_nodes
 
 import pybuda
 
@@ -239,7 +239,7 @@ class CaptureFX:
 
             # Record the intermed value
             #self.id_to_intermed[self.node_to_id[node]] = self.eval_node(node)
-    
+
     
     def _append_to_graph(self, module, aten_module, activations, subgraph_idx):
     
@@ -253,38 +253,24 @@ class CaptureFX:
         output_nids = []
         output_requires_grad = []
         output_tensors = []
-    
-        fallback_graphs = [] # CPU fallback FX graphs
-        fallback_ops = []
-    
-    
-    
-        # Traverse up the graph from output nodes to populate consumed nodes set
-        consumed = set()
-        working_nodes = []
-        for node in aten_module.graph.nodes:
-            if node.op == "output":
-                working_nodes.append(node)
-                consumed.add(node)
-    
-        while len(working_nodes) > 0:
-            node = working_nodes.pop(0)
-            for arg in node.args:
-                if isinstance(arg, torch.fx.node.Node) and arg not in consumed:
-                    consumed.add(arg)
-                    working_nodes.append(arg)
-                elif isinstance(arg, (list, tuple)):
-                    for a in arg:
-                        if isinstance(a, torch.fx.node.Node) and a not in consumed:
-                            consumed.add(a)
-                            working_nodes.append(a)
-    
-    
+
+        # Remove unused nodes
+        reduce_graph(aten_module)
+
+        # Find unsupported nodes
+        fallback_ops = get_unsupported_nodes(aten_module)
+
+        # Filter out unsupported nodes into separate FX graphs
+        self.graph.filter_unsupported_nodes(aten_module, fallback_ops, subgraph_idx)
+
+        if len(aten_module.graph.nodes) == 0:
+            # Nothing left in the graph
+            logger.debug("No nodes left in the device graph after fallback, skipping")
+            return self.get_buda_graph(), self.id_to_intermed, output_tensors
+
+        # Now convert whatever is left
         input_index = 0
         for index, node in enumerate(aten_module.graph.nodes):
-            if node not in consumed:
-                logger.debug(f"Skipping {node} because it was not consumed")
-                continue
     
             if node.op == "placeholder":
                 assert self.graph
@@ -315,6 +301,4 @@ class CaptureFX:
     
         self.output_nodes_per_subgraph[subgraph_idx] = output_nids
         return self.get_buda_graph(), self.id_to_intermed, output_tensors
-    
-    
     

@@ -178,6 +178,10 @@ def _compile(module, aten_module, module_name, sample_inputs, device, compiler_c
     logger.debug("Appending to Graph")
     intermediate_tensors, output_tensors = _capture.append_to_graph(
         module_name, module, aten_module, sample_inputs, _subgraph_index)
+
+    if len(aten_module.graph.nodes) == 0:
+        return None, None, None
+
     _subgraph_index += 1
     _tt0.graph = _capture.get_buda_graph().clone()
     _tt0.intermediate_tensors = intermediate_tensors
@@ -200,7 +204,7 @@ def _compile(module, aten_module, module_name, sample_inputs, device, compiler_c
         _build_backend_compile_request(device, compiler_cfg, compiled_graph_state, _subgraph_index - 1)
     )
 
-    return workload, compiled_graph_state
+    return workload, compiled_graph_state, _capture.graph.generate_schedule(_subgraph_index - 1)
 
 
 def _create_compile_key(module, module_name, sample_inputs, device, compiler_cfg):
@@ -245,19 +249,20 @@ def _compile_cached(module, aten_module, module_name, sample_inputs, device, com
     else:
         compiler_cfg.backend_output_dir = pybuda.utils.resolve_output_build_directory()
 
-    workload, compiled_graph_state = _compile(module, aten_module, module_name, sample_inputs, device, compiler_cfg)
+    workload, compiled_graph_state, schedule = _compile(module, aten_module, module_name, sample_inputs, device, compiler_cfg)
 
-    if key is not None:
-        _compile_cache[key] = workload
-    return workload, compiled_graph_state
+    if key is not None and workload is not None:
+        _compile_cache[key] = (workload, compiled_graph_state, schedule)
+    return workload, compiled_graph_state, schedule
 
 class compiledModel(torch.nn.Module):
-    def __init__(self, module, device, workload, compiled_graph_state, index):
+    def __init__(self, module, device, workload, compiled_graph_state, schedule, index):
         super().__init__()
         self.module = module
         self.device = device
         self.workload = workload
         self.compiled_graph_state = compiled_graph_state
+        self.schedule = schedule
         self.index = index
         self.is_compile = True
 
@@ -286,8 +291,41 @@ class compiledModel(torch.nn.Module):
         program = Program(f"run_fwd_{self.index}", program_params)
         logger.info(f"Running run_fwd_{self.index}")
 
-        outputs = self.device.dispatch(
-            self.workload, [program], list(inputs), self.compiled_graph_state.output_host_tms, self.index, self.is_compile)
+        output_map = {}
+        intermediates = {}
+
+        # Run the schedule
+        outputs_generated = set()
+        for item in self.schedule:
+            
+            if item.graph:
+                # CPU graph
+                logger.trace(f"Running fallback graph on CPU: {item.graph_index}")
+                graph_module = torch.fx.GraphModule({}, item.graph, f"Fallback_{item.graph_index}")
+                graph_inputs = (intermediates[i.index].to('cpu') if i.intermediate else inputs[i.index].to('cpu') for i in item.inputs)
+                graph_outputs = graph_module(*graph_inputs)
+            else:
+                # Device - dispatch to device
+                #outputs = self.device.dispatch(
+                #    self.workload, [program], list(inputs), self.compiled_graph_state.output_host_tms, self.index, self.is_compile)
+                logger.trace(f"Running main graph on Device")
+                graph_inputs = (intermediates[i.index].to('tt') if i.intermediate else inputs[i.index] for i in item.inputs)
+                graph_outputs = self.device.dispatch(
+                        self.workload, [program], list(graph_inputs), self.compiled_graph_state.output_host_tms, self.index, self.is_compile)
+            
+            # Record outputs
+            for i, output in enumerate(item.outputs):
+                if output.intermediate:
+                    intermediates[output.index] = graph_outputs[i]
+                else:
+                    assert output.index not in outputs_generated
+                    output_map[output.index] = graph_outputs[i]
+                    outputs_generated.add(output.index)
+                    
+        assert len(outputs_generated) > 0, "No outputs came out of the schedule"
+
+        # Flatten output map into list
+        outputs = [output_map[i] for i in range(len(output_map))]
 
         for out in outputs:
             _tensor_to_unique_id[unique_id(out)] = out
@@ -298,6 +336,7 @@ class compiledModel(torch.nn.Module):
         #print (f"ordered_inputs_per_subgraph: {_ordered_inputs_per_subgraph}")
         #print (f"ordered_outputs_per_subgraph: {_ordered_outputs_per_subgraph}")
         # CHeck previous outputs and push to new param queue
+        #outputs = [o.to('cpu') for o in outputs]
         return outputs
     
     def to(self, dev):
@@ -381,12 +420,15 @@ def _torch_compile(
     if is_nop_graph(aten_module) or is_constant_graph(aten_module) or (not has_output(aten_module)):
         return module.forward
 
-    workload, compiled_graph_state = _compile_cached(
+    workload, compiled_graph_state, schedule = _compile_cached(
         module, aten_module, module_name, sample_inputs, device, compiler_cfg, cache
     )
 
+    # Check after fallback again, and if nothing stays on the device, just return the original module
+    if is_nop_graph(aten_module) or is_constant_graph(aten_module) or (not has_output(aten_module)):
+        return module.forward
 
-    compiled_model = compiledModel(module, device, workload, compiled_graph_state, _subgraph_index-1)
+    compiled_model = compiledModel(module, device, workload, compiled_graph_state, schedule, _subgraph_index-1)
     # Push parameters and constants to device
     compiled_model.to(device.torch_device())
     logger.info("Done Torch Compile")

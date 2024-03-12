@@ -145,7 +145,7 @@ class Logger
         if ((1 << type) & mask)
         {
 #if defined(UTILS_LOGGER_PYTHON_OSTREAM_REDIRECT) && (UTILS_LOGGER_PYTHON_OSTREAM_REDIRECT == 1)
-            pybind11::scoped_ostream_redirect stream(*fd);
+//            pybind11::scoped_ostream_redirect stream(*fd);
 #endif
             std::string timestamp_str = get_current_time();
             fmt::terminal_color timestamp_color = fmt::terminal_color::green;

@@ -8,7 +8,7 @@
 
 import sys
 import math
-from typing import List
+from typing import List, Set
 
 import torch
 
@@ -648,3 +648,26 @@ def call_function_is_nop(node):
         return dynamo_to_pybuda_function[op_name][1] == "nop"
     else:
         return False
+
+def get_unsupported_nodes(aten_module) -> Set[torch.fx.Node]:
+    # Traverse the FX graph and find all the nodes that are not supported and should fall back to CPU
+    unsupported_nodes = set()
+    for node in aten_module.graph.nodes:
+        if node.op != "call_function":
+            continue
+
+        op_name = node.target.__name__
+
+        if op_name in torch_constant_ops:
+            continue
+        
+        if op_name == "getitem":
+            continue
+
+        if is_supported_op(op_name):
+            continue
+
+        unsupported_nodes.add(node)
+        
+    return unsupported_nodes
+

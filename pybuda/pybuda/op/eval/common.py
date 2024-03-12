@@ -407,11 +407,7 @@ def op_model_to_desc(type: str, arch_name: str, op_model: OpModel, sub_op_model:
         # If reduce_z, we manually copy the "z" param to special field in tt_op_model_desc - we should pass all buda attrs
         if type == "reduce" and op_model.buda_op_attrs()["dim"] == "z":
             desc.reduce_z = op_model.buda_op_attrs()["z"]
-
-    try:
-        desc.approx_mode = True if 'true' == op_model.buda_op_attrs()['approximate_mode'] else False
-    except KeyError as ke:
-        pass
+    
 
     return desc
 

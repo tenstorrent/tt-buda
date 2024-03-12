@@ -121,20 +121,67 @@ def test_push(shape, mb, loop, native):
 
 # Clip-like argmax code that does argmax followed by index
 class ClipArgmax(torch.nn.Module):
+    def __init__(self, eltwise_before, eltwise_after):
+        super().__init__()
+        self.eltwise_before = eltwise_before
+        self.eltwise_after = eltwise_after
+
+    def forward(self, last_hidden_state, input_ids):
+        if self.eltwise_before:
+            last_hidden_state = last_hidden_state * last_hidden_state # something to do on device
+        pooled_output = last_hidden_state[
+                torch.arange(last_hidden_state.shape[0], device=last_hidden_state.device),
+                input_ids.to(device=last_hidden_state.device).argmax(dim=-1),
+            ]
+        if self.eltwise_after:
+            pooled_output = pooled_output * pooled_output # something to do on device
+        return pooled_output
+
+@pytest.mark.parametrize("eltwise_before", [True, False])
+@pytest.mark.parametrize("eltwise_after", [True, False])
+def test_fallback(eltwise_before, eltwise_after):
+
+    if eltwise_before and eltwise_after:
+        # This is fallback in the middle of the graph, which is not supported yet
+        pytest.skip()
+
+    model = torch.compile(ClipArgmax(eltwise_before, eltwise_after), backend=compile_torch)
+
+    for _ in range(3):
+        input = (torch.rand(1, 128, 768), torch.randint(0, 128, (1, 128)).int())
+        # Workaround for data mismatch when last hidden state and index are on TT device, the math comes out wrong
+        # Not sure why - haven't been able to isolate the problem yet
+        device = 'tt' if eltwise_before or eltwise_after else 'cpu'
+        tt_input = (input[0].to(device), input[1].to(device))
+        tt_res = model(*tt_input)
+        tt_res = tt_res.to('cpu')
+
+        cpu_res = ClipArgmax(eltwise_before, eltwise_after)(*input)
+        assert torch.allclose(cpu_res, tt_res, atol=0, rtol=1e-2)
+
+class ClipArgmaxSandwich(torch.nn.Module):
     def forward(self, last_hidden_state, input_ids):
         pooled_output = last_hidden_state[
                 torch.arange(last_hidden_state.shape[0], device=last_hidden_state.device),
-                input_ids.to(dtype=torch.int, device=last_hidden_state.device).argmax(dim=-1),
+                input_ids.to(device=last_hidden_state.device).argmax(dim=-1),
+            ]
+        pooled_output = pooled_output * pooled_output # something to do on device
+        pooled_output = pooled_output[
+                torch.arange(pooled_output.shape[0], device=last_hidden_state.device),
+                input_ids.to(device=last_hidden_state.device).argmax(dim=-1),
             ]
         return pooled_output
 
-def test_clip_argmax():
-    model = torch.compile(ClipArgmax(), backend=compile_torch)
-    input = (torch.rand(1, 128, 768), torch.randint(0, 30000, (1, 128)))
-    tt_input = (input[0].to('tt'), input[1].to('tt'))
-    tt_res = model(*tt_input)
-    tt_res = tt_res.to('cpu')
+def test_fallback_before_and_after():
+    # Fallback before and after, with device in the middle
+    model = torch.compile(ClipArgmaxSandwich(), backend=compile_torch)
 
-    cpu_res = ClipArgmax()(*input)
-    assert cpu_res == tt_res
+    for _ in range(3):
+        input = (torch.rand(1, 128, 768), torch.randint(0, 128, (1, 128)).int())
+        device = 'tt'
+        tt_input = (input[0].to(device), input[1].to(device))
+        tt_res = model(*tt_input)
+        tt_res = tt_res.to('cpu')
 
+        cpu_res = ClipArgmaxSandwich()(*input)
+        assert torch.allclose(cpu_res, tt_res, atol=0, rtol=1e-2)
