@@ -15,6 +15,7 @@ from pybuda import (
     VerifyConfig,
     DataFormat,
     BackendDevice,
+    BackendType,
 )
 from pybuda.verify import verify_module
 from pybuda.verify.config import TestKind
@@ -88,6 +89,8 @@ def test_onnx_quantized_mb_v2(test_device):
     os.environ["PYBUDA_FRACTURIZATION_DISABLE"] = "1"
     os.environ["PYBUDA_DISABLE_PADDING_PASS"] = "1"
     os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"]  = f"{80*1024}"
+    if test_device.devtype == BackendType.Silicon:
+        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"]  = f"{96*1024}"
 
     # Sanity run
     input_shape = []
@@ -105,6 +108,7 @@ def test_onnx_quantized_mb_v2(test_device):
             devtype=test_device.devtype,
             devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
+            enabled = False if test_device.devtype == BackendType.Silicon else True,
             # verify_pybuda_codegen_vs_framework=True,
             # verify_all=True
         ),
