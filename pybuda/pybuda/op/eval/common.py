@@ -337,6 +337,7 @@ def op_model_to_desc(type: str, arch_name: str, op_model: OpModel, sub_op_model:
     desc.data_format = op_model.data_format
     desc.math_fidelity = op_model.math_fidelity()
     desc.t = op_model.output_buffers[0].block_shape.t
+    desc.approx_mode = False
 
     if op_model.op_type() == "fused_op":
         desc.type = sub_op_model.type
@@ -407,7 +408,11 @@ def op_model_to_desc(type: str, arch_name: str, op_model: OpModel, sub_op_model:
         # If reduce_z, we manually copy the "z" param to special field in tt_op_model_desc - we should pass all buda attrs
         if type == "reduce" and op_model.buda_op_attrs()["dim"] == "z":
             desc.reduce_z = op_model.buda_op_attrs()["z"]
-    
+
+    attrs = op_model.buda_op_attrs()
+    # If the attributes contain approximate mode set it.
+    if 'approximate_mode' in attrs:
+        desc.approx_mode = attrs['approximate_mode'] == 'true'
 
     return desc
 
