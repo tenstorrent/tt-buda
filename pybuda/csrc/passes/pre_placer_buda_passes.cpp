@@ -1775,4 +1775,44 @@ void insert_user_defined_queues(
     }
 }
 
+// return ops to add epoch breaks on
+std::vector<std::string> insert_dataparallel_nops(graphlib::Graph *graph)
+{
+    std::vector<std::string> dp_nops_to_epoch_break;
+    for (Node *n: graph->nodes_by_type(graphlib::NodeType::kOutput))
+    {
+        auto output_node = n->as<graphlib::OutputNode>();
+
+        std::vector<Edge> edges = graph->operand_data_edges(n);
+        TT_ASSERT(edges.size() == 1);
+        Node *source = graph->node_by_id(edges[0].producer_node_id);
+        TT_ASSERT(source->node_type() == NodeType::kBudaOp);
+
+        for (size_t dp_idx = 0; dp_idx < 2; dp_idx++) // TODO N devices
+        {
+            graphlib::BudaOpNode *nop = graph->add_node(
+                    graphlib::create_node<graphlib::BudaOpNode>(source->name() + "_dp_nop." + std::to_string(dp_idx), "nop"),
+                    graph->get_subgraph_id_for_node(n->id()));
+            nop->copy_parent_op_attributes(source->as<graphlib::BudaOpNode>());
+            nop->as<graphlib::TaggedNode>()->add_tags(source->as<graphlib::TaggedNode>()->get_tags());
+            dp_nops_to_epoch_break.emplace_back(source->name() + "_dp_nop." + std::to_string(dp_idx));
+            if (dp_idx == 0) {
+                graphlib::insert_node_on_edge(graph, edges[0], nop);
+            } else {
+                auto output_clone = output_node->clone(output_node->name() + "_dp_out_" + std::to_string(dp_idx));
+                Node* cloned_output_node = graph->add_node(
+                        std::move(output_clone), graph->get_subgraph_id_for_node(output_node->id()));
+                graphlib::Edge source_to_cloned_output_node = Edge(
+                        source->id(), edges[0].consumer_input_port_id,
+                        cloned_output_node->id(), 0,
+                        graphlib::EdgeType::kData);
+                graph->add_edge(source_to_cloned_output_node);
+                graph->copy_edge_attributes(edges[0], source_to_cloned_output_node);
+                graphlib::insert_node_on_edge(graph, source_to_cloned_output_node, nop);
+            }
+        }
+    }
+    return dp_nops_to_epoch_break;
+}
+
 }  // namespace tt

@@ -5,6 +5,7 @@ import threading
 from enum import Enum
 from typing import List, Optional, Union, Tuple
 import queue
+import os
 
 from multiprocessing.synchronize import Event as EventClass
 from queue import Queue
@@ -231,10 +232,11 @@ class DirectPusherDeviceConnector(DeviceConnector):
             print(f"Direct push queues have not been set for {self}")
         assert self.direct_push_queues, "Direct push queues have not been set"
         assert self.tile_broadcast_dims is not None
-        assert len(tensors) == len(self.direct_push_queues), (
+        data_parallel = os.getenv("PYBUDA_N300_DATA_PARALLEL", 0)
+        assert len(tensors) == len(self.direct_push_queues) or data_parallel and len(tensors) * 2 == len(self.direct_push_queues), (
                 f"Incorrect number of tensors provided on input: {len(tensors)} vs {len(self.direct_push_queues)}")
         assert self.runtime_tensor_transforms, "Runtime tensor transforms have not been set"
-        assert len(tensors) == len(self.runtime_tensor_transforms)
+        assert len(tensors) == len(self.runtime_tensor_transforms) or data_parallel and len(tensors) * 2 == len(self.runtime_tensor_transforms)
 
         self.push_to_side_queue(tensors)
 
@@ -247,6 +249,22 @@ class DirectPusherDeviceConnector(DeviceConnector):
                 tensors[i] = self._convert_tensor_for_tilize(t, self.direct_push_queues[i])
             else:
                 tensors[i] = t
+
+        if data_parallel:
+            new_tensors = []
+            new_tensor_dtypes = []
+            for i, t in enumerate(tensors):
+                if isinstance(tensors[i], Tensor):
+                    tensors[i] = tensors[i].to_pytorch()
+
+                newtensor = tensors[i][int(tensors[i].shape[0] / 2):]
+                newshape = tensors[i].shape
+                tensors[i] = tensors[i][:int(tensors[i].shape[0] / 2)]
+                new_tensors.append(newtensor)
+                new_tensor_dtypes.append(tensor_dtypes[i])
+
+            tensors = tensors + new_tensors
+            tensor_dtypes = tensor_dtypes + new_tensor_dtypes
 
         # Handles RuntimeTensorTransform::ReinterpretShape
         for i, t in enumerate(tensors):
@@ -282,11 +300,13 @@ class DirectPusherDeviceConnector(DeviceConnector):
                 elif self.runtime_tensor_transforms[i].type == RuntimeTensorTransformType.NoTransform:
                     tensors[i] = t.to_buda_shape(self.tile_broadcast_dims[i], reinterpret_shape=None, clone=False, squeeze=True, microbatch=self.microbatch)
 
+
         def to_tensor_desc(t: Union[Tensor, torch.Tensor], type: Union[DataFormat, None]) -> PytorchTensorDesc:
             if isinstance(t, Tensor):
                 return t.to_tensor_desc()
             return pytorch_tensor_to_tensor_desc(t, df=type)
 
+        # TODO: create tensor_desc list with double queues and half tensors
         BackendAPI.push_to_queues(self.direct_push_queues, [to_tensor_desc(t, type) for t, type in zip(tensors, tensor_dtypes)], single_input=False)
         self.save_tensors = tensors
 

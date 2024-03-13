@@ -1410,7 +1410,7 @@ class TTDevice(Device):
 
     # Create device connector for the last device, reading from a Queue
     def _create_target_queue_device_connector(self, q: queue.Queue, sequential: bool):
-        logger.debug("Creating input queue connector on {}", self)
+        logger.debug("Creating target queue connector on {}", self)
         self.target_input_dc = InputQueueDirectPusherDeviceConnector(q, self.shutdown_event, sequential)
         
     # Create device connector for the last device, reading from a Queue

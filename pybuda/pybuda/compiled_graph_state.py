@@ -189,6 +189,35 @@ class CompiledGraphState:
             ordered_parameter_node_names
         )
 
+        if os.getenv("PYBUDA_N300_DATA_PARALLEL", 0):
+            def replicate_items(items_to_replicate):
+                dev0 = { f"{k}.0" : v for k,v in items_to_replicate.items() }
+                dev1 = { f"{k}.1" : v for k,v in items_to_replicate.items() }
+                return {**dev0, **dev1}
+
+            input_to_tile_dims = replicate_items(input_to_tile_dims)
+
+            post_const_eval_constants = replicate_items(post_const_eval_constants)
+            post_const_eval_parameters = replicate_items(post_const_eval_parameters)
+
+            ordered_constant_node_names=[f"{name}.0" for name in ordered_constant_node_names] + [f"{name}.1" for name in ordered_constant_node_names]
+            ordered_parameter_node_names=[f"{name}.0" for name in ordered_parameter_node_names] + [f"{name}.1" for name in ordered_parameter_node_names]
+
+            ordered_input_names=[f"{name}.0" for name in ordered_input_names] + [f"{name}.1" for name in ordered_input_names]
+            ordered_output_names=[f"{name}.0" for name in ordered_output_names] + [f"{name}.1" for name in ordered_output_names]
+            ordered_input_shapes=ordered_input_shapes + ordered_input_shapes
+            ordered_output_shapes=ordered_output_shapes + ordered_output_shapes
+            ordered_input_requires_grad = ordered_input_requires_grad + ordered_input_requires_grad
+            ordered_output_requires_grad = ordered_output_requires_grad + ordered_output_requires_grad
+            ordered_input_runtime_tensor_transforms = ordered_input_runtime_tensor_transforms + ordered_input_runtime_tensor_transforms
+            ordered_output_runtime_tensor_transforms = ordered_output_runtime_tensor_transforms + ordered_output_runtime_tensor_transforms
+            ordered_input_tile_broadcast_dims = ordered_input_tile_broadcast_dims + ordered_input_tile_broadcast_dims
+            ordered_target_tile_broadcast_dims = ordered_target_tile_broadcast_dims + ordered_target_tile_broadcast_dims
+            ordered_bw_input_tile_broadcast_dims = ordered_bw_input_tile_broadcast_dims + ordered_bw_input_tile_broadcast_dims
+
+            print(f"ordered_output_names = {ordered_output_names}")
+            print(f"ordered_output_shapes = {ordered_output_shapes}") #TODO: probably double here
+
         return CompiledGraphState(
             microbatch=graph.get_microbatch(),
             graph_name=graph.get_name(),

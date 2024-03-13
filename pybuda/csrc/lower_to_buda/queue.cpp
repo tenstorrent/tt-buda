@@ -33,7 +33,19 @@ std::string BudaQueue::as_string(int padded_name_length) const
     if (layout != BudaQueueLayout::Tilized)
         ss << "layout: " << layout << ", ";
 
-    ss << "target_device: " << target_device << ", ";
+    ss << "target_device: ";
+    if (target_devices.size() == 1)
+    {
+        ss << target_devices[0] << ", ";
+    }
+    else
+    {
+        for (size_t i = 0; i < target_devices.size(); i++)
+        {
+            ss << ((i == 0) ? "[" : ", ") << target_devices[i];
+        }
+        ss << "], ";
+    }
     ss << "loc: " << loc;
 
     if (loc == BudaQueueLocation::DRAM) {

@@ -447,7 +447,7 @@ class BackendAPI:
 
     @classmethod
     def push_to_queues(cls, ordered_input_queues: List[DramIODesc], tensors: List[PytorchTensorDesc], single_input: bool):
-        assert len(tensors) == len(ordered_input_queues), "Incorrect number of tensors provided on input"
+        assert len(tensors) == len(ordered_input_queues), f"Incorrect number of tensors provided on input: tensors:{len(tensors)} vs ordered_input_queues:{len(ordered_input_queues)}"
         for i, inq in enumerate(ordered_input_queues):
             logger.debug("Pushing to queue {}", inq.name)
             logger.trace(tensors[i].shape)

@@ -147,9 +147,26 @@ BudaQueue create_queue(
     std::string type = get_buda_queue_type(node);
     std::string memory_access = node->memory_access_type_string();
 
-    BudaQueue q(placement.name, type, memory_access, placement.chip_id, node->shape().get_tile_dim());
+    std::vector<uint32_t> target_device_ids;
+    if (env_as<bool>("PYBUDA_N300_DATA_PARALLEL"))
+    {
+        target_device_ids = {0, 1};
+    }
+    else
+    {
+        target_device_ids = {placement.chip_id};
+    }
+    BudaQueue q(placement.name, type, memory_access, target_device_ids, node->shape().get_tile_dim());
 
-    q.input_name = placement.input_name;
+    if (env_as<bool>("PYBUDA_N300_DATA_PARALLEL") && node->node_type() == NodeType::kOutput)
+    {
+        size_t pos_dot = placement.input_name.find_last_of('.'); // TODO
+        q.input_name = placement.input_name.substr(0, pos_dot);
+    }
+    else
+    {
+        q.input_name = placement.input_name;
+    }
     q.entries = node->get_num_entries();
     q.microbatch = graph->get_microbatch();
     q.data_format = node->output_df();
@@ -321,6 +338,15 @@ static bool optimize_op_noc_inputs(
     return input_buf_overrides;
 }
 
+BudaNaryTM append_nary_tm_name(BudaNaryTM source, const std::string& suffix)
+{
+    BudaNaryTM tm;
+    tm.name = source.name + suffix;
+    tm.type = source.type;
+    tm.inputs = source.inputs;
+    return tm;
+}
+
 static BudaOp create_op(
     Graph *graph,
     graphlib::BudaOpNode *node,
@@ -487,7 +513,29 @@ static BudaOp create_op(
         not op.untilize_output or op.ublock_order == graphlib::UBlockOrder::R,
         "Untilizer requires row-major ublock ordering");
 
-    op.inputs = operands;
+    size_t dp_nop_pos = op.name.find("dp_nop."); // TODO
+    if (dp_nop_pos != std::string::npos)
+    {
+        std::string dp_id = op.name.substr(dp_nop_pos + 7);
+        op.inputs = std::vector<BudaOperand>();
+        for (auto& operand: operands)
+        {
+            if (std::holds_alternative<BudaName>(operand))
+            {
+                auto& buda_name = std::get<BudaName>(operand);
+                op.inputs.emplace_back(BudaName(buda_name.name + "." + dp_id));
+            }
+            else if (std::holds_alternative<BudaNaryTM>(operand))
+            {
+                auto& buda_nary_tm = std::get<BudaNaryTM>(operand);
+                op.inputs.emplace_back(append_nary_tm_name(buda_nary_tm, "." + dp_id));
+            }
+        }
+    }
+    else
+    {
+        op.inputs = operands;
+    }
     op.input_dram_io_buf_size_tiles = input_dram_io_buf_size_tiles;
 
     std::stringstream ss;
@@ -1525,6 +1573,10 @@ BudaNetlist lower_to_buda_netlist(
             if (node->node_type() == NodeType::kInput or node->node_type() == NodeType::kOutput or
                 node->node_type() == NodeType::kQueue)
             {
+                if (node->name().find("dp_out_") != std::string::npos) // TODO
+                {
+                    continue; // skip this output node since it's a clone for dp
+                }
                 BudaQueue q = create_queue(
                     graph,
                     node->as<graphlib::QueueNode>(),
@@ -1621,12 +1673,47 @@ BudaNetlist lower_to_buda_netlist(
         }
     }
 
+    size_t last_epoch_id = -1; // final epoch for dp, TODO
+    for (const auto& [key, value] : placer_solution.name_to_op_placement)
+    {
+        if (key.find("dp_nop") != std::string::npos)
+        {
+            last_epoch_id = value.epoch_id();
+            break;
+        }
+    }
+
     for (size_t epoch_id = 0; epoch_id < buda_graph.epoch_types.size(); ++epoch_id)
     {
         int chip_id = placer_solution.epoch_id_to_chip.at(epoch_id);
-        buda_graph.epoch_target_devices.push_back(BudaDevice(chip_id));
+        if (env_as<bool>("PYBUDA_N300_DATA_PARALLEL") && epoch_id != last_epoch_id)
+        {
+            buda_graph.epoch_target_devices.push_back({BudaDevice(0), BudaDevice(1)});
+        }
+        else
+        {
+            buda_graph.epoch_target_devices.push_back({BudaDevice(chip_id)});
+        }
         buda_graph.epoch_to_temporal_epoch_id.push_back(placer_solution.temporal_epoch_id(epoch_id));
         buda_graph.epoch_to_subgraph_index.push_back(placer_solution.epoch_id_to_subgraph_index[epoch_id]);
+    }
+
+    if (env_as<bool>("PYBUDA_N300_DATA_PARALLEL"))
+    {
+        // insert an empty graph for the last temporal epoch on chip 1 (non MMIO)
+        buda_graph.ops.push_back({});
+        buda_graph.epoch_types.push_back(buda_graph.epoch_types.back());
+        //buda_graph.epoch_types.push_back(graphlib::NodeEpochType::Forward);
+        buda_graph.epoch_target_devices.push_back({BudaDevice(1)});
+        buda_graph.epoch_to_temporal_epoch_id.push_back(buda_graph.epoch_to_temporal_epoch_id.back());
+        buda_graph.epoch_to_subgraph_index.push_back(0);
+
+        placer_solution.epoch_id_to_epoch_info[epoch_count] = {
+            .global_epoch_id=placer_solution.epoch_id_to_epoch_info[epoch_count-1].global_epoch_id,
+            .temporal_epoch_id=buda_graph.epoch_to_temporal_epoch_id.back(),
+            .spatial_epoch_id=1,
+            .epoch_type=buda_graph.epoch_types.back()
+        };
     }
 
     net.programs = create_programs(graph, placer_solution, buda_graph, arch_string);

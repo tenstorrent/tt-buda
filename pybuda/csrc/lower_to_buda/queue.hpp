@@ -40,7 +40,7 @@ struct BudaQueue {
     int microbatch;
     BudaQueueDimensions dims;
     DataFormat data_format;
-    BudaDevice target_device;
+    std::vector<BudaDevice> target_devices;
     BudaQueueLocation loc;
     std::vector<BudaQueueDramLoc> dram_loc;
     std::vector<BudaQueueHostLoc> host_loc;
@@ -49,8 +49,15 @@ struct BudaQueue {
     BudaQueueLayout layout = BudaQueueLayout::Tilized;
     TileDim tile_dim_;
 
-    BudaQueue(const std::string &name, const std::string &type, const std::string& memory_access, int device, TileDim tile_dim)
-        : name(name), type(type), memory_access(memory_access), target_device(BudaDevice(device)), tile_dim_(tile_dim)  {}
+    BudaQueue(const std::string &name, const std::string &type, const std::string& memory_access, std::vector<uint32_t> device, TileDim tile_dim)
+        : name(name), type(type), memory_access(memory_access), tile_dim_(tile_dim)
+    {
+        target_devices = std::vector<BudaDevice>();
+        for (uint32_t dev: device)
+        {
+            target_devices.emplace_back(BudaDevice(dev));
+        }
+    }
 
     std::string as_string(int padded_name_length = 0) const;
 

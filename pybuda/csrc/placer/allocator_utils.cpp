@@ -30,7 +30,7 @@ extern uint32_t get_next_aligned_address(const uint32_t address);
 namespace placer
 {
 
-int get_queue_size(const graphlib::QueueNode* node, balancer::BlockShape const& block_shape, bool untilized)
+int get_queue_size(const graphlib::QueueNode* node, balancer::BlockShape const& block_shape, bool untilized, int data_parallel_factor)
 {
     const graphlib::Shape shape = node->shape();
 
@@ -44,7 +44,7 @@ int get_queue_size(const graphlib::QueueNode* node, balancer::BlockShape const& 
         block_shape.t,
         node->get_num_entries());
 
-    return queue_size;
+    return queue_size * data_parallel_factor;
 }
 
 graphlib::Node* get_reference_node(const graphlib::Graph* graph, const graphlib::Node* node)

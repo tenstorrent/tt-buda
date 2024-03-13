@@ -112,4 +112,7 @@ void insert_recompute_ops(graphlib::Graph *graph);
 
 void insert_user_defined_queues(
     graphlib::Graph *graph, const std::vector<std::tuple<std::string, std::string, int>> &insert_queues);
+
+std::vector<std::string> insert_dataparallel_nops(graphlib::Graph *graph);
+
 }

@@ -144,7 +144,8 @@ QueuePlacement get_queue_placement(
     }
     std::tie(queue_coord_range, queue_grid) =
         get_host_queue_grid(config, placer_solution, placement, graph, node, queue_coord_range);
-    std::uint32_t queue_size = get_queue_size(node->as<graphlib::QueueNode>(), block_shape, untilize);
+    std::uint32_t queue_size = get_queue_size(node->as<graphlib::QueueNode>(), block_shape, untilize,
+            (env_as<bool>("PYBUDA_N300_DATA_PARALLEL") ? 2 : 1));
 
     return QueuePlacement{
         .name = node->name(),

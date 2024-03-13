@@ -49,7 +49,19 @@ std::ostream &operator<<(std::ostream &os, BudaGraph const &g) {
             continue;
         }
         os << "  " << get_subgraph_name(g.epoch_types[epoch], epoch, g.arch_name, g.epoch_to_temporal_epoch_id[epoch], g.epoch_to_subgraph_index[epoch]) << ":" << std::endl;
-        os << indent << "target_device: " << g.epoch_target_devices[epoch] << std::endl;
+        os << indent << "target_device: ";
+        if (g.epoch_target_devices[epoch].size() == 1)
+        {
+            os << g.epoch_target_devices[epoch][0] << std::endl;
+        }
+        else
+        {
+            for (size_t i = 0; i < g.epoch_target_devices[epoch].size(); i++)
+            {
+                os << ((i == 0) ? "[" : ", ") << g.epoch_target_devices[epoch][i];
+            }
+            os << "]" << std::endl;
+        }
 
         int input_count = (g.epoch_types[epoch] == graphlib::NodeEpochType::Optimizer) ? 1 : g.microbatch_size;
         os << indent << "input_count: " << input_count << std::endl;

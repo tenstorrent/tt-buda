@@ -13,7 +13,7 @@ struct BudaGraph {
     std::string name;
     std::string arch_name;
     std::vector<graphlib::NodeEpochType> epoch_types;
-    std::vector<BudaDevice> epoch_target_devices;
+    std::vector<std::vector<BudaDevice>> epoch_target_devices;
     std::vector<std::vector <BudaOp>> ops; // arrays of ops per epoch
     std::vector<std::uint32_t> epoch_to_temporal_epoch_id;
     std::vector<std::uint32_t> epoch_to_subgraph_index;

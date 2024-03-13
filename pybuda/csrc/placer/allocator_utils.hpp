@@ -26,7 +26,7 @@ namespace tt::placer
 
 struct HostMemoryPlacerConfig;
 
-int get_queue_size(const graphlib::QueueNode* node, balancer::BlockShape const& block_shape, bool untilized);
+int get_queue_size(const graphlib::QueueNode* node, balancer::BlockShape const& block_shape, bool untilized, int data_parallel_factor = 1);
 graphlib::Node* get_reference_node(const graphlib::Graph* graph, const graphlib::Node* node);
 bool is_queue_already_placed(const PlacerSolution& placer_solution, const graphlib::Node* node);
 bool is_queue_already_allocated(const PlacerSolution& placer_solution, const graphlib::Node* node);

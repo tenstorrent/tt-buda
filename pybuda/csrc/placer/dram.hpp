@@ -162,8 +162,6 @@ struct QueueDRAMPlacementParameters
 
 using DRAMScheduleData = std::pair<QueuePlacement, QueueDRAMPlacementParameters>;
 
-int get_queue_size(const graphlib::QueueNode *node, balancer::BlockShape const &block_shape, bool untilized);
-
 // Figure out which cores are reading from which dram buffer (or writing to)
 // dram_buffer is relative coordinate within the buffer grid
 std::vector<Coord> get_reader_cores(
