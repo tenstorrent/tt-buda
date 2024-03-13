@@ -39,6 +39,4 @@ bool is_output_host_queue(
 bool is_host_queue(
     const HostMemoryPlacerConfig& host_memory_config, const graphlib::Graph* graph, const graphlib::Node* node);
 
-bool is_linked_queue(const graphlib::Graph* graph, const graphlib::Node* node);
-
 }  // namespace tt::placer

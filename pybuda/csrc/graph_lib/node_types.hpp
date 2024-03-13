@@ -588,6 +588,11 @@ private:
         return std::find_if(tms.begin(), tms.end(), [tm](OpType const &op) { return op.op == tm; }) != tms.end();
     }
 
+    bool operator==(EdgeAttributes const &other) const
+    {
+        return edge_type_ == other.edge_type_ and tms == other.tms and ublock_order == other.ublock_order;
+    }
+
     static std::shared_ptr<EdgeAttributes> create(EdgeType edge_type);
 
     // Checked casting to sub-node type

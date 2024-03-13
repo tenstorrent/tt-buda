@@ -91,6 +91,7 @@ class EpochSolution
     std::uint32_t get_ribbon_size() const { return ribbon_size; }
     const std::unordered_set<const tt::graphlib::Node*>& get_current_epoch_ops() { return current_epoch_ops; }
     const std::unordered_set<const tt::graphlib::Node*>& get_current_epoch_nodes() { return current_epoch_nodes; }
+    int get_epoch_target_cycles() const { return epoch_target_cycles; }
     int get_pipeline_cycles() const { return pipeline_cycles; }
 };
 

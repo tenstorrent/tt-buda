@@ -2221,6 +2221,53 @@ bool are_different_ranked_shapes_equivalent(Shape a, Shape b) {
     return true;
 }
 
+// Check if this is a linked queue.
+// Linked queues are output queues which have users nodes connected via partial data copy edges.
+//
+bool is_linked_queue(const graphlib::Graph *graph, const graphlib::Node *node)
+{
+    bool output_link_queue = node->node_type() == graphlib::NodeType::kOutput and
+                             not graph
+                                     ->user_edges(
+                                         node,
+                                         [](graphlib::Edge e) {
+                                             return e.edge_type == graphlib::EdgeType::kPartialDataCopy or
+                                                    e.edge_type == graphlib::EdgeType::kSubgraphLink;
+                                         })
+                                     .empty();
+    bool input_link_queue = node->node_type() == graphlib::NodeType::kInput and
+                            not graph
+                                    ->operand_edges(
+                                        node,
+                                        [](graphlib::Edge e) {
+                                            return e.edge_type == graphlib::EdgeType::kPartialDataCopy or
+                                                   e.edge_type == graphlib::EdgeType::kSubgraphLink;
+                                        })
+                                    .empty();
+    return output_link_queue or input_link_queue;
+}
+
+// Check whether queue is input queue on host, meaning it's data resides on host and is accessed via PCIe.
+//
+bool is_input_host_queue(bool input_queues_on_host, const Graph *graph, const Node *node)
+{
+    bool input_on_host =
+        input_queues_on_host && node->as<graphlib::QueueNode>()->is_input() &&
+        (node->as<graphlib::InputNode>()->is_activation() or node->as<graphlib::InputNode>()->is_loss()) &&
+        not is_linked_queue(graph, node);
+
+    return input_on_host;
+}
+
+// Check whether queue is output queue on host, meaning it's data resides on host and is transferred via PCIe.
+//
+bool is_output_host_queue(bool output_queues_on_host, const Graph *graph, const Node *node)
+{
+    bool output_on_host = output_queues_on_host && (node->node_type() == graphlib::NodeType::kOutput) &&
+                          node->as<graphlib::OutputNode>()->untilize() && not is_linked_queue(graph, node);
+    return output_on_host;
+}
+
 NodeGraphContainer::~NodeGraphContainer()
 {
     if (remove_from_graph)

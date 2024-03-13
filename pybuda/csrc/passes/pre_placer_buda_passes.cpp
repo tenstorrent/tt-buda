@@ -488,6 +488,70 @@ void insert_tilize_op_on_input(graphlib::Graph *graph){
     }
 }
 
+void fix_host_inputs(graphlib::Graph *graph)
+{
+    // Skip training.
+    //
+    if (graph->enable_training())
+    {
+        return;
+    }
+
+    for (Node *n : graph->nodes_by_type(graphlib::NodeType::kInput))
+    {
+        graphlib::InputNode *input_node = n->as<graphlib::InputNode>();
+
+        if (is_input_host_queue(true, graph, input_node))
+        {
+            std::vector<Edge> user_data_edges = graph->user_data_edges(input_node);
+
+            // Hitting constraint issues with high forking. Skip for now.
+            //
+            if (user_data_edges.size() == 1 or user_data_edges.size() > 4)
+                continue;
+
+            // Check if attrs are same for all the edges coming out of host.
+            //
+            for (std::size_t i = 1; i < user_data_edges.size(); i++)
+            {
+                if (!(*graph->get_edge_attributes(user_data_edges[0]) == *graph->get_edge_attributes(user_data_edges[i])))
+                {
+                    return;
+                }
+            }
+
+            graphlib::BudaOpNode *nop = graph->add_node(
+                graphlib::create_node<graphlib::BudaOpNode>(input_node->name() + "_input_buffer_nop", "nop"),
+                graph->get_subgraph_id_for_node(input_node->id()));
+            nop->set_shape(input_node->shape());
+            graph->copy_node_attributes(input_node, nop);
+            nop->as<graphlib::TaggedNode>()->tag("host_input_buffer");
+
+            graphlib::Edge new_input_edge = Edge(
+                input_node->id(),
+                0 /* producer_output_port_id*/,
+                nop->id(),
+                0 /* consumer_output_port_id */,
+                graphlib::EdgeType::kData);
+
+            graph->add_edge(new_input_edge);
+            graph->copy_edge_attributes(user_data_edges[0], new_input_edge);
+
+            for (const Edge &old_edge : user_data_edges)
+            {
+                graphlib::Edge new_edge = Edge(
+                    nop->id(),
+                    old_edge.producer_output_port_id,
+                    old_edge.consumer_node_id,
+                    old_edge.consumer_input_port_id,
+                    graphlib::EdgeType::kData);
+
+                graph->add_edge(new_edge);
+                graph->remove_edge(old_edge);
+            }
+        }
+    }
+}
 
 placer::PlacerConfigUpdate schedule_pre_placer_graph(
     graphlib::Graph *graph,
@@ -1464,6 +1528,7 @@ std::unique_ptr<Graph> lower_to_buda_ops(Graph *graph)
     auto new_graph = std::make_unique<Graph>(graphlib::IRLevel::IR_BUDA, graph->name());
 
     new_graph->set_microbatch(graph->get_microbatch());
+    new_graph->set_enable_training(graph->enable_training());
 
     // Mapping of old nodes to new ones. Where the old node maps to multiple new ones,
     // the output node is recorded as "new", because it will be used as operand into

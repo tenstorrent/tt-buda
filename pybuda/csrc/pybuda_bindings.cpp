@@ -423,6 +423,7 @@ PYBIND11_MODULE(_C, m) {
         py::arg("amp_level") = 0,
         py::arg("enable_recompute") = 0,
         py::arg("output_queues_on_host") = true,
+        py::arg("input_queues_on_host") = true,
         py::arg("ins_instructions") = tt::
             ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>{},
         py::arg("insert_queues") = std::vector<std::tuple<std::string, std::string, int>>{},

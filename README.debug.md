@@ -110,6 +110,7 @@
  * PYBUDA\_RIBBON2\_DISABLE\_CLEANUP\_BUF\_NOPS: Disable cleanup of unneeded buffering nops in Ribbon2. (default: 0/False)
  * PYBUDA\_RIBBON2\_CALCULATE\_TARGET\_CYCLES: Calculate target cycles for every epoch within Ribbon2 balancing policy. (default: 0/False)
  * PYBUDA\_RIBBON2\_CALCULATE\_TARGET\_CYCLES\_APPLY\_FILTERING: Apply filtering on GS search space while calculating dynamic cycles per epoch within Ribbon2 balancing policy. (default: 0/False)
+ * PYBUDA\_ENABLE\_HOST\_INPUT\_NOP\_BUFFERING: Enable nop buffering of input host read. (default: 0/False)
  * PYBUDA\_AUTO\_RECOMPILE: Triggers handling of backend compile error and recompiles the model. (default: 0/False)
  * PYBUDA\_AUTO\_RECOMPILE\_RETRY\_LIMIT: Limits number of attempts to recompile. (default: 10)
  * PYBUDA\_TARGET\_CYCLES\_OFFSET: Sets the desired amount by which to offset the target cycles for balancer. Default value is 0.
@@ -121,6 +122,7 @@
 * PYBUDA\_TEMP\_ENABLE\_NEW\_FUSED\_ESTIMATES: Apply new formula to estimate the cycle count of fused ops. The formula calls BBE to estimate each subop and sums up the results.
 * PYBUDA\_LEGACY\_KERNEL\_BROADCAST: Use legacy kernel broadcast detection path. Will detect fewer kernel broadcasts, and will oftentimes use more tiles (longer KBs).
 * PYBUDA\_TEMP\_BALANCER\_MODEL\_PCIE\_BW: Estimate PCIe bandwidth in limiter cycles. (default: 1/True)
+* PYBUDA\_TEMP\_BALANCER\_MODEL\_PCIE\_PESSIMISTIC: Lower estimate for PCIE BW - will be deprecated. (default: 0/False)
 * PYBUDA\_TEMP\_BALANCER\_DISABLE\_TARGET\_PROXIMITY: Disable target proximity in balancer. (default: 0/False)
 * PYBUDA\_TEMP\_DISABLE\_FJ\_NOP\_SCHEDULE\_FIX: This flag disables a fix that forces FJ buffering nops to be scheduled last.
 * PYBUDA\_TEMP\_FIX\_2351: Controls the fix for bug #2351 - fork-join can end up adding buffering nops and queues on same path, this control flag fixes it.

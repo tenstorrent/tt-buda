@@ -79,42 +79,22 @@ bool is_queue_already_allocated(const PlacerSolution& placer_solution, const gra
     return already_allocated;
 }
 
-bool is_linked_queue(const graphlib::Graph* graph, const graphlib::Node* node)
-{
-    bool output_link_queue = node->node_type() == graphlib::NodeType::kOutput and
-                             not graph
-                                 ->user_edges(
-                                     node, [](graphlib::Edge e) { return e.edge_type == graphlib::EdgeType::kPartialDataCopy or e.edge_type == graphlib::EdgeType::kSubgraphLink; })
-                                 .empty();
-    bool input_link_queue = node->node_type() == graphlib::NodeType::kInput and
-                            not graph
-                                ->operand_edges(
-                                    node, [](graphlib::Edge e) { return e.edge_type == graphlib::EdgeType::kPartialDataCopy or e.edge_type == graphlib::EdgeType::kSubgraphLink; })
-                                .empty();
-    return output_link_queue or input_link_queue;
-}
-
 bool is_input_host_queue(const HostMemoryPlacerConfig& config, const graphlib::Graph* graph, const graphlib::Node* node)
 {
-    bool input_on_host =
-        config.place_input_queues_on_host() && node->as<graphlib::QueueNode>()->is_input() &&
-        (node->as<graphlib::InputNode>()->is_activation() or node->as<graphlib::InputNode>()->is_loss()) && not is_linked_queue(graph, node);
-
-    return input_on_host;
+    return is_input_host_queue(config.place_input_queues_on_host(), graph, node);
 }
 
 bool is_output_host_queue(
     const HostMemoryPlacerConfig& config, const graphlib::Graph* graph, const graphlib::Node* node)
 {
-    bool output_on_host = config.place_output_queues_on_host() && (node->node_type() == graphlib::NodeType::kOutput) &&
-                          node->as<graphlib::OutputNode>()->untilize() && not is_linked_queue(graph, node);
-    return output_on_host;
+    return is_output_host_queue(config.place_output_queues_on_host(), graph, node);
 }
 
 bool is_host_queue(
     const HostMemoryPlacerConfig& host_memory_config, const graphlib::Graph* graph, const graphlib::Node* node)
 {
-    return is_input_host_queue(host_memory_config, graph, node) or is_output_host_queue(host_memory_config, graph, node);
+    return is_input_host_queue(host_memory_config, graph, node) or
+           is_output_host_queue(host_memory_config, graph, node);
 }
 
 }  // namespace placer

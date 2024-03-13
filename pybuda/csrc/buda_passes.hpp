@@ -53,6 +53,7 @@ std::pair<std::unique_ptr<graphlib::Graph>, placer::PlacerConfigUpdate> run_pre_
     const int amp_level = 0,
     const bool enable_recompute = false,
     const bool output_queues_on_host = true,
+    const bool input_queues_on_host = true,
     const tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
         &ins_instructions = {},
     const std::vector<std::tuple<std::string, std::string, int>> &insert_queues = {},

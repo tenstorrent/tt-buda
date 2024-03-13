@@ -43,6 +43,8 @@ void sanitize_past_cache_ios(graphlib::Graph *graph);
 
 void fix_untilized_outputs(graphlib::Graph *graph, const DeviceConfig &device_config);
 
+void fix_host_inputs(graphlib::Graph *graph);
+
 void replace_buffers_with_nops(graphlib::Graph *graph);
 
 void insert_nop_on_matmul_input(graphlib::Graph *graph);

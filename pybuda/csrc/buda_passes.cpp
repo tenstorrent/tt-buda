@@ -258,6 +258,7 @@ std::pair<std::unique_ptr<graphlib::Graph>, placer::PlacerConfigUpdate> run_pre_
     const int amp_level,
     const bool enable_recompute,
     const bool output_queues_on_host,
+    const bool input_queues_on_host,
     const tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
         &ins_instructions,
     const std::vector<std::tuple<std::string, std::string, int>> &insert_queues,
@@ -281,6 +282,13 @@ std::pair<std::unique_ptr<graphlib::Graph>, placer::PlacerConfigUpdate> run_pre_
 
     // Remove nops
     remove_nops(lowered_graph.get());
+
+    // Add buffer NOP between host input and ops if there are multiple ops reading from same host input.
+    //
+    if (input_queues_on_host and env_as<bool>("PYBUDA_ENABLE_HOST_INPUT_NOP_BUFFERING"))
+    {
+        fix_host_inputs(lowered_graph.get());
+    }
 
     auto op_names_to_chip_break = placer::match_op_names_to_breaks(lowered_graph.get(), predicates_to_chip_break);
     auto op_names_to_epoch_break = placer::match_op_names_to_breaks(lowered_graph.get(), predicates_to_epoch_break);

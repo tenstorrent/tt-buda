@@ -413,6 +413,12 @@ class RuntimeTensorTransform
 };
 bool are_different_ranked_shapes_equivalent(Shape a, Shape b);
 
+bool is_linked_queue(const Graph *graph, const Node *node);
+
+bool is_input_host_queue(bool input_queues_on_host, const Graph *graph, const Node *node);
+
+bool is_output_host_queue(bool output_queues_on_host, const Graph *graph, const Node *node);
+
 // Wrapper graph management utility class for Node.
 // If remove_from_graph is set to true on destruction of NodeGraphContainer
 // graph->remove_node(node) will be invoked.

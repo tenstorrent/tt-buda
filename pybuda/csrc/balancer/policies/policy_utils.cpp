@@ -158,38 +158,6 @@ std::vector<uint> get_num_epochs_per_node_epoch_type(Graph const *graph, tt::pla
     return num_epochs_per_node_type;
 }
 
-// Check if this is a linked queue.
-// Linked queues are output queues which have users nodes connected via partial data copy edges.
-//
-bool is_linked_queue(const Graph *graph, const Node *node)
-{
-    return node->node_type() == graphlib::NodeType::kOutput and
-           not graph
-                   ->user_edges(
-                       node, [](graphlib::Edge e) { return e.edge_type == graphlib::EdgeType::kPartialDataCopy; })
-                   .empty();
-}
-
-// Check whether queue is input queue on host, meaning it's data resides on host and is accessed via PCIe.
-//
-bool is_input_host_queue(bool input_queues_on_host, const Node *node)
-{
-    bool input_on_host =
-        input_queues_on_host && node->as<graphlib::QueueNode>()->is_input() &&
-        (node->as<graphlib::InputNode>()->is_activation() or node->as<graphlib::InputNode>()->is_loss());
-
-    return input_on_host;
-}
-
-// Check whether queue is output queue on host, meaning it's data resides on host and is transferred via PCIe.
-//
-bool is_output_host_queue(bool output_queues_on_host, const Graph *graph, const Node *node)
-{
-    bool output_on_host = output_queues_on_host && (node->node_type() == graphlib::NodeType::kOutput) &&
-                          node->as<graphlib::OutputNode>()->untilize() && not is_linked_queue(graph, node);
-    return output_on_host;
-}
-
 void dump_balancer_placer_data(
     Graph const *graph,
     std::vector<std::uint32_t> chip_ids,
@@ -1366,6 +1334,19 @@ int get_limiter_cycles(
         invalidate_cached);
 }
 
+// Modelling and rough calculation of limiter cycles for op model.
+// Limiter cycles are used to estimate how long would it take to execute the op model on the device.
+// There are 3 main types of limiters:
+// 1. kernel execution cycles
+// 2. memory read cycles
+// 3. memory write cycles
+// The limiter cycles are the maximum of these 3.
+// Memory read and write cycles are calculated based on the bandwidth of the memory and the size of the data(normalized
+// per core). There are 3 types of memory with different estimated bandwits:
+// 1. NOC bandwidth(for OP to OP connections)
+// 2. DRAM bandwidth(read/write from/to DRAM on device - non host queues to OP)
+// 3. PCIe bandwidth(read/write from/to host via PCIe - host queues to OP)
+//
 int get_limiter_cycles(
     const OpModel &op_model,
     const Graph *graph,
@@ -1377,14 +1358,15 @@ int get_limiter_cycles(
     const std::unordered_set<const tt::graphlib::Node *> *current_epoch_nodes,
     bool invalidate_cached)
 {
-    const float inefficency_divider = 2.0;
-    const float subchannel_oversub_coeff = 1.5;
-    const float pcie_theoretical_max = 24;
-    TT_ASSERT(op_model.buda_op_node);
-    int kernel_cycles = op_model.get_execution_cycles(device_config.arch_name, false, invalidate_cached);
-
     static const bool model_pcie_bw = env_as<bool>("PYBUDA_TEMP_BALANCER_MODEL_PCIE_BW", true);
     static const bool disable_model_kb_prologue_bw = env_as<bool>("PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW", false);
+    static const bool pessimistic_pcie_estimate = env_as<bool>("PYBUDA_TEMP_BALANCER_MODEL_PCIE_PESSIMISTIC", false);
+
+    const float inefficency_divider = 2.0;
+    const float subchannel_oversub_coeff = 1.5;
+    const float pcie_observed_max = pessimistic_pcie_estimate ? 18 : 24;
+    TT_ASSERT(op_model.buda_op_node);
+    int kernel_cycles = op_model.get_execution_cycles(device_config.arch_name, false, invalidate_cached);
     std::vector<Edge> data_operands = graph->operand_data_edges(op_model.buda_op_node);
     std::vector<Edge> data_users = graph->user_data_edges(op_model.buda_op_node);
 
@@ -1403,7 +1385,7 @@ int get_limiter_cycles(
     float dram_bw = device_config.is_wormhole()
                         ? 20.4 / dram_bw_divider
                         : static_cast<float>(device_config.get_dram_bandwidth_bytes_per_cycle()) / dram_bw_divider;
-    float pcie_bw = 0 == pcie_access_core_count ? pcie_theoretical_max : pcie_theoretical_max / pcie_access_core_count;
+    float pcie_bw = 0 == pcie_access_core_count ? pcie_observed_max : pcie_observed_max / pcie_access_core_count;
     if (!model_pcie_bw)
     {
         // Temp fallback to legacy dram calc.
@@ -1419,10 +1401,15 @@ int get_limiter_cycles(
         bool producer_is_queue =
             producer_node->node_type() == NodeType::kQueue || producer_node->node_type() == NodeType::kInput;
 
-        const bool input_is_host_queue = producer_is_queue && is_input_host_queue(input_queues_on_host, producer_node);
+        const bool input_is_host_queue =
+            producer_is_queue && is_input_host_queue(input_queues_on_host, graph, producer_node);
         const bool input_is_kb = op_model.input_buffers[edge.consumer_input_port_id].kernel_broadcast_tiles;
         const bool input_is_prologue = op_model.parameter_buffers[edge.consumer_input_port_id] &&
                                        op_model.parameter_buffers[edge.consumer_input_port_id].l1_size_tiles > 0;
+
+        bool producer_is_host_input_buffer =
+            producer_node->node_type() == tt::graphlib::NodeType::kBudaOp &&
+            producer_node->as<tt::graphlib::BudaOpNode>()->has_tag("host_input_buffer");
 
         // Legacy path for modelling BW
         //
@@ -1439,10 +1426,10 @@ int get_limiter_cycles(
                 }
                 else
                 {
-                    if (0 == pcie_access_core_count)
+                    if (0 == pcie_access_core_count or op_model.buda_op_node->has_tag("host_input_buffer"))
                     {
                         pcie_bw =
-                            pcie_theoretical_max / op_model.get_input_grid_shape(edge.consumer_input_port_id).volume();
+                            pcie_observed_max / op_model.get_input_grid_shape(edge.consumer_input_port_id).volume();
                     }
 
                     memory_read_cycles = std::max(
@@ -1450,6 +1437,17 @@ int get_limiter_cycles(
                         static_cast<int>(
                             op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / pcie_bw));
                 }
+            }
+            else if (producer_is_host_input_buffer)
+            {
+                if (0 == pcie_access_core_count)
+                {
+                    pcie_bw = pcie_observed_max / op_model.get_input_grid_shape(edge.consumer_input_port_id).volume();
+                }
+
+                memory_read_cycles = std::max(
+                    memory_read_cycles,
+                    static_cast<int>(op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / pcie_bw));
             }
             else
             {
@@ -1502,10 +1500,10 @@ int get_limiter_cycles(
                     // streaming (host -> op)
                     //
                     TT_ASSERT(!input_is_prologue and !input_is_kb);
-                    if (0 == pcie_access_core_count)
+                    if (0 == pcie_access_core_count or op_model.buda_op_node->has_tag("host_input_buffer"))
                     {
                         pcie_bw =
-                            pcie_theoretical_max / op_model.get_input_grid_shape(edge.consumer_input_port_id).volume();
+                            pcie_observed_max / op_model.get_input_grid_shape(edge.consumer_input_port_id).volume();
                     }
                     memory_read_cycles = std::max(
                         memory_read_cycles,
@@ -1521,6 +1519,17 @@ int get_limiter_cycles(
                         static_cast<int>(
                             op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / dram_bw));
                 }
+            }
+            else if (producer_is_host_input_buffer)
+            {
+                if (0 == pcie_access_core_count)
+                {
+                    pcie_bw = pcie_observed_max / op_model.get_input_grid_shape(edge.consumer_input_port_id).volume();
+                }
+
+                memory_read_cycles = std::max(
+                    memory_read_cycles,
+                    static_cast<int>(op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / pcie_bw));
             }
             else
             {
@@ -1554,7 +1563,7 @@ int get_limiter_cycles(
 
     if (0 == pcie_access_core_count)
     {
-        pcie_bw = pcie_theoretical_max / op_model.grid_shape.volume();
+        pcie_bw = pcie_observed_max / op_model.grid_shape.volume();
     }
 
     for (const Edge &edge : data_users)
@@ -1770,17 +1779,26 @@ void EpochSolution::recalc_nodes()
             Node *producer_node = graph->node_by_id(edge.producer_node_id);
             bool producer_is_queue = producer_node->node_type() == tt::graphlib::NodeType::kQueue ||
                                      producer_node->node_type() == tt::graphlib::NodeType::kInput;
+            bool producer_is_host_input_buffer =
+                producer_node->node_type() == tt::graphlib::NodeType::kBudaOp &&
+                producer_node->as<tt::graphlib::BudaOpNode>()->has_tag("host_input_buffer");
 
             if (producer_is_queue and !op_model.parameter_buffers[edge.consumer_input_port_id])
             {
-                if (!is_input_host_queue(balancer_config->input_queues_on_host, producer_node))
+                if (!is_input_host_queue(balancer_config->input_queues_on_host, graph, producer_node))
                 {
                     dram_readers_core_count += op_model.get_input_grid_shape(edge.consumer_input_port_id).volume();
                 }
-                else
+                else if (!graph->node_by_id(edge.consumer_node_id)
+                              ->as<tt::graphlib::BudaOpNode>()
+                              ->has_tag("host_input_buffer"))
                 {
                     pcie_readers_core_count += op_model.get_input_grid_shape(edge.consumer_input_port_id).volume();
                 }
+            }
+            else if (producer_is_host_input_buffer)
+            {
+                pcie_readers_core_count += op_model.get_input_grid_shape(edge.consumer_input_port_id).volume();
             }
         }
 

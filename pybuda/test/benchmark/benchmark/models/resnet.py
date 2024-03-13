@@ -24,6 +24,12 @@ def resnet(training: bool, config: str, microbatch: int, devtype: str, arch: str
         compiler_cfg.balancer_policy = "Ribbon"
         os.environ["PYBUDA_RIBBON2"] = "1"
 
+    os.environ["PYBUDA_ENABLE_HOST_INPUT_NOP_BUFFERING"] = "1"
+
+    # These are target for deprecation.
+    #
+    os.environ["PYBUDA_TEMP_BALANCER_MODEL_PCIE_PESSIMISTIC"] = "1"
+
     # These are about to be enabled by default.
     #
     os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"

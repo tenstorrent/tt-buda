@@ -24,15 +24,14 @@ def yolo_v3(training: bool, config: str, microbatch: int, devtype: str, arch: st
         os.environ["PYBUDA_RIBBON2"] = "1" 
 
     os.environ["PYBUDA_OVERRIDE_INPUT_QUEUE_ENTRIES"] = "32"
+    os.environ["PYBUDA_ENABLE_HOST_INPUT_NOP_BUFFERING"] = "1"
 
     # These are about to be enabled by default.
     #
     os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
     os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
     os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
-
-    if data_type == "Fp16_b":
-        os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
+    os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
 
     if data_type == "Bfp8_b":
         os.environ["PYBUDA_FORK_JOIN_SKIP_EXPANDING_BUFFERS"] = "1"

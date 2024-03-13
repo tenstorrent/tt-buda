@@ -874,6 +874,7 @@ def run_pre_placer_pass(context: CompileContext) -> CompileDepth:
             compiler_cfg.amp_level or int(os.environ.get("PYBUDA_AMP_LEVEL", "0")),
             compiler_cfg.enable_recompute,
             (bool(int(os.environ.get("PYBUDA_ENABLE_OUTPUT_QUEUES_ON_HOST", "1"))) and compiler_cfg.output_queues_on_host),
+            (bool(int(os.environ.get("PYBUDA_ENABLE_INPUT_QUEUES_ON_HOST", "1"))) and compiler_cfg.input_queues_on_host),
             temp_dict,
             compiler_cfg.insert_queues,
             compiler_cfg.amp_properties,

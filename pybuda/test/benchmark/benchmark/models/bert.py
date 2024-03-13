@@ -116,6 +116,7 @@ def bert(training: bool, config: str, microbatch: int, devtype: str, arch: str, 
                 pybuda.config.configure_mixed_precision(op_type="reciprocal", output_df=pybuda.DataFormat.Float16_b)
             if data_type == "Fp16_b":
                 os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
+                os.environ["PYBUDA_ENABLE_HOST_INPUT_NOP_BUFFERING"] = "1" #overlay blob issue on bfp8
     else:
         raise RuntimeError("Unknown config")
 
