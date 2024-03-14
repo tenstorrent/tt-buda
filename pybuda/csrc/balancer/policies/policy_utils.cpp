@@ -1714,7 +1714,7 @@ float EpochSolution::evaluate() const
 
         if (op_model.buda_op_node->is_matmul_not_sparse())
         {
-            utilization += cores * (op_model.get_execution_cycles(balancer_config->device_config.arch_name, true) /
+            utilization += cores * (op_model.get_execution_cycles(balancer_config->device_config.get_arch_name_for_perf_estimates(), true) /
                                     pipeline_cycles);
         }
         else if (
@@ -1722,7 +1722,7 @@ float EpochSolution::evaluate() const
         {
             utilization +=
                 cores *
-                (op_model.get_execution_cycles(balancer_config->device_config.arch_name, true) / pipeline_cycles) /
+                (op_model.get_execution_cycles(balancer_config->device_config.get_arch_name_for_perf_estimates(), true) / pipeline_cycles) /
                 non_matmul_penalty;
         }
     }

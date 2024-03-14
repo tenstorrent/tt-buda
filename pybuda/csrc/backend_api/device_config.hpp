@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include "arch_type.hpp"
 #include "utils/assert.hpp"
 #include "utils/env.hpp"
 #include "utils/logger.hpp"
@@ -54,6 +55,7 @@ struct EthCoord
 struct DeviceConfig
 {
     std::string arch_name;
+    ARCH arch;
     std::string device_yaml;
     std::string cluster_config_yaml;
     std::string runtime_params_yaml;
@@ -73,6 +75,9 @@ struct DeviceConfig
     static const std::uint32_t GALAXY_GRID_X = 4;
     static const std::uint32_t GALAXY_GRID_Y = 8;
     static const std::uint32_t GALAXY_CHIP_CONNECTIONS = 4;
+    
+    // Temporal constants used for blackhole onboarding
+    static const std::string wormhole_b0_string;
 
     std::unordered_map<std::string, std::string> cached_system_level_params;
 
@@ -92,6 +97,8 @@ struct DeviceConfig
         store_backend_db_to_yaml(store_backend_db_to_yaml),
         grid_size(get<DeviceGrid>("t6-grid_size", false))
     {
+        arch = to_arch_type(arch_name);
+
         // Constructor - used only by unittesting.
         if (skip_backend_queries)
             return;
@@ -208,9 +215,25 @@ struct DeviceConfig
         }
     }
 
-    inline bool is_grayskull() const { return arch_name.find("grayskull") != std::string::npos; }
-    inline bool is_wormhole() const { return arch_name.find("wormhole") != std::string::npos; }
-    inline bool is_wormhole_b0() const { return arch_name.find("wormhole_b0") != std::string::npos; }
+    // Get if the device is a blackhole
+    inline bool is_blackhole() const { return arch == ARCH::BLACKHOLE; }
+    // Get if the device is a wormhole_b0
+    // During the onboarding process of the blackhole architecture,
+    // we temporarily treat it as equivalent to the Wormhole_b0 architecture.
+    inline bool is_wormhole_b0() const { return arch == ARCH::WORMHOLE_B0 || is_blackhole(); }
+    // Get if the device is a wormhole
+    inline bool is_wormhole() const { return arch == ARCH::WORMHOLE || is_wormhole_b0(); }
+    // Get if the device is a grayskull
+    inline bool is_grayskull() const { return arch == ARCH::GRAYSKULL; }
+
+    // This is a temporary workaround to handle the estimation calculation for the blackhole architecture.
+    // Since there is currently no implemented estimate for blackhole, we are reusing the estimate for wormhole_b0.
+    const std::string& get_arch_name_for_perf_estimates() const 
+    {
+        if (is_blackhole())
+            return wormhole_b0_string;
+        return arch_name;
+    }
 
     template <typename T>
     T get(std::string const &param, const bool system_level_command) const;

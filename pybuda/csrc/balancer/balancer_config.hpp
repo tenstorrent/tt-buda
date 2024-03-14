@@ -124,6 +124,7 @@ struct BalancerConfig
         policy_type(policy_type),
         chip_ids(device_config.chip_ids),
         chip_placement_policy(chip_placement_policy),
+        epoch_by_epoch(false),
         graph_solver_self_cut_type(legalizer::GraphSolverSelfCutType::None)
     {
         // If unit tests specify policy which use IP, mark it as used.

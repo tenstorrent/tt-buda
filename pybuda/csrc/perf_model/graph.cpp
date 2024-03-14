@@ -11,7 +11,7 @@ namespace tt::perf_model
 SystemSpec SystemSpec::get_for_device(const DeviceConfig &device_config)
 {
     // Placeholder until DeviceConfig has it
-    if (device_config.arch_name == "grayskull")
+    if (device_config.is_grayskull())
     {
         return SystemSpec{
             .clock_period = 1 / (1.2 * 1000000000),
@@ -23,14 +23,14 @@ SystemSpec SystemSpec::get_for_device(const DeviceConfig &device_config)
         };
     }
 
-    // wormhole flavours
+    // wormhole and blackhole flavours
     return SystemSpec{
         .clock_period = 1 / (1.2 * 1000000000),
         .noc_bw = 1,                         // TODO
         .dram_bw = {60, 60, 60, 60, 60, 60},  // bytes/s
         .grid_size_r = 10,
         .grid_size_c = 8,
-        .arch_name = device_config.arch_name,
+        .arch_name = device_config.get_arch_name_for_perf_estimates(),
     };
 }
 

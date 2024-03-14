@@ -41,7 +41,7 @@ uint32_t PlacerConfig::get_available_rows_on_device() const
 
 uint32_t PlacerConfig::get_chip_id(const string& op_name) const
 {
-    if (device_config.arch_name != "grayskull")
+    if (!device_config.is_grayskull())
     {
         return 0;
     }
@@ -1294,10 +1294,10 @@ PlacerSolution placer(const PlacerConfig& config, const vector<string>& schedule
         return galaxy_placer(config, scheduled_ops);
     }
 
-    if (config.device_config.arch_name == "grayskull") {
+    if (config.device_config.is_grayskull()) {
         return grayskull_placer(config, scheduled_ops);
     } else {
-        TT_ASSERT((config.device_config.arch_name == "wormhole" || config.device_config.arch_name == "wormhole_b0"), "Placer Failed: Unknown device arch name.");
+        TT_ASSERT((config.device_config.is_wormhole() || config.device_config.is_wormhole_b0()), "Placer Failed: Unknown device arch name.");
         return wormhole_placer(config, scheduled_ops);
     }
 }

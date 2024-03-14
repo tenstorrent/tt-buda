@@ -356,7 +356,7 @@ ChipIdToPlacerWorkload generate_placer_workload(
     const vector<string>& scheduled_ops)
 {
     check_user_defined_op_names_exist_in_schedule(config, scheduled_ops);
-    if (config.device_config.arch_name == "grayskull")
+    if (config.device_config.is_grayskull())
     {
         TT_ASSERT(not config.op_to_chip_id_assignment.empty(), "op to chip_id assignment not populated");
     }

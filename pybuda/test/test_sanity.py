@@ -2053,7 +2053,7 @@ def test_emulate_harvested(test_device):
     input_shapes = ((1, 3, 32, 32),)
 
     # input shape
-    mod = Module("test_emulate_harvested")
+    mod = Module("test")
     verify_module(
         mod,
         input_shapes,
@@ -2064,3 +2064,26 @@ def test_emulate_harvested(test_device):
         )
     )
 
+def test_blackhole_golden_sanity():
+    class Module(PyBudaModule):
+        def __init__(self, name):
+            super().__init__(name)
+
+        def forward(self, a, b, c):
+            x = pybuda.op.Add("add0", a, b)
+            x = pybuda.op.Matmul("matmul0", x, c)
+            return x
+
+    input_shapes = ((1, 3, 64, 64),(1, 3, 64, 64), (1, 3, 64, 64))
+
+    # input shape
+    module = Module("test_blackhole_golden_sanity")
+    verify_module(
+        module,
+        input_shapes,
+        verify_cfg=VerifyConfig(
+            test_kind=TestKind.INFERENCE,
+            devtype=BackendType.Golden,
+            arch=BackendDevice.Blackhole,
+        )
+    )

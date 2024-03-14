@@ -854,7 +854,7 @@ std::uint32_t get_first_epoch_producer(
 void validate_multichip_queue_placements(
     const PostPlacerConfig &config, const graphlib::Graph *graph, const placer::PlacerSolution &placer_solution)
 {
-    if (config.device_config.arch_name != "grayskull" or config.device_config.chip_ids.size() == 1)
+    if (not config.device_config.is_grayskull() or config.device_config.chip_ids.size() == 1)
     {
         return;
     }

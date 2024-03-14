@@ -356,7 +356,20 @@ std::vector<TTDevice> query_available_tt_devices()
     if (available_devices.empty())
     {
         constexpr bool mmio = true;
-        ARCH arch = env_as<bool>("GOLDEN_WORMHOLE_B0") ? ARCH::WORMHOLE_B0 : ARCH::GRAYSKULL;
+        
+        ARCH arch = ARCH::Invalid;
+        if (env_as<bool>("GOLDEN_WORMHOLE_B0"))
+        {
+            arch = ARCH::WORMHOLE_B0;
+        }
+        else if (env_as<bool>("PYBUDA_GOLDEN_BLACKHOLE"))
+        {
+            arch = ARCH::BLACKHOLE;
+        }
+        else {
+            arch = ARCH::GRAYSKULL;
+        }
+
         auto desc = backend::get_custom_device_desc(arch, mmio);
         d.emplace_back(DEVICE::Golden, arch, desc.soc_desc_yaml, desc.mmio, 0, context);
     }

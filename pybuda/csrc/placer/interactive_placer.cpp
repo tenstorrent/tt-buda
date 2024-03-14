@@ -29,13 +29,13 @@ InteractivePlacer::InteractivePlacer(const graphlib::Graph *graph, const balance
     log_debug(tt::LogPlacer, "config.chips_with_mmio:{}", config.device_config.chips_with_mmio);
 
     TT_LOG_ASSERT(
-        config.chip_ids.size() == 1 || config.device_config.arch_name == "wormhole" ||
-            config.device_config.arch_name == "wormhole_b0",
+        config.chip_ids.size() == 1 || config.device_config.is_wormhole() ||
+            config.device_config.is_wormhole_b0(),
         "Interactive placer for multi-chip - unsupported architecture: {}",
         config.device_config.arch_name);
 
     if (env_as<bool>("PYBUDA_WORMHOLE_PIPELINED_PLACER") == false &&
-        (config.device_config.arch_name == "wormhole" || config.device_config.arch_name == "wormhole_b0"))
+        (config.device_config.is_wormhole() || config.device_config.is_wormhole_b0()))
     {
         // iterate over chip_ids in round-robin for WH placements, non-mmio chips first
         sorted_chip_ids = placer::lowering::apply_chip_placement_policy(config.device_config, config.chip_placement_policy, config.chip_ids);
@@ -678,7 +678,7 @@ std::pair<std::string, OpPlacement> InteractivePlacer::rewind_to(const std::stri
 void InteractivePlacer::assign_chip_ids_for_pipelined_placement(
     std::uint32_t num_epochs, std::optional<std::unordered_set<string>> const &chip_break_ops)
 {
-    TT_ASSERT(config.device_config.arch_name == "wormhole" || config.device_config.arch_name == "wormhole_b0");
+    TT_ASSERT(config.device_config.is_wormhole() || config.device_config.is_wormhole_b0());
     TT_ASSERT(chip_break_ops.has_value());
 
     log_debug(tt::LogPlacer, "Interactive placer pipelined chip id assignment for {} epochs", num_epochs);

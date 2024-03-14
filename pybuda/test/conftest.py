@@ -178,6 +178,8 @@ class TestDevice:
                 return TestDevice(devtype=BackendType.Golden, arch=BackendDevice.Wormhole_B0, devmode=devmode, tti_path=tti_path)
             elif "GOLDEN_WORMHOLE" in os.environ:
                 return TestDevice(devtype=BackendType.Golden, arch=BackendDevice.Wormhole, devmode=devmode, tti_path=tti_path)
+            elif "PYBUDA_GOLDEN_BLACKHOLE" in os.environ:
+                return TestDevice(devtype=BackendType.Golden, arch=BackendDevice.Blackhole, devmode=devmode, tti_path=tti_path)
             return TestDevice(devtype=BackendType.Golden, arch=BackendDevice.Grayskull, devmode=devmode, tti_path=tti_path)
         if name == "Model":
             return TestDevice(devtype=BackendType.Model, arch=BackendDevice.Grayskull, devmode=devmode, tti_path=tti_path)
@@ -187,6 +189,8 @@ class TestDevice:
             return TestDevice(devtype=BackendType.Silicon, arch=BackendDevice.Wormhole, devmode=devmode, tti_path=tti_path)
         if name == "Wormhole_B0":
             return TestDevice(devtype=BackendType.Silicon, arch=BackendDevice.Wormhole_B0, devmode=devmode, tti_path=tti_path)
+        if name == "Blackhole":
+            return TestDevice(devtype=BackendType.Silicon, arch=BackendDevice.Blackhole, devmode=devmode, tti_path=tti_path)
         raise RuntimeError("Unknown test device: " + name)
 
     def is_available(self, device_list: List[BackendDevice], silicon_only: bool, no_silicon: bool, devtype: Optional[BackendType], devmode: DeviceMode) -> bool:
@@ -207,6 +211,8 @@ class TestDevice:
             compiled_arch_name = os.environ.get("BACKEND_ARCH_NAME", None) or os.environ.get("ARCH_NAME", None)
             if compiled_arch_name == "wormhole_b0":
                 compiled_arch = BackendDevice.Wormhole_B0
+            elif compiled_arch_name == "blackhole":
+                compiled_arch = BackendDevice.Blackhole
             else:
                 compiled_arch = BackendDevice.Grayskull
 
@@ -226,6 +232,9 @@ class TestDevice:
     
     def is_wormhole_b0(self):
         return self.arch == BackendDevice.Wormhole_B0
+    
+    def is_blackhole(self):
+        return self.arch == BackendDevice.Blackhole
 
 device_cfg_global = None
 def pytest_generate_tests(metafunc):
@@ -238,7 +247,7 @@ def pytest_generate_tests(metafunc):
         metafunc.parametrize("training", (False, True), ids=["inference", "training"])
 
     if "test_device" in metafunc.fixturenames:
-        names = ["Golden", "Model", "Grayskull", "Wormhole", "Wormhole_B0"]
+        names = ["Golden", "Model", "Grayskull", "Wormhole", "Wormhole_B0", "Blackhole"]
 
         # Set device-mode for the test
         compile_only = metafunc.config.getoption("--compile-only")

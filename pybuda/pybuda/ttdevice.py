@@ -121,6 +121,9 @@ class TTDevice(Device):
             elif "GOLDEN_WORMHOLE" in os.environ:
                 if arch is None:
                     arch = BackendDevice.Wormhole
+            elif "PYBUDA_GOLDEN_BLACKHOLE" in os.environ:
+                if arch is None:
+                    arch = BackendDevice.Blackhole
             else:
                 if arch is None:
                     arch = BackendDevice.Grayskull
@@ -1580,7 +1583,7 @@ def get_default_device_yaml(
     device_yaml_override: Optional[str],
     harvesting_mask: int
 ) -> str:
-    if arch not in {BackendDevice.Grayskull, BackendDevice.Wormhole, BackendDevice.Wormhole_B0}:
+    if arch not in {BackendDevice.Grayskull, BackendDevice.Wormhole, BackendDevice.Wormhole_B0, BackendDevice.Blackhole}:
         raise RuntimeError("Running pybuda_compile with unknown arch config")
     if device_yaml_override:
         return device_yaml_override

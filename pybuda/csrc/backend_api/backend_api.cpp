@@ -179,6 +179,8 @@ template std::unordered_map<uint32_t, EthCoord> DeviceConfig::get<std::unordered
     std::string const &, const bool) const;
 template std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::tuple<uint32_t, uint32_t>>> DeviceConfig::get<std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::tuple<uint32_t, uint32_t>>>>(std::string const &, const bool) const;
 
+const std::string DeviceConfig::wormhole_b0_string = "wormhole_b0";
+
 // temporarily added, until FE consumes a commit that includes equivalent parsing in BBE
 std::unordered_map<std::string, std::string> load_cached_sys_param(std::string yaml_file)
 {
@@ -319,6 +321,7 @@ void BackendModule(py::module &m_backend) {
         .value("Grayskull", tt::ARCH::GRAYSKULL)
         .value("Wormhole", tt::ARCH::WORMHOLE)
         .value("Wormhole_B0", tt::ARCH::WORMHOLE_B0)
+        .value("Blackhole", tt::ARCH::BLACKHOLE)
         .value("Invalid", tt::ARCH::Invalid)
         .def("to_string", &tt::get_string_lowercase)
         .def_static("from_string", &tt::get_arch_from_string)
@@ -328,6 +331,7 @@ void BackendModule(py::module &m_backend) {
                 case tt::ARCH::GRAYSKULL: return "Grayskull";
                 case tt::ARCH::WORMHOLE: return "Wormhole";
                 case tt::ARCH::WORMHOLE_B0: return "Wormhole_B0";
+                case tt::ARCH::BLACKHOLE: return "Blackhole";
                 case tt::ARCH::Invalid: return "Invalid";
                 default: break;
             }
@@ -338,6 +342,7 @@ void BackendModule(py::module &m_backend) {
                 {"Grayskull", tt::ARCH::GRAYSKULL},
                 {"Wormhole", tt::ARCH::WORMHOLE},
                 {"Wormhole_B0", tt::ARCH::WORMHOLE_B0},
+                {"Blackhole", tt::ARCH::BLACKHOLE},
                 {"Invalid", tt::ARCH::Invalid},
             };
             return decode.at(encoded);
@@ -745,8 +750,8 @@ void BackendModule(py::module &m_backend) {
         .def("get_host_memory_channel_start_address", &DeviceConfig::get_host_memory_channel_start_address)
         .def("get_host_memory_num_channels", &DeviceConfig::get_host_memory_num_channels)
         .def("get_host_memory_channel_size", &DeviceConfig::get_host_memory_channel_size)
-        .def_property_readonly(
-            "arch", [](DeviceConfig const &dc) -> tt::ARCH { return get_arch_from_string(dc.arch_name); })
+        .def_readonly(
+            "arch", &DeviceConfig::arch)
         .def_readonly("arch_name", &DeviceConfig::arch_name)
         .def_readonly("device_yaml", &DeviceConfig::device_yaml)
         .def_readonly("cluster_config_yaml", &DeviceConfig::cluster_config_yaml)

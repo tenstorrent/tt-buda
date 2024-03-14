@@ -15,7 +15,8 @@ BUDABACKEND_PIPEGEN = third_party/budabackend/build/bin/pipegen2
 
 PYBUDA_CSRC_BACKENDAPI_LIB = $(LIBDIR)/libbackend_api.a
 PYBUDA_CSRC_BACKENDAPI_SRCS += \
-	pybuda/csrc/backend_api/backend_api.cpp
+	pybuda/csrc/backend_api/backend_api.cpp \
+	pybuda/csrc/backend_api/arch_type.cpp
 
 PYBUDA_CSRC_BACKENDAPI_INCLUDES = $(PYBUDA_CSRC_INCLUDES) $(BACKEND_INCLUDES)
 
@@ -47,9 +48,9 @@ $(BUDABACKEND_PIPEGEN): third_party/budabackend ;
 third_party/budabackend/src/net2pipe: $(BUDABACKEND_NET2PIPE) $(BUDABACKEND_PIPEGEN) ;
 
 # Each module has a top level target as the entrypoint which must match the subdir name
-pybuda/csrc/backend_api: $(PYBUDA_CSRC_BACKENDAPI_LIB) $(BUDABACKEND_LIB) $(BUDABACKEND_DEVICE) ;
+pybuda/csrc/backend_api: $(PYBUDA_CSRC_BACKENDAPI_LIB) $(BUDABACKEND_LIB) $(BUDABACKEND_DEVICE) $(PYBUDA_CSRC_SHARED_UTILS_LIB) ;
 
-$(PYBUDA_CSRC_BACKENDAPI_LIB): $(PYBUDA_CSRC_BACKENDAPI_OBJS) $(BUDABACKEND_LIB) $(BUDABACKEND_DEVICE)
+$(PYBUDA_CSRC_BACKENDAPI_LIB): $(PYBUDA_CSRC_BACKENDAPI_OBJS) $(BUDABACKEND_LIB) $(BUDABACKEND_DEVICE) $(PYBUDA_CSRC_SHARED_UTILS_LIB)
 	@mkdir -p $(LIBDIR)
 	ar rcs $@ $^
 

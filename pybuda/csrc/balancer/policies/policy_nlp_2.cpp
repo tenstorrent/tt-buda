@@ -67,7 +67,7 @@ legalizer::GraphSolverSolution run_policy_nlp_v2(
         else
         {
             target_cycles = get_matmul_target_cycles(
-                graph, topo_sort, policy_manager, min_param_grid_volume, config.device_config.arch_name);
+                graph, topo_sort, policy_manager, min_param_grid_volume, config.device_config.get_arch_name_for_perf_estimates());
         }
 
         // In case of recompile, we can offset the target cycles to get a different solution.
@@ -171,7 +171,7 @@ legalizer::GraphSolverSolution run_policy_nlp_v2(
         
         for (auto op_model : op_models)
         {
-            std::uint32_t execution_cycles = op_model.get_execution_cycles(config.device_config.arch_name);
+            std::uint32_t execution_cycles = op_model.get_execution_cycles(config.device_config.get_arch_name_for_perf_estimates());
 
             if ((op_type == "matmul") && skip_small_ukt && available_not_small_ukt)
             {

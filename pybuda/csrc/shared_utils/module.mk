@@ -4,7 +4,8 @@ PYBUDA_CSRC_SHARED_UTILS_LIB = $(LIBDIR)/libsharedutils.a
 PYBUDA_CSRC_SHARED_UTILS_SRCS += \
 	pybuda/csrc/shared_utils/placement_printer.cpp \
 	pybuda/csrc/shared_utils/pretty_table.cpp \
-	pybuda/csrc/shared_utils/sparse_matmul_utils.cpp
+	pybuda/csrc/shared_utils/sparse_matmul_utils.cpp \
+	pybuda/csrc/shared_utils/string_extension.cpp
 
 PYBUDA_CSRC_SHARED_UTILS_INCLUDES = $(PYBUDA_CSRC_INCLUDES)
 
