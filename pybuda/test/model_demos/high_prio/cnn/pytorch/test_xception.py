@@ -6,6 +6,7 @@ import os
 from pybuda.verify.backend import verify_module
 from pybuda import VerifyConfig
 from pybuda.verify.config import TestKind
+from pybuda._C.backend_api import BackendDevice
 from test.model_demos.models.xception import generate_model_xception_imgcls_timm
 
 variants = ["xception", "xception41", "xception65", "xception71"]
@@ -13,6 +14,8 @@ variants = ["xception", "xception41", "xception65", "xception71"]
 
 @pytest.mark.parametrize("variant", variants, ids=variants)
 def test_xception_timm(variant, test_device):
+    if test_device.arch == BackendDevice.Grayskull and variant == "xception":
+        os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
     (
         model,
         inputs,
