@@ -250,7 +250,7 @@ TEST_F(FuseOpsReuseTest, dont_reuse_tile_broadcast)
 
     // Use wormhole_b0 config, since on grayskull dest can be reused only on srcA.
     // (we want to check if srcB will be reused)
-    DeviceConfig device_config = tt::test::create_device_config(Arch::Wormhole_b0);
+    DeviceConfig device_config = tt::test::create_device_config(ARCH::WORMHOLE_B0);
     fuse_ops(graph, &device_config);
 
     // Get fused ops.

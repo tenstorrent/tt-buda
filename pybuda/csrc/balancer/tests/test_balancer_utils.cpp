@@ -18,7 +18,7 @@ std::unique_ptr<Graph> prepare_graph_for_legalizer(Graph *graph)
 }
 
 balancer::BalancerConfig create_balancer_config(
-    Arch arch,
+    ARCH arch,
     std::optional< std::vector<std::uint32_t> > device_chip_ids,
     balancer::PolicyType policy_type,
     std::string cluster_config_yaml,

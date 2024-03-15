@@ -79,7 +79,7 @@ TEST_F(BypassBuffQueueMultipleConsumers, bypass_buff_queue_with_multiple_consume
     // Buda graph
     graphlib::Graph* graph = get_graph();
     balancer::BalancerConfig balancer_config =
-        create_balancer_config(Arch::Grayskull, std::nullopt, balancer::PolicyType::Ribbon);
+        create_balancer_config(ARCH::GRAYSKULL, std::nullopt, balancer::PolicyType::Ribbon);
     std::shared_ptr<balancer::BalancerCacheCollection> cache_collection = create_balancer_cache_collection();
     balancer_config.op_names_to_epoch_break.push_back({"matmul3"});
 

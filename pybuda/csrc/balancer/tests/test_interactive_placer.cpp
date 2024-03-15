@@ -91,7 +91,7 @@ TEST_F(InteractivePlacerSanity, rewind_to)
 TEST_F(InteractivePlacerSanity, chip_id_override)
 {
     const std::vector<std::uint32_t> chip_ids = {0, 1, 2, 3};
-    balancer::BalancerConfig balancer_config = create_balancer_config(Arch::Wormhole_b0, chip_ids, balancer::PolicyType::Ribbon);
+    balancer::BalancerConfig balancer_config = create_balancer_config(ARCH::WORMHOLE_B0, chip_ids, balancer::PolicyType::Ribbon);
     placer::InteractivePlacer interactive_placer(nullptr /*graph*/, balancer_config);
     std::map<std::string, placer::GridShape> op_to_grid_shape = {
         {"op1", placer::GridShape(8, 8)},
@@ -124,7 +124,7 @@ TEST_F(InteractivePlacerSanity, chip_id_galaxy_snake)
 {
     const std::vector<std::uint32_t> chip_ids = {1, 2, 18, 25, 19, 24, 20, 23};
     balancer::BalancerConfig balancer_config = create_balancer_config(
-        Arch::Wormhole_b0,
+        ARCH::WORMHOLE_B0,
         chip_ids,
         balancer::PolicyType::Ribbon,
         "pybuda/test/galaxy/one_shelf_eth_connections.yaml",
@@ -204,7 +204,7 @@ TEST_F(MultiLayerGraph, chip_id_layer_override)
     graphlib::Graph* graph = get_graph();
 
     balancer::BalancerConfig balancer_config =
-        create_balancer_config(Arch::Wormhole_b0, chip_ids, balancer::PolicyType::Ribbon);
+        create_balancer_config(ARCH::WORMHOLE_B0, chip_ids, balancer::PolicyType::Ribbon);
     balancer_config.op_name_to_placer_overrides = placer::match_op_names_to_placer_overrides(
         graph,
         {
@@ -212,6 +212,9 @@ TEST_F(MultiLayerGraph, chip_id_layer_override)
             {graphlib::query::layer_regex("l.*\\.1"), placer::PlacerOpOverride::override_chip_id(chip_ids.at(1))},
             {graphlib::query::layer_regex("l.*\\.2"), placer::PlacerOpOverride::override_chip_id(chip_ids.at(2))},
         });
+
+    // Last layer is output layer, hence chip 2 needs to be mmio
+    balancer_config.device_config.chips_with_mmio.push_back(2);
 
     placer::InteractivePlacer interactive_placer(graph, balancer_config);
 
@@ -242,7 +245,7 @@ TEST_F(InteractivePlacerSanity, nebula_grid_8x8)
     ASSERT_FALSE(getenv("PYBUDA_NEBULA_GALAXY_PLACER"));
     setenv("PYBUDA_NEBULA_GALAXY_PLACER", "1", 0);
     const std::vector<std::uint32_t> chip_ids = {0};
-    balancer::BalancerConfig balancer_config = create_balancer_config(Arch::Wormhole_b0, chip_ids, balancer::PolicyType::Ribbon);
+    balancer::BalancerConfig balancer_config = create_balancer_config(ARCH::WORMHOLE_B0, chip_ids, balancer::PolicyType::Ribbon);
     placer::InteractivePlacer interactive_placer(nullptr /*graph*/, balancer_config);
     std::map<std::string, placer::GridShape> op_to_grid_shape = {
         {"op1", placer::GridShape(9, 1)},

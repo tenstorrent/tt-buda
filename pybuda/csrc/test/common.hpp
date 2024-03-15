@@ -280,32 +280,14 @@ class GraphTest : public ::testing::Test
 using PybudaGraphTest = GraphTest<graphlib::IRLevel::IR_PYBUDA>;
 using BudaGraphTest = GraphTest<graphlib::IRLevel::IR_BUDA>;
 
-enum class Arch
-{
-    Grayskull,
-    Wormhole,
-    Wormhole_b0,
-};
-
-inline std::string arch2str(Arch arch)
-{
-    switch (arch)
-    {
-        case Arch::Grayskull: return "Grayskull";
-        case Arch::Wormhole_b0: return "Wormhole_b0";
-        case Arch::Wormhole: return "Wormhole";
-    }
-    return "Unknown";
-}
-
 inline DeviceConfig create_device_config(
-    Arch arch = Arch::Grayskull,
+    tt::ARCH arch = tt::ARCH::GRAYSKULL,
     std::optional< std::vector<std::uint32_t> > device_chip_ids =  std::nullopt,
     std::string cluster_config_yaml = "",
     std::string runtime_params_yaml = "");
 
 DeviceConfig create_device_config(
-    Arch arch,
+    tt::ARCH arch,
     std::optional< std::vector<std::uint32_t> > device_chip_ids,
     std::string cluster_config_yaml,
     std::string runtime_params_yaml)
@@ -318,7 +300,7 @@ DeviceConfig create_device_config(
 
     switch (arch)
     {
-        case Arch::Grayskull:
+        case tt::ARCH::GRAYSKULL:
             return DeviceConfig(
                 "grayskull" /*arch_name*/,
                 home + "/device/grayskull_120_arch.yaml" /*device_yaml*/,
@@ -327,7 +309,7 @@ DeviceConfig create_device_config(
                 "golden" /*backend_type*/,
                 false /*store_backend_db_to_yaml*/,
                 chip_ids);
-        case Arch::Wormhole:
+        case tt::ARCH::WORMHOLE:
             return DeviceConfig(
                 "wormhole" /*arch_name*/,
                 home + "/device/wormhole_80_arch.yaml" /*device_yaml*/,
@@ -336,10 +318,19 @@ DeviceConfig create_device_config(
                 "golden" /*backend_type*/,
                 false /*store_backend_db_to_yaml*/,
                 chip_ids);
-        case Arch::Wormhole_b0:
+        case tt::ARCH::WORMHOLE_B0:
             return DeviceConfig(
                 "wormhole_b0" /*arch_name*/,
                 home + "/device/wormhole_b0_80_arch.yaml" /*device_yaml*/,
+                cluster_config_yaml /*cluster_config_yaml*/,
+                runtime_params_yaml /*runtime_params_yaml*/,
+                "golden" /*backend_type*/,
+                false /*store_backend_db_to_yaml*/,
+                chip_ids);
+        case tt::ARCH::BLACKHOLE:
+            return DeviceConfig(
+                "blackhole" /*arch_name*/,
+                home + "/device/blackhole_80_arch.yaml" /*device_yaml*/,
                 cluster_config_yaml /*cluster_config_yaml*/,
                 runtime_params_yaml /*runtime_params_yaml*/,
                 "golden" /*backend_type*/,

@@ -19,7 +19,7 @@ using std::runtime_error;
 using std::string;
 using std::unordered_map;
 using tt::graphlib::NodeEpochType;
-using tt::test::Arch;
+using tt::ARCH;
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
@@ -40,7 +40,7 @@ struct TestConfig
     tt::DramQueueMap manual_dram_queue_placemenet = {};
 };
 
-class DRAMPlacerTest : public testing::TestWithParam<Arch>
+class DRAMPlacerTest : public testing::TestWithParam<ARCH>
 {
     // List of queues to be placed
     std::vector<std::pair<QueuePlacement, QueueDRAMPlacementParameters>> queue_placement_params;
@@ -62,13 +62,13 @@ class DRAMPlacerTest : public testing::TestWithParam<Arch>
         template <class ParamType>
         std::string operator()(const testing::TestParamInfo<ParamType> &info) const
         {
-            auto arch = static_cast<Arch>(info.param);
-            return arch2str(arch);
+            auto arch = static_cast<ARCH>(info.param);
+            return to_string_arch(arch);
         }
     };
 
     // Alias to make code more readable
-    Arch get_arch() { return GetParam(); }
+    ARCH get_arch() { return GetParam(); }
 
     // Common overrides
     void SetUp(DRAMPlacementAlgorithm algo)
@@ -186,7 +186,7 @@ TEST_P(DRAMPlacerTest, RoundRobin)
     for (auto b : results.at(q1.first))
     {
         EXPECT_EQ(b.dram_channel, expected_channel);
-        if (get_arch() == Arch::Wormhole_b0)
+        if (get_arch() == ARCH::WORMHOLE_B0)
         {
             // Each channel is "two in one"
             if (expected_subchannel == 0)
@@ -229,7 +229,7 @@ TEST_P(DRAMPlacerTest, RoundRobinFlipFlop)
         for (auto b : results)
         {
             EXPECT_EQ(b.dram_channel, expected_channel[group]);
-            if (get_arch() == Arch::Wormhole_b0)
+            if (get_arch() == ARCH::WORMHOLE_B0)
             {
                 // Each channel is "two in one"
                 if (expected_subchannel[group] == 0)
@@ -302,7 +302,7 @@ TEST_P(DRAMPlacerTest, RoundRobinFlipFlop)
 
 TEST_P(DRAMPlacerTest, Closest)
 {
-    if (get_arch() != Arch::Wormhole_b0)
+    if (get_arch() != ARCH::WORMHOLE_B0)
     {
         GTEST_SKIP();  // Focus on WH for now
     }
@@ -337,7 +337,7 @@ TEST_P(DRAMPlacerTest, Closest)
 // Test without a producer core
 TEST_P(DRAMPlacerTest, Closest_no_producer)
 {
-    if (get_arch() != Arch::Wormhole_b0)
+    if (get_arch() != ARCH::WORMHOLE_B0)
     {
         GTEST_SKIP();  // Focus on WH for now
     }
@@ -465,7 +465,7 @@ TEST_P(ReaderCoreTest, ReaderCores_MatmulOnetoOne)
 INSTANTIATE_TEST_SUITE_P(
     DRAMPlacerTests,
     DRAMPlacerTest,
-    ::testing::Values(Arch::Wormhole_b0, Arch::Grayskull),
+    ::testing::Values(ARCH::WORMHOLE_B0, ARCH::GRAYSKULL),
     DRAMPlacerTest::PrintToStringParamName());
 
 INSTANTIATE_TEST_SUITE_P(DRAMPlacerTests, ReaderCoreTest, ::testing::Values(false, true));

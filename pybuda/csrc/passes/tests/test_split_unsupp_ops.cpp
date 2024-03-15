@@ -56,7 +56,7 @@ struct TestGradEltwiseSubtract : public BudaGraphTest
 
 TEST_F(TestGradEltwiseAdd, split_unsup_grad_wh_b0)
 {
-    DeviceConfig device_config = create_device_config(Arch::Wormhole_b0);
+    DeviceConfig device_config = create_device_config(ARCH::WORMHOLE_B0);
     graphlib::Graph* graph = get_graph();
 
     split_unsupported_gradient_ops(graph, device_config);
@@ -68,7 +68,7 @@ TEST_F(TestGradEltwiseAdd, split_unsup_grad_wh_b0)
 
 TEST_F(TestGradEltwiseAdd, split_unsup_grad_non_wh_b0)
 {
-    DeviceConfig device_config = create_device_config(Arch::Wormhole);
+    DeviceConfig device_config = create_device_config(ARCH::WORMHOLE);
     graphlib::Graph* graph = get_graph();
 
     split_unsupported_gradient_ops(graph, device_config);
@@ -80,7 +80,7 @@ TEST_F(TestGradEltwiseAdd, split_unsup_grad_non_wh_b0)
 
 TEST_F(TestGradEltwiseSubtract, split_unsup_grad_wh_b0)
 {
-    DeviceConfig device_config = create_device_config(Arch::Wormhole_b0);
+    DeviceConfig device_config = create_device_config(ARCH::WORMHOLE_B0);
     graphlib::Graph* graph = get_graph();
 
     split_unsupported_gradient_ops(graph, device_config);
@@ -92,7 +92,7 @@ TEST_F(TestGradEltwiseSubtract, split_unsup_grad_wh_b0)
 
 TEST_F(TestGradEltwiseSubtract, split_unsup_grad_non_wh_b0)
 {
-    DeviceConfig device_config = create_device_config(Arch::Wormhole);
+    DeviceConfig device_config = create_device_config(ARCH::WORMHOLE);
     graphlib::Graph* graph = get_graph();
 
     split_unsupported_gradient_ops(graph, device_config);

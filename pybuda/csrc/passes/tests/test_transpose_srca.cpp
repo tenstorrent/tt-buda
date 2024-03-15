@@ -98,7 +98,7 @@ struct TestTransposeSrcANary : public GraphTest<graphlib::IRLevel::IR_BUDA>
 
 TEST_F(TestTransposeSrcAUnary, fix_transpose_wh_b0)
 {
-    DeviceConfig device_config = create_device_config(Arch::Wormhole_b0);
+    DeviceConfig device_config = create_device_config(ARCH::WORMHOLE_B0);
     graphlib::Graph* graph = get_graph();
 
     fix_transposes(graph, device_config);
@@ -110,7 +110,7 @@ TEST_F(TestTransposeSrcAUnary, fix_transpose_wh_b0)
 
 TEST_F(TestTransposeSrcAUnary, fix_transpose_non_wh_b0)
 {
-    DeviceConfig device_config = create_device_config(Arch::Wormhole);
+    DeviceConfig device_config = create_device_config(ARCH::WORMHOLE);
     graphlib::Graph* graph = get_graph();
 
     fix_transposes(graph, device_config);
@@ -122,7 +122,7 @@ TEST_F(TestTransposeSrcAUnary, fix_transpose_non_wh_b0)
 
 TEST_F(TestTransposeSrcABinary, fix_transpose_wh_b0)
 {
-    DeviceConfig device_config = create_device_config(Arch::Wormhole_b0);
+    DeviceConfig device_config = create_device_config(ARCH::WORMHOLE_B0);
     graphlib::Graph* graph = get_graph();
 
     fix_transposes(graph, device_config);
@@ -134,7 +134,7 @@ TEST_F(TestTransposeSrcABinary, fix_transpose_wh_b0)
 
 TEST_F(TestTransposeSrcABinary, fix_transpose_non_wh_b0)
 {
-    DeviceConfig device_config = create_device_config(Arch::Wormhole);
+    DeviceConfig device_config = create_device_config(ARCH::WORMHOLE);
     graphlib::Graph* graph = get_graph();
 
     fix_transposes(graph, device_config);
@@ -146,7 +146,7 @@ TEST_F(TestTransposeSrcABinary, fix_transpose_non_wh_b0)
 
 TEST_F(TestTransposeSrcABinaryBoth, fix_transpose_wh_b0)
 {
-    DeviceConfig device_config = create_device_config(Arch::Wormhole_b0);
+    DeviceConfig device_config = create_device_config(ARCH::WORMHOLE_B0);
     graphlib::Graph* graph = get_graph();
 
     fix_transposes(graph, device_config);
@@ -158,7 +158,7 @@ TEST_F(TestTransposeSrcABinaryBoth, fix_transpose_wh_b0)
 
 TEST_F(TestTransposeSrcABinaryBoth, fix_transpose_non_wh_b0)
 {
-    DeviceConfig device_config = create_device_config(Arch::Wormhole);
+    DeviceConfig device_config = create_device_config(ARCH::WORMHOLE);
     graphlib::Graph* graph = get_graph();
 
     fix_transposes(graph, device_config);
@@ -170,7 +170,7 @@ TEST_F(TestTransposeSrcABinaryBoth, fix_transpose_non_wh_b0)
 
 TEST_F(TestTransposeSrcANary, fix_transpose_wh_b0)
 {
-    DeviceConfig device_config = create_device_config(Arch::Wormhole_b0);
+    DeviceConfig device_config = create_device_config(ARCH::WORMHOLE_B0);
     graphlib::Graph* graph = get_graph();
 
     fix_transposes(graph, device_config);
@@ -182,7 +182,7 @@ TEST_F(TestTransposeSrcANary, fix_transpose_wh_b0)
 
 TEST_F(TestTransposeSrcANary, fix_transpose_non_wh_b0)
 {
-    DeviceConfig device_config = create_device_config(Arch::Wormhole);
+    DeviceConfig device_config = create_device_config(ARCH::WORMHOLE);
     graphlib::Graph* graph = get_graph();
 
     fix_transposes(graph, device_config);
