@@ -1093,12 +1093,15 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
         {
             log_debug(
                 LogBalancer,
-                "RIBBON2: (epoch={} target_cycles={}) applied solution with score: {} ribbon_size: {} pipeline_cycles: {}",
+                "RIBBON2: (epoch={} target_cycles={}) applied solution with score: {} ribbon_size: {} pipeline_cycles: "
+                "{} dram_access: {} pcie_access: {}",
                 epoch,
                 best_solution.get_epoch_target_cycles(),
                 best_solution.get_score(),
                 best_solution.get_ribbon_size(),
-                best_solution.get_pipeline_cycles());
+                best_solution.get_pipeline_cycles(),
+                best_solution.get_dram_access_core_count(),
+                best_solution.get_pcie_access_core_count());
 
             if (placed_op_index >= scheduled_ops.size())
             {

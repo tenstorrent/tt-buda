@@ -21,12 +21,17 @@ def mobilenet_v1(training: bool, config: str, microbatch: int, devtype: str, arc
         compiler_cfg.balancer_policy = "Ribbon"
         os.environ["PYBUDA_RIBBON2"] = "1"
 
-    os.environ["PYBUDA_SUPRESS_T_FACTOR_MM"] = "8"
+    os.environ["PYBUDA_ENABLE_HOST_INPUT_NOP_BUFFERING"] = "1"
 
     # These are about to be enabled by default.
     #
     os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
+    os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
+    os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
     os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
+
+    if data_type == "Fp16_b":
+        os.environ["PYBUDA_SUPRESS_T_FACTOR_MM"] = "40"
 
     if data_type == "Bfp8_b":
         pybuda.config.configure_mixed_precision(name_regex="input.*add.*", output_df=pybuda.DataFormat.Float16_b)

@@ -840,6 +840,52 @@ TargetProximity target_proximity(int target, int cycles)
     }
 }
 
+enum TargetCloseness
+{
+    eBelow = 0,
+    eCloseB,
+    eCloseO,
+    eOver
+};
+
+TargetCloseness target_closeness(int target, int cycles)
+{
+    if (cycles < target * 0.8)
+    {
+        return TargetCloseness::eBelow;
+    }
+    else if (cycles < target)
+    {
+        return TargetCloseness::eCloseB;
+    }
+    else if (cycles < target * 1.2)
+    {
+        return TargetCloseness::eCloseO;
+    }
+    else
+    {
+        return TargetCloseness::eOver;
+    }
+}
+
+bool bigger_mblock_util(
+    const OpModel &current, const OpModel &candidate, const float current_exec_util, const float candidate_exec_util)
+{
+    if (candidate.block_shape().volume_no_t() > current.block_shape().volume_no_t())
+    {
+        return true;
+    }
+    else if (candidate.block_shape().volume_no_t() == current.block_shape().volume_no_t())
+    {
+        if (candidate_exec_util > current_exec_util)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 // OpModel preference comparison function. Returns true if candidate is better than current pick.
 //
 bool is_candidate_better_than_current(
@@ -855,7 +901,7 @@ bool is_candidate_better_than_current(
     // Op model compare version. If making major changes increment version and put the newest behaviour under that
     // version.
     //
-    int op_model_compare_version = env_as<int>("PYBUDA_OP_MODEL_COMPARE_VERSION", 2);
+    int op_model_compare_version = env_as<int>("PYBUDA_OP_MODEL_COMPARE_VERSION", 3);
 
     if (std::abs(ribbon_size - candidate.grid_shape.r) < std::abs(ribbon_size - current.grid_shape.r))
     {
@@ -951,23 +997,41 @@ bool is_candidate_better_than_current(
     float current_exec_util = (float)current_exec_cycles / (float)current_cycles;
     float candidate_exec_util = (float)candidate_exec_cycles / (float)candidate_cycles;
 
-    if (op_model_compare_version == 2)
+    if (op_model_compare_version == 3)
+    {
+        // Main logic behind this type of compare is if grid size is the same, still prefer OpModels well below
+        // target cycles as this will amortize inaccuracy of kernel estimates, thus reducing risk of slowing down whole
+        // epoch because of bad estimate in scenarios where we had faster OpModels to choose from.
+        //
+        TargetCloseness candidate_closeness = target_closeness(target_exec_cycles, candidate_cycles);
+        TargetCloseness current_closeness = target_closeness(target_exec_cycles, current_cycles);
+        if (candidate_closeness < current_closeness)
+        {
+            return true;
+        }
+        else if (candidate_closeness > current_closeness)
+        {
+            return false;
+        }
+        else if (candidate_closeness == TargetCloseness::eOver)
+        {
+            // Both are well over, pick faster one.
+            // Its more important to be faster here than to have larger block.
+            //
+            return candidate_cycles < current_cycles;
+        }
+        else
+        {
+            return bigger_mblock_util(current, candidate, current_exec_util, candidate_exec_util);
+        }
+    }
+    else if (op_model_compare_version == 2)
     {
         if (close_to_target_exec_cycles(current_exec_cycles, current_cycles, target_exec_cycles))
         {
             if (close_to_target_exec_cycles(candidate_exec_cycles, candidate_cycles, target_exec_cycles))
             {
-                if (candidate.block_shape().volume_no_t() > current.block_shape().volume_no_t())
-                {
-                    return true;
-                }
-                else if (candidate.block_shape().volume_no_t() == current.block_shape().volume_no_t())
-                {
-                    if (candidate_exec_util > current_exec_util)
-                    {
-                        return true;
-                    }
-                }
+                return bigger_mblock_util(current, candidate, current_exec_util, candidate_exec_util);
             }
         }
         else if (close_to_target_exec_cycles(candidate_exec_cycles, candidate_cycles, target_exec_cycles))
@@ -984,17 +1048,7 @@ bool is_candidate_better_than_current(
                 }
                 else
                 {
-                    if (candidate.block_shape().volume_no_t() > current.block_shape().volume_no_t())
-                    {
-                        return true;
-                    }
-                    else if (candidate.block_shape().volume_no_t() == current.block_shape().volume_no_t())
-                    {
-                        if (candidate_exec_util > current_exec_util)
-                        {
-                            return true;
-                        }
-                    }
+                    return bigger_mblock_util(current, candidate, current_exec_util, candidate_exec_util);
                 }
             }
             else if (candidate_cycles < current_cycles)
@@ -1360,11 +1414,10 @@ int get_limiter_cycles(
 {
     static const bool model_pcie_bw = env_as<bool>("PYBUDA_TEMP_BALANCER_MODEL_PCIE_BW", true);
     static const bool disable_model_kb_prologue_bw = env_as<bool>("PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW", false);
-    static const bool pessimistic_pcie_estimate = env_as<bool>("PYBUDA_TEMP_BALANCER_MODEL_PCIE_PESSIMISTIC", false);
 
     const float inefficency_divider = 2.0;
     const float subchannel_oversub_coeff = 1.5;
-    const float pcie_observed_max = pessimistic_pcie_estimate ? 18 : 24;
+    const float pcie_observed_max = 24;
     TT_ASSERT(op_model.buda_op_node);
     int kernel_cycles = op_model.get_execution_cycles(device_config.arch_name, false, invalidate_cached);
     std::vector<Edge> data_operands = graph->operand_data_edges(op_model.buda_op_node);

@@ -22,6 +22,7 @@ def openpose_osmr_body(training: bool, config: str, microbatch: int, devtype: st
         os.environ["PYBUDA_RIBBON2"] = "1" 
 
     os.environ["PYBUDA_SUPRESS_T_FACTOR_MM"] = "13"
+    os.environ["PYBUDA_ENABLE_HOST_INPUT_NOP_BUFFERING"] = "1"
 
     # These are about to be enabled by default.
     #

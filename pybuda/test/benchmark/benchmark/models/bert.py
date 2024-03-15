@@ -117,6 +117,7 @@ def bert(training: bool, config: str, microbatch: int, devtype: str, arch: str, 
             if data_type == "Fp16_b":
                 os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
                 os.environ["PYBUDA_ENABLE_HOST_INPUT_NOP_BUFFERING"] = "1" #overlay blob issue on bfp8
+                os.environ["PYBUDA_OP_MODEL_COMPARE_VERSION"] = "2"
     else:
         raise RuntimeError("Unknown config")
 

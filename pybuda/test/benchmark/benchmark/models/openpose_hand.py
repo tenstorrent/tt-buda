@@ -40,6 +40,9 @@ def openpose_hand(training: bool, config: str, microbatch: int, devtype: str, ar
     os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
     os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
 
+    if data_type == "Fp16_b":
+        os.environ["PYBUDA_OP_MODEL_COMPARE_VERSION"] = "2"
+
     # Manually enable amp light for Ribbon
     if compiler_cfg.balancer_policy == "Ribbon":
         compiler_cfg.enable_amp_light()

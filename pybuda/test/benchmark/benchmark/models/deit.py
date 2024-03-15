@@ -27,9 +27,9 @@ def deit(training: bool, config: str, microbatch: int, devtype: str, arch: str, 
     os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
     os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
     os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
+    os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
 
     if data_type == "Fp16_b":
-        os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
         os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES_APPLY_FILTERING"] = "1"
         os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
 

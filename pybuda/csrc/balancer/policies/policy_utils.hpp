@@ -93,6 +93,8 @@ class EpochSolution
     const std::unordered_set<const tt::graphlib::Node*>& get_current_epoch_nodes() { return current_epoch_nodes; }
     int get_epoch_target_cycles() const { return epoch_target_cycles; }
     int get_pipeline_cycles() const { return pipeline_cycles; }
+    int get_dram_access_core_count() const { return dram_readers_core_count + dram_writers_core_count; }
+    int get_pcie_access_core_count() const { return pcie_readers_core_count + pcie_writers_core_count; }
 };
 
 struct EpochCost
