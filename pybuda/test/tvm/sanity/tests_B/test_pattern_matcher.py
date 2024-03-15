@@ -152,3 +152,44 @@ def test_swin_roll():
             test_kind=TestKind.INFERENCE,
         )
     )
+
+@pytest.mark.parametrize("tranpose_dims", ((2, 0), (0, 1), (1, 2), (3, 1), (4, 1),(-1, -6)))
+def test_reshape_transpose_reshape_tvm(test_device, tranpose_dims):
+
+    # Set PyBuda configuration parameters
+    compiler_cfg = pybuda.config._get_global_compiler_config()
+    compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
+    compiler_cfg.compile_depth=CompileDepth.GENERATE_INITIAL_GRAPH
+    class Model(nn.Module):
+        def __init__(self, new_shape_1, dim0, dim1, new_shape_2):
+            super().__init__()
+            self.new_shape_1 = new_shape_1
+            self.dim0 = dim0
+            self.dim1 = dim1
+            self.new_shape_2 = new_shape_2
+
+        def forward(self,input):
+            input = torch.reshape(input, self.new_shape_1)
+            input = torch.transpose(input, self.dim0, self.dim1)
+            input = torch.reshape(input, self.new_shape_2)
+            return input
+
+    new_shape_1 = (1, 4, 1, 1, 4, 9)
+    dim0, dim1 = tranpose_dims
+    new_shape_2 = (16, 9)
+
+    input_shape = (1, 16, 9)
+    model = Model(new_shape_1, dim0, dim1, new_shape_2)
+    tt_model = PyTorchModule("pt_reshape_transpose_reshape", model)
+
+    verify_module(
+        tt_model,
+        (input_shape,),
+        verify_cfg=VerifyConfig(
+            arch=test_device.arch,
+            devtype=test_device.devtype,
+            devmode=test_device.devmode,
+            test_kind=TestKind.INFERENCE,
+            verify_tvm_compile=True,
+        )
+    )
