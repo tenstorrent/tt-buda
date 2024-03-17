@@ -359,6 +359,38 @@ def populate_torch_tile_args(graph, nid, compiler_cfg):
 
     return args
 
+def populate_torch_layernorm_args(graph, nid, compiler_cfg):
+    curr_node, args = _populate_torch_init_args(graph, nid)
+
+    epsilon = float(curr_node["attrs"]["epsilon"][0][0])
+    epsilon = round(epsilon, 10)
+    input_shape = curr_node["attrs"]["shape"][0][0]
+    dim = int(curr_node["attrs"]["axis"][0][0])
+    normalized_shape = input_shape[dim]
+    args['attr'] = {
+        "normalized_shape":{
+            "val": (normalized_shape,),
+            "inp_pos": 1,
+        },
+        "epsilon" :{
+            "val": epsilon,
+            "inp_pos": 4,
+        },
+    }
+
+    return args
+
+def populate_torch_dropout_args(graph, nid, training):
+    curr_node, args = _populate_torch_init_args(graph, nid)
+
+    args['attr'] = {
+        "training": {
+            "val": training,
+            "inp_pos": 2,
+        },
+    }
+    return args
+
 def _populate_torch_init_args(graph, nid):
     curr_node = graph["nodes"][nid]
     
@@ -425,6 +457,8 @@ tvm_to_pytorch_op_map = {
     "transpose"                     : "transpose",
     # "take"                        : "take",
     "where"                         : "where",
+    "layernorm"                     : "layernorm",
+    "pybuda_cpudevice.dropout"      : "dropout",
 }
 
 pytorch_op_to_function_name = {
@@ -477,6 +511,8 @@ pytorch_op_to_function_name = {
     "transpose"                     : "torch.transpose",
     # "take"                          : "torch.take",
     "where"                         : "torch.where",
+    "layernorm"                     : "torch.nn.functional.layer_norm",
+    "dropout"                       : "torch.nn.functional.dropout",
 }
 
 pytorch_ops_needing_arguments = {
@@ -501,6 +537,8 @@ pytorch_ops_needing_arguments = {
     "tile"                          : populate_torch_tile_args,
     "transpose"                     : populate_torch_transpose_args,
     # "power"                         : populate_torch_power_args,
+    "layernorm"                     : populate_torch_layernorm_args,
+    "dropout"                       : populate_torch_dropout_args,
 }
 
 def populate_binary_stack_args(graph, nid, compiler_cfg):
@@ -1830,10 +1868,12 @@ def compile_tvm_to_python(framework_mod, graph_name, inputs, module_name=None, c
                 args = ()
                 argument_getter = pybuda_ops_needing_arguments if json_graph["device"] == "tt" else pytorch_ops_needing_arguments
                 if op_type in argument_getter:
-                    # if op_type == "dropout":
-                    #     args = argument_getter[op_type](graph=graph, nid=nid, training=is_training)
-                    # else:
-                    args = argument_getter[op_type](graph=graph, nid=nid, compiler_cfg=compiler_cfg)
+                    if op_type == "dropout" and json_graph["device"] != "tt":
+                        if is_training:
+                            logger.warning("Dropout op cannot be cpu fallback in training mode due to the absence of rate/p(probability) argument and it may also result in pcc mismatch")
+                        args = argument_getter[op_type](graph=graph, nid=nid, training=is_training)
+                    else:
+                        args = argument_getter[op_type](graph=graph, nid=nid, compiler_cfg=compiler_cfg)
                     assert args is not None
                 
                 if args == () and json_graph["device"] == "cpu" and op_type not in argument_getter:

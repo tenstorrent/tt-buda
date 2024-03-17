@@ -2460,7 +2460,75 @@ def test_tvm_nd_reshape(test_kind, test_device):
         )
     )
     
-    
+def test_tvm_layernorm_cpu(test_device):
+
+    # Configurations
+    compiler_cfg = _get_global_compiler_config()
+    compiler_cfg.cpu_fallback_ops.add("layernorm")
+
+    class Module(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+            self.l1 = torch.nn.Linear(9, 9)
+            self.layer_norm = torch.nn.LayerNorm(9)
+
+        def forward(self, x):
+            x = self.l1(x)
+            x = self.layer_norm(x)
+            return x
+
+    framework_module = Module()
+    framework_module.eval()
+    pybuda_module = PyTorchModule("pt_layermorm_cpu", framework_module)
+
+    input_shape = (1, 9, 9)
+
+    verify_module(
+        pybuda_module,
+        (input_shape,),
+        verify_cfg=VerifyConfig(
+            arch=test_device.arch,
+            devtype=test_device.devtype,
+            devmode=test_device.devmode,
+            test_kind=TestKind.INFERENCE,
+        ),
+    )
+
+
+def test_tvm_dropout_cpu(test_device):
+
+    # Configurations
+    compiler_cfg = _get_global_compiler_config()
+    compiler_cfg.cpu_fallback_ops.add("nn.dropout")
+
+    class Module(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.dropout =  torch.nn.Dropout()
+        def forward(self, x):
+            x = self.dropout(x)
+            x = torch.add(x, x)
+            return x
+
+    framework_module = Module()
+    framework_module.eval()
+    pybuda_module = PyTorchModule("pt_dropout_cpu", framework_module)
+
+    input_shape = (1, 9, 9)
+
+    verify_module(
+        pybuda_module,
+        (input_shape,),
+        verify_cfg=VerifyConfig(
+            arch=test_device.arch,
+            devtype=test_device.devtype,
+            devmode=test_device.devmode,
+            test_kind=TestKind.INFERENCE,
+        ),
+    )
+
+
 def test_tvm_adv_index_bool_cpu_0(test_kind, test_device):
     # Only run recompute test in post-commit
     if test_kind == TestKind.TRAINING:
