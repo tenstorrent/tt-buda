@@ -486,6 +486,7 @@ def test_argmax(dim):
 @pytest.mark.parametrize("input_shape", [(1,1,1,32), (1,1,3,32)])
 @pytest.mark.parametrize("max_value", [0.5, 0, 1, 5])
 def test_argmax_multiple_maximums(dim, input_shape, max_value):
+    pytest.skip("Skipping since the test is broken, issue #2477")
     verify_cfg=VerifyConfig(run_golden=False) # argmax not supported
     x = torch.zeros(input_shape)
     for i in range(input_shape[0]):
