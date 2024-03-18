@@ -66,7 +66,7 @@ def resnet(training: bool, config: str, microbatch: int, devtype: str, arch: str
     return models, inputs, targets, {}
 
 @benchmark_model(configs=["resnet50"])
-def resnet_quant(training: bool, config: str, microbatch: int, devtype: str, arch: str):
+def resnet_quant(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
@@ -81,7 +81,7 @@ def resnet_quant(training: bool, config: str, microbatch: int, devtype: str, arc
     # Set model parameters based on chosen task and model configuration
     if config == "resnet50":
         # Download ONNX model
-        save_path = "pybuda/test/quantized/simple_models/ResNet50-v1.5-Int8.onnx"
+        save_path = "third_party/confidential_customer_models/quantized/ResNet50-v1.5-Int8.onnx"
         if not os.path.exists(save_path):
             raise RuntimeError("Model not found")
 
