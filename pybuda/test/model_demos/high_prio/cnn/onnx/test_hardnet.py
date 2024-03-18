@@ -7,6 +7,7 @@ from pybuda.verify.backend import verify_module
 import pytest
 from pybuda import VerifyConfig
 from pybuda.verify.config import TestKind
+from pybuda._C.backend_api import BackendDevice
 
 variants = ["hardnet68", "hardnet85", "hardnet68ds", "hardnet39ds"]
 
@@ -21,6 +22,9 @@ def test_hardnet_onnx(variant, test_device):
     os.environ["PYBUDA_RIBBON2"] = "1"
 
     if variant == "hardnet68ds":
+        os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
+
+    if variant == "hardnet85" and test_device.arch == BackendDevice.Grayskull:
         os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
 
     # Download an example image

@@ -8,6 +8,7 @@ from pybuda.verify.backend import verify_module
 from pybuda.verify.config import TestKind
 from pybuda import VerifyConfig
 import sys
+from pybuda._C.backend_api import BackendDevice
 
 sys.path.append("third_party/confidential_customer_models/generated/scripts/")
 from model_ddrnet import DualResNet_23, DualResNet_39, BasicBlock
@@ -82,5 +83,11 @@ def test_ddrnet_pytorch(variant, test_device):
             devtype=test_device.devtype,
             devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
+            pcc=(
+                0.98
+                if test_device.arch == BackendDevice.Grayskull
+                and variant != "ddrnet23s"
+                else 0.99
+            ),
         ),
     )

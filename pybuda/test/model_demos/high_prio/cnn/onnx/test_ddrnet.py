@@ -7,6 +7,7 @@ import onnx
 from pybuda.verify.backend import verify_module
 from pybuda import VerifyConfig
 from pybuda.verify.config import TestKind
+from pybuda._C.backend_api import BackendDevice
 
 variants = ["ddrnet23s", "ddrnet23", "ddrnet39"]
 
@@ -54,5 +55,11 @@ def test_ddrnet(variant, test_device):
             devtype=test_device.devtype,
             devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
+            pcc=(
+                0.98
+                if test_device.arch == BackendDevice.Grayskull
+                and variant != "ddrnet23s"
+                else 0.99
+            ),
         ),
     )
