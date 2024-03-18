@@ -108,8 +108,6 @@ def test_distilbert_sequence_classification_pytorch(test_device):
 
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object 
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
-    # Temporary disabling t-streaming for distilbert
-    compiler_cfg.enable_t_streaming = False
 
     # Load data sample
     review = "the movie was great!"
@@ -144,8 +142,6 @@ def test_distilbert_token_classification_pytorch(test_device):
 
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object 
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
-    # Temporary disabling t-streaming for distilbert
-    compiler_cfg.enable_t_streaming = False
 
     # Load data sample
     sample_text = "HuggingFace is a company based in Paris and New York"
