@@ -150,12 +150,51 @@ static tt_PytorchTensorDesc to_pytorch_tensor_desc(torch::Tensor const& tensor)
         tensor.data_ptr(), tensor.element_size(), torch_scalar_type_to_df(tensor.scalar_type()), shape, strides, 4);
 }
 
+void pad_to_buda_shape(torch::Tensor & tensor)
+{
+    auto tt_device = tensor.device();
+    auto cpu_tensor = tensor.to(torch::kCPU);
+    if (cpu_tensor.sizes().size() > 4) {
+        throw std::runtime_error("Tensor has more than 4 dimensions");
+    } else if (cpu_tensor.sizes().size() < 4) {
+        auto tensor_impl = cpu_tensor.unsafeGetTensorImpl();
+        std::vector<int64_t> new_shape;
+        for (size_t i = 0; i < cpu_tensor.sizes().size(); i++) {
+            new_shape.push_back(cpu_tensor.sizes()[i]);
+        }
+        while (new_shape.size() < 4) {
+            new_shape.insert(new_shape.begin(), 1);
+        }
+        tensor_impl->Reshape(new_shape);
+    }
+    auto new_shape = cpu_tensor.sizes();
+    namespace F = torch::nn::functional;
+    cpu_tensor = torch::nn::functional::pad(
+        cpu_tensor, 
+        F::PadFuncOptions(
+            {0, align_up_tile(new_shape[3]) - new_shape[3],
+             0, align_up_tile(new_shape[2]) - new_shape[2]}
+        ).mode(torch::kConstant));
+
+    cpu_tensor.unsafeGetTensorImpl()->set_size(2, align_up_tile(new_shape[2]));
+    cpu_tensor.unsafeGetTensorImpl()->set_size(3, align_up_tile(new_shape[3]));
+
+    int64_t curr_stride = 1;
+
+    for (int i = 3; i >= 0; i--) {
+        cpu_tensor.unsafeGetTensorImpl()->set_stride(i, curr_stride);
+        curr_stride *= cpu_tensor.sizes()[i];
+    }
+    tensor = cpu_tensor.to(tt_device);
+}
+
+
 std::unordered_set<std::string> pushed;
 void push_tensor(
     //tt_backend& backend,
     tt_dram_io_desc queue_desc,
     PyBudaTensorDesc const& desc,
-    torch::Tensor const& tensor,
+    torch::Tensor & tensor,
     std::string const& info,
     std::optional<int> ptr)
 {
@@ -190,6 +229,7 @@ void push_tensor(
 
     //tt_dram_io_desc queue_desc = backend.get_queue_descriptor(desc.name);
     backend::translate_addresses(queue_desc);
+    pad_to_buda_shape(tensor);
     tt_PytorchTensorDesc tensor_desc = to_pytorch_tensor_desc(tensor);
     constexpr int kDefaultTimeoutSec = 10;
     constexpr bool push_one = false;
@@ -243,7 +283,7 @@ std::vector<torch::Tensor> dispatch(
     TTDevice & device,
     std::shared_ptr<Workload> workload,
     std::vector<Program> const& programs,
-    std::vector<torch::Tensor> const& inputs,
+    std::vector<torch::Tensor> & inputs,
     tt::balancer::OutputHostTMMap const& output_host_tms,
     int subgraph_idx,
     bool const& is_compile)
@@ -275,7 +315,7 @@ std::vector<torch::Tensor> dispatch(
     // TT_ASSERT(copied_inputs.size() == inputs.size());
     for (auto const& desc : workload->inputs)
     {
-        torch::Tensor const& input = inputs.at(input_idx);
+        torch::Tensor & input = inputs.at(input_idx);
         auto impl = input.unsafeGetTensorImpl();
         input_meta = dynamic_cast<TTMetaData*>(impl->get_backend_meta());
         bool tensor_populated_on_device = tensors_on_device.count(input_meta->unique_output_id) != 0;
@@ -335,14 +375,35 @@ std::vector<torch::Tensor> dispatch(
 
         torch::Tensor output = pop_tensor(*device.backend, desc, output_host_tm);
         std::string runtime_transform = device.output_runtime_transforms.at(subgraph_idx).at(i);
-        register_output_runtime_transform(output, runtime_transform);
-        outputs.emplace_back(output);
         tt_dram_io_desc queue_desc = (*device.backend).get_queue_descriptor(desc.name);
         auto impl = output.unsafeGetTensorImpl();
         auto output_tensor_uid = dynamic_cast<TTMetaData*>(impl->get_backend_meta())->unique_output_id;
 
         if (queue_desc.io_type == IO_TYPE::RandomAccess) {
+            register_output_runtime_transform(output, runtime_transform);
             device.subgraph_to_tensor_uid_on_device[subgraph_idx].push_back(output_tensor_uid);
+            outputs.emplace_back(output);
+        } else {
+            PyGILState_STATE gstate=PyGILState_Ensure();
+            auto tt_device_ = output.device();
+            // Move tensor to CPU because torch::narrow is only supported on CPU for now
+            torch::Tensor cpu_output = output.to(
+            torch::kCPU, output.scalar_type(), false, true);
+            register_output_runtime_transform(output, runtime_transform);
+
+            for (size_t i = 0; i < cpu_output.sizes().size(); i++)
+            {
+                if (cpu_output.sizes()[i] != desc.shape[i]) {
+                    log_trace(LogTorchDevice, "narrowing dim[{}] start[{}] length[{}]", i, 0, desc.shape[i]);
+                    cpu_output = torch::narrow(cpu_output, i, 0, desc.shape[i]);
+                }
+            }
+            // Move tensor back to TT device
+            // (TODO: this is a workaround, we should be able to do this without calling contiguous, which makes a copy)
+            torch::Tensor tt_output_ = cpu_output.contiguous().to(
+                tt_device_, cpu_output.scalar_type(), false, false/* copy */);
+            PyGILState_Release(gstate);
+            outputs.emplace_back(tt_output_);
         }
     }
     return outputs;

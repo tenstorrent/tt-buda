@@ -180,7 +180,7 @@ void push_tensor(
     //tt_backend& backend,
     tt_dram_io_desc queue_desc,
     PyBudaTensorDesc const& desc,
-    torch::Tensor const& tensor,
+    torch::Tensor & tensor,
     std::string const& info = "",
     std::optional<int> ptr = std::nullopt);
 
@@ -188,7 +188,7 @@ std::vector<torch::Tensor> dispatch(
     TTDevice & device,
     std::shared_ptr<Workload> workload,
     std::vector<Program> const& programs,
-    std::vector<torch::Tensor> const& inputs,
+    std::vector<torch::Tensor> & inputs,
     tt::balancer::OutputHostTMMap const& output_host_tms,
     int subgraph_idx,
     bool const & is_compile);

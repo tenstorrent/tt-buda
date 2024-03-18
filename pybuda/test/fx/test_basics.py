@@ -112,4 +112,16 @@ def test_disjointed_graphs_with_params():
 
     assert cpu_res == tt_res
 
+class NonAlignedSize(torch.nn.Module):
+    def forward(self, a):
+        return a + 1
+
+@pytest.mark.parametrize("rows", [1, 32])
+def test_return_non_aligned_sizes(rows):
+    model = torch.compile(NonAlignedSize(), backend=compile_torch)
+    input = torch.rand(1, rows, 33)
+    input_tt = input.to('tt')
+    tt_res = model(input_tt).to('cpu')
+    cpu_res = NonAlignedSize()(input)
+    assert torch.allclose(cpu_res, tt_res, atol=0, rtol=1e-3)
 
