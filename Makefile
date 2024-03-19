@@ -12,9 +12,11 @@ PREFIX ?= $(OUT)
 
 CONFIG_CFLAGS =
 CONFIG_LDFLAGS =
+CONFIG_CXXFLAGS =
 
 ifeq ($(CONFIG), release)
 CONFIG_CFLAGS += -O3
+CONFIG_CXXFLAGS = -fvisibility-inlines-hidden
 else ifeq ($(CONFIG), ci)  # significantly smaller artifacts
 CONFIG_CFLAGS += -O3 -DDEBUG -Werror
 else ifeq ($(CONFIG), assert)
@@ -55,7 +57,7 @@ CC ?= gcc
 CXX ?= g++
 CFLAGS_NO_WARN ?= -MMD -I. $(CONFIG_CFLAGS) -mavx2 -DBUILD_DIR=\"$(OUT)\" -I$(INCDIR) -DFMT_HEADER_ONLY -Ithird_party/fmt -Ithird_party/pybind11/include
 CFLAGS ?= $(CFLAGS_NO_WARN) $(WARNINGS)
-CXXFLAGS ?= --std=c++17 -fvisibility-inlines-hidden -maes -mavx 
+CXXFLAGS ?= --std=c++17 -maes -mavx $(CONFIG_CXXFLAGS)
 LDFLAGS ?= $(CONFIG_LDFLAGS) -Wl,-rpath,$(PREFIX)/lib -L$(LIBDIR) -Ldevice/lib
 SHARED_LIB_FLAGS = -shared -fPIC
 STATIC_LIB_FLAGS = -fPIC

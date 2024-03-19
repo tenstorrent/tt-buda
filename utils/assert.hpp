@@ -32,12 +32,11 @@ std::ostream& operator<<(std::ostream& os, tt::OStreamJoin<A, B> const& join) {
 }  // namespace tt
 
 namespace tt::assert {
-
 inline std::string demangle(const char* str) {
     size_t size = 0;
     int status = 0;
-    std::string rt(256, '\0');
-    if (1 == sscanf(str, "%*[^(]%*[^_]%255[^)+]", &rt[0])) {
+    std::string rt(1025, '\0');
+    if (1 == sscanf(str, "%*[^(]%*[^_]%1024[^)+]", &rt[0])) {
         char* v = abi::__cxa_demangle(&rt[0], nullptr, &size, &status);
         if (v) {
             std::string result(v);
@@ -63,6 +62,7 @@ inline std::vector<std::string> backtrace(int size, int skip) {
         std::cout << "backtrace_symbols error." << std::endl;
         return bt;
     }
+
     for (size_t i = skip; i < s; ++i) {
         bt.push_back(demangle(strings[i]));
     }

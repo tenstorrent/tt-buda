@@ -35,9 +35,14 @@ namespace py = pybind11;
 #include "utils/ordered_associative_containers/ordered_map.hpp"
 #include "tt_torch_device/python_bindings.hpp"
 
+#include "utils/signal_handlers.hpp"
+
 namespace tt {
 
 PYBIND11_MODULE(_C, m) {
+
+    // Register signal handlers when loading pybuda module.
+    static SignalHandlers signal_handlers;
 
     m.attr("__name__") = "pybuda._C";
     m.doc() = "python bindings to pybuda framwork";
