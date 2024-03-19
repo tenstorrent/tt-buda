@@ -44,9 +44,6 @@ def img_preprocess(scal_val=1):
 ######### 
  
 def test_retinanet_r101_640x480_onnx(test_device):
-    if test_device.arch == BackendDevice.Grayskull:
-        pytest.skip("Failing on GS by exceding resource constraints and blobgen error respectively")
-
     os.environ["PYBUDA_DECOMPOSE_SIGMOID"] = "1"
     os.environ["PYBUDA_DISABLE_CONV_MULTI_OP_FRACTURE"] = "1"
     os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"]  = f"{76*1024}"
@@ -70,6 +67,7 @@ def test_retinanet_r101_640x480_onnx(test_device):
     img_tensor = img_preprocess()
 
     # STEP 3: Run inference on Tenstorrent device
+    pcc = 0.97 if test_device.arch == BackendDevice.Grayskull and test_device.devtype == BackendType.Silicon else 0.99
     verify_module(
         tt_model, 
         input_shapes=([img_tensor.shape]),
@@ -79,5 +77,6 @@ def test_retinanet_r101_640x480_onnx(test_device):
             arch=test_device.arch,
             devtype=test_device.devtype,
             devmode=test_device.devmode,
+            pcc=pcc,
         )
     )
