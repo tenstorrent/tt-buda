@@ -24,7 +24,6 @@ def test_t5_loop_tiny_tile(test_device):
     # Add PyBUDA configurations
     os.environ["PYBUDA_PAD_OUTPUT_BUFFER"] = "1"
     os.environ["TT_BACKEND_MULTI_THREADED_PUSH"] = "1"
-    os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
     os.environ["PYBUDA_FORCE_SEQUENTIAL"] = "1"
     os.environ["TT_BACKEND_DRAM_POLLING_FREQUENCY"] = "64"
     # os.environ["TT_BACKEND_PROFILER"] = "1"
@@ -181,7 +180,6 @@ def test_t5_past_cache_enc_dec(variant, test_device):
     import os
     os.environ["PYBUDA_PAD_OUTPUT_BUFFER"] = "1"
     os.environ["TT_BACKEND_MULTI_THREADED_PUSH"] = "1"
-    os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
     os.environ["PYBUDA_EXTRA_L1_MARGIN"] = "120000"
     os.environ["PYBUDA_FORCE_SEQUENTIAL"] = "1"
     if "flan" in variant:
@@ -335,7 +333,6 @@ def test_t5_past_cache_pybuda_pipeline(variant, test_device):
     os.environ["PYBUDA_DISABLE_STREAM_OUTPUT"] = "1"
     os.environ["PYBUDA_PAD_OUTPUT_BUFFER"] = "1"
     os.environ["TT_BACKEND_MULTI_THREADED_PUSH"] = "1"
-    os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
     os.environ["PYBUDA_EXTRA_L1_MARGIN"] = "169536"
     os.environ["PYBUDA_FORCE_SEQUENTIAL"] = "1"
     os.environ["PYBUDA_NLP_MANUAL_TARGET"] = "30000"
@@ -509,7 +506,6 @@ def test_t5_pybuda_pipeline(variant, test_device):
     os.environ["PYBUDA_DISABLE_STREAM_OUTPUT"] = "1"
     os.environ["PYBUDA_PAD_OUTPUT_BUFFER"] = "1"
     os.environ["TT_BACKEND_MULTI_THREADED_PUSH"] = "1"
-    os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
     os.environ["PYBUDA_FORCE_SEQUENTIAL"] = "1"
     os.environ["PYBUDA_NLP_MANUAL_TARGET"] = "30000"
     os.environ["TT_BACKEND_DRAM_POLLING_FREQUENCY"] = "64"

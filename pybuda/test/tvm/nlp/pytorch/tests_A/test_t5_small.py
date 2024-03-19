@@ -387,7 +387,6 @@ def test_t5_past_cache(variant, test_device):
     os.environ["PYBUDA_DISABLE_STREAM_OUTPUT"] = "1"
     os.environ["PYBUDA_PAD_OUTPUT_BUFFER"] = "1"
     os.environ["TT_BACKEND_MULTI_THREADED_PUSH"] = "1"
-    os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
     os.environ["PYBUDA_EXTRA_L1_MARGIN"] = "169536"
     os.environ["PYBUDA_FORCE_SEQUENTIAL"] = "1"
     os.environ["PYBUDA_NLP_MANUAL_TARGET"] = "30000"
@@ -528,7 +527,6 @@ def test_t5_past_cache_pybuda_pipeline(variant, test_device):
     os.environ["PYBUDA_DISABLE_STREAM_OUTPUT"] = "1"
     os.environ["PYBUDA_PAD_OUTPUT_BUFFER"] = "1"
     os.environ["TT_BACKEND_MULTI_THREADED_PUSH"] = "1"
-    os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
     os.environ["PYBUDA_EXTRA_L1_MARGIN"] = "169536"
     os.environ["PYBUDA_FORCE_SEQUENTIAL"] = "1"
     os.environ["PYBUDA_NLP_MANUAL_TARGET"] = "30000"
@@ -710,7 +708,6 @@ def test_t5_past_cache_enc_dec(variant, test_device):
     import os
     os.environ["PYBUDA_PAD_OUTPUT_BUFFER"] = "1"
     os.environ["TT_BACKEND_MULTI_THREADED_PUSH"] = "1"
-    os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
     os.environ["PYBUDA_EXTRA_L1_MARGIN"] = "120000"
     # os.environ["PYBUDA_EXTRA_L1_MARGIN"] = "169536"
     os.environ["PYBUDA_FORCE_SEQUENTIAL"] = "1"

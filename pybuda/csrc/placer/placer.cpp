@@ -198,6 +198,16 @@ json QueuePlacement::to_json() const
     return output_json;
 }
 
+uint32_t QueuePlacement::queue_size_bytes()
+{
+    uint32_t queue_size = 0;
+    for (auto buffer : dram_buffers)
+    {
+        queue_size += buffer.buffer_size;
+    }
+    return queue_size;
+}
+
 json PlacerSolution::to_json() const
 {
     json output_json;

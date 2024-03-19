@@ -45,7 +45,6 @@ class BertWrapper(torch.nn.Module):
 def bert(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, force_num_layers: Optional[int] = None):
 
     compiler_cfg = _get_global_compiler_config()
-    os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
 
     if config == "tiny":
         model_name = "prajjwal1/bert-tiny"

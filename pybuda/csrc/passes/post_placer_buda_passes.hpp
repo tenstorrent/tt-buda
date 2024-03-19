@@ -73,8 +73,6 @@ void replace_recompute_with_checkpoint(graphlib::Graph *graph, const placer::Pla
 
 void validate_subgraph_placement(Graph *graph, placer::PlacerSolution &placer_solution);
 
-void reduce_ethernet_stream_usage(PostPlacerConfig& config, graphlib::Graph *graph, balancer::BalancerSolution& balancer_solution, placer::PlacerSolution& placer_solution, tt::DeviceConfig const& device_config);
-
 // Remove buffering queues connecting cross epoch nodes so that E2E queues can be inserted instead.
 void  remove_buffering_queues_from_cross_epoch_edges(
     graphlib::Graph *graph,

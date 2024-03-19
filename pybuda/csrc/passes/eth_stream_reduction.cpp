@@ -3,8 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "passes/eth_stream_reduction.hpp"
 
-#include "balancer/balancer.hpp"
-
 #include "backend_api/device_config.hpp"
 #include "balancer/balancer_cache_collection.hpp"
 #include "balancer/legalizer/legalizer.hpp"
@@ -549,6 +547,12 @@ std::tuple<Edge, graphlib::Node*, Edge> insert_serialized_dram_queue_between_ops
     queue_node_uniq->set_output_df(producer_node->output_df());
     auto queue_node = graph->add_node(std::move(queue_node_uniq), graph->get_subgraph_id_for_node(producer_node->id()));
     queue_node->set_shape(producer_node->shape());
+    if (num_entries < 0)
+    {
+        // num_entries < 0 means that num_entries wasn't set in the call of the method. Therefore we set it to
+        // microbatch_size.
+        num_entries = graph->get_microbatch();
+    }
     queue_node->as<graphlib::QueueNode>()->set_num_entries(num_entries);
     queue_node->set_epoch_type(producer_node->get_epoch_type());  // take epoch type from producer
 
@@ -1070,27 +1074,16 @@ static void serialize_chosen_chip_to_chip_data_edges(
     }
 }
 
-void deallocate_dynamic_buffers(graphlib::Graph *graph, placer::DramPlacerConfig const& config, placer::PlacerSolution &placer_solution) 
+void deallocate_dynamic_buffers(
+    graphlib::Graph* graph, placer::DramPlacerConfig const& config, placer::PlacerSolution& placer_solution)
 {
     log_debug("Eth stream reduction, deallocating dynamic buffers so they can be reallocated with serialized eth buffers");
-    auto is_cross_epoch_type = [](const Node *q) -> bool {
-        if (q->node_type() != graphlib::NodeType::kQueue) return false;
-        if (q->as<graphlib::QueueNode>()->queue_type() != graphlib::QueueNodeType::EpochToEpoch) return false;
-        return q->as<graphlib::EpochToEpochQueueNode>()->is_cross_epoch_type();
-    };
-
-    bool disable_dynamic_dram = config.disable_dynamic_dram;
-    auto is_static_queue = [disable_dynamic_dram, is_cross_epoch_type](const Node *node, bool is_input) {
-        return disable_dynamic_dram || is_input || is_cross_epoch_type(node) || node->as<graphlib::QueueNode>()->is_grad_accumulator();
-    };
 
     for (auto &[name, placement] : placer_solution.name_to_queue_placement)
     {
         auto node = graph->get_node_by_name(placement.name);
-        bool output_on_host = config.output_queues_on_host &&
-            (node->node_type() == graphlib::NodeType::kOutput) &&
-            node->as<graphlib::OutputNode>()->untilize();
-        bool is_dynamic_queue = !output_on_host && !is_static_queue(node, node->as<graphlib::QueueNode>()->is_input());
+        bool output_on_host = is_output_host_queue(config.output_queues_on_host, graph, node);
+        bool is_dynamic_queue = !output_on_host && !placement.is_static();
 
         if (is_dynamic_queue) 
         {

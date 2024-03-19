@@ -14,7 +14,6 @@ from pybuda.config import _get_global_compiler_config
 def inception_v4(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str):
     compiler_cfg = _get_global_compiler_config()
 
-    os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
 
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"

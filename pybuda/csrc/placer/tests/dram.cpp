@@ -24,6 +24,12 @@ using tt::ARCH;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 
+namespace placer
+{
+    bool disable_dynamic_dram_if_possible(
+    const std::vector<DRAMScheduleData> &scheduled_queue_placements, const DramAllocator &allocator);
+}  // namespace placer
+
 //
 // Tests for DRAM allocators
 //
@@ -164,7 +170,8 @@ class DRAMPlacerTest : public testing::TestWithParam<ARCH>
 
     std::unordered_map<const Node *, std::vector<QueueBufferPlacement>> run_allocator()
     {
-        allocator->allocate_queues(queue_placement_params, dram_config->disable_dynamic_dram);
+        bool disable_dynamic_dram = disable_dynamic_dram_if_possible(queue_placement_params, *allocator.get());
+        allocator->allocate_queues(queue_placement_params, disable_dynamic_dram, graph->get_microbatch());
         std::unordered_map<const Node *, std::vector<QueueBufferPlacement>> ret;
         for (auto &[queue_placement, queue_dram_placement_params] : queue_placement_params)
         {

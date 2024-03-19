@@ -19,6 +19,13 @@
 
 namespace tt {
 
+void reduce_ethernet_stream_usage(
+    PostPlacerConfig& config,
+    graphlib::Graph* graph,
+    balancer::BalancerSolution& balancer_solution,
+    placer::PlacerSolution& placer_solution,
+    tt::DeviceConfig const& device_config);
+
 using NodeId = graphlib::NodeId;
 using PortId = graphlib::PortId;
 void lower_reshape(Graph *, graphlib::OpNode *node);    // unused

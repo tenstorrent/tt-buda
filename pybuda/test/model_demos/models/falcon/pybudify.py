@@ -77,12 +77,6 @@ class PyBudify(torch.nn.Module):
             # os.environ["PYBUDA_DISABLE_INTERACTIVE_PLACER"] = "1" # Until interactive placer supports multi-chip placement overrides
             # os.environ["PYBUDA_PLACER_SNAKE"] = "1"
             # os.environ["PYBUDA_ETH_LINKS_NEBULA"] = "1"
-            # os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
-
-            if self.odkv or self.masked_odkv:
-                os.environ[
-                    "PYBUDA_DISABLE_DYNAMIC_DRAM"
-                ] = "1"  # much better performance, not sure why?
 
             pybuda = self.pybuda = __import__(
                 "pybuda"

@@ -674,7 +674,6 @@ std::vector<program::Program> create_programs(
     }
 
     bool firmware_looping_enabled = env_as<int>("NUM_EXEC_LOOP_ITERATIONS", 0) > 1;
-    bool disable_dynamic_dram = env_as<bool>("PYBUDA_DISABLE_DYNAMIC_DRAM");
 
     for (unsigned int subgraph_index = 0; subgraph_index < graph->num_subgraphs(); subgraph_index++)
     {
@@ -896,13 +895,20 @@ std::vector<program::Program> create_programs(
 
                 // All input should be read locally. In the last epoch that reads the input, it should be read
                 // globally, too.
+                uint32_t microbatch_size = graph->get_microbatch();
                 for (graphlib::Node *q : input_queues[epoch_index])
                 {
                     if (q->as<graphlib::QueueNode>()->is_buffering())
                     {
-                        // If dynamic dram is disabled
-                        if (disable_dynamic_dram)
+                        placer::QueuePlacement qp = placer_solution.name_to_queue_placement.at(q->name());
+                        bool queue_static = qp.is_static();
+                        // If queue is static
+                        if (queue_static)
                         {
+                            // If (buffering) queue is statically allocated, its num_entries has to be at least microbatch_size, because
+                            //  global_rdptr_autoinc is false.
+                            uint32_t num_entries = q->as<graphlib::QueueNode>()->get_num_entries();
+                            TT_ASSERT(num_entries >= microbatch_size, "Buffering queue {} has num_entries: {}, but microbatch_size is: {}. Since queue is static it needs to have num_entries at least microbatch size.", q->name(), num_entries, microbatch_size);
                             // Need to increment static queue rd/wtr ptrs as queue is persistant
                             uint32_t temporal_epoch_id = placer_solution.temporal_epoch_id(epoch);
                             const auto &[lptr, gptr] = qvars(q, temporal_epoch_id, program::Variable::ShadowType::NONE, true);

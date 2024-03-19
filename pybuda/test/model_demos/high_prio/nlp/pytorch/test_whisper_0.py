@@ -240,7 +240,6 @@ def test_whisper_encoder(test_device, variant):
         os.environ["PYBUDA_PAD_OUTPUT_BUFFER"] = "1"
         os.environ["PYBUDA_PAD_OUTPUT_BUFFER_THRESHOLD_TILES"] = "1536"
         os.environ["PYBUDA_NLP_MANUAL_TARGET"] = "35000"
-        os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
         os.environ["TT_BACKEND_MULTI_THREADED_PUSH"] = "1"
         os.environ["TT_BACKEND_DRAM_POLLING_FREQUENCY"] = "64"
         os.environ["PYBUDA_NOP_ON_DIRECT_SHORT_PATH"] = "1"

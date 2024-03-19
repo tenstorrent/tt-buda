@@ -49,7 +49,6 @@ class T5_decoder(torch.nn.Module):
 
 def generate_t5_past_cache_enc_dec(test_device, variant): 
     os.environ["PYBUDA_PAD_OUTPUT_BUFFER"] = "1"
-    os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
     os.environ["PYBUDA_FORCE_SEQUENTIAL"] = "1"
     os.environ["TT_BACKEND_DRAM_POLLING_FREQUENCY"] = "64"
     os.environ["TT_BACKEND_EPOCH_BIN_NUM_SLOTS"] = "64"

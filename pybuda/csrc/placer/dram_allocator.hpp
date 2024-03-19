@@ -82,8 +82,9 @@ class DramAllocator
         std::vector<Blocks> &allocated_blocks,
         DRAMPlacementAlgorithm placement_algorithm = ROUND_ROBIN,
         AllocationAlgorithm allocator_algorithm = BEST_FIT);
-    void allocate_queues(std::vector<DRAMScheduleData> &scheduled_queue_placements, bool disable_dynamic_dram);
+    void allocate_queues(std::vector<DRAMScheduleData> &scheduled_queue_placements, bool disable_dynamic_dram, int microbatch_size);
     std::vector<Blocks> get_blocks();
+    std::pair<uint32_t, uint32_t> get_dram_free_space();
 };
 
 }  // namespace placer

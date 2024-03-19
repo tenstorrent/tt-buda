@@ -18,7 +18,8 @@ from pybuda._C.backend_api import BackendDevice
 def test_intra_epoch_relay_queue(mode, microbatch_size):
     def linked_list(activations):
         activations = pybuda.op.Buffer(f"buffer_pre", activations)
-        activations = pybuda.op.DRAMQueue(f"buffering_queue", activations)
+        # num_entries=microbatch_size, so if the queue is statically allocated, it still has enough memory
+        activations = pybuda.op.DRAMQueue(f"buffering_queue", activations, num_entries=microbatch_size)
         activations = pybuda.op.Buffer(f"buffer_post", activations)
         return activations
 
@@ -91,7 +92,8 @@ def test_two_branch_fork_join_branch_asymmetry_with_buffering_queue(
     mode, num_ops_left_branch, num_ops_right_branch
 ):
     training = mode == "training"
-    shape = (1, 1, 64, 64)
+    microbatch_size = 1
+    shape = (microbatch_size, 1 , 64, 64)
 
     @compile(
         compiler_cfg=pybuda.CompilerConfig(enable_training=training),
@@ -104,7 +106,8 @@ def test_two_branch_fork_join_branch_asymmetry_with_buffering_queue(
         for i in range(num_ops_left_branch):
             left_branch = pybuda.op.Buffer(f"buffer_left_{i}", left_branch)
 
-        left_branch = pybuda.op.DRAMQueue(f"buffering_queue", left_branch)
+        # num_entries=microbatch_size, so if the queue is statically allocated, it still has enough memory
+        left_branch = pybuda.op.DRAMQueue(f"buffering_queue", left_branch, num_entries=microbatch_size)
 
         for i in range(num_ops_right_branch):
             right_branch = pybuda.op.Buffer(f"buffer_right_{i}", right_branch)

@@ -15,7 +15,6 @@ def mobilenet_v1(training: bool, config: str, microbatch: int, devtype: str, arc
     
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_auto_transposing_placement = True
-    os.environ["PYBUDA_DISABLE_DYNAMIC_DRAM"] = "1"
 
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"

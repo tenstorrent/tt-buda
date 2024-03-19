@@ -13,10 +13,15 @@
 #include "placer/allocator_utils.hpp"
 #include "placer/dram_allocator.hpp"
 #include "utils/logger.hpp"
+#include "placer/exceptions.hpp"
 
 namespace tt
 {
 // from backend
+namespace backend
+{
+extern uint32_t get_next_aligned_address(const uint32_t address);
+}
 namespace placer
 {
 using Graph = graphlib::Graph;
@@ -287,7 +292,68 @@ get_producer_locations(
 
     return producer_loc;
 }
+// Returns true if we can statically allocate all queues in scheduled_queue_placements.
+bool disable_dynamic_dram_if_possible(
+    const std::unordered_map<std::uint32_t, std::vector<DRAMScheduleData>> &scheduled_queue_placements,
+    std::vector<DramAllocator> &chip_dram_allocators)
+{
+    // there are two parts of dram memory.
+    // 1. p2p dram space (part of channel 0 that has separate allocator object that manages its memory)
+    //    This part of dram is used for queues that are connecting producer and consumer on different chips or host to
+    //    chip.
+    // 2. the rest of dram is used for allocating queues within one chip. It doesn't have special name.
+    // There are three situations when it comes to allocating queues in one of those spaces.
+    // First, we have queues with parameter atribute in_p2p_region_hard set to true. Those queues have to be allocated
+    // in p2p region Second, we have queues with parameter atribute in_p2p_region_soft set to true. Those queues are
+    // allocated in p2p region if there is space, but can be allocated in regular region if there is no space in p2p.
+    // Third, when both in_p2p_region_hard and in_p2p_region_soft are false, queue can only be allocated in regular part
+    // of the dram. From this we extract conditions for when we can disable dynamic allocation of queues.
+    bool disable_dyn_dram = true;
+    for (const auto &[chip_id, queue_placements] : scheduled_queue_placements)
+    {
+        uint32_t cumulative_p2p_hard_queue_size = 0;
+        uint32_t cumulative_p2p_soft_queue_size = 0;
+        uint32_t cumulative_regular_queue_size = 0;
+        for (std::size_t i = 0; i < queue_placements.size(); i++)
+        {
+            const auto &[queue_placement, parameters] = queue_placements[i];
+            std::uint32_t queue_size = parameters.queue_size;
 
+            if (parameters.in_p2p_region_hard)
+            {
+                // queue has to go to p2p region => increment cumulative_p2p_queue_size
+                cumulative_p2p_hard_queue_size += queue_size;
+            }
+            else
+            {
+                if (parameters.in_p2p_region_soft)
+                {
+                    cumulative_p2p_soft_queue_size += queue_size;
+                }
+                else
+                {
+                    // queue doesn't need to be allocated in p2p region on dram. It can be allocated in any channel
+                    cumulative_regular_queue_size += queue_size;
+                }
+            }
+        }
+        auto [free_regular_dram_space, free_p2p_dram_space] = chip_dram_allocators.at(chip_id).get_dram_free_space();
+        if (cumulative_p2p_hard_queue_size < free_p2p_dram_space &&
+            cumulative_regular_queue_size < free_regular_dram_space)
+        {
+            if (cumulative_p2p_soft_queue_size > (free_p2p_dram_space - cumulative_p2p_hard_queue_size) +
+                                                     (free_regular_dram_space - cumulative_regular_queue_size))
+            {
+                disable_dyn_dram = false;
+            }
+        }
+        else
+        {
+            disable_dyn_dram = false;
+        }
+    }
+    return disable_dyn_dram;
+}
 //
 // The DRAM queues are split into buffers, one for each of the cores that is reading from a queue. These buffers can be
 // freely allocated to any DRAM channel.
@@ -575,6 +641,11 @@ void place_dram_queues(
                 max_chip_id = chip_id;
             log_debug(tt::LogPlacer, "\tScheduling queue {} for placement", node->name());
 
+            std::uint32_t queue_size = get_queue_size(node->as<graphlib::QueueNode>(), block_shape, false);
+            TT_ASSERT(queue_size > 0, "Queue size must be more than 0");
+            // Adjust for alignment
+            queue_size = tt::backend::get_next_aligned_address(queue_size);
+
             scheduled_queue_placements[chip_id].push_back(std::make_pair(
                 already_placed
                     ? placer_solution.name_to_queue_placement.at(node->name())
@@ -593,7 +664,8 @@ void place_dram_queues(
                     .in_p2p_region_soft = in_p2p_region_soft,
                     .in_p2p_region_hard = in_p2p_region_hard,
                     .is_input = is_input,
-                    .is_prologue = is_prologue}));
+                    .is_prologue = is_prologue,
+                    .queue_size = queue_size}));
         }
     }
 
@@ -602,8 +674,30 @@ void place_dram_queues(
         if (scheduled_queue_placements.count(chip_id) == 0)
             continue;
         log_info(tt::LogPlacer, "Running DRAM allocator for device {}", chip_id);
-        chip_dram_allocators.at(chip_id).allocate_queues(
-            scheduled_queue_placements.at(chip_id), config.disable_dynamic_dram);
+        bool disable_dynamic_dram = disable_dynamic_dram_if_possible(scheduled_queue_placements, chip_dram_allocators);
+        disable_dynamic_dram = disable_dynamic_dram || config.force_disable_dynamic_dram;
+        int microbatch_size = graph->get_microbatch();
+        if (disable_dynamic_dram)
+        {
+            try
+            {
+                chip_dram_allocators.at(chip_id).allocate_queues(scheduled_queue_placements.at(chip_id), disable_dynamic_dram, microbatch_size);
+            }
+            catch (const tt::placer::FailToAllocateQueues& e)
+            {
+                log_debug("\tStatic allocation of all queues failed, trying dynamic allocation instead");
+                // To handle unsuccessful static allocation, we have to remove all previously placed dram_buffers
+                for (auto & que_placement : scheduled_queue_placements.at(chip_id))
+                {
+                    que_placement.first.dram_buffers.clear();
+                }
+                chip_dram_allocators.at(chip_id).allocate_queues(scheduled_queue_placements.at(chip_id), false, microbatch_size);
+            }
+        }
+        else
+        {
+            chip_dram_allocators.at(chip_id).allocate_queues(scheduled_queue_placements.at(chip_id), disable_dynamic_dram, microbatch_size);
+        }
         for (auto &[queue_placement, parameters] : scheduled_queue_placements[chip_id])
         {
             log_debug(tt::LogPlacer, "\tAllocating/placing queue {} on chip {}", queue_placement.name, chip_id);

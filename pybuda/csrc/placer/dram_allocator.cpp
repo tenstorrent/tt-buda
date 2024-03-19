@@ -10,6 +10,7 @@
 #include "placer/dram.hpp"
 #include "reportify/paths.hpp"
 #include "third_party/budabackend/common/param_lib.hpp"
+#include "placer/exceptions.hpp"
 
 // from backend
 namespace tt::backend
@@ -264,21 +265,21 @@ const std::unique_ptr<ChannelAllocator> &DramAllocator::get_allocator(
     TT_ASSERT(channel_index < channel_allocators.size());
     return channel_allocators.at(channel_index);
 }
-
-void DramAllocator::allocate_queues(
-    std::vector<DRAMScheduleData> &scheduled_queue_placements, bool disable_dynamic_dram)
+// Gets dram free space, both in p2p region (managed by p2p_allocator) and in regular part of dram (managed by channel_allocators)
+std::pair<uint32_t, uint32_t> DramAllocator::get_dram_free_space()
 {
-    // Sort by producer epoch, then by consumer epoch, so that queues that are deallocated at the same time are more
-    // likely to be allocated next to each other
-    sort(
-        scheduled_queue_placements.begin(),
-        scheduled_queue_placements.end(),
-        [](const DRAMScheduleData &i1, const DRAMScheduleData &i2)
-        {
-            if (i1.second.producer_epoch == i2.second.producer_epoch)
-                return i1.second.last_consumer_epoch < i2.second.last_consumer_epoch;
-            return i1.second.producer_epoch < i2.second.producer_epoch;
-        });
+    uint32_t regular_free_space = 0;
+    uint32_t p2p_free_space = 0;
+    for (std::size_t i = 0; i < channel_allocators.size(); i++)
+    {
+        regular_free_space += channel_allocators.at(i)->get_capacity();
+    }
+    p2p_free_space += p2p_allocator->get_capacity();
+    return std::make_pair(regular_free_space, p2p_free_space);
+}
+void DramAllocator::allocate_queues(
+    std::vector<DRAMScheduleData> &scheduled_queue_placements, bool disable_dynamic_dram, int microbatch_size)
+{
 
     auto is_cross_epoch_type = [](const Node *q) -> bool
     {
@@ -299,14 +300,30 @@ void DramAllocator::allocate_queues(
     };
 
     auto is_static_queue =
-        [disable_dynamic_dram, is_cross_epoch_type, is_cross_chip_type](const Node *node, bool is_input)
+        [disable_dynamic_dram, is_cross_epoch_type, is_cross_chip_type, microbatch_size](const Node *node, bool is_input)
     {
-        return disable_dynamic_dram || is_input || is_cross_epoch_type(node) || is_cross_chip_type(node) ||
+        bool force_dynamic_dram = false;
+        // if there is a buffering queue with num_entries < microbatch_size it has to be allocated dynamically. 
+        if (node->as<graphlib::QueueNode>()->is_buffering() && node->as<graphlib::BufferingQueueNode>()->get_num_entries() < microbatch_size)
+        {
+            force_dynamic_dram = true;
+        }
+        bool disable_dynamic_dram_for_node = !force_dynamic_dram && disable_dynamic_dram;
+        return disable_dynamic_dram_for_node || is_input || is_cross_epoch_type(node) || is_cross_chip_type(node) ||
                node->as<graphlib::QueueNode>()->is_grad_accumulator();
     };
 
+    // Sort by queue size descending. When we allocate queues statically, we want to allocate the biggest queues first
+    sort(
+        scheduled_queue_placements.begin(),
+        scheduled_queue_placements.end(),
+        [](const DRAMScheduleData &i1, const DRAMScheduleData &i2)
+        {
+            return i1.second.queue_size > i2.second.queue_size;
+        });
+
     // Allocate all static queues first
-    std::vector<std::uint32_t> dynamic_queues;
+    std::vector<DRAMScheduleData*> dynamic_queues;
     for (std::size_t i = 0; i < scheduled_queue_placements.size(); i++)
     {
         auto &[queue_placement, parameters] = scheduled_queue_placements[i];
@@ -317,15 +334,28 @@ void DramAllocator::allocate_queues(
         }
         else
         {
-            dynamic_queues.push_back(i);
+            dynamic_queues.push_back(&scheduled_queue_placements[i]);
         }
     }
 
     std::unordered_set<const Node *> deallocated;
     std::uint32_t current_epoch = 0;
+
+    // Before we dynamically allocate buffers we want to sort dynamic_queues by producer epoch, then by consumer epoch, so that queues that are deallocated at the same time are more
+    // likely to be allocated next to each other
+    sort(
+        dynamic_queues.begin(),
+        dynamic_queues.end(),
+        [](const DRAMScheduleData *i1, const DRAMScheduleData *i2)
+        {
+            if (i1->second.producer_epoch == i2->second.producer_epoch)
+                return i1->second.last_consumer_epoch < i2->second.last_consumer_epoch;
+            return i1->second.producer_epoch < i2->second.producer_epoch;
+        });
+
     for (std::size_t i = 0; i < dynamic_queues.size(); i++)
     {
-        auto &[queue_placement, parameters] = scheduled_queue_placements[dynamic_queues[i]];
+        auto &[queue_placement, parameters] = *dynamic_queues[i];
 
         // Allocate new queues
         queue_placement.dram_buffers = allocate_buffers(parameters);
@@ -337,9 +367,9 @@ void DramAllocator::allocate_queues(
         bool last_queue = (i == dynamic_queues.size() - 1);
         if ((parameters.producer_epoch > current_epoch) || last_queue)
         {
-            for (std::size_t index : dynamic_queues)
+            for (DRAMScheduleData* queue_placement_pair : dynamic_queues)
             {
-                auto &[prev_queue_placement, prev_parameters] = scheduled_queue_placements[index];
+                auto &[prev_queue_placement, prev_parameters] = *queue_placement_pair;
 
                 if ((prev_parameters.producer_epoch > current_epoch) && !last_queue)
                     break;  // only looking into the past
@@ -401,12 +431,7 @@ std::vector<QueueBufferPlacement> DramAllocator::allocate_buffers(const QueueDRA
 {
     std::vector<QueueBufferPlacement> buffer_placement;
 
-    std::uint32_t queue_size =
-        get_queue_size(parameters.node->as<graphlib::QueueNode>(), parameters.block_shape, false);
-    TT_ASSERT(queue_size > 0, "Queue size must be more than 0");
-
-    // Adjust for alignment
-    queue_size = tt::backend::get_next_aligned_address(queue_size);
+    std::uint32_t queue_size = parameters.queue_size;
 
     const std::uint32_t num_channels = channel_allocators.size();
 
@@ -483,13 +508,14 @@ std::vector<QueueBufferPlacement> DramAllocator::allocate_buffers(const QueueDRA
 
             if (!allocated)
             {
-                log_fatal(
+                log_error(
                     tt::LogPlacer,
                     "Failed to allocate queue {} of size {} ({} MB) in dram, as there's no room left on chip {}",
                     parameters.node->name(),
                     queue_size,
                     int(queue_size * 1.0 / (1024 * 1024)),
                     chip_id);
+                throw FailToAllocateQueues("Failed to allocate queues in DRAM memory");
             }
 
             int real_channel = channel;  // not virtual

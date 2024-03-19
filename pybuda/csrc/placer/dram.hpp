@@ -101,7 +101,7 @@ struct DramPlacerConfig
     bool output_queues_on_host;
 
     // Disable dynamic dram support
-    bool disable_dynamic_dram;
+    bool force_disable_dynamic_dram;
 
     std::uint32_t p2p_offset;
     std::uint32_t p2p_size;
@@ -128,7 +128,7 @@ struct DramPlacerConfig
         dram_config = DramConfig::get_config(device_config);
         this->input_queues_on_host = input_queues_on_host;
         this->output_queues_on_host = output_queues_on_host;
-        disable_dynamic_dram = env_as<bool>("PYBUDA_DISABLE_DYNAMIC_DRAM");
+        force_disable_dynamic_dram = env_as<bool>("PYBUDA_DISABLE_DYNAMIC_DRAM");
     }
 };
 
@@ -157,6 +157,7 @@ struct QueueDRAMPlacementParameters
     bool in_p2p_region_hard;
     bool is_input;
     bool is_prologue;
+    std::uint32_t queue_size;
 };
 
 using DRAMScheduleData = std::pair<QueuePlacement, QueueDRAMPlacementParameters>;
@@ -167,6 +168,9 @@ int get_queue_size(const graphlib::QueueNode *node, balancer::BlockShape const &
 // dram_buffer is relative coordinate within the buffer grid
 std::vector<Coord> get_reader_cores(
     const Node *node, const OpPlacement &placement, std::uint32_t operand, Coord dram_buffer, GridShape queue_grid);
+
+bool disable_dynamic_dram_if_possible(
+    const std::vector<DRAMScheduleData> &scheduled_queue_placements, const DramAllocator &allocator);
 
 // Place and allocate DRAM queues
 void place_dram_queues(

@@ -329,6 +329,9 @@ struct QueuePlacement
 
     // methods
     json to_json() const;
+    uint32_t queue_size_bytes();
+    // returns true if queue is static
+    bool is_static() const { return epoch_allocate == -1 && epoch_deallocate == -1; }
 };
 
 // The final returned struct out of the Placer module will have fully populated attributes
