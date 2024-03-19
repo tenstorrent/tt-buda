@@ -120,10 +120,12 @@ def test_whisper_enc_dec(test_device, variant):
 
     elif test_device.arch == BackendDevice.Grayskull:
         compiler_cfg.enable_auto_fusing = False
+        if "large" in variant:
+            compiler_cfg.place_on_new_epoch("matmul_2805")
         if variant == "openai/whisper-base":
             compiler_cfg.amp_level = 1
         else:
-            compiler_cfg.enable_enumerate_u_kt = False
+        #    compiler_cfg.enable_enumerate_u_kt = False
             os.environ["PYBUDA_NLP_MANUAL_TARGET"] = "2000000"
 
     run_encoder_on_tt = ("tiny" in variant) or ("base" in variant) or ("small" in variant) or ("medium" in variant)
