@@ -1738,7 +1738,13 @@ bool buffer_graph(
 float EpochSolution::evaluate() const
 {
     float pipeline_cycles = 0;
-    const int non_matmul_penalty = 128;
+    // Treat non-matmul ops as 8x less efficient than matmul ops.
+    // Treat sparse matmuls as least efficient, we want to assign them least amount of cores while at the same time not
+    // making them epoch bottleneck.
+    //
+    const int matmul_penalty = 1;
+    const int non_matmul_penalty = 8;
+    const int sparse_matmul_penalty = 128;
     log_trace(LogBalancer, "RIBBON2: Calculating solution score for ribbon size {}", ribbon_size);
     for (const auto &op_model : selected_op_models)
     {
@@ -1764,19 +1770,24 @@ float EpochSolution::evaluate() const
     {
         std::uint32_t cores = op_model.grid_shape.volume();
         used_cores += cores;
+        int util_penalty = matmul_penalty;
 
-        if (op_model.buda_op_node->is_matmul_not_sparse())
+        if (op_model.buda_op_node->is_sparse_matmul())
         {
-            utilization += cores * (op_model.get_execution_cycles(balancer_config->device_config.get_arch_name_for_perf_estimates(), true) /
-                                    pipeline_cycles);
+            util_penalty = sparse_matmul_penalty;
         }
-        else if (
-            !env_as<bool>("PYBUDA_RIBBON2_DISABLE_NON_MATMUL_UTIL", 0) and !op_model.buda_op_node->is_buffering_op())
+        else if (!op_model.buda_op_node->is_matmul())
         {
-            utilization +=
-                cores *
-                (op_model.get_execution_cycles(balancer_config->device_config.get_arch_name_for_perf_estimates(), true) / pipeline_cycles) /
-                non_matmul_penalty;
+            util_penalty = non_matmul_penalty;
+        }
+
+        if (!op_model.buda_op_node->is_buffering_op())
+        {
+            utilization += cores *
+                           (op_model.get_execution_cycles(
+                                balancer_config->device_config.get_arch_name_for_perf_estimates(), true) /
+                            pipeline_cycles) /
+                           util_penalty;
         }
     }
 

@@ -418,7 +418,7 @@ def execution_cycles(type, arch_name, op_model, theoretical) -> int:
         x = [input0_df,output_df,math_fid,t,mblock_m,mblock_n,ublock_rt,ublock_ct,m_k,u_kt,mblock_executions,ublock_executions,0]
         cycle_count = cyclenet_execution_cycles(type, torch.tensor(x, dtype=torch.float32))
     elif theoretical:
-        tile_weight = 32 if arch_name == 'grayskull' else 18
+        tile_weight = 32 if arch_name == 'grayskull' else 16
         cycle_count = t * ublock_executions * math_fid * tile_weight  # based on max throughput for the chip
     else:
         cycle_count = get_op_model_execution_cycles(op_model_desc)

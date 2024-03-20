@@ -42,6 +42,12 @@ def whisper(training: bool, config: str, microbatch: int, devtype: str, arch: st
         compiler_cfg.balancer_policy = "Ribbon"
         os.environ["PYBUDA_RIBBON2"] = "1"
 
+    # These are about to be enabled by default.
+    #
+    os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
+    os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
+    os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
+
     # Determine model variant
     if config == "small":
         variant = "openai/whisper-small"
