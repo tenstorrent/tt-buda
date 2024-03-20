@@ -6,8 +6,6 @@ from types import ModuleType
 from functools import lru_cache
 from .transpose import TransposeTM
 from .exp import Exp
-from .logical_not import LogicalNot
-from .sine import Sine
 from .cosine import Cosine
 from .ethernet_datacopy import EthernetDatacopy
 from .reciprocal import Reciprocal
@@ -52,14 +50,14 @@ op_to_module_map = {
         "log":             Log,
         "sigmoid":         "eltwise_unary",
         "clip":            Clip,
-        "sine":            Sine,
         "cosine":          Cosine,
         "abs":             Abs,
+        "sine":            "eltwise_unary",
         "tile_broadcast":  "eltwise_unary",
         "tanh":            Tanh,
         "cumsum":          CumulativeSum,
         "argmax":          Argmax,
-        "logical_not":     LogicalNot,
+        "logical_not":     "eltwise_unary",
         "dropout":         "eltwise_unary",
         "pow":             "eltwise_unary",
         "tilizer":          Tilizer,
