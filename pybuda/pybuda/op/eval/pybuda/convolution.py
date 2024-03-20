@@ -245,7 +245,10 @@ def rotate_convtranspose2d_weights(dc, weights, cin, cout, depthwise, groups, kH
             weights = dc.op("hslice", [weights], (cout,))
     weights = dc.op(TransposeTM.create(2, 3), [weights]) # Transpose weight
     # Reshape into conv2d weight shape
-    weights = dc.op("reshape", [weights], (cout, cin, kH, kW))
+    if depthwise:
+        weights = dc.op("reshape", [weights], (cin, cout // groups, kH, kW))
+    else:
+        weights = dc.op("reshape", [weights], (cout // groups, cin, kH, kW))
 
     return weights
 
@@ -694,7 +697,7 @@ def eval(type, attr, ops):
         # from the network, and thus grad will not be generated for it on the .backwards() calls
         tconv = torch.nn.ConvTranspose2d(
             activations.shape[1],
-            weights.shape[1],
+            weights.shape[1] * groups,
             kernel_size=weights.shape[2],
             stride=stride,
             padding=padding[0],
@@ -808,7 +811,7 @@ def decompose(type, attr, dc, inputs):
             w, cin, y, x = (activations.shape.w, activations.shape.z, activations.shape.r, activations.shape.c)
             _, _, yout, xout = conv2d_out_shape('conv2d_transpose', attr, [activations.shape, weights.shape])[0]
 
-        _, cout, kH, kW = (weights.shape.w, weights.shape.z, weights.shape.r, weights.shape.c)
+        _, cout, kH, kW = (weights.shape.w, weights.shape.z * groups, weights.shape.r, weights.shape.c)
 
         # Transform padding from convtranspose2d space to conv2d
         actual_padding = [
@@ -818,7 +821,6 @@ def decompose(type, attr, dc, inputs):
             dilation * (kH - 1) - padding[3],
         ]
         depthwise = (cin == groups) and (cout == cin)
-        assert depthwise == False or cin == 1, "Dont support depthwise Conv2d Transpose yet"
 
         # stride > 1 means we dilate the input activations
         if stride > 1:

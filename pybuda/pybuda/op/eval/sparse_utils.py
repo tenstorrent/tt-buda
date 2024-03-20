@@ -1544,9 +1544,9 @@ def conv2d_out_shape(type, attr, ops):
         )
 
         if channel_last == 1:
-            return (activations[0], y, x, weights[1]), []
+            return (activations[0], y, x, weights[1] * groups), []
         else:
-            return (activations[0], weights[1], y, x), []
+            return (activations[0], weights[1] * groups, y, x), []
 
 def conv3d_out_shape(type, attr, ops):
     assert len(ops) <= 3, "Conv3d should have three inputs"

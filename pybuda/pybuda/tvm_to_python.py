@@ -630,12 +630,12 @@ def populate_conv2d_transpose_args(graph, nid, compiler_cfg):
     assert all([x == 1 for x in dilation]), "Only supports dilation of 1"
     args.append(("dilation", f"{dilation[0]}",))
 
-    assert int(node["attrs"]["groups"][0][0]) == 1, "Only supports group of 1"
-    kernel_size = [int(kernel) for kernel in node["attrs"]["kernel_size"][0]]
-
+    in_channel = next((n['attrs']['shape'][0][0][0] for n in graph['nodes'] if n['name'] == 'model.weight'), None)
     groups = int(node["attrs"]["groups"][0][0])
+    assert groups == 1 or (in_channel is not None and groups == in_channel), "Only supports group of 1 or in_channel"
     args.append(("groups", f"{groups}",))
-    
+
+    kernel_size = [int(kernel) for kernel in node["attrs"]["kernel_size"][0]]
     channel_last = int(node["attrs"]["data_layout"][0][0] == "NHWC")
     args.append(("channel_last", f"{channel_last}"))
     
