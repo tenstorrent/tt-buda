@@ -1,0 +1,139 @@
+benchmarking-silicon-wh-b0-perf-df-fp16_b-adf-fp16_b-resnet:
+  extends: .benchmarking-silicon-wh-b0-perf
+  stage: perf-wh-b0-silicon-df-fp16_b-adf-fp16_b
+  script: 
+    - !reference [.benchmarking-silicon-wh-b0-perf, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m resnet -c resnet50 --task image_classification -df Fp16_b -adf Fp16_b -mb 64 --loop_count 8 --save_output
+
+benchmarking-silicon-wh-b0-perf-df-fp16_b-adf-fp16_b-mobilenet-v1:
+  extends: .benchmarking-silicon-wh-b0-perf
+  stage: perf-wh-b0-silicon-df-fp16_b-adf-fp16_b
+  script: 
+    - !reference [.benchmarking-silicon-wh-b0-perf, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m mobilenetv1 -c 224 --task image_classification -df Fp16_b -adf Fp16_b -mb 64 -mf HiFi2 --loop_count 8 --save_output
+
+benchmarking-silicon-wh-b0-perf-df-fp16_b-adf-fp16_b-mobilenet-v2:
+  extends: .benchmarking-silicon-wh-b0-perf
+  stage: perf-wh-b0-silicon-df-fp16_b-adf-fp16_b
+  script: 
+    - !reference [.benchmarking-silicon-wh-b0-perf, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m mobilenetv2 -c 224 --task image_classification -df Fp16_b -adf Fp16_b -mb 64 -mf HiFi2 --loop_count 8 --save_output
+
+benchmarking-silicon-wh-b0-perf-df-fp16_b-adf-fp16_b-mobilenet-v3:
+  extends: .benchmarking-silicon-wh-b0-perf
+  stage: perf-wh-b0-silicon-df-fp16_b-adf-fp16_b
+  script: 
+    - !reference [.benchmarking-silicon-wh-b0-perf, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m mobilenetv3 -c lg --task image_classification -df Fp16_b -adf Fp16_b -mb 64 -mf HiFi2 --loop_count 8 --save_output
+
+benchmarking-silicon-wh-b0-perf-df-fp16_b-adf-fp16_b-vit:
+  extends: .benchmarking-silicon-wh-b0-perf
+  stage: perf-wh-b0-silicon-df-fp16_b-adf-fp16_b
+  script: 
+    - !reference [.benchmarking-silicon-wh-b0-perf, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m vit -c base --task image_classification -df Fp16_b -adf Fp16_b -mb 64 -mf HiFi2 --loop_count 4 --save_output
+
+benchmarking-silicon-wh-b0-perf-df-fp16_b-adf-fp16_b-deit:
+  extends: .benchmarking-silicon-wh-b0-perf
+  stage: perf-wh-b0-silicon-df-fp16_b-adf-fp16_b
+  script: 
+    - !reference [.benchmarking-silicon-wh-b0-perf, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m deit -c base --task image_classification -df Fp16_b -adf Fp16_b -mb 64 -mf HiFi2 --loop_count 4 --save_output
+
+benchmarking-silicon-wh-b0-perf-df-fp16_b-adf-fp16_b-vovnet-v2:
+  extends: .benchmarking-silicon-wh-b0-perf
+  stage: perf-wh-b0-silicon-df-fp16_b-adf-fp16_b
+  script: 
+    - !reference [.benchmarking-silicon-wh-b0-perf, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m vovnet_v2 -c 39 --task image_classification -df Fp16_b -adf Fp16_b -mb 64 --loop_count 8 --save_output
+
+benchmarking-silicon-wh-b0-perf-df-fp16_b-adf-fp16_b-open-pose:
+  extends: .benchmarking-silicon-wh-b0-perf
+  stage: perf-wh-b0-silicon-df-fp16_b-adf-fp16_b
+  script: 
+    - !reference [.benchmarking-silicon-wh-b0-perf, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m open_pose -c 2d --task pose_estimation -df Fp16_b -adf Fp16_b -mb 64 --loop_count 4 --save_output
+
+benchmarking-silicon-wh-b0-perf-df-fp16_b-adf-fp16_b-hrnet:
+  extends: .benchmarking-silicon-wh-b0-perf
+  stage: perf-wh-b0-silicon-df-fp16_b-adf-fp16_b
+  script: 
+    - !reference [.benchmarking-silicon-wh-b0-perf, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m hrnet -c v2_w64 --task image_classification -df Fp16_b -adf Fp16_b -mb 64 --loop_count 4 --save_output
+
+benchmarking-silicon-wh-b0-perf-df-fp16_b-adf-fp16_b-yolo-v5:
+  extends: .benchmarking-silicon-wh-b0-perf
+  stage: perf-wh-b0-silicon-df-fp16_b-adf-fp16_b
+  script: 
+    - !reference [.benchmarking-silicon-wh-b0-perf, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m yolo_v5 -c s --task object_detection -df Fp16_b -adf Fp16_b -mb 64 --loop_count 1 --save_output
+
+benchmarking-silicon-wh-b0-perf-df-fp16_b-adf-fp16_b-inception-v4:
+  extends: .benchmarking-silicon-wh-b0-perf
+  stage: perf-wh-b0-silicon-df-fp16_b-adf-fp16_b
+  script: 
+    - !reference [.benchmarking-silicon-wh-b0-perf, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m inception_v4 -c 224 --task image_classification -df Fp16_b -adf Fp16_b -mb 64 --loop_count 8 --save_output
+
+benchmarking-silicon-wh-b0-perf-df-fp16_b-adf-fp16_b-unet:
+  extends: .benchmarking-silicon-wh-b0-perf
+  stage: perf-wh-b0-silicon-df-fp16_b-adf-fp16_b
+  script: 
+    - !reference [.benchmarking-silicon-wh-b0-perf, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m unet -c 256 --task segmentation -df Fp16_b -adf Fp16_b -mb 48 --loop_count 1 --save_output
+
+benchmarking-silicon-wh-b0-perf-df-fp16_b-adf-fp16_b-bert:
+  extends: .benchmarking-silicon-wh-b0-perf
+  stage: perf-wh-b0-silicon-df-fp16_b-adf-fp16_b
+  script: 
+    - !reference [.benchmarking-silicon-wh-b0-perf, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m bert -c large --task text_classification -df Fp16_b -adf Fp16_b -mb 64 --loop_count 4 --save_output
+
+benchmarking-silicon-wh-b0-perf-df-fp16_b-adf-fp16_b-whisper:
+  extends: .benchmarking-silicon-wh-b0-perf
+  stage: perf-wh-b0-silicon-df-fp16_b-adf-fp16_b
+  script: 
+    - !reference [.benchmarking-silicon-wh-b0-perf, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m whisper_enc_dec -c small --task asr -df Fp16_b -adf Fp16_b -mb 1 --loop_count 1 --save_output
+
+benchmarking-silicon-wh-b0-perf-df-fp16_b-adf-fp16_b-t5-past-cache:
+  extends: .benchmarking-silicon-wh-b0-perf
+  stage: perf-wh-b0-silicon-df-fp16_b-adf-fp16_b
+  script: 
+    - !reference [.benchmarking-silicon-wh-b0-perf, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m t5_past_cache_enc_dec -c large --task text_summarization -df Fp16_b -adf Fp16_b -mb 1 --loop_count 1 --save_output
+
+benchmarking-silicon-wh-b0-perf-df-fp16_b-adf-fp16_b-flan-t5-past-cache:
+  extends: .benchmarking-silicon-wh-b0-perf
+  stage: perf-wh-b0-silicon-df-fp16_b-adf-fp16_b
+  script: 
+    - !reference [.benchmarking-silicon-wh-b0-perf, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m flant5_past_cache_enc_dec -c large --task text_summarization -df Fp16_b -adf Fp16_b -mb 1 --loop_count 1 --save_output
+    
+benchmarking-silicon-wh-b0-perf-df-fp16_b-adf-fp16_b-t5:
+  extends: .benchmarking-silicon-wh-b0-perf
+  stage: perf-wh-b0-silicon-df-fp16_b-adf-fp16_b
+  script: 
+    - !reference [.benchmarking-silicon-wh-b0-perf, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m t5 -c large --task text_summarization -df Fp16_b -adf Fp16_b -mb 1 --loop_count 1 --save_output
+
+benchmarking-silicon-wh-b0-perf-df-fp16_b-adf-fp16_b-flan-t5:
+  extends: .benchmarking-silicon-wh-b0-perf
+  stage: perf-wh-b0-silicon-df-fp16_b-adf-fp16_b
+  script: 
+    - !reference [.benchmarking-silicon-wh-b0-perf, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m flant5 -c large --task text_summarization -df Fp16_b -adf Fp16_b -mb 1 --loop_count 1 --save_output
+
+benchmarking-silicon-wh-b0-perf-df-fp16_b-adf-fp16_b-falcon:
+  extends: .benchmarking-silicon-wh-b0-perf
+  stage: perf-wh-b0-silicon-df-fp16_b-adf-fp16_b
+  script: 
+    - !reference [.benchmarking-silicon-wh-b0-perf, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m falcon -c 7b-instruct --task hellaswag -df Fp16_b -adf Fp16_b -mb 32 --loop_count 1 --save_output
+
+benchmarking-silicon-wh-b0-perf-df-fp16_b-adf-fp16_b-stable-diffusion:
+  extends: .benchmarking-silicon-wh-b0-perf
+  stage: perf-wh-b0-silicon-df-fp16_b-adf-fp16_b
+  script: 
+    - !reference [.benchmarking-silicon-wh-b0-perf, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m stable_diffusion -c v1-4 --task image_generation -df Fp16_b -adf Fp16_b -mb 1 --loop_count 1 --save_output
