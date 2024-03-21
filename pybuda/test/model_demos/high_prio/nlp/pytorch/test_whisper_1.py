@@ -41,6 +41,7 @@ variants = [
 
 
 @pytest.mark.parametrize("variant", variants, ids=variants)
+@pytest.mark.skip(reason="Redundant")
 def test_whisper_dec_past_cache(test_device, variant):
     pytest.skip("Already tested with past-cache and separated encoder-decoder")
     model, inputs, other = generate_model_whisper_decoder_past_cache(test_device, variant)
@@ -72,6 +73,7 @@ def test_whisper_dec_past_cache(test_device, variant):
         print(f"Iteration 0: {tokens_to_generate} iterations took {end - start} seconds, speed: {(tokens_to_generate) / (end - start)} iters/sec")
         if test_device.devtype != BackendType.Silicon:
             break
+
 
 @pytest.mark.parametrize("variant", variants, ids=variants)
 def test_whisper_enc_dec(test_device, variant):
@@ -312,6 +314,7 @@ def test_whisper_enc_dec(test_device, variant):
 
 
 @pytest.mark.parametrize("variant", variants, ids=variants)
+@pytest.mark.skip(reason="Redundant")
 def test_whisper_enc_dec_pipeline(test_device, variant):
     pytest.skip("Already tested with past-cache and separated encoder-decoder")
     compiler_cfg = _get_global_compiler_config()

@@ -17,9 +17,8 @@ from pybuda.verify.backend import verify_module
 from pytorchcv.model_provider import get_model as ptcv_get_model
 
 
+@pytest.mark.skip(reason="Not supported")
 def test_alexnet_torchhub(test_device):
-    pytest.skip("Working; Not priority for Phase 1")
-
     # Configurations
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
@@ -79,9 +78,8 @@ def test_alexnet_torchhub(test_device):
     )
 
 
+@pytest.mark.skip(reason="Not supported")
 def test_alexnet_osmr(test_device):
-    pytest.skip("Fails on TVM side; Not priority for Phase 1")
-
     # Configurations
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"

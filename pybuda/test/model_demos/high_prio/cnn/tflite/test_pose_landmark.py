@@ -23,8 +23,6 @@ import pybuda
 import os
 
 
-
-
 def test_pose_landmark_lite_1x1(test_device):
     if test_device.arch == BackendDevice.Grayskull:
         pytest.skip()
@@ -98,9 +96,8 @@ def test_pose_landmark_heavy_1x1(test_device):
         ),
     )
 
-
+@pytest.mark.skip(reason="Not supported")
 def test_pose_landmark_lite(test_device):
-    pytest.skip()
     if test_device.devtype == BackendType.Silicon:
         pytest.skip("silicon run hangs")
     
@@ -136,9 +133,8 @@ def test_pose_landmark_lite(test_device):
         ),
     )
 
-
+@pytest.mark.skip(reason="Not supported")
 def test_pose_landmark_heavy(test_device):
-    pytest.skip()
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.enable_tvm_constant_prop = True

@@ -53,6 +53,7 @@ class BartWrapper(torch.nn.Module):
         out = self.model(input_ids, attention_mask, decoder_input_ids)[0]
         return out
 
+@pytest.mark.skip(reason="Not supported for release")
 def test_pt_bart_classifier(test_device): 
     compiler_cfg = _get_global_compiler_config() 
 

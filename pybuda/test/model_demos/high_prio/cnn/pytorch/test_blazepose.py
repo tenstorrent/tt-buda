@@ -21,8 +21,8 @@ from mediapipepytorch.blazepose_landmark import BlazePoseLandmark
 from mediapipepytorch.visualization import POSE_CONNECTIONS, draw_landmarks
 
 
+@pytest.mark.skip(reason="Only test 1x1 grid")
 def test_blazepose_detector_pytorch(test_device):
-    pytest.skip("Only test 1x1 grid")
     if test_device.arch == BackendDevice.Grayskull:
         pytest.skip("Grayskull test failing with TM ERROR (producer = conv2d_163.dc.add.11_fused_tm_op_0.dc.matmul.7, consumer = conv2d_163.dc.add.11_fused_tm_op_0.dc.matmul.12): TM order does't satisfy constraints for stacking with phased pipes, buf_size_mb must be a multiple of the total stack factor or producer t")
 
@@ -56,8 +56,8 @@ def test_blazepose_detector_pytorch(test_device):
         )
     )
 
+@pytest.mark.skip(reason="Only test 1x1 grid")
 def test_blazepose_regressor_pytorch(test_device):
-    pytest.skip("Only test 1x1 grid")
     if test_device.arch == BackendDevice.Grayskull:
         pytest.skip("Grayskull test failing with data mismatch")
     
@@ -86,9 +86,8 @@ def test_blazepose_regressor_pytorch(test_device):
         )
     )
 
-
+@pytest.mark.skip(reason="Not supported")
 def test_blazepose_detector_pytorch_1x1(test_device):
-    pytest.skip()
     if test_device.arch == BackendDevice.Grayskull:
         pytest.skip("Grayskull test failing with TM ERROR (producer = conv2d_163.dc.add.11_fused_tm_op_0.dc.matmul.7, consumer = conv2d_163.dc.add.11_fused_tm_op_0.dc.matmul.12): TM order does't satisfy constraints for stacking with phased pipes, buf_size_mb must be a multiple of the total stack factor or producer t")
 
@@ -125,9 +124,8 @@ def test_blazepose_detector_pytorch_1x1(test_device):
         )
     )
 
+@pytest.mark.skip(reason="Not supported")
 def test_blazepose_regressor_pytorch_1x1(test_device):
-    pytest.skip()
-
     if test_device.arch == BackendDevice.Grayskull:
         pytest.skip("Grayskull test failing with data mismatch")
     

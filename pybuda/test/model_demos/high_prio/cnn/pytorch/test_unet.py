@@ -94,9 +94,8 @@ def get_imagenet_sample():
     return img_tensor
 
 
-@pytest.mark.xfail()
+@pytest.mark.skip(reason="Not supported")
 def test_unet_holocron_pytorch(test_device):
-    pytest.skip() # Not needed in phase 1
     from holocron.models.segmentation.unet import unet_tvvgg11 
     
     # STEP 1: Set PyBuda configuration parameters

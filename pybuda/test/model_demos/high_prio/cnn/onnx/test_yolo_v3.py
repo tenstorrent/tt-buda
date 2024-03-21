@@ -41,10 +41,8 @@ def preprocess(img):
     return image_data
 ######### 
 
+@pytest.mark.skip(reason="While loop in model, not supported yet")
 def test_yolov3_tiny_onnx(test_device):
-        
-    pytest.skip("While loop in model, not supported yet")
-    
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "CNN"
@@ -74,9 +72,8 @@ def test_yolov3_tiny_onnx(test_device):
         )
     )
  
+@pytest.mark.skip(reason="While loop in model, not supported yet")
 def test_yolov3_onnx(test_device):
-    pytest.skip("While loop in model, not supported yet")
-    
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "CNN"
@@ -105,4 +102,3 @@ def test_yolov3_onnx(test_device):
             test_kind=TestKind.INFERENCE,
         )
     )
-

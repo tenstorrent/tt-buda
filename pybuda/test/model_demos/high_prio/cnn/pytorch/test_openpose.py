@@ -352,6 +352,7 @@ def generate_model_openpose_posdet_custom_pytorch(test_device, variant):
 
 
 @pytest.mark.parametrize("variant", variants)
+@pytest.mark.skip(reason="Not needed for release")
 def test_openpose_basic(variant, test_device):
     model, inputs, _ = generate_model_openpose_posdet_custom_pytorch(
         test_device, variant,

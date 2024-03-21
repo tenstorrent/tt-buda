@@ -277,9 +277,8 @@ def test_yolov5_480x480(test_device, size):
     )
 
 
+@pytest.mark.skip(reason="Not supported")
 def test_yolov5_1280x1280(test_device):
-    pytest.skip("Currently not supporting high-res CV models.")
-
     # Add required env vars as per: https://yyz-gitlab.local.tenstorrent.com/tenstorrent/model-demos/-/issues/46
     os.environ["PYBUDA_PAD_SPARSE_MM"] = "{13:16}"
     os.environ["PYBUDA_INSERT_SLICE_FOR_CONCAT"] = "1"

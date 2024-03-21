@@ -86,9 +86,8 @@ def test_efficientnet_lite4_1x1(test_device):
 
 
 
-
+@pytest.mark.skip(reason="Not supported")
 def test_efficientnet_lite0(test_device):
-    pytest.skip("Only test 1x1 grid")
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
     compiler_cfg.enable_tvm_constant_prop = True
@@ -120,8 +119,9 @@ def test_efficientnet_lite0(test_device):
         ),
     )
 
+
+@pytest.mark.skip(reason="Not supported")
 def test_efficientnet_lite1(test_device):
-    pytest.skip()
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.enable_tvm_constant_prop = True
@@ -154,8 +154,8 @@ def test_efficientnet_lite1(test_device):
         ),
     )
 
+@pytest.mark.skip(reason="Not supported")
 def test_efficientnet_lite2(test_device):
-    pytest.skip()
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.enable_tvm_constant_prop = True
@@ -186,8 +186,8 @@ def test_efficientnet_lite2(test_device):
         ),
     )
 
+@pytest.mark.skip(reason="Not supported")
 def test_efficientnet_lite3(test_device):
-    pytest.skip()
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.enable_tvm_constant_prop = True
@@ -218,8 +218,8 @@ def test_efficientnet_lite3(test_device):
         ),
     )
 
+@pytest.mark.skip(reason="Not supported")
 def test_efficientnet_lite4(test_device):
-    pytest.skip()
     if test_device.arch == BackendDevice.Grayskull:
         pytest.skip("Grayskull failing with: Error! The overlay blob for chip_0__y_1__x_12 does not fit, the max size is 65408, however we tried to allocate 71240.")
     

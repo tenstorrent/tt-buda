@@ -16,9 +16,8 @@ import torch
 from pybuda.transformers.pipeline import pipeline as pybuda_pipeline
 from transformers import T5ForConditionalGeneration, T5Tokenizer, T5Config
 
-
+@pytest.mark.skip(reason="Not supported")
 def test_t5_loop_tiny_tile(test_device):
-    pytest.skip()
     import os
     os.environ["PYBUDA_ENABLE_TINY_TILE"] = "1"
     # Add PyBUDA configurations
@@ -70,7 +69,6 @@ def test_t5_loop_tiny_tile(test_device):
         output = output_q.get(timeout=0.5)
 
     print("TIME: ", time.time() - start_time)
-
 
 
 variants = ["t5-small", "t5-base", "t5-large", "google/flan-t5-small", "google/flan-t5-base", "google/flan-t5-large"]
@@ -136,7 +134,6 @@ def test_t5_generation(variant, test_device):
             chip_ids=NebulaGalaxy.chip_ids if "PYBUDA_NEB_GALAXY_CI" in os.environ and int(os.environ.get("PYBUDA_NEB_GALAXY_CI"))==1 else [0],
         )
     )
-
 
 
 class T5_encoder(torch.nn.Module):
@@ -327,8 +324,8 @@ def test_t5_past_cache_enc_dec(variant, test_device):
 
 variants = ["t5-small", "t5-base", "t5-large", "google/flan-t5-small", "google/flan-t5-base", "google/flan-t5-large"]
 @pytest.mark.parametrize("variant", variants, ids=variants)
+@pytest.mark.skip(reason="Redundant")
 def test_t5_past_cache_pybuda_pipeline(variant, test_device):
-    pytest.skip() # tested in test_t5_past_cache_enc_dec
     import os
     os.environ["PYBUDA_DISABLE_STREAM_OUTPUT"] = "1"
     os.environ["PYBUDA_PAD_OUTPUT_BUFFER"] = "1"
@@ -495,11 +492,10 @@ def test_t5_past_cache_pybuda_pipeline(variant, test_device):
     print(answer)
 
 
-
 variants = ["t5-small", "t5-base", "t5-large", "google/flan-t5-small", "google/flan-t5-base", "google/flan-t5-large"]
 @pytest.mark.parametrize("variant", variants, ids=variants)
+@pytest.mark.skip(reason="Redundant")
 def test_t5_pybuda_pipeline(variant, test_device):
-    pytest.skip() # tested in test_t5_past_cache_enc_dec
     # Too slow for post-commit ci
 
     import os
@@ -546,8 +542,8 @@ def test_t5_pybuda_pipeline(variant, test_device):
     )
     print(answer)
 
+
 def test_t5_small_tiny_tile(test_device):
-        
     if test_device.arch == BackendDevice.Grayskull:
         pytest.skip("Grayskull test failing with TM ERROR (producer = matmul_49, consumer = matmul_53): input using kernel_broadcast but post-TM input canonical form is not periodic")
 

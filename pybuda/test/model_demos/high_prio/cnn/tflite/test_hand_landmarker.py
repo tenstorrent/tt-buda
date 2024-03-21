@@ -23,8 +23,6 @@ import pybuda
 import os
 
 
-
-
 def test_hand_landmark_lite_1x1(test_device):
     if test_device.arch == BackendDevice.Grayskull:
         pytest.skip()
@@ -57,6 +55,7 @@ def test_hand_landmark_lite_1x1(test_device):
             enabled=False,
         ),
     )
+
 
 def test_palm_detection_lite_1x1(test_device):
     if test_device.arch == BackendDevice.Grayskull:

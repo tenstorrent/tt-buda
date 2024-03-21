@@ -157,10 +157,6 @@ def test_densenet_161_pytorch(test_device):
             pcc=0.95,
         )
     )
-    
-    
-
-
 
 def test_densenet_169_pytorch(test_device):
     

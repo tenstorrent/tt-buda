@@ -104,9 +104,8 @@ class RetinaNetModelPostProcessing(torch.nn.Module):
         
         return detections
 
+@pytest.mark.skip(reason="Not supported")
 def test_retinanet_r50_fpn_v1_torchvision_pytorch(test_device):
-    pytest.skip("Under development")
-
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "CNN"

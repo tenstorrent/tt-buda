@@ -23,8 +23,6 @@ import pybuda
 import os
 
 
-
-
 def test_mobilenet_ssd_1x1(test_device):
     if test_device.arch == BackendDevice.Grayskull:
         pytest.skip()

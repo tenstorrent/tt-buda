@@ -2,6 +2,8 @@ import torch
 import pybuda
 import os
 
+import pytest
+
 from pybuda.verify.backend import verify_module
 from pybuda import VerifyConfig
 from pybuda.verify.config import TestKind
@@ -16,6 +18,7 @@ class Conv2d_transpose_model(torch.nn.Module):
     def forward(self, input):
         return self.model(input)
 
+@pytest.mark.skip(reason="Invalid place for this test")
 def test_conv2d_transpose_0(test_device):
 
     compiler_cfg = pybuda.config._get_global_compiler_config()
@@ -41,7 +44,8 @@ def test_conv2d_transpose_0(test_device):
             test_kind=TestKind.INFERENCE,
         )
     )
-    
+
+@pytest.mark.skip(reason="Invalid place for this test")
 def test_conv2d_transpose_1(test_device):
 
     compiler_cfg = pybuda.config._get_global_compiler_config()

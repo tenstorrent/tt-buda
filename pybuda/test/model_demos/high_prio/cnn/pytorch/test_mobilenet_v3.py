@@ -137,6 +137,7 @@ def test_mobilenetv3_timm(variant, test_device):
 
 variants = ["mobilenetv3_large_100", "mobilenetv3_small_100"]
 @pytest.mark.parametrize("variant", variants, ids=variants)
+@pytest.mark.skip(reason="Not supported")
 def test_mobilenetv3_timm_1x1(variant, test_device):
     pytest.skip()
     os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "wormhole_b0_1x1.yaml"

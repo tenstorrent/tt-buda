@@ -128,7 +128,7 @@ def generate_model_whisper_congen_hf_pytorch(test_device, variant):
 
     return pybuda_model, [decoder_input_ids, encoder_outputs], {"pcc": pcc}
 
-
+@pytest.mark.skip(reason="Redundant")
 @pytest.mark.parametrize("variant", variants, ids=variants)
 def test_whisper(test_device, variant):
     pytest.skip("Already tested with past-cache and separated encoder-decoder")
@@ -159,6 +159,7 @@ def test_whisper(test_device, variant):
 
 
 @pytest.mark.parametrize("variant", variants, ids=variants)
+@pytest.mark.skip(reason="Redundant")
 def test_whisper_pipeline(test_device, variant):
     pytest.skip("Already tested with past-cache and separated encoder-decoder")
     if test_device.arch == BackendDevice.Grayskull:
@@ -219,6 +220,7 @@ def test_whisper_pipeline(test_device, variant):
     assert cpu_out["text"] == tt_out["text"]
 
 @pytest.mark.parametrize("variant", variants, ids=variants)
+@pytest.mark.skip(reason="Redundant")
 def test_whisper_encoder(test_device, variant):
     pytest.skip("Already tested with past-cache and separated encoder-decoder")
 
