@@ -17,8 +17,9 @@ from pybuda._C.backend_api import BackendDevice, BackendType
 
 variants = [
     "Salesforce/codegen-350M-mono",
+    "Salesforce/codegen-350M-multi",
+    "Salesforce/codegen-350M-nl",
 ]
-
 
 @pytest.mark.parametrize("variant", variants, ids=variants)
 def test_codegen(test_device, variant):
