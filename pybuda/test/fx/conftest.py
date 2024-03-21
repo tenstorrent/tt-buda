@@ -15,7 +15,7 @@ def generic_model_test(src_model, num_inputs = 1, num_outputs = 1, inputs = []):
         if num_outputs > 0:
             tt_res = tuple([tt_res.to('cpu')]) if isinstance(tt_res, torch.Tensor) else tuple([t.to('cpu') for t in tt_res])
 
-        cpu_res = src_model(*inputs)
+        cpu_res = src_model.to('cpu')(*inputs)
         if isinstance(cpu_res, torch.Tensor):
             cpu_res = tuple([cpu_res])
 

@@ -177,7 +177,6 @@ class RawIntOutput(nn.Module):
         emb = self.token_embedding(input_ids)
         return emb, input_ids
 
-@pytest.mark.skip(reason="https://yyz-gitlab.local.tenstorrent.com/tenstorrent/pybuda/-/issues/2497")
 def test_fallback_on_raw_int():
     # Test the case where the raw int output into embedding is also passed through to output, through some kind of nop/reshape/slice
     # We want to fall back to CPU for the raw int output
