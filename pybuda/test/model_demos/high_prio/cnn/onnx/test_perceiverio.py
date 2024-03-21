@@ -41,6 +41,8 @@ def test_perceiver_for_image_classification_onnx(test_device, model_name):
         compiler_cfg.balancer_op_override("multiply_19", "t_stream_shape", (1,1))
         compiler_cfg.balancer_op_override("multiply_3103", "t_stream_shape", (1,1))
         compiler_cfg.balancer_op_override("multiply_3123", "t_stream_shape", (1,1))
+        compiler_cfg.balancer_op_override("multiply_2745", "t_stream_shape", (1,1))
+        compiler_cfg.balancer_op_override("multiply_2934", "t_stream_shape", (1,1))
 
     onnx_model_path = "third_party/confidential_customer_models/generated/files/" + str(model_name).split("/")[-1].replace("-","_") + ".onnx"
     
