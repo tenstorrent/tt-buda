@@ -10,10 +10,10 @@ rm perf.json
 pybuda/test/benchmark/benchmark.py -m resnet -c resnet50 -o perf.json
 
 # Mobilenet v1
-pybuda/test/benchmark/benchmark.py -m mobilenet_v1 -c 224 -mf HiFi2 -o perf.json
+pybuda/test/benchmark/benchmark.py -m mobilenet_v1 -c 224 -o perf.json
 
 # Mobilenet v2
-pybuda/test/benchmark/benchmark.py -m mobilenet_v2 -c 224 -mf HiFi2 -o perf.json
+pybuda/test/benchmark/benchmark.py -m mobilenet_v2 -c 224 -o perf.json
 
 # Mobilenet v3
 # Low accuracy.
@@ -49,7 +49,7 @@ pybuda/test/benchmark/benchmark.py -m yolo_v5 -c s -o perf.json
 pybuda/test/benchmark/benchmark.py -m inception_v4 -c 224 -o perf.json
 
 # UNet
-pybuda/test/benchmark/benchmark.py -m unet -c 256 -mb 48 -mf HiFi2 -o perf.json
+pybuda/test/benchmark/benchmark.py -m unet -c 256 -mb 48 -o perf.json
 
 # Bert large
 pybuda/test/benchmark/benchmark.py -m bert -c large_tc -o perf.json
