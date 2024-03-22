@@ -1,0 +1,24 @@
+include:
+  - .gitlab-ci.wheels.yml
+  - ci/gitlab-test-lists/.gitlab-ci.grayskull_silicon_perf_bfp8_b_nightly.yml
+  - ci/gitlab-test-lists/.gitlab-ci.grayskull_silicon_perf_fp16_nightly.yml
+  - ci/gitlab-test-lists/.gitlab-ci.wormhole_b0_silicon_perf_bfp8_b_nightly.yml
+  - ci/gitlab-test-lists/.gitlab-ci.wormhole_b0_silicon_perf_fp16_nightly.yml
+  - ci/gitlab-test-lists/.gitlab-ci.wormhole_b0_silicon_perf_release_nightly.yml
+
+# Dissable other jobs from .gitlab-ci.wheels.yml
+pybuda-gs-latest-bbe-wheel:
+  rules:
+    - if: ($CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_MESSAGE !~ /\[no_ci_perf/)
+
+pybuda-wh-b0-latest-bbe-wheel:
+  rules:
+    - if: ($CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_MESSAGE !~ /\[no_ci_perf/)
+
+pybuda-gs-unittests:
+  rules:
+    - if: ($CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_MESSAGE !~ /\[no_ci_perf/)
+
+pybuda-wh-b0-unittests:
+  rules:
+    - if: ($CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_MESSAGE !~ /\[no_ci_perf/)
