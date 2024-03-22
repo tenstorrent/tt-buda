@@ -255,3 +255,18 @@ def test_disjointed_graphs_with_params():
     #torch.set_num_threads(1) # TODO: Multi-thread seems to cause data mismatch
     generic_model_test(DisjointedGraphsWithParams(), inputs=(torch.tensor([4.0]),))
 
+class NoOutputModel(nn.Module):
+    def forward(self, a):
+        pass
+
+def test_no_outputs_model():
+    # Test the case where the model has no output
+    generic_model_test(NoOutputModel(), num_outputs=0)
+
+class NoInputModel(nn.Module):
+    def forward(self):
+        return torch.zeros((1, 1, 3, 3))
+
+def test_no_inputs_model():
+    # Test the case where the model has no inputs
+    generic_model_test(NoInputModel(), num_inputs=0)

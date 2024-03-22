@@ -88,7 +88,7 @@ def remove_output_index(node: torch.fx.Node, idx: int):
     args = list(node.args[0])
     del args[idx]
     node.args = (tuple(args),)
-    
+
     meta = list(node.meta["tensor_meta"])
     del meta[idx]
     node.meta["tensor_meta"] = tuple(meta)
@@ -110,7 +110,8 @@ def graph_lint(graph: torch.fx.Graph, graph_name: str = "graph"):
         if node.op == "output":
             check(not found_output, f"Multiple output nodes found")
             check(len(node.args) == 1, f"Output node {node} has more than one argument")
-            check(len(node.meta["tensor_meta"]) == len(node.args[0]), f"Output node {node} in has mismatched tensor meta and args: {node.meta['tensor_meta']} vs {node.args[0]}")
+            if "tensor_meta" in node.meta:
+                check(len(node.meta["tensor_meta"]) == len(node.args[0]), f"Output node {node} in has mismatched tensor meta and args: {node.meta['tensor_meta']} vs {node.args[0]}")
     
 def graph_to_device(graph: torch.fx.Graph, device: Union[str, torch.device]):
     # Update any ops in the graph that are explicitly assigning device, and override to the given device

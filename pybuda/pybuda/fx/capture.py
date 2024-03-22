@@ -256,12 +256,14 @@ class CaptureFX:
     
         tt_act = [a.to("tt") for a in activations]
         # Run static shape propagation on aten module
-        shape_prop = torch.fx.passes.shape_prop.ShapeProp(aten_module)
-        if shape_prop.fake_mode is not None:
-            fake_args = [shape_prop.fake_mode.from_tensor(t, static_shapes=True) if isinstance(t, torch.Tensor) else t for t in tt_act]
-        else:
-            fake_args = tt_act
-        shape_prop.run(*fake_args)
+        if len(tt_act) > 0:
+            shape_prop = torch.fx.passes.shape_prop.ShapeProp(aten_module)
+            if shape_prop.fake_mode is not None:
+                fake_args = [shape_prop.fake_mode.from_tensor(t, static_shapes=True) if isinstance(t, torch.Tensor) else t for t in tt_act]
+            else:
+                fake_args = tt_act
+            shape_prop.run(*fake_args)
+
         aten_module = aten_module.to("cpu")
     
         module_inputs = []
