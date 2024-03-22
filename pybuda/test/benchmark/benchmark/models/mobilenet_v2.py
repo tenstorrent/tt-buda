@@ -41,7 +41,7 @@ def mobilenet_v2(training: bool, config: str, microbatch: int, devtype: str, arc
             math_fidelity=pybuda.MathFidelity.HiFi2
         )
         # TODO: Should we remove this override? Evaluation score with this override is 0.6979, without it is 0.6875.
-        # pybuda.config.configure_mixed_precision(op_type="multiply", math_fidelity=pybuda.MathFidelity.HiFi2)
+        pybuda.config.configure_mixed_precision(op_type="multiply", math_fidelity=pybuda.MathFidelity.HiFi2)
         pybuda.config.configure_mixed_precision(op_type="matmul", math_fidelity=pybuda.MathFidelity.HiFi2)
     
     if arch == "grayskull":
