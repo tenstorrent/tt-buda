@@ -39,7 +39,7 @@ from pybuda._C import (
 )
 import pybuda
 from .parameter import Parameter
-from pybuda._C.backend_api import BackendType, BackendDevice, DeviceConfig
+from pybuda._C.backend_api import BackendCompileFailure, BackendType, BackendDevice, DeviceConfig
 import pybuda._C.autograd as pyautograd
 import pybuda._C.balancer as pybalancer
 import pybuda._C.pattern_matcher as pypattern_matcher
@@ -1159,21 +1159,30 @@ def handle_backend_error(context: CompileContext, ex: Optional[BackendCompileExc
     """
 
     assert context is not None
-    recompile_enabled = bool(int(os.environ.get("PYBUDA_AUTO_RECOMPILE", "0")))
+    recompile_enabled = bool(int(os.environ.get("PYBUDA_AUTO_RECOMPILE", "1")))
     recompile_retry_limit = int(os.environ.get("PYBUDA_AUTO_RECOMPILE_RETRY_LIMIT", "10"))
 
-    # Currently only NLP and Ribbon policies are supported for recompilation.
-    # Because the only handling we do is to change the target cycles and recompile - which other policies don't use.
-    if context.policy_type not in [pybalancer.PolicyType.NLP, pybalancer.PolicyType.Ribbon]:
-        return False
-
     if recompile_enabled and context.recompile_count < recompile_retry_limit:
-        logger.warning("Compile failed, retrying compilation with different parameters.")
         context.in_recompile = True
         context.recompile_count += 1
+        logger.warning("Compile failed, retrying compilation with different parameters. Retry count: {}", context.recompile_count)
 
-        # Offset target cycles for the recompile.
-        context.target_cycles_offset += int(os.environ.get("PYBUDA_TARGET_CYCLES_OFFSET", "50000"))
+        if ex is not None and ex.compile_result.failure_type == BackendCompileFailure.OverlaySize:
+            # Add extra overlay blob size.
+            overlay_max_extra_blob_size = int(os.environ.get("TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE", "0"))
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = str(overlay_max_extra_blob_size + ex.compile_result.extra_size_bytes)
+            logger.warning("Setting TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE to {}", os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"])
+        elif bool(int(os.environ.get("PYBUDA_AUTO_RECOMPILE_TARGET_CYCLES", "0"))):
+            # Currently only NLP and Ribbon policies are supported for recompilation.
+            # Because the only handling we do is to change the target cycles and recompile - which other policies don't use.
+            if context.policy_type not in [pybalancer.PolicyType.NLP, pybalancer.PolicyType.Ribbon]:
+                return False
+
+            # Offset target cycles for the recompile.
+            context.target_cycles_offset += int(os.environ.get("PYBUDA_TARGET_CYCLES_OFFSET", "50000"))
+            logger.warning("Setting PYBUDA_TARGET_CYCLES_OFFSET to {}", os.environ["PYBUDA_TARGET_CYCLES_OFFSET"])
+        else:
+            return False
 
         # Set the compile context to execute from pre placer stage.
         context.stage = CompileDepth.BUDA_GRAPH_PRE_PLACER
