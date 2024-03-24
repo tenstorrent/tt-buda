@@ -24,6 +24,9 @@ def yolo_v5(training: bool, config: str, microbatch: int, devtype: str, arch: st
     if available_devices[0] == BackendDevice.Wormhole_B0:
         os.environ["PYBUDA_SUPRESS_T_FACTOR_MM"] = "49"
 
+    # Temp perf workaround for tenstorrent/bbe#2595
+    os.environ["PYBUDA_PAD_OUTPUT_BUFFER"] = "1"
+
     # These are about to be enabled by default.
     #
     os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
