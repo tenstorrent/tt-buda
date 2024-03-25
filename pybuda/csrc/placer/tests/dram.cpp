@@ -24,12 +24,6 @@ using tt::ARCH;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 
-namespace placer
-{
-    bool disable_dynamic_dram_if_possible(
-    const std::vector<DRAMScheduleData> &scheduled_queue_placements, const DramAllocator &allocator);
-}  // namespace placer
-
 //
 // Tests for DRAM allocators
 //
@@ -137,6 +131,8 @@ class DRAMPlacerTest : public testing::TestWithParam<ARCH>
         bool is_input = false;
         bool in_p2p_region_soft = false;
         bool in_p2p_region_hard = false;
+        // set queue size. It should be rounded as specified in method get_next_aligned_address in third_party/budabackend/netlist/tt_backend_api.cpp
+        std::uint32_t queue_size = 32;
         tt::balancer::BlockShape block_shape = {1, 1, 1, tt::balancer::UBlockShape{1, 1}};
 
         std::string input_name = "foo";
@@ -163,6 +159,7 @@ class DRAMPlacerTest : public testing::TestWithParam<ARCH>
                  .in_p2p_region_soft = in_p2p_region_soft,
                  .in_p2p_region_hard = in_p2p_region_hard,
                  .is_input = is_input,
+                 .queue_size = queue_size,
              }});
 
         return {node, queue_placement_params.back().second};
@@ -170,8 +167,7 @@ class DRAMPlacerTest : public testing::TestWithParam<ARCH>
 
     std::unordered_map<const Node *, std::vector<QueueBufferPlacement>> run_allocator()
     {
-        bool disable_dynamic_dram = disable_dynamic_dram_if_possible(queue_placement_params, *allocator.get());
-        allocator->allocate_queues(queue_placement_params, disable_dynamic_dram, graph->get_microbatch());
+        allocator->allocate_queues(queue_placement_params, dram_config->force_disable_dynamic_dram, graph->get_microbatch());
         std::unordered_map<const Node *, std::vector<QueueBufferPlacement>> ret;
         for (auto &[queue_placement, queue_dram_placement_params] : queue_placement_params)
         {
