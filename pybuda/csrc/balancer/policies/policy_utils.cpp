@@ -1737,13 +1737,14 @@ bool buffer_graph(
 
 float EpochSolution::evaluate() const
 {
+    static const bool use_legacy_util_eval = env_as<bool>("PYBUDA_TEMP_RIBBON2_LEGACY_UTIL_EVAL", false);
     float pipeline_cycles = 0;
     // Treat non-matmul ops as 8x less efficient than matmul ops.
     // Treat sparse matmuls as least efficient, we want to assign them least amount of cores while at the same time not
     // making them epoch bottleneck.
     //
     const int matmul_penalty = 1;
-    const int non_matmul_penalty = 8;
+    const int non_matmul_penalty = use_legacy_util_eval ? 128 : 8;
     const int sparse_matmul_penalty = 128;
     log_trace(LogBalancer, "RIBBON2: Calculating solution score for ribbon size {}", ribbon_size);
     for (const auto &op_model : selected_op_models)

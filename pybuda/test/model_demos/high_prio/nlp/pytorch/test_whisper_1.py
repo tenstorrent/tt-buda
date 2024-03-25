@@ -96,23 +96,19 @@ def test_whisper_enc_dec(test_device, variant):
         os.environ["TT_BACKEND_MULTI_THREADED_PUSH"] = "1"
         os.environ["TT_BACKEND_DRAM_POLLING_FREQUENCY"] = "64"
         os.environ["PYBUDA_NOP_ON_DIRECT_SHORT_PATH"] = "1"
-        os.environ["PYBUDA_NLP_MANUAL_TARGET_PER_SUBGRAPH"] = "0, 35000, 1, 35000, 2, 23000"
         os.environ["PYBUDA_SKIP_SMALL_UKT"] = "1"
 
 
         if variant == "openai/whisper-base":
-            os.environ["PYBUDA_NLP_MANUAL_TARGET_PER_SUBGRAPH"] = "0, 55000, 1, 35000, 2, 23000"
             os.environ["PYBUDA_GRAPHSOLVER_SELF_CUT_TYPE"] = "None"
             compiler_cfg.enable_auto_fusing = False
 
         if variant == "openai/whisper-small":
-            os.environ["PYBUDA_NLP_MANUAL_TARGET_PER_SUBGRAPH"] = "0, 35000, 1, 50000, 2, 23000"
             os.environ["PYBUDA_DISABLE_SELF_CUT_FOR_SUBGRAPHS"] = "1, 2"
 
         if variant == "openai/whisper-medium":
             os.environ["PYBUDA_GRAPHSOLVER_SELF_CUT_TYPE"] = "None"
             compiler_cfg.enable_auto_fusing = False
-            os.environ["PYBUDA_NLP_MANUAL_TARGET_PER_SUBGRAPH"] = "0, 125000, 1, 80000, 2, 30000"
             compiler_cfg.balancer_op_override("layernorm_66.dc.add.14", "t_stream_shape", (1,1))
             compiler_cfg.balancer_op_override("layernorm_1193.dc.add.14", "t_stream_shape", (1,1))
         
@@ -128,7 +124,7 @@ def test_whisper_enc_dec(test_device, variant):
             compiler_cfg.amp_level = 1
         else:
         #    compiler_cfg.enable_enumerate_u_kt = False
-            os.environ["PYBUDA_NLP_MANUAL_TARGET"] = "2000000"
+            os.environ["PYBUDA_TEMP_RIBBON2_LEGACY_UTIL_EVAL"] = "1"
 
     run_encoder_on_tt = ("tiny" in variant) or ("base" in variant) or ("small" in variant) or ("medium" in variant)
 

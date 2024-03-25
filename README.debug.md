@@ -130,4 +130,5 @@
 * PYBUDA\_TEMP\_BALANCER\_DISABLE\_TARGET\_PROXIMITY: Disable target proximity in balancer. (default: 0/False)
 * PYBUDA\_TEMP\_DISABLE\_FJ\_NOP\_SCHEDULE\_FIX: This flag disables a fix that forces FJ buffering nops to be scheduled last.
 * PYBUDA\_TEMP\_FIX\_2351: Controls the fix for bug #2351 - fork-join can end up adding buffering nops and queues on same path, this control flag fixes it.
+* PYBUDA\_TEMP\_RIBBON2\_LEGACY\_UTIL\_EVAL: Use legacy util evaluation in Ribbon2 balancing policy. (default: 0/False)
 * PYBUDA\_TEMP\_DISABLE\_MODEL\_KB\_PROLOGUE\_BW: Disables bandwidth modelling for kernel broadcasted and prologued inputs.
