@@ -1245,12 +1245,14 @@ class BinaryTest(pybuda.PyBudaModule):
             p1 = pybuda.op.Greater("greater", act1, act2)   
         elif self.mode == "ne":
             p1 = pybuda.op.NotEqual("ne", act1, act2)       
+        elif self.mode == "maximum":
+            p1 = pybuda.op.Max("maximum", act1, act2)
         else:
             p1 = pybuda.op.Equal("eq", act1, act2)   
         return p1
 
 
-@pytest.mark.parametrize("mode", ["less", "greater", "lteq", "gteq", "ne", "eq", "heaviside"])
+@pytest.mark.parametrize("mode", ["less", "greater", "lteq", "gteq", "ne", "eq", "heaviside", "maximum"])
 def test_binary(test_device, mode):
     x = Tensor.create_from_torch(torch.randn((1, 1, 64, 64), requires_grad=True)) 
     y = Tensor.create_from_torch(torch.randn((1, 1, 64, 64), requires_grad=True)) 

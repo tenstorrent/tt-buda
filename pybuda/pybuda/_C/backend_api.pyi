@@ -254,6 +254,7 @@ class OpModelDesc:
     ublock_ct: int
     ublock_kt: int
     ublock_rt: int
+    version: int
     def __init__(self) -> None: ...
 
 class PytorchTensorDesc:

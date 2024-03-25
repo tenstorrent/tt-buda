@@ -249,6 +249,7 @@ bool is_matmul(BudaOpNode *op) { return op->is_matmul(); }
 bool is_reduce_max(BudaOpNode *op) { return (op->op_type().op == "reduce"); }
 bool is_splice(BudaOpNode *op) { return (op->op_type().op == "splice"); }
 bool is_buffer(BudaOpNode *op) { return (op->op_type().op == "buffer"); }
+bool is_maximum(BudaOpNode *op) { return (op->op_type().op == "maximum"); }
 
 bool is_tile_broadcast(BudaOpNode *op)
 {
@@ -504,6 +505,12 @@ bool FusionGroup::reuse_dest_if_possible(
 {
     // Reusing dest not allowed for matmul.
     if (is_matmul(op))
+    {
+        return false;
+    }
+
+    // Reusing dest for input to maximum is not allowed.
+    if (is_maximum(op))
     {
         return false;
     }
@@ -827,8 +834,11 @@ void FusionGroup::create_schedules(
 
             std::uint32_t output_buffer_id = (output_buffer != nullptr) ? output_buffer->id : 0;
 
-            // If the operator has relu activation, don't reuse it (for better performance).
-            bool dont_reuse = op->buda_attrs().find("relu_en") != op->buda_attrs().end();
+            // Dont reuse dest in case:
+            //  - operator has relu activation, don't reuse it (for better performance).
+            //  - operator is maximum
+            bool dont_reuse = (op->buda_attrs().find("relu_en") != op->buda_attrs().end())
+                || is_maximum(op);
 
             if (output_buffer == nullptr || dont_reuse)
                 prev_output_allocated_buffer.reset();

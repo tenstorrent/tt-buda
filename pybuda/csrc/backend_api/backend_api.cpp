@@ -608,7 +608,8 @@ void BackendModule(py::module &m_backend) {
         .def_readwrite("sparse_nz_strips", &tt_op_model_desc::sparse_nz_strips)
         .def_readwrite("approx_mode", &tt_op_model_desc::approx_mode)
         .def_readwrite("op_attr", &tt_op_model_desc::op_attr)
-        .def_readwrite("reduce_z", &tt_op_model_desc::reduce_z);
+        .def_readwrite("reduce_z", &tt_op_model_desc::reduce_z)
+        .def_readwrite("version", &tt_op_model_desc::version);
 
     py::enum_<tt::DEVICE_STATUS_CODE>(m_backend, "BackendStatusCode")
         .value("Success", tt::DEVICE_STATUS_CODE::Success)

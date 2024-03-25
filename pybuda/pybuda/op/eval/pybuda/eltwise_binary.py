@@ -398,7 +398,7 @@ def decompose_post_autograd(op_type, attr, dc, inputs):
         res = dc.op("add", (res, x_gt))
         dc.fuse(res)
         return
-    elif op_type == "maximum":
+    elif op_type == "maximum" and os.environ.get("PYBUDA_ENABLE_MAXIMUM_DECOMPOSITION", "0") == "1":
         operand0, operand1 = inputs[0], inputs[1]
         orig_op0_shape = operand0.shape.as_list()
         orig_op1_shape = operand1.shape.as_list()

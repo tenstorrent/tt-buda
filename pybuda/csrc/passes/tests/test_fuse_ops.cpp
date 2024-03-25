@@ -273,6 +273,58 @@ TEST_F(FuseOpsReuseTest, dont_reuse_tile_broadcast)
     }
 }
 
+struct FuseOpsReuseTestMaximum : public BudaGraphTest
+{
+    protected:
+     virtual std::vector<OpType*> create_graph() override
+     {
+
+        auto in0 = create_activation(1, 1, 32, 32);
+        auto in1 = create_activation(1, 1, 32, 32);
+        auto in2 = create_activation(1, 1, 32, 32);
+
+        auto max_op1 = create_op("maximum", {in0, in1});
+        auto add_op1 = create_op("add", {max_op1, in2});
+        auto max_op2 = create_op("maximum", {add_op1, in2});
+        auto add_op = create_op("add", {max_op2, in2});
+
+        max_output_op = max_op1->name();
+        max_input_op= max_op2->name();
+
+        return {add_op};
+     }
+
+     std::string max_output_op;
+     std::string max_input_op;
+};
+
+TEST_F(FuseOpsReuseTestMaximum, fuse_dont_reuse_dest_if_maximum)
+{
+    Graph* graph = get_graph();
+    fuse_ops(graph);
+    std::vector<BudaOpNode*> fused_ops = get_fused_ops(graph);
+
+    for (auto fused_op : fused_ops)
+    {
+        auto fused = fused_op->get_fused_op();
+        for (auto schedule : fused->get_schedules())
+        {
+            for (auto& op : schedule.ops)
+            {
+                if (op.name == max_output_op)
+                {
+                    EXPECT_TRUE(op.output_type != FusedSubOp::OutputType::DEST);
+                }
+                else if (op.name == max_input_op)
+                {
+                    bool no_dest = std::none_of(op.inputs.begin(), op.inputs.end(), [](const auto &input) { return input.type == FusedSubOpInput::InputType::DEST; });
+                    EXPECT_TRUE(no_dest);
+                }
+            }
+        }
+    }
+}
+
 struct FuseOpsDataFormatsTest : public BudaGraphTest
 {
    protected:
