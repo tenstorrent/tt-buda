@@ -28,7 +28,6 @@ import benchmark.models.hrnet
 import benchmark.models.inception_v4
 import benchmark.models.mobilenet_v1
 import benchmark.models.mobilenet_v2
-import benchmark.models.mobilenet_v2_timm
 import benchmark.models.mobilenet_v3_timm
 import benchmark.models.openpose_body
 import benchmark.models.openpose_hand
@@ -36,9 +35,7 @@ import benchmark.models.other
 import benchmark.models.resnet
 import benchmark.models.t5
 import benchmark.models.unet
-import benchmark.models.unit
 import benchmark.models.vit
-import benchmark.models.vovnet_v1
 import benchmark.models.vovnet_v2
 import benchmark.models.whisper
 import benchmark.models.yolo_v3
