@@ -172,6 +172,9 @@ def test_yolo_v5_640x640_onnx(test_device, variant):
         compiler_cfg.balancer_op_override(
             " concatenate_332.dc.concatenate.7", "grid_shape", (1, 1)
         )
+        compiler_cfg.balancer_op_override(
+            " concatenate_332.dc.concatenate.7", "t_stream_shape", (1, 1)
+        )
         os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{112*1024}"
 
     if variant == "yolov5l":
