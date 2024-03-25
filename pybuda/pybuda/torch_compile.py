@@ -7,12 +7,16 @@ import pybuda
 import torch
 import io
 import json
+from typing import List
 from contextlib import redirect_stdout
-from pybuda._C.torch_device import get_default_device, push_tensor, unique_id, PyBudaTensorDesc, CompileRequest, Program 
+
 from loguru import logger
+
+from pybuda._C.torch_device import get_default_device, push_tensor, unique_id, PyBudaTensorDesc, CompileRequest, Program 
 from pybuda.compiled_graph_state import CompiledGraphState
 from pybuda.fx.capture import CaptureFX
-from pybuda.fx.nodes import call_function_is_nop
+from pybuda.fx.schedule import TensorSource
+from pybuda.fx.mixed_graph import MixedGraph
 
 
 _tt0 = None
@@ -71,7 +75,7 @@ def torch_device(index=0):
     return get_available_devices()[index].torch_device()
 
 
-def _build_backend_compile_request(device, compiler_cfg, compiled_graph_state, subgraph_idx):
+def _build_backend_compile_request(device, compiler_cfg, compiled_graph_state, subgraph_idx: int, program_ids: List[int]):
     soc_desc_yaml = (
         compiler_cfg.backend_device_descriptor_path
         if compiler_cfg.backend_device_descriptor_path == ""
@@ -95,22 +99,35 @@ def _build_backend_compile_request(device, compiler_cfg, compiled_graph_state, s
         cluster_yaml,
     )
 
-    inputs = [
-        PyBudaTensorDesc(name, shape)
-        for name, shape in zip(
-            compiled_graph_state.get_ordered_input_names_for_subgraph(subgraph_idx), compiled_graph_state.get_ordered_input_shapes_for_subgraph(subgraph_idx)
-        )
-    ]
+    inputs = {}
+    for program_id in program_ids:
+        graph_idx = MixedGraph.get_program_subgraph_id(subgraph_idx, program_id)
+        program_inputs = [
+            PyBudaTensorDesc(name, shape)
+            for name, shape in zip(
+                compiled_graph_state.get_ordered_input_names_for_subgraph(graph_idx), compiled_graph_state.get_ordered_input_shapes_for_subgraph(graph_idx)
+            )
+        ]
+        inputs[graph_idx] = program_inputs
 
-    input_runtime_transforms = {}
-    for i in range(subgraph_idx + 1):
-        input_runtime_transforms[i] = [
-            json.dumps(transform.to_json()) for transform in compiled_graph_state.get_ordered_input_runtime_transforms_for_subgraph(i)
+    #input_runtime_transforms = {}
+    #for i in range(subgraph_idx + 1):
+    #    input_runtime_transforms[i] = [
+    #        json.dumps(transform.to_json()) for transform in compiled_graph_state.get_ordered_input_runtime_transforms_for_subgraph(i)
+    #    ]
+    input_runtime_transforms = device.input_runtime_transforms # append to existing ones
+    for program_id in program_ids:
+        graph_idx = MixedGraph.get_program_subgraph_id(subgraph_idx, program_id)
+        input_runtime_transforms[graph_idx] = [
+            json.dumps(transform.to_json()) for transform in compiled_graph_state.get_ordered_input_runtime_transforms_for_subgraph(graph_idx)
         ]
 
-    input_tile_bcast_dims = {}
-    for i in range(subgraph_idx + 1):
-        input_tile_bcast_dims[i] = compiled_graph_state.get_ordered_input_tile_broadcast_dims_for_subgraph(i)
+    input_tile_bcast_dims = device.input_tile_bcast_dims # append to existing ones
+    for program_id in program_ids:
+        graph_idx = MixedGraph.get_program_subgraph_id(subgraph_idx, program_id)
+        input_tile_bcast_dims[graph_idx] = compiled_graph_state.get_ordered_input_tile_broadcast_dims_for_subgraph(graph_idx)
+    #for i in range(subgraph_idx + 1):
+    #    input_tile_bcast_dims[i] = compiled_graph_state.get_ordered_input_tile_broadcast_dims_for_subgraph(i)
 
     constants = [
         PyBudaTensorDesc(
@@ -126,17 +143,28 @@ def _build_backend_compile_request(device, compiler_cfg, compiled_graph_state, s
         for name, param in compiled_graph_state.post_const_eval_parameters.items()
     ]
 
-    outputs = [
-        PyBudaTensorDesc(name, shape)
-        for name, shape in zip(
-            compiled_graph_state.get_ordered_output_names_for_subgraph(subgraph_idx), compiled_graph_state.get_ordered_output_shapes_for_subgraph(subgraph_idx)
-        )
-    ]
-    output_runtime_transforms = {}
-    for i in range(subgraph_idx + 1):
-        output_runtime_transforms[i] = [
-            json.dumps(transform.to_json()) for transform in compiled_graph_state.get_ordered_output_runtime_transforms_for_subgraph(i)
+    outputs = {}
+    for program_id in program_ids:
+        graph_idx = MixedGraph.get_program_subgraph_id(subgraph_idx, program_id)
+        program_outputs = [
+            PyBudaTensorDesc(name, shape)
+            for name, shape in zip(
+                compiled_graph_state.get_ordered_output_names_for_subgraph(graph_idx), compiled_graph_state.get_ordered_output_shapes_for_subgraph(graph_idx)
+            )
         ]
+        outputs[graph_idx] = program_outputs
+
+    output_runtime_transforms = device.output_runtime_transforms # append to existing ones
+    #for i in range(subgraph_idx + 1):
+    #    output_runtime_transforms[i] = [
+    #        json.dumps(transform.to_json()) for transform in compiled_graph_state.get_ordered_output_runtime_transforms_for_subgraph(i)
+    #    ]
+    for program_id in program_ids:
+        graph_idx = MixedGraph.get_program_subgraph_id(subgraph_idx, program_id)
+        output_runtime_transforms[graph_idx] = [
+            json.dumps(transform.to_json()) for transform in compiled_graph_state.get_ordered_output_runtime_transforms_for_subgraph(graph_idx)
+        ]
+
 
     logger.debug("Build CompileRequest")
     return CompileRequest(
@@ -158,6 +186,7 @@ def _compile(module, aten_module, module_name, sample_inputs, device, compiler_c
     global _subgraph_index
 
     if os.environ.get("PRINT_PT2_GRAPH", "0") == "1":
+        logger.info("Compiling pt2 graph:")
         aten_module.graph.print_tabular()    
 
     if _tt0 is None:
@@ -174,22 +203,25 @@ def _compile(module, aten_module, module_name, sample_inputs, device, compiler_c
 
     # Frontend Compile
     logger.debug("Appending to Graph")
-    intermediate_tensors, output_tensors = _capture.append_to_graph(
+    device_graph_changed, graph_inputs, intermediate_tensors, output_tensors, schedule = _capture.append_to_graph(
         module_name, module, aten_module, sample_inputs, _subgraph_index)
-
-    if len(aten_module.graph.nodes) == 0:
-        return None, None, None
-
+    
     _subgraph_index += 1
+
+    if not device_graph_changed:
+        return None, None, schedule
+
     _tt0.graph = _capture.get_buda_graph().clone()
     _tt0.intermediate_tensors = intermediate_tensors
     _tt0.output_tensors = [pybuda.Tensor.create_from_torch(output_tensor) for output_tensor in output_tensors]
     logger.debug("Frontend Compile")
     module = module.to("cpu")
+
     fe_compile_result = pybuda.compile.pybuda_compile(
         _tt0,
         module_name,
-        *[pybuda.Tensor.create_from_torch(sample_input.to("cpu")) for sample_input in sample_inputs],
+        #*[pybuda.Tensor.create_from_torch(sample_input.to("cpu")) for sample_input in sample_inputs],
+        *[pybuda.Tensor.create_from_torch(sample_input.to("cpu")) for sample_input in [g for gs in graph_inputs for g in gs]],
         compiler_cfg=compiler_cfg,
         microbatch_size=sample_inputs[0].shape[0],
         # TODO: support all arguments
@@ -199,10 +231,10 @@ def _compile(module, aten_module, module_name, sample_inputs, device, compiler_c
     logger.debug("Backend Compile")
     compiled_graph_state = CompiledGraphState.from_compiled_graph(_tt0, fe_compile_result)
     workload = device.compile(
-        _build_backend_compile_request(device, compiler_cfg, compiled_graph_state, _subgraph_index - 1)
+        _build_backend_compile_request(device, compiler_cfg, compiled_graph_state, _subgraph_index - 1, schedule.get_device_program_ids())
     )
-
-    return workload, compiled_graph_state, _capture.graph.generate_schedule(_subgraph_index - 1)
+    
+    return workload, compiled_graph_state, schedule
 
 
 def _create_compile_key(module, module_name, sample_inputs, device, compiler_cfg):
@@ -276,7 +308,7 @@ class compiledModel(torch.nn.Module):
                 )
 
         loop_count = 1
-        if not self.compiled_graph_state.has_cache_buffers:
+        if self.compiled_graph_state is not None and not self.compiled_graph_state.has_cache_buffers:
             program_params = {"$p_loop_count": str(loop_count)}
         else:
             program_params = {
@@ -286,31 +318,72 @@ class compiledModel(torch.nn.Module):
             "$p_outer_loop_count": str(1),
             "$p_outer_increment": str(1),
         }
-        program = Program(f"run_fwd_{self.index}", program_params)
-        logger.info(f"Running run_fwd_{self.index}")
-
         output_map = {}
         intermediates = {}
 
         # Run the schedule
         outputs_generated = set()
+        logger.info(f"Running subgraph {self.index}")
         for item in self.schedule:
-            
-            if item.graph:
+                
+            graph_inputs = []
+            for i in item.inputs:
+                if i.src == TensorSource.INTERMEDIATE:
+                    graph_inputs.append(intermediates[i.index].to('tt'))
+                elif i.src == TensorSource.INPUT:
+                    graph_inputs.append(inputs[i.index])
+                else:
+                    graph_inputs.append(output_map[i.index])
+
+            #print("graph inputs:")
+            #for i, p in enumerate(graph_inputs):
+            #    print(" - ", i, ": ", p.to('cpu'))
+
+            if item.fallback:
                 # CPU graph
                 logger.trace(f"Running fallback graph on CPU: {item.graph_index}")
-                graph_module = torch.fx.GraphModule({}, item.graph, f"Fallback_{item.graph_index}")
-                graph_inputs = (intermediates[i.index].to('cpu') if i.intermediate else inputs[i.index].to('cpu') for i in item.inputs)
+                graph_module = torch.fx.GraphModule({}, item.graph)
+                graph_inputs = [i.to('cpu') for i in graph_inputs]
                 graph_outputs = graph_module(*graph_inputs)
+                logger.trace(f"Done, produced {len(graph_outputs)} outputs.")
+                graph_outputs = tuple(t.to('tt') for t in graph_outputs)
             else:
                 # Device - dispatch to device
-                #outputs = self.device.dispatch(
-                #    self.workload, [program], list(inputs), self.compiled_graph_state.output_host_tms, self.index, self.is_compile)
-                logger.trace(f"Running main graph on Device")
-                graph_inputs = (intermediates[i.index].to('tt') if i.intermediate else inputs[i.index] for i in item.inputs)
+                program_index = MixedGraph.get_program_subgraph_id(self.index, item.graph_index)
+                program = Program(f"run_fwd_{program_index}", program_params)
+                logger.debug(f"Running run_fwd_{program_index} on device")
+                
                 graph_outputs = self.device.dispatch(
-                        self.workload, [program], list(graph_inputs), self.compiled_graph_state.output_host_tms, self.index, self.is_compile)
+                        self.workload, [program], list(graph_inputs), self.compiled_graph_state.output_host_tms, program_index, self.is_compile)
             
+                for i, output in enumerate(graph_outputs):
+                    if torch.isnan(output.to('cpu')).any(): # debug
+                        logger.error(f"Output {i} has NaNs:")
+                        logger.error(output.to('cpu'))
+                        raise RuntimeError(f"Output {i} is NaN")
+                """
+                for i, output in enumerate(graph_outputs):
+                    print(f"Graph output {i} of {len(graph_outputs)}: shape={output.to('cpu').shape}, desired shape={self.workload.outputs[program_index][i].shape}, item.outputs={item.outputs}")
+
+                for i, output in enumerate(graph_outputs):
+                    narrowed = False
+                    for dim in range(len(output.shape)):
+                        # TODO: reproduce in a smaller test than StableDiffusion
+                        if output.shape[dim] != self.workload.outputs[item.graph_index][i].shape[dim]:
+                            narrowed = True
+                            graph_outputs[i] = output.narrow(dim, 0, self.workload.outputs[item.graph_index][i].shape[dim]).to('cpu').to('tt')
+
+                    # TODO:
+                    # If narrowed, the tensor is now on CPU, and can't be used to link to the next graph.. so that needs disabling somehow
+                    if not narrowed:
+                        graph_outputs[i] = graph_outputs[i].clone()
+                """
+            
+            #print("graph outputs:")
+            #for i, p in enumerate(graph_outputs):
+            #    print(" - ", i, ": ", p.to('cpu'))
+
+
             # Record outputs
             for i, output in enumerate(item.outputs):
                 if output.intermediate:
@@ -320,24 +393,24 @@ class compiledModel(torch.nn.Module):
                     output_map[output.index] = graph_outputs[i]
                     outputs_generated.add(output.index)
                     
-        assert len(outputs_generated) > 0, "No outputs came out of the schedule"
-
         # Flatten output map into list
         outputs = [output_map[i] for i in range(len(output_map))]
 
         for out in outputs:
             _tensor_to_unique_id[unique_id(out)] = out
 
-        #global _ordered_outputs_per_subgraph
-        #_ordered_outputs_per_subgraph[self.index] = [unique_id(out) for out in outputs]
         _capture.capture_sample_outputs(outputs, self.index)
-        #print (f"ordered_inputs_per_subgraph: {_ordered_inputs_per_subgraph}")
-        #print (f"ordered_outputs_per_subgraph: {_ordered_outputs_per_subgraph}")
         # CHeck previous outputs and push to new param queue
+
+        # TODO: We need to do something to clone this in case backend is going to deallocate.... but we don't yet know it it will :(.
+        # Instead, we copy to cpu.
         #outputs = [o.to('cpu') for o in outputs]
         return outputs
     
     def to(self, dev):
+        if self.workload is None:
+            return 
+
         for desc in self.workload.parameters:
             name = desc.name
             value = self.compiled_graph_state.post_const_eval_parameters[name]
@@ -348,6 +421,7 @@ class compiledModel(torch.nn.Module):
             value = self.compiled_graph_state.post_const_eval_constants[name]
             push_tensor(self.device.backend.get_queue_descriptor(desc.name), desc, value, "")
         # self.module.to(dev)
+
 
 from torch._decomp import core_aten_decompositions
 from torch.fx.experimental.proxy_tensor import make_fx
@@ -415,16 +489,9 @@ def _torch_compile(
 
     cache &= not bool(os.environ.get("PYBUDA_DISABLE_COMPILE_CACHE", "0"))
 
-    if is_nop_graph(aten_module) or is_constant_graph(aten_module) or (not has_output(aten_module)):
-        return module.forward
-
     workload, compiled_graph_state, schedule = _compile_cached(
         module, aten_module, module_name, sample_inputs, device, compiler_cfg, cache
     )
-
-    # Check after fallback again, and if nothing stays on the device, just return the original module
-    if is_nop_graph(aten_module) or is_constant_graph(aten_module) or (not has_output(aten_module)):
-        return module.forward
 
     compiled_model = compiledModel(module, device, workload, compiled_graph_state, schedule, _subgraph_index-1)
     # Push parameters and constants to device
@@ -434,22 +501,5 @@ def _torch_compile(
         module = module.to(original_torch_device)
     return compiled_model
     
-def is_nop_graph(module):
-    for node in module.graph.nodes:
-        if node.op == "call_function" and not call_function_is_nop(node):
-            return False
-    return True
-
-def is_constant_graph(module):
-    for node in module.graph.nodes:
-        if node.op == "placeholder":
-            return False
-    return True
-
-def has_output(module):
-    for node in module.graph.nodes:
-        if node.op == "output" and len(node.all_input_nodes) > 0:
-            return True
-    return False
 
 # compile_torch = aot_autograd(fw_compiler=_torch_compile, decompositions={**core_aten_decompositions(), **pybuda_decompositions})

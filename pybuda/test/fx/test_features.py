@@ -1,13 +1,23 @@
 # SPDX-FileCopyrightText: © 2024 Tenstorrent AI ULC
 
 # SPDX-License-Identifier: Apache-2.0
+from typing import Tuple
+import os
+
 import pytest
-import pybuda
 import torch
 import torch.nn as nn
-import os
+
+import pybuda
 from pybuda.torch_compile import compile_torch
 from pybuda.config import _get_global_compiler_config
+
+from .conftest import generic_model_test
+
+#
+# TODO: Tests here depend on the fact that argmax/index are not supported at the moment. If that changes, and they are added to the device, many of
+# these tests will be irrelevant, and need to be updated with a different fallback op. Ideally something that we would (almost) never support.
+#
 
 def test_link():
     class Linear(nn.Module):
@@ -36,17 +46,6 @@ def test_link():
     result = pybuda_mod_2(result_c)
 
     result = result.to("cpu")
-
-
-
-from torch._dynamo import export
-from torch._decomp import register_decomposition
-import torch
-import torch.nn as nn
-
-torch._dynamo.reset()
-import torch._dynamo as dynamo
-
 
 def test_decomp():
     pytest.skip() #TODO fix: FATAL    | Always          - Unsupported (for now) _copy_from TTDevice[0] to TTDevice[0]
@@ -142,24 +141,8 @@ class ClipArgmax(torch.nn.Module):
 @pytest.mark.parametrize("eltwise_before", [True, False])
 @pytest.mark.parametrize("eltwise_after", [True, False])
 def test_fallback(eltwise_before, eltwise_after):
-
-    if eltwise_before and eltwise_after:
-        # This is fallback in the middle of the graph, which is not supported yet
-        pytest.skip()
-
-    model = torch.compile(ClipArgmax(eltwise_before, eltwise_after), backend=compile_torch)
-
-    for _ in range(3):
-        input = (torch.rand(1, 128, 768), torch.randint(0, 128, (1, 128)).int())
-        # Workaround for data mismatch when last hidden state and index are on TT device, the math comes out wrong
-        # Not sure why - haven't been able to isolate the problem yet
-        device = 'tt' if eltwise_before or eltwise_after else 'cpu'
-        tt_input = (input[0].to(device), input[1].to(device))
-        tt_res = model(*tt_input)
-        tt_res = tt_res.to('cpu')
-
-        cpu_res = ClipArgmax(eltwise_before, eltwise_after)(*input)
-        assert torch.allclose(cpu_res, tt_res, atol=0, rtol=1e-2)
+    shape = (1, 128, 768)
+    generic_model_test(ClipArgmax(eltwise_before, eltwise_after), inputs=(torch.rand(*shape), torch.randint(0, shape[1], (1, shape[1])).int()))
 
 class ClipArgmaxSandwich(torch.nn.Module):
     def forward(self, last_hidden_state, input_ids):
@@ -174,16 +157,102 @@ class ClipArgmaxSandwich(torch.nn.Module):
             ]
         return pooled_output
 
+@pytest.mark.skip(reason="https://yyz-gitlab.local.tenstorrent.com/tenstorrent/pybuda/-/issues/2496")
 def test_fallback_before_and_after():
     # Fallback before and after, with device in the middle
-    model = torch.compile(ClipArgmaxSandwich(), backend=compile_torch)
+    shape = (1, 128, 768)
+    generic_model_test(ClipArgmaxSandwich(), inputs=(torch.rand(*shape), torch.randint(0, shape[1], (shape[0], shape[1])).int()))
 
-    for _ in range(3):
-        input = (torch.rand(1, 128, 768), torch.randint(0, 128, (1, 128)).int())
-        device = 'tt'
-        tt_input = (input[0].to(device), input[1].to(device))
-        tt_res = model(*tt_input)
-        tt_res = tt_res.to('cpu')
 
-        cpu_res = ClipArgmaxSandwich()(*input)
-        assert torch.allclose(cpu_res, tt_res, atol=0, rtol=1e-2)
+class RawIntOutput(nn.Module):
+    def __init__(self):
+        super().__init__()
+        embed_dim = 128
+        vocab_size = 1024
+        self.token_embedding = nn.Embedding(vocab_size, embed_dim)
+
+    def forward(self, input_ids: torch.LongTensor) -> Tuple[torch.Tensor, torch.LongTensor]:
+        seq_length = input_ids.shape[-1]
+        input_ids = input_ids[:, :seq_length]
+        emb = self.token_embedding(input_ids)
+        return emb, input_ids
+
+@pytest.mark.skip(reason="https://yyz-gitlab.local.tenstorrent.com/tenstorrent/pybuda/-/issues/2497")
+def test_fallback_on_raw_int():
+    # Test the case where the raw int output into embedding is also passed through to output, through some kind of nop/reshape/slice
+    # We want to fall back to CPU for the raw int output
+    generic_model_test(RawIntOutput(), inputs=[torch.randint(0, 1024, (1, 128)).int()])
+
+class FallbackOutputReuse(nn.Module):
+    def forward(self, a):
+        b = a * a
+        c = torch.argmax(b, dim=-1)
+        return c, b
+
+def test_fallback_with_output_reuse():
+    # Test the case where the fallback graph is using one of the graph outputs as its input
+    generic_model_test(FallbackOutputReuse(), num_outputs=2)
+
+class ForkedInput(torch.nn.Module):
+    def forward(self, last_hidden_state, input_ids):
+        pooled_output = last_hidden_state[
+                torch.arange(last_hidden_state.shape[0], device=last_hidden_state.device),
+                input_ids.to(device=last_hidden_state.device).argmax(dim=-1),
+            ]
+        device_output = last_hidden_state * last_hidden_state # something to do on device
+        return pooled_output, device_output
+
+def test_forked_input():
+    # Test the case where the input is used in both fallback and device graph
+    generic_model_test(ForkedInput(), inputs=(torch.rand(1, 128, 768), torch.randint(0, 128, (1, 128)).int()), num_outputs=2)
+
+class ForkedInputToNop(torch.nn.Module):
+    def forward(self, last_hidden_state, input_ids):
+        pooled_output = last_hidden_state[
+                torch.arange(last_hidden_state.shape[0], device=last_hidden_state.device),
+                input_ids.to(device=last_hidden_state.device).argmax(dim=-1),
+            ]
+        device_output = last_hidden_state 
+        return pooled_output, device_output
+
+def test_forked_input_to_nop():
+    # Test the case where the input is used in both fallback and device graph, but device graph is NOP so it also falls back to CPU
+    generic_model_test(ForkedInputToNop(), inputs=(torch.rand(1, 128, 768), torch.randint(0, 128, (1, 128)).int()), num_outputs=2)
+
+foobar = 5.0
+class DisjointedGraphs(torch.nn.Module):
+    def forward(self, a):
+        a = a + 1
+        a = a.to('cpu')
+        if a[:, 0] > foobar:
+            b = a + 2
+        else:
+            b = a + 3
+
+        return b
+
+@pytest.mark.skip(reason="Fails in shape handling, Allan is working on it.. or we need to cause disjointed graphs differently")
+def test_disjointed_graphs():
+    # Test the case where pt2 generates two completely independent graphs
+    generic_model_test(DisjointedGraphs(), inputs=(torch.Tensor([[4.0]]),))
+
+class DisjointedGraphsWithParams(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.linear1 = torch.nn.Linear(1, 1, bias=False)
+        self.linear2 = torch.nn.Linear(1, 1, bias=False)
+    def forward(self, a):
+        a = self.linear1(a)
+        a = a.to('cpu')
+        if a[0] > 1:
+            b = a + 2
+        else:
+            b = self.linear2(a) 
+
+        return b
+
+@pytest.mark.skip(reason="Fails in shape handling, Allan is working on it.. or we need to cause disjointed graphs differently")
+def test_disjointed_graphs_with_params():
+    #torch.set_num_threads(1) # TODO: Multi-thread seems to cause data mismatch
+    generic_model_test(DisjointedGraphsWithParams(), inputs=(torch.tensor([4.0]),))
+

@@ -8,9 +8,10 @@
 
 import sys
 import math
-from typing import List, Set
+from typing import List, Set, Tuple
 
 import torch
+from loguru import logger
 
 from pybuda._C.graph import OpType
 from pybuda.tensor import pytorch_dtype_to_buda_dataformat
@@ -343,12 +344,17 @@ dynamo_to_pybuda_function = {
     "convolution"                          : (process_conv2d, "conv2d"), #TODO: check if conv3d is also mapped to 'convolution'
     "div"                                  : (process_matmul, "divide"),
     "embedding"                            : (process_embedding, "embedding"),
+    "eq"                                   : (process_dummy_no_attr, "equal"),
     "expand"                               : (process_expand, "nop"),
     "flatten"                              : (process_flatten, "reshape"),
     "gelu"                                 : (process_gelu, "gelu"),
     "getitem"                              : (process_getitem, "index"),
+    "gt"                                   : (process_dummy_no_attr, "greater"),
+    "gte"                                  : (process_dummy_no_attr, "greater_equal"),
     "iadd"                                 : (process_dummy_no_attr, "add"),
     "interpolate"                          : (process_interpolate, "resize2d"),
+    "lt"                                   : (process_dummy_no_attr, "less"),
+    "lte"                                  : (process_dummy_no_attr, "less_equal"),
     "matmul"                               : (process_dummy_no_attr, "matmul"),
     "max_pool2d_with_indices"              : (process_maxpool2d, "max_pool2d"),
     "mean"                                 : (process_mean, "reduce_avg"),
@@ -359,12 +365,14 @@ dynamo_to_pybuda_function = {
     "relu"                                 : (process_dummy_no_attr, "relu"),
     "relu_"                                : (process_dummy_no_attr, "relu"),
     "select"                               : (process_select, "index"),
+    "sigmoid"                              : (process_dummy_no_attr, "sigmoid"),
     "slice"                                : (process_slice, "index"),
     "softmax"                              : (process_softmax, "softmax"),
     "sub"                                  : (process_dummy_no_attr, "subtract"),
     "tanh"                                 : (process_dummy_no_attr, "tanh"),
     "to"                                   : (process_dummy_no_attr, "nop"), #TODO
     "_to_copy"                             : (process_dummy_no_attr, "nop"), #TODO
+    "copy_"                                : (process_dummy_no_attr, "nop"), #TODO
     "transpose"                            : (process_transpose, "transpose"),
     "truediv"                              : (process_dummy_no_attr, "divide"),
     "unsqueeze"                            : (process_unsqueeze, "unsqueeze"),
@@ -372,7 +380,6 @@ dynamo_to_pybuda_function = {
     "_unsafe_view"                         : (process_reshape, "reshape"),
     "where"                                : (process_dummy_no_attr, "where"),
     "pow"                                  : (process_power, ""),
-    "gt"                                   : (process_dummy_no_attr, "greater"),
 }
 
 torch_constant_ops = {
@@ -380,15 +387,25 @@ torch_constant_ops = {
     "zeros"                          : torch.zeros,
     "arange"                         : torch.arange,
     "full"                           : torch.full,
-    "empty"                           : torch.empty,
+    "empty"                          : torch.empty,
+    "scalar_tensor"                  : torch.scalar_tensor,
 }
 
 
-def is_supported_op(torch_op_name):
-    return torch_op_name in dynamo_to_pybuda_function
+def is_supported_op(torch_op_name, node: torch.fx.Node):
+    if torch_op_name not in dynamo_to_pybuda_function:
+        return False
+
+    # Check for special cases
+    if torch_op_name == "cat":
+        if len(node.args) == 1:
+            return False # We currently need explicit dim specificed in second arg
+
+    return True
+
 
 def get_pybuda_node(torch_op_name, node):
-    if not is_supported_op(torch_op_name):
+    if not is_supported_op(torch_op_name, node):
         print(f"Unsupported op {torch_op_name}")
         breakpoint()
         assert False, f"Unsupported op {torch_op_name}"
@@ -657,10 +674,53 @@ def call_function_is_nop(node):
     else:
         return False
 
-def get_unsupported_nodes(aten_module) -> Set[torch.fx.Node]:
+def call_function_is_reshape(node):
+    assert node.op == "call_function"
+    op_name = node.target.__name__
+    if op_name in dynamo_to_pybuda_function:
+        return dynamo_to_pybuda_function[op_name][1] == "reshape"
+    else:
+        return False
+
+def unsupported_shared_embedding_input(graph: torch.fx.GraphModule, unsupported_nodes: Set[torch.fx.Node], unsupported_outputs: Set[torch.fx.Node]):
+    # Embedding input is untilized integer input. No other op can handle it, other than a "tilize" op, which currently is not implemented. So, we'll mark it as unsupported.
+
+    def search_up(node: torch.fx.Node, visited: Set[torch.fx.Node]):
+        if node in visited:
+            return 
+
+        if not isinstance(node, torch.fx.Node):
+            return
+
+        visited.add(node)
+                
+        for user in node.users:
+            if user in visited:
+                continue
+            if user.op == "call_function" and user.target.__name__ == "embedding":
+                continue
+            if user.op == "output":
+                unsupported_outputs.add(raw_input)
+                continue
+            unsupported_nodes.add(user)
+
+        for arg in node.all_input_nodes:
+            search_up(arg, visited)
+
+
+    for node in graph.nodes:
+        if node.op == "call_function" and node.target.__name__ == "embedding":
+            raw_input = node.args[1]
+            visited = set()
+            search_up(raw_input, visited)
+
+def get_unsupported_nodes(graph: torch.fx.Graph) -> Tuple[Set[torch.fx.Node], Set[torch.fx.Node]]:
     # Traverse the FX graph and find all the nodes that are not supported and should fall back to CPU
+    # Returns a set of unsupported nodes, and a set of unsupported outputs - since there's only one output node,
+    # we represent those by nodes that drive the output, and have to be in a separate set
     unsupported_nodes = set()
-    for node in aten_module.graph.nodes:
+    unsupported_outputs = set()
+    for node in graph.nodes:
         if node.op != "call_function":
             continue
 
@@ -672,10 +732,15 @@ def get_unsupported_nodes(aten_module) -> Set[torch.fx.Node]:
         if op_name == "getitem":
             continue
 
-        if is_supported_op(op_name):
+        if is_supported_op(op_name, node):
             continue
 
         unsupported_nodes.add(node)
-        
-    return unsupported_nodes
 
+    # Additional passes to find unsupported patterns
+    unsupported_shared_embedding_input(graph, unsupported_nodes, unsupported_outputs)
+
+    if len(unsupported_outputs) > 0 or len(unsupported_nodes) > 0:
+        logger.trace("Unsupported nodes: " + str(unsupported_nodes) + " Unsupported outputs: " + str(unsupported_outputs))
+        
+    return unsupported_nodes, unsupported_outputs

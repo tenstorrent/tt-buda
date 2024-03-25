@@ -10,22 +10,7 @@ from typing import List, Tuple, Union
 import torch
 from loguru import logger
 
-
-def flatten_args(args: List) -> List:
-    # Flatten inputs into a list
-    node_args = []
-    for arg in args:
-        if isinstance(arg, torch.fx.Node):
-            node_args.append(arg)
-        elif isinstance(arg, (list, tuple)):
-            node_args.extend(arg)
-        # Explicitly allow types to make sure we don't miss anything important
-        elif isinstance(arg, (int, float)):
-            continue
-        else:
-            assert False, f"Unsupported argument type {type(arg)}"
-    return node_args
-
+from pybuda.fx.nodes import call_function_is_nop, call_function_is_reshape
             
 def reduce_graph(module_or_graph: Union[torch.fx.Graph, torch.fx.GraphModule]):
     # Reduce the graph to only the nodes that are used
@@ -43,8 +28,7 @@ def reduce_graph(module_or_graph: Union[torch.fx.Graph, torch.fx.GraphModule]):
         node = working_nodes.pop(0)
         if not isinstance(node, torch.fx.Node):
             continue
-        args = flatten_args(node.args)
-        for arg in args:
+        for arg in node.all_input_nodes:
             if arg not in consumed:
                 consumed.add(arg)
                 working_nodes.append(arg)
@@ -101,7 +85,6 @@ def move_output_to_end(graph: torch.fx.Graph):
 
 def remove_output_index(node: torch.fx.Node, idx: int):
     # Remove the output index for the list of outputs
-    print(node, node.op, node.meta, node.args)
     args = list(node.args[0])
     del args[idx]
     node.args = (tuple(args),)
@@ -129,4 +112,36 @@ def graph_lint(graph: torch.fx.Graph, graph_name: str = "graph"):
             check(len(node.args) == 1, f"Output node {node} has more than one argument")
             check(len(node.meta["tensor_meta"]) == len(node.args[0]), f"Output node {node} in has mismatched tensor meta and args: {node.meta['tensor_meta']} vs {node.args[0]}")
     
+def graph_to_device(graph: torch.fx.Graph, device: Union[str, torch.device]):
+    # Update any ops in the graph that are explicitly assigning device, and override to the given device
 
+    def device_kwarg_to_cpu(node: torch.fx.Node):
+        # If the node is a device kwarg, then we need to move it to CPU
+        if 'device' in node.kwargs:
+            new_kwargs = node.kwargs.copy()
+            new_kwargs['device'] = device
+            node.kwargs = new_kwargs
+
+    for node in graph.nodes:
+        if not isinstance(node, torch.fx.Node):
+            continue
+
+        device_kwarg_to_cpu(node)
+
+def is_nop_graph(graph: torch.fx.Graph) -> bool:
+    for node in graph.nodes:
+        if node.op == "call_function" and not call_function_is_nop(node) and not call_function_is_reshape(node):
+            return False
+    return True
+
+def is_constant_graph(graph: torch.fx.Graph) -> bool:
+    for node in graph.nodes:
+        if node.op == "placeholder":
+            return False
+    return True
+
+def has_output(graph: torch.fx.Graph) -> bool:
+    for node in graph.nodes:
+        if node.op == "output" and len(node.all_input_nodes) > 0:
+            return True
+    return False

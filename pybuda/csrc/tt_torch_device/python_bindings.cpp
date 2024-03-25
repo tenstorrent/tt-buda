@@ -41,12 +41,12 @@ void TorchDeviceModule(py::module &m_torch_device)
                 std::string const&,
                 std::string const&,
                 tt::tt_backend_config const&,
-                std::vector<tt::PyBudaTensorDesc> const&,
+                std::map<int, std::vector<tt::PyBudaTensorDesc>> const&,
                 std::map<int, std::vector<std::string>> const&,
                 std::map<int, std::vector<std::vector<int>>> const&,
                 std::vector<tt::PyBudaTensorDesc> const&,
                 std::vector<tt::PyBudaTensorDesc> const&,
-                std::vector<tt::PyBudaTensorDesc> const&,
+                std::map<int, std::vector<tt::PyBudaTensorDesc>> const&,
                 std::map<int, std::vector<std::string>> const&>(),
             py::arg("netlist_path"),
             py::arg("output_dir"),
@@ -71,6 +71,9 @@ void TorchDeviceModule(py::module &m_torch_device)
         .def_readonly("arch", &tt::TTDevice::arch)
         .def_readonly("mmio", &tt::TTDevice::mmio)
         .def_readonly("index", &tt::TTDevice::index)
+        .def_readonly("input_runtime_transforms", &tt::TTDevice::input_runtime_transforms)
+        .def_readonly("input_tile_bcast_dims", &tt::TTDevice::input_tile_bcast_dims)
+        .def_readonly("output_runtime_transforms", &tt::TTDevice::output_runtime_transforms)
         .def_readonly("soc_desc_yaml", &tt::TTDevice::soc_desc_yaml)
         .def_property_readonly("cluster_yaml", &tt::get_device_cluster_yaml)
         .def("torch_device", &tt::torch_device)

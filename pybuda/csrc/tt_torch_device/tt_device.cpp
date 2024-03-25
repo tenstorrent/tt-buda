@@ -313,7 +313,7 @@ std::vector<torch::Tensor> dispatch(
 
 
     // TT_ASSERT(copied_inputs.size() == inputs.size());
-    for (auto const& desc : workload->inputs)
+    for (auto const& desc : workload->inputs.at(subgraph_idx))
     {
         torch::Tensor & input = inputs.at(input_idx);
         auto impl = input.unsafeGetTensorImpl();
@@ -360,15 +360,16 @@ std::vector<torch::Tensor> dispatch(
     }
 
     std::vector<torch::Tensor> outputs;
-    outputs.reserve(workload->outputs.size());
+    const auto &subgraph_outputs = workload->outputs.at(subgraph_idx);
+    outputs.reserve(subgraph_outputs.size());
 
     // Clear old tensor uids and update with new ones
     if (device.subgraph_to_tensor_uid_on_device.count(subgraph_idx) != 0)
         device.subgraph_to_tensor_uid_on_device[subgraph_idx].clear();
 
-    for (size_t i = 0; i < workload->outputs.size(); ++i)
+    for (size_t i = 0; i < subgraph_outputs.size(); ++i)
     {
-        PyBudaTensorDesc const& desc = workload->outputs.at(i);
+        PyBudaTensorDesc const& desc = subgraph_outputs.at(i);
         tt::balancer::OutputHostTM output_host_tm = tt::balancer::OutputHostTM(); 
         if (output_host_tms.count(desc.name))
             output_host_tm = output_host_tms.at(desc.name);

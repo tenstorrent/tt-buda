@@ -195,3 +195,12 @@ def test_bert():
     result = [r.to("cpu") for r in result]
     for i, (g, r) in enumerate(zip(golden, result)):
         assert pybuda.op.eval.compare_tensor_to_golden(f"bert_{i}", g, r, is_buda=True, pcc=0.99)
+
+from diffusers import StableDiffusionPipeline
+
+def test_sd():
+    model = StableDiffusionPipeline.from_pretrained("CompVis/stable-diffusion-v1-4")
+    prompt = "a photo of an astronaut riding a horse on mars"
+    model = model.to("tt")
+    pybuda_mod = torch.compile(model, backend=compile_torch)
+    image = pybuda_mod(prompt=prompt, num_images_per_prompt=1, output_type="pil").images[0]

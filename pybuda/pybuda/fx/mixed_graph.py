@@ -8,14 +8,18 @@
 #
 
 from typing import Dict, List, Tuple, Set
+from collections import defaultdict
+import os
+import copy
 
 import torch
 from loguru import logger
 
 import pybuda
-from pybuda.fx.nodes import torch_constant_ops, call_function_is_nop
+from pybuda.fx.nodes import torch_constant_ops, call_function_is_nop, call_function_is_reshape
 from pybuda.fx.schedule import Schedule
-from pybuda.fx.graph_utils import flatten_args, reduce_graph, get_output_node, append_to_output, move_output_to_end, remove_output_index, graph_lint
+from pybuda.fx.graph_utils import reduce_graph, get_output_node, append_to_output, move_output_to_end, remove_output_index, graph_lint, is_nop_graph, is_constant_graph, has_output, graph_to_device
+from pybuda.fx.trace import IOTracer
 from pybuda._C.torch_device import unique_id
 
 class MixedGraph:
@@ -30,7 +34,17 @@ class MixedGraph:
 
         self.fallback_graphs_per_subgraph: Dict[int, List[torch.fx.Graph]] = {}
         self.mappings_per_subgraph: Dict[int, Dict[str, Dict[torch.fx.Node, torch.fx.Node]]] = {}
-        self.aten_graph_per_subgraph: Dict[int, torch.fx.Graph] = {}
+        self.device_graphs_per_subgraph: Dict[int, List[torch.fx.Graph]] = {}
+        
+        # A bit hacky - but there's no compiler-level config for log level at the moment
+        log_env = 'LOGURU_LEVEL'
+        self.log_trace = log_env in os.environ and os.environ[log_env] == "TRACE"
+
+    @classmethod
+    def get_program_subgraph_id(cls, subgraph_idx: int, program_idx: int) -> int:
+        # encode in one number, maybe break it up later
+        assert program_idx < 100, "Too many programs in a single subgraph"
+        return subgraph_idx * 100 + program_idx
 
     def capture_sample_inputs(self, inputs: List[torch.Tensor], subgraph_id: int):
         self.inputs_per_subgraph[subgraph_id] = [unique_id(t) for t in inputs]
@@ -49,7 +63,7 @@ class MixedGraph:
 
         assert False, "Output not found"
 
-    def filter_unsupported_nodes(self, aten_module: torch.nn.Module, unsupported_ops: Set[torch.fx.Node], subgraph_id: int):
+    def filter_unsupported_nodes(self, device_graph: torch.fx.Graph, unsupported_ops: Set[torch.fx.Node], unsupported_outputs: Set[torch.fx.Node], subgraph_id: int):
         # Move unsupported ops to CPU
 
         # First, we'll copy all unsupported ops to a new FX graph. For each node that gets its input
@@ -71,6 +85,10 @@ class MixedGraph:
         # List of inputs/outputs to create in the original graph, once we're done traversing and it's safe to modify
         scheduled_new_outputs : List[Tuple[torch.fx.Node, torch.fx.Node]] = [] # Tuple - source in original graph, dest in new graph
         scheduled_new_inputs : List[Tuple[torch.fx.Node, torch.fx.Node, torch.fx.Node]] = [] # Tuple - dest in original graph, source in original graph, source in new graph
+        
+        logger.trace("Initial graph:")
+        if self.log_trace:
+            device_graph.print_tabular()
 
         fallback_graph = torch.fx.Graph()
 
@@ -79,10 +97,23 @@ class MixedGraph:
 
         if subgraph_id not in self.output_nodes_per_subgraph:
             self.output_nodes_per_subgraph[subgraph_id] = []
+        
+        output_node = get_output_node(device_graph)
+        if output_node is None:
+            self.device_graphs_per_subgraph[subgraph_id] = [fallback_graph]
+            self.fallback_graphs_per_subgraph[subgraph_id] = []
+            self.mappings_per_subgraph[subgraph_id] = {
+                "new_io_mapping": new_io_mapping,
+                "placeholder_map": placeholder_map,
+                "copied_node_mapping": copied_node_mapping,
+                "moved_output_mapping": moved_output_mapping
+            }
+            return [fallback_graph] # No outputs, nothing to do
 
         # Some of the unsupported nodes will have nop arguments, which we want to copy over as well. Let's find those first.
         to_copy_ops = unsupported_ops.copy()
-        for node in aten_module.graph.nodes:
+        to_copy_ops.update(unsupported_outputs)
+        for node in device_graph.nodes:
                 
             # While traversing, record original inputs/outputs
             if node.op == "placeholder":
@@ -94,13 +125,10 @@ class MixedGraph:
                     self.output_nodes_per_subgraph[subgraph_id].append(arg)
                 continue
 
-            if node not in unsupported_ops:
+            if node not in unsupported_ops and node not in unsupported_outputs:
                 continue
             
-            # Collect the inputs
-            node_args = flatten_args(node.args)
-
-            for arg in node_args:
+            for arg in node.all_input_nodes:
                 if arg.op != "call_function":
                     continue
                 
@@ -108,14 +136,22 @@ class MixedGraph:
                 if call_function_is_nop(arg):
                     to_copy_ops.add(arg)
 
+            # If any of the users of unsupported ops are reshapes, they are easier to run on CPU anyway
+            for user in node.users:
+                if user.op == "call_function" and call_function_is_reshape(user):
+                    to_copy_ops.add(user)
+                    unsupported_ops.add(user)
+
+        logger.trace(f"To copy/move to CPU: ", to_copy_ops)
+
         # Now go through and copy the nodes that need copying
-        for node in aten_module.graph.nodes:
+        for node in device_graph.nodes:
 
             # If the output is driven by an unsupported op, then we need to move it over to the new graph
             if node.op == "output":
                 assert len(node.args) == 1
                 for driving_node in node.args[0]:
-                    if driving_node in unsupported_ops:
+                    if driving_node in unsupported_ops or driving_node in unsupported_outputs:
                         logger.trace(f"Moving output: {driving_node} {hex(id(driving_node))}, to copied node: {hex(id(copied_node_mapping[driving_node]))}")
                         
                         # Add to fallback graph
@@ -129,8 +165,7 @@ class MixedGraph:
             if node not in to_copy_ops:
                 if not isinstance(node, torch.fx.Node):
                     continue
-                args = flatten_args(node.args)
-                for arg in args:
+                for arg in node.all_input_nodes:
                     if arg not in unsupported_ops:
                         continue
                     
@@ -154,9 +189,6 @@ class MixedGraph:
             if node not in to_copy_ops:
                 continue
 
-            # Collect the inputs
-            node_args = flatten_args(node.args)
-
             # Figure out which of these need to be new inputs, and also create the map for copying
             arg_map : Dict[torch.fx.Node, torch.fx.Node] = {}
 
@@ -167,18 +199,20 @@ class MixedGraph:
                     new_kwargs['device'] = 'cpu'
                     node.kwargs = new_kwargs
 
-            for arg in node_args:
+            for arg in node.all_input_nodes:
+            
                 if arg in to_copy_ops:
                     # We should've already made a copy of this
                     assert arg in copied_node_mapping, f"Node {arg} not copied, but it's an argument to {node} and in 'to copy ops'"
                     arg_map[arg] = copied_node_mapping[arg]
                     continue
-            
+                
                 if arg.op == "call_function":
                     op_name = arg.target.__name__
 
                     # If the function is a constant, copy it over, no sense it evaluating it on device and then copying
-                    if op_name in torch_constant_ops or op_name == "getitem":
+                    #if op_name in torch_constant_ops or op_name == "getitem":
+                    if op_name in torch_constant_ops:
                         logger.trace(f"Copying constant op to fallback graph: {arg}")
                         new_node = fallback_graph.node_copy(arg, lambda x: x) # there should be no node args to copy in a constant op
                         copied_node_mapping[arg] = new_node
@@ -186,10 +220,13 @@ class MixedGraph:
                         device_kwarg_to_cpu(copied_node_mapping[arg])
                         continue
 
-                    # Supported op, calculated on device. We need to create inputs and outputs.
+                    # Supported op, calculated on device. We need to create inputs and outputs, unless it's already an output
+                    already_output = arg in self.output_nodes_per_subgraph[subgraph_id]
                     logger.trace(f"Creating new output/input pair to fallback graph: {arg}")
                     in_node = fallback_graph.placeholder(arg.name)
-                    scheduled_new_outputs.append((arg, in_node))
+                    if not already_output:
+                        scheduled_new_outputs.append((arg, in_node))
+                    new_io_mapping[in_node] = arg
                     arg_map[arg] = in_node
                     continue
 
@@ -215,184 +252,293 @@ class MixedGraph:
         # Create new outputs
         # Graph can only have one output, so we need to append it to existing output
         for source, dest in scheduled_new_outputs:
-            append_to_output(aten_module.graph, source)
-            new_io_mapping[dest] = source
+            append_to_output(device_graph, source)
 
         # Create new inputs
         for dest, source, new_source in scheduled_new_inputs:
-            with aten_module.graph.inserting_before(dest):
-                in_node = aten_module.graph.placeholder(source.name)
+            with device_graph.inserting_before(dest):
+                in_node = device_graph.placeholder(source.name)
                 in_node.meta["tensor_meta"] = source.meta["tensor_meta"]
             source.replace_all_uses_with(in_node)
             new_io_mapping[in_node] = new_source
         
         # Remove outputs
-        output_node = get_output_node(aten_module.graph)
+        output_node = get_output_node(device_graph)
         assert output_node is not None
+
         for driving_node in moved_output_mapping:
             remove_output_index(output_node, output_node.args[0].index(driving_node))
 
         # Remove the unsupported ops from the original graph
-        for node in reversed(aten_module.graph.nodes):
+        for node in reversed(device_graph.nodes):
             if node in unsupported_ops:
-                aten_module.graph.erase_node(node)
+                device_graph.erase_node(node)
         
         # Reduce unused stuff
-        reduce_graph(aten_module)
+        reduce_graph(device_graph)
 
         # Move outputs to the end
-        move_output_to_end(aten_module.graph)
+        move_output_to_end(device_graph)
         move_output_to_end(fallback_graph)
 
-        graph_lint(aten_module.graph, "Device_graph_after_fallback")
+        graph_lint(device_graph, "Device_graph_after_fallback")
         graph_lint(fallback_graph, "Merged_fallback")
 
-        #print("After fallback:")
-        #print("Original graph:")
-        #aten_module.graph.print_tabular()
-        #print("Fallback graph:")
-        #fallback_graph.print_tabular()
-        #print("IO Mappings: ", new_io_mapping)
+        logger.trace("After fallback:")
+        logger.trace("Device graph:")
+        if self.log_trace:
+            device_graph.print_tabular()
+        logger.trace("Fallback graph:")
+        if self.log_trace:
+            fallback_graph.print_tabular()
+        logger.trace("IO Mappings: ", new_io_mapping)
 
-        # Break up fallback graph into multiple graphs to break any deadlocks. Ouptuts to intermediates and
-        # inputs from intermediates can't be in the same graph.
-        progress = len(fallback_graph.nodes) > 0 # skip this if the graph is already empty
-        fallback_graphs = [fallback_graph]
-        new_graphs = []
-        while progress:
-            # Keep looking for input/output pair, make a copy of the graph and them remove down from input and up from output
-            # If either/both graphs end up empty, then they are linked and we have a problem
+        # Break up device/fallback graphs into multiple graphs if there are any circular dependencies
+        device_graphs, fallback_graphs = self.break_up_deadlocks(subgraph_id, device_graph, fallback_graph, new_io_mapping, placeholder_map, copied_node_mapping, moved_output_mapping)
 
-            # There are probably better algorithms to do this :) - but this is simple and I think it works
-            fallback_graphs.extend(new_graphs)
-            new_graphs = []
-            intermediate_outputs = set(new_io_mapping.values())
-            progress = False
-
-            for graph in fallback_graphs:
-                # Find an input from intermediates
-                intermediate_input = None
-                for node in graph.nodes:
-                    if node in new_io_mapping:
-                        intermediate_input = node
-                        break
-
-                # Find an output to intermediate
-                intermediate_output = None
-                if intermediate_input is not None:
-                    for node in graph.nodes:
-                        if node in intermediate_outputs:
-                            intermediate_output = node
-                            break
-
-                if intermediate_input is None or intermediate_output is None:
-                    continue
-
-                # Create a copy, and separate graphs
-                logger.debug(f"Fallback graph has a dependency to break: {intermediate_output} -> {intermediate_input}")
-                new_graph = torch.fx.Graph()
-                #new_graph = copy.deepcopy(graph)
-                copy_map = {}
-                output_value = new_graph.graph_copy(graph, copy_map)
-                new_output = new_graph.output(output_value)
-                new_output.meta["tensor_meta"] = tuple(o.meta["tensor_meta"] for o in output_value)
-
-                # Remove nodes from the original graph
-                to_remove = []
-                to_process = [intermediate_input]
-                while to_process:
-                    node = to_process.pop()
-                    to_remove.append(node)
-                    for user in node.users:
-                        if user not in to_remove:
-                            if user.op == "output":
-                                remove_output_index(user, user.args[0].index(node))
-                                break # done at output
-                            else:
-                                to_process.append(user)
-
-                for node in reversed(to_remove):
-                    graph.erase_node(node)
-
-                reduce_graph(graph) # remove dead code
-                assert len(graph.nodes) > 0, f"Graph {graph} is empty after trying to disjoin multiple fallback graphs"
-
-                # Removed nodes from the copy, starting from the output working our way up
-                to_remove = []
-                graph_output = get_output_node(new_graph)
-                remove_output_index(graph_output, graph_output.args[0].index(copy_map[intermediate_output]))
-                to_process = [copy_map[intermediate_output]]
-                while to_process:
-                    node = to_process.pop()
-                    to_remove.append(node)
-                    if not isinstance(node, torch.fx.Node):
-                        continue
-
-                    args = flatten_args(node.args)
-                    for arg in args:
-                        if not isinstance(arg, torch.fx.Node):
-                            continue
-                        if arg not in to_remove:
-                            to_process.append(arg)
-                
-                for node in to_remove:
-                    new_graph.erase_node(node)
-
-                reduce_graph(new_graph)
-
-                assert len(new_graph.nodes) > 0, f"Graph {new_graph} is empty after trying to disjoin multiple fallback graphs"
-
-                new_graphs.append(new_graph)
-                progress = True
-
-                # Update mappings, as some nodes have moved into the new graph
-                for node in new_graph.nodes:
-                    if node.op == "output":
-                        continue
-
-                    for node_map in [new_io_mapping, placeholder_map, copied_node_mapping, moved_output_mapping]:
-                        # Reverse lookup, since copy map is old->new, and we need new->old
-                        original_node = None
-                        for org_node, new_node in copy_map.items():
-                            if new_node == node:
-                                original_node = org_node
-                                break
-                        assert original_node is not None
-                        update_node_map(node_map, original_node, node)
-
+        device_graph = None # Clear the original graph variable to avoid accidental use
+        
+        """
+        print("After breakup:")
+        for i, g in enumerate(device_graphs):
+            print(f"Device graph {i}:")
+            g.print_tabular()
+        for i, g in enumerate(fallback_graphs):
+            print(f"Fallback graph {i}:")
+            g.print_tabular()
+        """
 
         # Update output nodes
         for i, node in enumerate(self.output_nodes_per_subgraph[subgraph_id]):
             if node in moved_output_mapping:
                 self.output_nodes_per_subgraph[subgraph_id][i] = moved_output_mapping[node]
 
+        # Clear fallback graphs if there's only one empty one
+        if len(fallback_graphs) == 1 and len(fallback_graphs[0].nodes) == 0:
+            fallback_graphs = []
         
-        graph_lint(aten_module.graph, "Device_graph_after_fallback_separation")
+        [graph_lint(d, f"Device_{i}") for i, d in enumerate(device_graphs)]
         [graph_lint(f, f"Fallback_{i}") for i, f in enumerate(fallback_graphs)]
+        
+        # If any final device graph is constant, let's move it to the cpu
+        device_graphs_to_remove = []
+        for i, device_graph in enumerate(device_graphs):
+            if len(device_graph.nodes) > 0 and (is_nop_graph(device_graph) or is_constant_graph(device_graph) or not has_output(device_graph)):
+                logger.debug(f"Device graph {i} is a NOP or constant, moving to CPU")
+                graph_to_device(device_graph, 'cpu')
+                fallback_graphs.append(device_graph)
+                device_graphs_to_remove.append(device_graph)
+        
+        for g in device_graphs_to_remove:
+            device_graphs.remove(g)
+                
+        if len(device_graphs) == 0:
+            device_graphs = [torch.fx.Graph()] # create a blank graph
 
-        #print("Final graphs:")
-        #print("Device:")
-        #aten_module.graph.print_tabular()
-        #print("Fallbacks:")
-        #for f in fallback_graphs:
-        #    f.print_tabular()
+        logger.trace("=== Final graphs:")
+        logger.trace("= Device:")
+        for i, g in enumerate(device_graphs):
+            logger.trace(f"* Device graph {i}")
+            if self.log_trace:
+                g.print_tabular()
+        logger.trace("= Fallbacks:")
+        for i, f in enumerate(fallback_graphs):
+            logger.trace(f"* Falllback graph {i}")
+            if self.log_trace:
+                f.print_tabular()
 
-        self.fallback_graphs_per_subgraph[subgraph_id] = fallback_graphs if len(fallback_graph.nodes) > 0 else []
+        self.fallback_graphs_per_subgraph[subgraph_id] = fallback_graphs
         self.mappings_per_subgraph[subgraph_id] = {
                 "new_io_mapping": new_io_mapping,
                 "placeholder_map": placeholder_map,
                 "copied_node_mapping": copied_node_mapping,
                 "moved_output_mapping": moved_output_mapping
         }
-        self.aten_graph_per_subgraph[subgraph_id] = aten_module.graph
+        self.device_graphs_per_subgraph[subgraph_id] = device_graphs
+
+        return device_graphs
+
+    def break_up_deadlocks(self, 
+            subgraph_id: int,
+            device_graph: torch.fx.Graph, 
+            fallback_graph: torch.fx.Graph, 
+            new_io_mapping: Dict[torch.fx.Node, torch.fx.Node],
+            placeholder_map: Dict[torch.fx.Node, torch.fx.Node], 
+            copied_node_mapping: Dict[torch.fx.Node, torch.fx.Node], 
+            moved_output_mapping: Dict[torch.fx.Node, torch.fx.Node]) -> Tuple[List[torch.fx.Graph], List[torch.fx.Graph]]:
+
+        # Search for any circular dependencies between graphs, and keep breaking them down into multiple graphs until
+        # there are none left. 
+        # Since the original graph should not legally have any circular dependencies, it should be possible to create
+        # a set of smaller graphs without circular dependencies. 
+
+        fallback_graphs = [fallback_graph] if len(fallback_graph.nodes) > 0 else []
+        device_graphs = [device_graph] if len(device_graph.nodes) > 0 else []
+
+        progress = True
+        new_graphs = []
+
+        # Put everything in working graphs, but keep track of which are fallback and which are device graphs above
+        working_graphs = copy.copy(device_graphs) + copy.copy(fallback_graphs)
+
+        # For each graph, figure out which graphs inputs are coming from, and which graph outputs are going to
+        graph_inputs : Dict[torch.fx.Graph, Set[torch.fx.Node]] = defaultdict(set)
+        graph_outputs : Dict[torch.fx.Graph, Set[torch.fx.Node]] = defaultdict(set)
+        outputs_to_dest_node : Dict[torch.fx.Node, Set[torch.fx.Node]] = defaultdict(set) # map of output node to inputs in other graphs
+
+        def calculate_dependencies(working_graphs: List[torch.fx.Graph]):
+            # Recalculate from scratch. This is not efficient compared to doing it incrementally on every
+            # graph change, but that would be error-prone... Let's optimize if it's really needed.
+            graph_inputs.clear()
+            outputs_to_dest_node.clear()
+
+            for graph in working_graphs:
+                for node in graph.nodes:
+                    if node.op == 'placeholder':
+                        graph_inputs[graph].add(node)
+
+                    if node.op == 'output':
+                        for arg in node.all_input_nodes:
+                            # Figure out who needs this output
+                            for k, v in new_io_mapping.items():
+                                if v == arg:
+                                    outputs_to_dest_node[arg].add(k)
+
+            #print("Graph inputs:")
+            #print(graph_inputs)
+            #print("Graph outputs:")
+            #print(graph_outputs)
+            #print("Inputs to src graph:")
+            #print(inputs_to_src_graph)
+            #print("Outputs to dest graph:")
+            #print(outputs_to_dest_graph)
+
+        tracer = IOTracer(working_graphs)
+        while progress:
+            # Keep looking for input/output pair, make a copy of the graph and them remove down from input and up from output
+            # If either/both graphs end up empty, then they are linked and we have a problem
+
+            # There are probably better algorithms to do this :) - but this is simple and I think it works
+            working_graphs.extend(new_graphs)
+            calculate_dependencies(working_graphs)
+
+            new_graphs = []
+            progress = False
+            dependency = None
+
+            # For each input in each graph, trace to final output, or until we reach ourselves again, in which case we need to break the cycle
+            for _, inputs in graph_inputs.items():
+                for input_node in inputs:
+                    output_node_for_cycle = tracer.trace_for_cycle(input_node, outputs_to_dest_node)
+                    if output_node_for_cycle is not None:
+                        progress = True
+                        dependency = (output_node_for_cycle, input_node)
+                        break
+
+                if progress:
+                    break
+
+            if not progress:
+                break
+            
+            assert dependency is not None
+            assert dependency[0].graph == dependency[1].graph, "Dependency is not a loop"
+            graph = dependency[0].graph
+            
+            starting_input, loopback_input = dependency
+
+            # Create a copy, and separate graphs
+            logger.debug(f"Graph has a dependency to break: {starting_input} -> {loopback_input}")
+            graph.print_tabular()
+            new_graph = torch.fx.Graph()
+            #new_graph = copy.deepcopy(graph)
+            copy_map = {}
+            output_value = new_graph.graph_copy(graph, copy_map)
+            new_output = new_graph.output(output_value)
+            new_output.meta["tensor_meta"] = tuple(o.meta["tensor_meta"] for o in output_value)
+
+            # Remove nodes from the original graph
+            to_remove = []
+            to_process = [starting_input]
+            while to_process:
+                node = to_process.pop()
+                to_remove.append(node)
+                for user in node.users:
+                    if user not in to_remove:
+                        if user.op == "output":
+                            remove_output_index(user, user.args[0].index(node))
+                            break # done at output
+                        else:
+                            to_process.append(user)
+            
+            for node in reversed(to_remove):
+                graph.erase_node(node)
+
+            reduce_graph(graph) # remove dead code
+            assert len(graph.nodes) > 0, f"Graph {graph} is empty after trying to disjoin multiple fallback graphs"
+
+            # Removed nodes from the copy
+            to_remove = []
+            to_process = [copy_map[loopback_input]]
+            assert to_process[0].graph == new_graph
+            
+            while to_process:
+                node = to_process.pop()
+                to_remove.append(node)
+                for user in node.users:
+                    if user not in to_remove:
+                        if user.op == "output":
+                            remove_output_index(user, user.args[0].index(node))
+                            break # done at output
+                        else:
+                            to_process.append(user)
+
+            for node in reversed(to_remove):
+                new_graph.erase_node(node)
+
+            reduce_graph(new_graph)
+
+            assert len(new_graph.nodes) > 0, f"Graph {new_graph} is empty after trying to disjoin multiple fallback graphs"
+
+            new_graphs.append(new_graph)
+
+            if graph in fallback_graphs:
+                fallback_graphs.append(new_graph)
+            else:
+                device_graphs.append(new_graph)
+
+            # Update mappings, as some nodes have moved into the new graph
+            for node in new_graph.nodes:
+                if node.op == "output":
+                    continue
+                    
+                # Reverse lookup, since copy map is old->new, and we need new->old
+                original_node = None
+                for org_node, new_node in copy_map.items():
+                    if new_node == node:
+                        original_node = org_node
+                        break
+                assert original_node is not None
+
+                for node_map in [new_io_mapping, placeholder_map, copied_node_mapping, moved_output_mapping]:
+                    update_node_map(node_map, original_node, node)
+
+                if original_node in self.output_nodes_per_subgraph[subgraph_id]:
+                    self.output_nodes_per_subgraph[subgraph_id][self.output_nodes_per_subgraph[subgraph_id].index(original_node)] = node
+
+            tracer.remove_graph(graph)
+            tracer.add_graph(graph)
+            tracer.add_graph(new_graph)
+
+        return device_graphs, fallback_graphs
+
 
     def generate_schedule(self, subgraph_idx: int) -> Schedule:
         # For given subgraph, figure out a schedule of FX and Buda graphs that need to run, and how to map inputs to outputs
         schedule = Schedule(
-                subgraph_idx, 
                 self.input_nodes_per_subgraph[subgraph_idx], 
                 self.output_nodes_per_subgraph[subgraph_idx], 
-                self.aten_graph_per_subgraph[subgraph_idx],
+                self.device_graphs_per_subgraph[subgraph_idx],
                 self.fallback_graphs_per_subgraph[subgraph_idx], 
                 self.mappings_per_subgraph[subgraph_idx])
 

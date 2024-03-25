@@ -71,24 +71,24 @@ struct CompileRequest
     std::string netlist_path;
     std::string output_dir;
     tt::tt_backend_config backend_config;
-    std::vector<PyBudaTensorDesc> inputs;
+    std::map<int, std::vector<PyBudaTensorDesc>> inputs; // one vector per program
     std::map<int, std::vector<std::string>> input_runtime_transforms;
     std::map<int, std::vector<std::vector<int>>> input_tile_bcast_dims;
     std::vector<PyBudaTensorDesc> constants;
     std::vector<PyBudaTensorDesc> parameters;
-    std::vector<PyBudaTensorDesc> outputs;
+    std::map<int, std::vector<PyBudaTensorDesc>> outputs; 
     std::map<int, std::vector<std::string>> output_runtime_transforms;
 
     CompileRequest(
         std::string const& netlist_path,
         std::string output_dir,
         tt::tt_backend_config const& backend_config,
-        std::vector<PyBudaTensorDesc> const& inputs,
+        std::map<int, std::vector<PyBudaTensorDesc>> const& inputs,
         std::map<int, std::vector<std::string>> const& input_runtime_transforms,
         std::map<int, std::vector<std::vector<int>>> const& input_tile_bcast_dims,
         std::vector<PyBudaTensorDesc> const& constants,
         std::vector<PyBudaTensorDesc> const& parameters,
-        std::vector<PyBudaTensorDesc> const& outputs,
+        std::map<int, std::vector<PyBudaTensorDesc>> const& outputs,
         std::map<int, std::vector<std::string>> const& output_runtime_transforms) :
         netlist_path(netlist_path),
         output_dir(output_dir),
@@ -107,19 +107,19 @@ struct CompileRequest
 struct Workload
 {
     std::string output_dir;
-    std::vector<PyBudaTensorDesc> inputs;
+    std::map<int, std::vector<PyBudaTensorDesc>> inputs;
     std::vector<PyBudaTensorDesc> constants;
     std::vector<PyBudaTensorDesc> parameters;
-    std::vector<PyBudaTensorDesc> outputs;
+    std::map<int, std::vector<PyBudaTensorDesc>> outputs;
     bool initialized = false;
     std::unordered_map<int, bool> subgraph_link_tensor_populated;
 
     Workload(
         std::string output_dir,
-        std::vector<PyBudaTensorDesc> const& inputs,
+        std::map<int, std::vector<PyBudaTensorDesc>> const& inputs, // a vector per program
         std::vector<PyBudaTensorDesc> const& constants,
         std::vector<PyBudaTensorDesc> const& parameters,
-        std::vector<PyBudaTensorDesc> const& outputs) :
+        std::map<int, std::vector<PyBudaTensorDesc>> const& outputs) :
         output_dir(output_dir),
         inputs(inputs),
         constants(constants),
