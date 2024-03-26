@@ -1,4 +1,24 @@
-# TT-Buda
+<div align="center">
+
+<h1>
+   
+[Buy hardware](https://tenstorrent.com/cards/) | [Discord](https://discord.gg/tenstorrent)
+
+</h1>
+   
+<img src="./docs/public/images/tt_logo.png" alt="tt logo" height="150"/>
+
+**TT-Buda** is a software stack that can compile AI/ML models from several different frameworks, and execute them on Tenstorrent hardware.
+
+<h3>
+
+[TT-Buda Docs](https://docs.tenstorrent.com/tenstorrent/v/tt-buda) | [Model Demos](https://github.com/tenstorrent/tt-buda-demos/tree/main/model_demos#models-support-table) 
+
+</h3>
+
+</div>
+
+---
 
 ## Introduction
 
