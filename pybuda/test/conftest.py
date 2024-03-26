@@ -183,6 +183,14 @@ class TestDevice:
             return TestDevice(devtype=BackendType.Golden, arch=BackendDevice.Grayskull, devmode=devmode, tti_path=tti_path)
         if name == "Model":
             return TestDevice(devtype=BackendType.Model, arch=BackendDevice.Grayskull, devmode=devmode, tti_path=tti_path)
+        if name == "Versim":
+            # Set default versim device arch to Grayskull
+            versim_backend_device = BackendDevice.Grayskull
+            # If PYBUDA_VERSIM_DEVICE_ARCH is set, use that arch for Versim device
+            versim_arch_name = os.environ.get("PYBUDA_VERSIM_DEVICE_ARCH", None)
+            if versim_arch_name != None:
+                versim_backend_device = BackendDevice.from_string(versim_arch_name)
+            return TestDevice(devtype=BackendType.Versim, arch=versim_backend_device, devmode=devmode, tti_path=tti_path)
         if name == "Grayskull":
             return TestDevice(devtype=BackendType.Silicon, arch=BackendDevice.Grayskull, devmode=devmode, tti_path=tti_path)
         if name == "Wormhole":
@@ -206,6 +214,9 @@ class TestDevice:
 
         if self.devtype == BackendType.Model:
             return bool(int(os.environ.get("PYBUDA_ENABLE_MODEL_DEVICE", "0")))
+        
+        if self.devtype == BackendType.Versim:
+            return bool(int(os.environ.get("PYBUDA_ENABLE_VERSIM_DEVICE", "0")))
 
         if self.devtype == BackendType.Silicon:
             compiled_arch_name = os.environ.get("BACKEND_ARCH_NAME", None) or os.environ.get("ARCH_NAME", None)
@@ -247,7 +258,7 @@ def pytest_generate_tests(metafunc):
         metafunc.parametrize("training", (False, True), ids=["inference", "training"])
 
     if "test_device" in metafunc.fixturenames:
-        names = ["Golden", "Model", "Grayskull", "Wormhole", "Wormhole_B0", "Blackhole"]
+        names = ["Golden", "Model", "Versim", "Grayskull", "Wormhole", "Wormhole_B0", "Blackhole"]
 
         # Set device-mode for the test
         compile_only = metafunc.config.getoption("--compile-only")

@@ -1,3 +1,4 @@
+export LD_LIBRARY_PATH=versim/blackhole/lib:versim/blackhole/lib/ext
 export BACKEND_ARCH_NAME=blackhole
 export ARCH_NAME=blackhole
 

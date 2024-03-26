@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Backend API wrapper
 
+import os
 import threading
 import queue
 import time
@@ -323,12 +324,19 @@ class BackendAPI:
         for i, outq in enumerate(queues):
             logger.debug("Reading output queue {}", outq.name)
             out_desc = PytorchTensorDesc()
-            timeout = 10 # TODO: add control
+            retry_count = 10 # TODO: add control
+            timeout = 1
+            # Increase timeout for Versim device
+            if bool(int(os.environ.get("PYBUDA_ENABLE_VERSIM_DEVICE", "0"))):
+                retry_count = 100
+                timeout = 300
             resp = BackendStatusCode.RuntimeError
-            for _ in range(timeout):
-                resp = get_output(outq, out_desc, single_output, 1, rd_ptr)
+            for _ in range(retry_count):
+                resp = get_output(outq, out_desc, single_output, timeout, rd_ptr)
                 if resp != BackendStatusCode.TimeoutError:
                     break
+
+                logger.debug("{} Reading output queue {} timed out after {}", _, outq.name, timeout)
 
                 if shutdown_event and shutdown_event.is_set():
                     break

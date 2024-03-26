@@ -281,17 +281,21 @@ void BackendModule(py::module &m_backend) {
     });
 
     py::enum_<tt::DEVICE>(m_backend, "BackendType")
-        .value("Golden", tt::DEVICE::Golden)
         .value("Model", tt::DEVICE::Model)
+        .value("Versim", tt::DEVICE::Versim)
         .value("Silicon", tt::DEVICE::Silicon)
+        .value("Golden", tt::DEVICE::Golden)
+        .value("Emulation", tt::DEVICE::Emulation)
         .value("NoBackend", tt::DEVICE::Invalid)
         .def_static("from_string", &tt::get_device_from_string)
         .def("to_json", [](const tt::DEVICE backend_type) {
             switch (backend_type)
             {
-                case tt::DEVICE::Golden: return "Golden";
                 case tt::DEVICE::Model: return "Model";
+                case tt::DEVICE::Versim: return "Versim";
                 case tt::DEVICE::Silicon: return "Silicon";
+                case tt::DEVICE::Golden: return "Golden";
+                case tt::DEVICE::Emulation: return "Emulation";
                 case tt::DEVICE::Invalid: return "Invalid";
                 default: break;
             }
@@ -299,9 +303,11 @@ void BackendModule(py::module &m_backend) {
         })
         .def("from_json", [](std::string const& encoded) {
             static std::unordered_map<std::string, tt::DEVICE> decode = {
-                {"Golden", tt::DEVICE::Golden},
                 {"Model", tt::DEVICE::Model},
+                {"Versim", tt::DEVICE::Versim},
                 {"Silicon", tt::DEVICE::Silicon},
+                {"Golden", tt::DEVICE::Golden},
+                {"Emulation", tt::DEVICE::Emulation},
                 {"NoBackend", tt::DEVICE::Invalid},
             };
             return decode.at(encoded);

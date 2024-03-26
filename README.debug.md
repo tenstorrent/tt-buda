@@ -114,6 +114,8 @@
  * PYBUDA\_AUTO\_RECOMPILE\_TARGET\_CYCLES: Enables adjustment of target cycles during recompile if no errors from backend have been previously handled. Requires PYBUDA\_AUTO\_RECOMPILE to be enabled to work. (default: 0/False)
  * PYBUDA\_AUTO\_RECOMPILE\_RETRY\_LIMIT: Limits number of attempts to recompile. (default: 10)
  * PYBUDA\_TARGET\_CYCLES\_OFFSET: Sets the desired amount by which to offset the target cycles for balancer. Default value is 0.
+ * PYBUDA\_ENABLE\_VERSIM\_DEVICE: The Versim device is a specific silicon simulation device that PyBUDA supports.The variable is used to enable the Versim device in the PyBUDA pytest environment. By setting this variable to 1, we are instructing PyBUDA to use the Versim device as the target device instead of the silicon or golden device. Enabling the Versim device can be useful for testing or experimentation purposes, allowing us to evaluate the behavior of our code on this simulation device and specified architecture. In order to run Versim device as a targeted device, the source code must be built with UMD_VERSIM_STUB=0 enviroment variable.
+ * PYBUDA\_VERSIM\_DEVICE\_ARCH: This env variable represents the architecture of the Versim device used in the pytest.
 
  ## Golden overrides
  * GOLDEN\_WORMHOLE: run Golden with Wormhole as target device instead of Grayskull (default)

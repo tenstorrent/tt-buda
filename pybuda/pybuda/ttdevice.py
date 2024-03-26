@@ -1568,6 +1568,7 @@ def get_backend_string(backend_type: BackendType) -> str:
     BACKEND_TYPE_TO_DEVICE_GRID = {
             BackendType.Golden: "golden",
             BackendType.Model: "model",
+            BackendType.Versim: "versim",
             BackendType.NoBackend: "nobackend",
             BackendType.Silicon: "silicon",
     }
