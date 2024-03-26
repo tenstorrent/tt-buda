@@ -1889,15 +1889,21 @@ void EpochSolution::recalc_nodes()
     }
 }
 
-void score_solution(const std::vector<EpochSolution> &solutions, const DeviceConfig &device_config)
+BalancerScore score_solution(const std::vector<EpochSolution> &solutions, const DeviceConfig &device_config)
 {
+    BalancerScore balancer_score;
     float total_pipeline_cycles = 0;
     for (const auto &solution : solutions)
     {
+        balancer_score.epoch_scores.push_back(device_config.get_clock_freq() / solution.get_pipeline_cycles());
         total_pipeline_cycles += solution.get_pipeline_cycles();
     }
 
-    log_info(LogBalancer, "Balancer perf score : {}", device_config.get_clock_freq() / total_pipeline_cycles);
+    balancer_score.solution_score = device_config.get_clock_freq() / total_pipeline_cycles;
+
+    log_info(LogBalancer, "Balancer perf score : {}", balancer_score.solution_score);
+
+    return balancer_score;
 }
 
 }  // namespace tt::balancer

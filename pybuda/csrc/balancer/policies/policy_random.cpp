@@ -19,12 +19,10 @@ using DataFormat = tt::DataFormat;
 namespace tt::balancer
 {
 
-legalizer::GraphSolverSolution run_policy_random(
+BalancerPolicySolution run_policy_random(
     graphlib::Graph const* graph,
     BalancerConfig const& config,
-    legalizer::GraphSolver& graph_solver,
-    std::optional<placer::PlacerSolution>& placer_solution)
-
+    legalizer::GraphSolver& graph_solver)
 {
     (void)config;
     log_debug(LogBalancer, "Starting Random balancing.");
@@ -58,9 +56,7 @@ legalizer::GraphSolverSolution run_policy_random(
         }
     }
 
-    placer_solution = policy_manager.commit_solution();
-
-    return policy_manager.finish();
+    return policy_manager.commit_solution();
 }
 
 }  // namespace tt::balancer

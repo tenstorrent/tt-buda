@@ -13,7 +13,7 @@ using Edge = tt::graphlib::Edge;
 using DataFormat = tt::DataFormat;
 
 namespace tt::balancer {
-legalizer::GraphSolverSolution run_policy_minimize_grid(Graph const* graph, BalancerConfig const&, legalizer::GraphSolver& graph_solver)
+BalancerPolicySolution run_policy_minimize_grid(Graph const* graph, BalancerConfig const&, legalizer::GraphSolver& graph_solver)
 {
     for (Node* node : tt::graphlib::topological_sort(*graph)) {
         if (node->node_type() != NodeType::kBudaOp)
@@ -37,7 +37,7 @@ legalizer::GraphSolverSolution run_policy_minimize_grid(Graph const* graph, Bala
         log_debug(LogBalancer, "  {} {}", op_models.front().grid_shape, op_models.front().t_stream_factor);
     }
 
-    return graph_solver.finish();
+    return BalancerPolicySolution(graph_solver.finish());
 }
 
 }  // namespace tt::balancer

@@ -70,7 +70,7 @@ std::unordered_map<Node*, std::uint32_t> find_min_prologue_volumes(
 }
 }  // namespace
 
-legalizer::GraphSolverSolution run_policy_cnn(
+BalancerPolicySolution run_policy_cnn(
     graphlib::Graph const* graph, BalancerConfig const& config, legalizer::GraphSolver& graph_solver, std::uint32_t)
 {
     log_debug(LogBalancer, "Starting CNN balancing");
@@ -214,7 +214,7 @@ legalizer::GraphSolverSolution run_policy_cnn(
             picked_grid.get_execution_cycles(config.device_config.arch_name));
     }
 
-    return graph_solver.finish();
+    return BalancerPolicySolution(graph_solver.finish());
 }
 
 }  // namespace tt::balancer

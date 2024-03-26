@@ -50,7 +50,7 @@ void run_policy_maximize_t_minimize_grid(Graph const* graph, legalizer::GraphSol
     }
 }
 
-legalizer::GraphSolverSolution run_policy_maximize_t_minimize_grid(
+BalancerPolicySolution run_policy_maximize_t_minimize_grid(
     Graph const* graph, BalancerConfig const&, legalizer::GraphSolver& graph_solver)
 {
     std::string node_name_filter = env_as<std::string>("PYBUDA_BALANCER_MAXIMIZE_T_FILTER");
@@ -63,7 +63,8 @@ legalizer::GraphSolverSolution run_policy_maximize_t_minimize_grid(
     auto not_filter = [filter](Node const* n) { return not filter(n); };
     run_policy_maximize_t_minimize_grid(graph, graph_solver, filter);
     run_policy_maximize_t_minimize_grid(graph, graph_solver, not_filter);
-    return graph_solver.finish();
+
+    return BalancerPolicySolution(graph_solver.finish());
 }
 
 }  // namespace tt::balancer

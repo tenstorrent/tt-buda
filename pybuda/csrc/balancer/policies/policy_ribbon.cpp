@@ -27,11 +27,10 @@ bool ok_to_schedule_next(
 }
 */
 
-legalizer::GraphSolverSolution run_policy_ribbon(
+BalancerPolicySolution run_policy_ribbon(
     graphlib::Graph const *graph,
     const BalancerConfig &config,
-    legalizer::GraphSolver &graph_solver,
-    std::optional<placer::PlacerSolution> &placer_solution)
+    legalizer::GraphSolver &graph_solver)
 {
     log_info(LogBalancer, "Starting Ribbon balancing.");
     PolicyManager policy_manager(graph, config, graph_solver, true /*ribbon_policy*/);
@@ -73,9 +72,7 @@ legalizer::GraphSolverSolution run_policy_ribbon(
         }
     }
 
-    placer_solution = policy_manager.commit_solution();
-
-    return policy_manager.finish();
+    return policy_manager.commit_solution();
 }
 
 }  // namespace tt::balancer

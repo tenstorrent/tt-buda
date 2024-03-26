@@ -14,11 +14,9 @@
 namespace tt::balancer
 {
 struct BalancerConfig;
-}  // namespace tt::balancer
+struct BalancerPolicySolution;
 
-namespace tt::balancer
-{
-legalizer::GraphSolverSolution run_policy_maximize_t_minimize_grid(
+BalancerPolicySolution run_policy_maximize_t_minimize_grid(
     graphlib::Graph const* graph, BalancerConfig const&, legalizer::GraphSolver& graph_solver);
 
 }  // namespace tt::balancer

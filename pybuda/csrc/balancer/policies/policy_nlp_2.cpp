@@ -4,9 +4,9 @@
 #include <cstdint>
 #include <cstdlib>
 
-#include "balancer/policies/policy_utils.hpp"
 #include "balancer/policies/policy_manager.hpp"
 #include "balancer/policies/policy_nlp.hpp"
+#include "balancer/policies/policy_utils.hpp"
 #include "graph_lib/node_types.hpp"
 
 using Graph = tt::graphlib::Graph;
@@ -38,11 +38,10 @@ bool is_small_grid_size(OpModel op_model, int limit_r, int limit_c)
     return false;
 }
 
-legalizer::GraphSolverSolution run_policy_nlp_v2(
+BalancerPolicySolution run_policy_nlp_v2(
     graphlib::Graph const* graph,
     BalancerConfig const& config,
     legalizer::GraphSolver& graph_solver,
-    std::optional<placer::PlacerSolution>& placer_solution,
     std::uint32_t target_cycles)
 {
     (void)config;
@@ -67,7 +66,11 @@ legalizer::GraphSolverSolution run_policy_nlp_v2(
         else
         {
             target_cycles = get_matmul_target_cycles(
-                graph, topo_sort, policy_manager, min_param_grid_volume, config.device_config.get_arch_name_for_perf_estimates());
+                graph,
+                topo_sort,
+                policy_manager,
+                min_param_grid_volume,
+                config.device_config.get_arch_name_for_perf_estimates());
         }
 
         // In case of recompile, we can offset the target cycles to get a different solution.
@@ -132,10 +135,12 @@ legalizer::GraphSolverSolution run_policy_nlp_v2(
         closest_distance["too_slow"] = default_pick;
         closest_distance["too_slow_failed_prologue"] = default_pick;
 
-        bool skip_large_grid_for_subgraph = (skip_large_grid & (subgraph_id == graph->get_subgraph_id_for_node(node->id())));
+        bool skip_large_grid_for_subgraph =
+            (skip_large_grid & (subgraph_id == graph->get_subgraph_id_for_node(node->id())));
         if (not target_cycles_per_subgraph_map.empty())
         {
-            if (target_cycles_per_subgraph_map.find(graph->get_subgraph_id_for_node(node->id())) != target_cycles_per_subgraph_map.end())
+            if (target_cycles_per_subgraph_map.find(graph->get_subgraph_id_for_node(node->id())) !=
+                target_cycles_per_subgraph_map.end())
             {
                 target_cycles = target_cycles_per_subgraph_map[graph->get_subgraph_id_for_node(node->id())];
             }
@@ -168,10 +173,11 @@ legalizer::GraphSolverSolution run_policy_nlp_v2(
                 }
             }
         }
-        
+
         for (auto op_model : op_models)
         {
-            std::uint32_t execution_cycles = op_model.get_execution_cycles(config.device_config.get_arch_name_for_perf_estimates());
+            std::uint32_t execution_cycles =
+                op_model.get_execution_cycles(config.device_config.get_arch_name_for_perf_estimates());
 
             if ((op_type == "matmul") && skip_small_ukt && available_not_small_ukt)
             {
@@ -249,7 +255,8 @@ legalizer::GraphSolverSolution run_policy_nlp_v2(
                 {
                     if (close_to_target(execution_cycles, target_cycles))
                     {
-                        if (op_model.block_shape().volume_no_t() > closest_distance[category].second.block_shape().volume_no_t())
+                        if (op_model.block_shape().volume_no_t() >
+                            closest_distance[category].second.block_shape().volume_no_t())
                             closest_distance[category] = current_test_pick;
                     }
                 }
@@ -298,9 +305,7 @@ legalizer::GraphSolverSolution run_policy_nlp_v2(
         }
     }
 
-    placer_solution = policy_manager.commit_solution();
-
-    return policy_manager.finish();
+    return policy_manager.commit_solution();
 }
 
 }  // namespace tt::balancer

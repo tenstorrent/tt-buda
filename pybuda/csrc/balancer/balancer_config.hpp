@@ -56,7 +56,6 @@ struct BalancerConfig
     placer::OpToChipIdAssignment op_to_chip_id_assignment;
     std::unordered_map<std::string, placer::PlacerOpOverride> op_name_to_placer_overrides;
     bool enable_auto_transposing_placement;
-    bool epoch_by_epoch;
     legalizer::GraphSolverSelfCutType graph_solver_self_cut_type;
     bool use_interactive_placer;
     bool enable_enumerate_u_kt;
@@ -110,8 +109,6 @@ struct BalancerConfig
         enable_enumerate_u_kt(enable_enumerate_u_kt),
         enable_single_buffer_fallback(enable_single_buffer_fallback)
     {
-        epoch_by_epoch =
-            env_as<bool>("PYBUDA_EPOCH_BY_EPOCH_PLACER");  // temporary env switch to turn on epoch by epoch placement
     }
 
     // Constructor - used only by unittesting.
@@ -124,7 +121,6 @@ struct BalancerConfig
         policy_type(policy_type),
         chip_ids(device_config.chip_ids),
         chip_placement_policy(chip_placement_policy),
-        epoch_by_epoch(false),
         graph_solver_self_cut_type(legalizer::GraphSolverSelfCutType::None)
     {
         // If unit tests specify policy which use IP, mark it as used.

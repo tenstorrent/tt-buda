@@ -88,7 +88,7 @@ class PolicyManager
     const graphlib::Node* get_next_op();
     std::tuple<bool, bool, bool> commit_op(const OpModel& selected_op_model);
     bool finish_current_epoch();
-    tt::placer::PlacerSolution commit_solution();
+    BalancerPolicySolution commit_solution();
     void rewind_epoch();
     bool force_current_epoch_break(const std::string& op_name);
 
@@ -98,7 +98,7 @@ class PolicyManager
     {
         return graph_solver_main->at(node);
     }
-    legalizer::GraphSolverSolution finish() { return graph_solver_main->finish(); }
+
     void invalidate_suboptimal_op_models(int invalidation_strategy)
     {
         graph_solver_main->invalidate_suboptimal_op_models(invalidation_strategy);

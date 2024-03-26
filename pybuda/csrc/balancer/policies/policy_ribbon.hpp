@@ -12,21 +12,17 @@
 namespace tt::balancer
 {
 struct BalancerConfig;
-}  // namespace tt::balancer
+struct BalancerPolicySolution;
 
-namespace tt::balancer
-{
-legalizer::GraphSolverSolution run_policy_ribbon(
+BalancerPolicySolution run_policy_ribbon(
     graphlib::Graph const *graph,
     const BalancerConfig &,
-    legalizer::GraphSolver &graph_solver,
-    std::optional<placer::PlacerSolution> &placer_solution);
+    legalizer::GraphSolver &graph_solver);
 
-legalizer::GraphSolverSolution run_policy_ribbon2(
+BalancerPolicySolution run_policy_ribbon2(
     graphlib::Graph const *graph,
     const BalancerConfig &,
-    legalizer::GraphSolver &graph_solver,
-    std::optional<placer::PlacerSolution> &placer_solution);
+    legalizer::GraphSolver &graph_solver);
 
 bool validate_sparse_matmul_model(
     const graphlib::BudaOpNode *op,

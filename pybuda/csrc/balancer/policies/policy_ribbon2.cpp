@@ -662,11 +662,10 @@ int calculate_epoch_target_cycles(
     return epoch_target_cycles;
 }
 
-legalizer::GraphSolverSolution run_policy_ribbon2(
+BalancerPolicySolution run_policy_ribbon2(
     graphlib::Graph const *graph,
     const BalancerConfig &config,
-    legalizer::GraphSolver &graph_solver,
-    std::optional<placer::PlacerSolution> &placer_solution)
+    legalizer::GraphSolver &graph_solver)
 {
     //
     // Ribbon2 policy
@@ -726,6 +725,7 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
     //
 
     log_info(LogBalancer, "Starting Ribbon2 balancing");
+    BalancerPolicySolution balancer_policy_solution;
     placer::InteractivePlacer interactive_placer(graph, config);
     placer::InteractivePlacer ip_fittment_tester(graph, config);
     std::unordered_set<string> epoch_break_ops;
@@ -1163,11 +1163,11 @@ legalizer::GraphSolverSolution run_policy_ribbon2(
         }
     }
 
-    placer_solution = interactive_placer.commit();
-    placer_solution.value().fork_join_buffered = true;
-    validate_solution(scheduled_ops, placer_solution.value());
-    score_solution(applied_solutions, config.device_config);
-
-    return graph_solver_main->finish();
+    balancer_policy_solution.placer_solution = interactive_placer.commit();
+    balancer_policy_solution.placer_solution.value().fork_join_buffered = true;
+    validate_solution(scheduled_ops, balancer_policy_solution.placer_solution.value());
+    balancer_policy_solution.balancer_score = score_solution(applied_solutions, config.device_config);
+    balancer_policy_solution.graph_solver_solution = graph_solver_main->finish();
+    return balancer_policy_solution;
 }
 }  // namespace tt::balancer

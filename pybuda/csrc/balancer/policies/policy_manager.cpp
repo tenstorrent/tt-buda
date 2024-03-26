@@ -683,8 +683,9 @@ bool PolicyManager::force_current_epoch_break(const std::string& op_name)
 }
 
 // Commit and validate interactive placer solution.
+// Invoke finish on graph solver.
 //
-tt::placer::PlacerSolution PolicyManager::commit_solution()
+BalancerPolicySolution PolicyManager::commit_solution()
 {
     if (use_interactive_fj_buffering or ribbon_policy)
     {
@@ -709,9 +710,8 @@ tt::placer::PlacerSolution PolicyManager::commit_solution()
     placer_solution.fork_join_buffered = use_interactive_fj_buffering;
 
     validate_solution(scheduled_ops, placer_solution);
-    score_solution(epoch_solutions, config.device_config);
 
-    return placer_solution;
+    return BalancerPolicySolution(placer_solution, graph_solver_main->finish(), score_solution(epoch_solutions, config.device_config));
 }
 
 }  // namespace tt::balancer

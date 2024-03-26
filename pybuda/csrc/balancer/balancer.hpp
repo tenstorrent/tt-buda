@@ -23,6 +23,12 @@ using Graph = tt::graphlib::Graph;
 namespace tt::balancer
 {
 
+struct BalancerScore
+{
+    float solution_score = 0;
+    std::vector<float> epoch_scores;
+};
+
 struct BalancerSolution
 {
     placer::PlacerSolution placer_solution;
@@ -30,18 +36,41 @@ struct BalancerSolution
     BlockShapeMap block_shapes;
     OutputHostTMMap output_host_tms;
     CutEdges graph_solver_cut_edges;
+    BalancerScore balancer_score;
 
     BalancerSolution(
         placer::PlacerSolution const& placer_solution,
         OpModelMap const& op_models,
         BlockShapeMap const& block_shapes,
         OutputHostTMMap const& output_host_tms,
-        CutEdges const& graph_solver_cut_edges) :
+        CutEdges const& graph_solver_cut_edges,
+        BalancerScore const& balancer_score = BalancerScore()) :
         placer_solution(placer_solution),
         op_models(op_models),
         block_shapes(block_shapes),
         output_host_tms(output_host_tms),
-        graph_solver_cut_edges(graph_solver_cut_edges)
+        graph_solver_cut_edges(graph_solver_cut_edges),
+        balancer_score(balancer_score)
+    {
+    }
+};
+
+struct BalancerPolicySolution
+{
+    std::optional<placer::PlacerSolution> placer_solution = std::nullopt;
+    legalizer::GraphSolverSolution graph_solver_solution;
+    BalancerScore balancer_score;
+
+    BalancerPolicySolution() = default;
+
+    BalancerPolicySolution(legalizer::GraphSolverSolution const& graph_solver_solution) :
+        graph_solver_solution(graph_solver_solution)
+    {
+    }
+
+    BalancerPolicySolution(
+        placer::PlacerSolution const& placer_solution, legalizer::GraphSolverSolution const& graph_solver_solution, BalancerScore const& balancer_score) :
+        placer_solution(placer_solution), graph_solver_solution(graph_solver_solution), balancer_score(balancer_score)
     {
     }
 };

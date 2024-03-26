@@ -14,12 +14,9 @@
 namespace tt::balancer
 {
 struct BalancerConfig;
-}  // namespace tt::balancer
+struct BalancerPolicySolution;
 
-namespace tt::balancer
-{
-
-legalizer::GraphSolverSolution run_policy_cnn(
+BalancerPolicySolution run_policy_cnn(
     graphlib::Graph const* graph,
     BalancerConfig const&,
     legalizer::GraphSolver& graph_solver,

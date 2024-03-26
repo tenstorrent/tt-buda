@@ -14,15 +14,11 @@
 namespace tt::balancer
 {
 struct BalancerConfig;
-}  // namespace tt::balancer
+struct BalancerPolicySolution;
 
-namespace tt::balancer
-{
-
-legalizer::GraphSolverSolution run_policy_random(
+BalancerPolicySolution run_policy_random(
     graphlib::Graph const* graph,
     BalancerConfig const& config,
-    legalizer::GraphSolver& graph_solver,
-    std::optional<placer::PlacerSolution>& placer_solution);
+    legalizer::GraphSolver& graph_solver);
 
 }  // namespace tt::balancer

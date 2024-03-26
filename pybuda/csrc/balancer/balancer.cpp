@@ -17,7 +17,6 @@
 #include "balancer/python_interface.hpp"
 #include "graph_lib/node_types.hpp"
 #include "passes/passes_utils.hpp"
-#include "placer/epoch_placer.hpp"
 #include "placer/placer.hpp"
 #include "python_bindings_common.hpp"
 
@@ -296,7 +295,9 @@ static void insert_sparse_dataflow_tms(
 }
 
 void print_perf_input_data(
-    tt::sparse::EncodingTiles const& buda_indices_all_rows, int sparse_ublock_idx_bits, balancer::OpModel const& op_model)
+    tt::sparse::EncodingTiles const& buda_indices_all_rows,
+    int sparse_ublock_idx_bits,
+    balancer::OpModel const& op_model)
 {
     constexpr int TILE_DIM = tt::sparse::TILE_DIM;
     using IndexType = std::remove_extent_t<decltype(tt::sparse::strip_info_struct::F::index_array)>;
@@ -600,53 +601,49 @@ static void insert_input_queues(
     }
 }
 
-static std::tuple<OpModelMap, BlockShapeMap, OutputHostTMMap, CutEdges> balancer_passes(
-    Graph* graph,
-    BalancerConfig& config,
-    std::shared_ptr<BalancerCacheCollection> cache_collection,
-    std::optional<placer::PlacerSolution>& placer_solution)
-{
-    log_debug(LogBalancer, "{}", config);
-    LegalOpModels valid_op_models = legalizer::get_legal_op_models(graph, config, cache_collection);
-
-    auto graph_solver = get_graph_solver(config, cache_collection, graph, valid_op_models);
-
-    legalizer::GraphSolverSolution graph_solver_solution = run_policy(graph, config, graph_solver, placer_solution);
-
-    update_ops_on_selected_op_models(graph, graph_solver_solution.selected_op_models);
-
-    auto ret = legalizer::resolve_block_shapes(graph, config, graph_solver_solution);
-
-    if (placer_solution.has_value())
-        insert_input_queues(placer_solution.value(), graph, std::get<0>(ret));
-
-    return ret;
-}
-
 std::shared_ptr<BalancerSolution> run_balancer_and_placer(
     Graph* graph, BalancerConfig& config, std::shared_ptr<BalancerCacheCollection> cache_collection)
 {
     log_info("Running Balancer with Policy: {}", config.policy_type);
     PROFILE_SCOPE();
 
-    // New epoch-by-epoch placement loop
-    if (config.epoch_by_epoch)
-        return placer::run_epoch_placer(&graph, config, cache_collection);
+    log_debug(LogBalancer, "{}", config);
+    LegalOpModels valid_op_models = legalizer::get_legal_op_models(graph, config, cache_collection);
+    legalizer::GraphSolver graph_solver = get_graph_solver(config, cache_collection, graph, valid_op_models);
+    BalancerPolicySolution balancer_policy_solution = run_policy(graph, config, graph_solver);
+    update_ops_on_selected_op_models(graph, balancer_policy_solution.graph_solver_solution.selected_op_models);
 
-    std::optional<placer::PlacerSolution> opt_placer_solution = std::nullopt;
     auto const& [op_models, block_shape_map, output_host_tms, cut_edges] =
-        balancer_passes(graph, config, cache_collection, opt_placer_solution);
+        legalizer::resolve_block_shapes(graph, config, balancer_policy_solution.graph_solver_solution);
+
+    if (balancer_policy_solution.placer_solution.has_value())
+    {
+        insert_input_queues(balancer_policy_solution.placer_solution.value(), graph, op_models);
+    }
+    else
+    {
+        balancer_policy_solution.placer_solution = run_placer(graph, config, op_models);
+    }
 
     TT_ASSERT(
         graph->virtual_node_count() == 0,
         "After balancer passes are complete we should not have virtual nodes in graph anymore.");
 
-    auto placer_solution =
-        opt_placer_solution.has_value() ? opt_placer_solution.value() : run_placer(graph, config, op_models);
     dump_balancer_placer_data(
-        graph, config.chip_ids, placer_solution, op_models, std::cout, config.device_config.arch_name);
+        graph,
+        config.chip_ids,
+        balancer_policy_solution.placer_solution.value(),
+        op_models,
+        std::cout,
+        config.device_config.arch_name);
 
-    return std::make_shared<BalancerSolution>(placer_solution, op_models, block_shape_map, output_host_tms, cut_edges);
+    return std::make_shared<BalancerSolution>(
+        balancer_policy_solution.placer_solution.value(),
+        op_models,
+        block_shape_map,
+        output_host_tms,
+        cut_edges,
+        balancer_policy_solution.balancer_score);
 }
 
 }  // namespace tt::balancer

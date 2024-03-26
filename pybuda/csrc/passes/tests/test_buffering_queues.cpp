@@ -20,7 +20,7 @@ namespace tt::test
 {
 
 // check if node with node_name has queue (of specified QueueNodeType) as producer on specified consumer_input_port_id.
-bool check_if_node_has_que_as_prod(
+bool check_if_node_has_queue_as_prod(
     graphlib::Graph* graph, const std::string& node_name, graphlib::PortId port_id, graphlib::QueueNodeType queue_type)
 {
     graphlib::Node* node = graph->get_node_by_name(node_name);
@@ -83,30 +83,27 @@ TEST_F(BypassBuffQueueMultipleConsumers, bypass_buff_queue_with_multiple_consume
     std::shared_ptr<balancer::BalancerCacheCollection> cache_collection = create_balancer_cache_collection();
     balancer_config.op_names_to_epoch_break.push_back({"matmul3"});
 
-    std::optional<placer::PlacerSolution> opt_placer_solution = std::nullopt;
-
     balancer::LegalOpModels valid_op_models =
         balancer::legalizer::get_legal_op_models(graph, balancer_config, cache_collection);
 
     auto graph_solver = get_graph_solver(balancer_config, cache_collection, graph, valid_op_models);
-    balancer::legalizer::GraphSolverSolution graph_solver_solution =
-        balancer::run_policy(graph, balancer_config, graph_solver, opt_placer_solution);
+    balancer::BalancerPolicySolution balancer_policy_solution = balancer::run_policy(graph, balancer_config, graph_solver);
 
-    validate_subgraph_placement(graph, *opt_placer_solution);
+    validate_subgraph_placement(graph, balancer_policy_solution.placer_solution.value());
 
-    remove_buffering_queues_from_cross_epoch_edges(graph, *opt_placer_solution);
+    remove_buffering_queues_from_cross_epoch_edges(graph, balancer_policy_solution.placer_solution.value());
 
     insert_epoch_to_epoch_queues(
         graph,
-        opt_placer_solution.value(),
+        balancer_policy_solution.placer_solution.value(),
         {graphlib::NodeEpochType::Forward, graphlib::NodeEpochType::Backward, graphlib::Optimizer},
-        graph_solver_solution.cut_edges);
+        balancer_policy_solution.graph_solver_solution.cut_edges);
 
-    bool mm_1_check = check_if_node_has_que_as_prod(graph, "matmul1", 0, graphlib::QueueNodeType::Buffering);
+    bool mm_1_check = check_if_node_has_queue_as_prod(graph, "matmul1", 0, graphlib::QueueNodeType::Buffering);
     EXPECT_TRUE(mm_1_check);
-    bool mm_2_check = check_if_node_has_que_as_prod(graph, "matmul2", 0, graphlib::QueueNodeType::Buffering);
+    bool mm_2_check = check_if_node_has_queue_as_prod(graph, "matmul2", 0, graphlib::QueueNodeType::Buffering);
     EXPECT_TRUE(mm_2_check);
-    bool mm_3_check = check_if_node_has_que_as_prod(graph, "matmul3", 0, graphlib::QueueNodeType::EpochToEpoch);
+    bool mm_3_check = check_if_node_has_queue_as_prod(graph, "matmul3", 0, graphlib::QueueNodeType::EpochToEpoch);
     EXPECT_TRUE(mm_3_check);
 }
 

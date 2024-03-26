@@ -389,5 +389,5 @@ bool buffer_graph(
         tt::InsInstructionUniqueIdHash>& inst,
     legalizer::GraphSolver& graph_solver);
 
-void score_solution(const std::vector<EpochSolution>& solutions, const DeviceConfig& device_config);
+BalancerScore score_solution(const std::vector<EpochSolution>& solutions, const DeviceConfig& device_config);
 }  // namespace tt::balancer

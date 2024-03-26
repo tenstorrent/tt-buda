@@ -19,34 +19,33 @@ using Schedule = std::vector<std::string>;
 
 namespace tt::balancer
 {
-legalizer::GraphSolverSolution run_policy(
+BalancerPolicySolution run_policy(
     Graph const *graph,
     BalancerConfig &config,
-    legalizer::GraphSolver &graph_solver,
-    std::optional<placer::PlacerSolution> &placer_solution)
+    legalizer::GraphSolver &graph_solver)
 {
     TT_ASSERT(
         !config.use_interactive_placer or can_use_interactive_placer(config.policy_type),
         "Interactive_placer is not currently supported by this policy!");
 
-    legalizer::GraphSolverSolution graph_solver_solution;
+    BalancerPolicySolution balancer_policy_solution;
 
     switch (config.policy_type)
     {
         case PolicyType::MaximizeTMinimizeGrid:
         {
-            graph_solver_solution = run_policy_maximize_t_minimize_grid(graph, config, graph_solver);
+            balancer_policy_solution = run_policy_maximize_t_minimize_grid(graph, config, graph_solver);
             break;
         }
         case PolicyType::MinimizeGrid:
         {
-            graph_solver_solution = run_policy_minimize_grid(graph, config, graph_solver);
+            balancer_policy_solution = run_policy_minimize_grid(graph, config, graph_solver);
             break;
         }
         case PolicyType::Random:
         {
             TT_ASSERT(config.use_interactive_placer);
-            graph_solver_solution = run_policy_random(graph, config, graph_solver, placer_solution);
+            balancer_policy_solution = run_policy_random(graph, config, graph_solver);
             break;
         }
         case PolicyType::NLP:
@@ -55,19 +54,19 @@ legalizer::GraphSolverSolution run_policy(
             //
             if (config.use_interactive_placer)
             {
-                graph_solver_solution = run_policy_nlp_v2(graph, config, graph_solver, placer_solution);
+                balancer_policy_solution = run_policy_nlp_v2(graph, config, graph_solver);
             }
             // Fallback to legacy policy version if not using interactive placer.
             //
             else
             {
-                graph_solver_solution = run_policy_nlp(graph, config, graph_solver);
+                balancer_policy_solution = run_policy_nlp(graph, config, graph_solver);
             }
             break;
         }
         case PolicyType::CNN:
         {
-            graph_solver_solution = run_policy_cnn(graph, config, graph_solver);
+            balancer_policy_solution = run_policy_cnn(graph, config, graph_solver);
             break;
         }
         case PolicyType::Ribbon:
@@ -85,11 +84,11 @@ legalizer::GraphSolverSolution run_policy(
             bool use_ribbon2 = env_as<bool>("PYBUDA_RIBBON2", false);
             if (use_ribbon2)
             {
-                graph_solver_solution = run_policy_ribbon2(graph, config, graph_solver, placer_solution);
+                balancer_policy_solution = run_policy_ribbon2(graph, config, graph_solver);
             }
             else
             {
-                graph_solver_solution = run_policy_ribbon(graph, config, graph_solver, placer_solution);
+                balancer_policy_solution = run_policy_ribbon(graph, config, graph_solver);
             }
             break;
         }
@@ -103,10 +102,10 @@ legalizer::GraphSolverSolution run_policy(
     // If we used interactive placer, we should have a placer solution and vice versa.
     //
     TT_ASSERT(
-        placer_solution.has_value() == config.use_interactive_placer,
+        balancer_policy_solution.placer_solution.has_value() == config.use_interactive_placer,
         "Interactive placer usage not properly defined for chosen policy type(can_use_interactive_placer)!");
 
-    return graph_solver_solution;
+    return balancer_policy_solution;
 }
 
 // Does policy support using interactive placer or not.

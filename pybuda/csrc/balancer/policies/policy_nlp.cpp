@@ -32,7 +32,7 @@ std::uint32_t calculate_target_cycles(
     return get_matmul_target_cycles(graph, topo_sort, graph_solver, min_param_grid_volume, arch_name);
 }
 
-legalizer::GraphSolverSolution run_policy_nlp(
+BalancerPolicySolution run_policy_nlp(
     graphlib::Graph const* graph,
     BalancerConfig const& config,
     legalizer::GraphSolver& graph_solver,
@@ -206,7 +206,7 @@ legalizer::GraphSolverSolution run_policy_nlp(
         set_op_model_for_node(graph_solver, node, selected_op_model, config.device_config.arch_name);
     }
 
-    return graph_solver.finish();
+    return BalancerPolicySolution(graph_solver.finish());
 }
 
 }  // namespace tt::balancer

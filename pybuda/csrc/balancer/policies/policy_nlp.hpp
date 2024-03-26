@@ -14,22 +14,18 @@
 namespace tt::balancer
 {
 struct BalancerConfig;
-}  // namespace tt::balancer
+struct BalancerPolicySolution;
 
-namespace tt::balancer
-{
-
-legalizer::GraphSolverSolution run_policy_nlp(
+BalancerPolicySolution run_policy_nlp(
     graphlib::Graph const* graph,
     BalancerConfig const&,
     legalizer::GraphSolver& graph_solver,
     std::uint32_t target_cycles = 0);
-
-legalizer::GraphSolverSolution run_policy_nlp_v2(
+ 
+BalancerPolicySolution run_policy_nlp_v2(
     graphlib::Graph const* graph,
     BalancerConfig const& config,
     legalizer::GraphSolver& graph_solver,
-    std::optional<placer::PlacerSolution>& placer_solution,
     std::uint32_t target_cycles = 0);
 
 std::uint32_t calculate_target_cycles(

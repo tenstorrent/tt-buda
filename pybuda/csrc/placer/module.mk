@@ -8,7 +8,6 @@ PYBUDA_CSRC_PLACER_SRCS = \
 	pybuda/csrc/placer/dram.cpp \
 	pybuda/csrc/placer/dram_logger.cpp \
 	pybuda/csrc/placer/dram_allocator.cpp \
-	pybuda/csrc/placer/epoch_placer.cpp \
 	pybuda/csrc/placer/evaluator.cpp \
 	pybuda/csrc/placer/grid_placer.cpp \
 	pybuda/csrc/placer/host_memory.cpp \
