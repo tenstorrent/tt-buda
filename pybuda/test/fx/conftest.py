@@ -13,9 +13,12 @@ def generic_model_test(src_model, num_inputs = 1, num_outputs = 1, inputs = []):
         tt_inputs = [i.to(device) for i in inputs]
         tt_res = model(*tt_inputs)
         if num_outputs > 0:
-            tt_res = tuple(t.to('cpu') for t in tt_res)
+            tt_res = tuple([tt_res.to('cpu')]) if isinstance(tt_res, torch.Tensor) else tuple([t.to('cpu') for t in tt_res])
 
         cpu_res = src_model(*inputs)
+        if isinstance(cpu_res, torch.Tensor):
+            cpu_res = tuple([cpu_res])
+
         for i in range(num_outputs):
             assert torch.allclose(cpu_res[i], tt_res[i], atol=0, rtol=1e-2), f"** MISMATCH **\nCPU:\n{cpu_res[i]}\nTT:\n{tt_res[i]}"
 
