@@ -25,6 +25,7 @@ def test_ddrnet_pytorch(variant, test_device):
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
     os.environ["PYBUDA_RIBBON2"] = "1"
+    os.environ["PYBUDA_OP_MODEL_COMPARE_VERSION"] = "2"
 
     # STEP 2: Create PyBuda module from PyTorch model
     if variant == "ddrnet23s":
