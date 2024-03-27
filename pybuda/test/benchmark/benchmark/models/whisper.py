@@ -34,7 +34,7 @@ def whisper_decoder(training: bool, config: str, microbatch: int, devtype: str, 
 
 
 @benchmark_model(configs=["small"])
-def whisper(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str):
+def whisper(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str):
 
     compiler_cfg = _get_global_compiler_config()
 
