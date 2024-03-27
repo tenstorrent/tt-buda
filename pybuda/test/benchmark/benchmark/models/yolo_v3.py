@@ -14,7 +14,7 @@ from .implementations.yolo_v3.holli_src.yolov3 import *
 
 
 @benchmark_model(configs=["default", "tiny"])
-def yolo_v3(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str):
+def yolo_v3(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str):
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_auto_transposing_placement = True
 

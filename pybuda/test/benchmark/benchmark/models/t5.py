@@ -11,7 +11,7 @@ from pybuda.config import _get_global_compiler_config
 
 
 @benchmark_model(configs=["base", "large"])
-def t5(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str):
+def t5(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str):
 
     compiler_cfg = _get_global_compiler_config()
 
@@ -56,7 +56,7 @@ def t5(training: bool, config: str, microbatch: int, devtype: str, arch: str, da
 
 
 @benchmark_model(configs=["base", "large"])
-def flan_t5(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str):
+def flan_t5(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str):
 
     compiler_cfg = _get_global_compiler_config()
 

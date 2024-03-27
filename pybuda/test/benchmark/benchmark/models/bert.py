@@ -42,7 +42,7 @@ class BertWrapper(torch.nn.Module):
         return self.bert.encoder(emb_output, extended_attention_mask)
 
 @benchmark_model(configs=["tiny", "base", "large", "base_tc", "large_tc"])
-def bert(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, force_num_layers: Optional[int] = None):
+def bert(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str, force_num_layers: Optional[int] = None):
 
     compiler_cfg = _get_global_compiler_config()
 

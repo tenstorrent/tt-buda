@@ -11,7 +11,7 @@ from transformers import AutoModelForImageClassification
 
 
 @benchmark_model(configs=["192", "224"])
-def mobilenet_v1(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str):
+def mobilenet_v1(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str):
     
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_auto_transposing_placement = True
@@ -33,11 +33,14 @@ def mobilenet_v1(training: bool, config: str, microbatch: int, devtype: str, arc
         os.environ["PYBUDA_SUPRESS_T_FACTOR_MM"] = "40"
 
     if data_type == "Bfp8_b":
+        os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
         pybuda.config.configure_mixed_precision(name_regex="input.*add.*", output_df=pybuda.DataFormat.Float16_b)
         pybuda.config.configure_mixed_precision(op_type="add", output_df=pybuda.DataFormat.Float16_b)
-        pybuda.config.configure_mixed_precision(op_type="multiply", math_fidelity=pybuda.MathFidelity.HiFi2)
-        pybuda.config.configure_mixed_precision(op_type="depthwise", output_df=pybuda.DataFormat.Float16_b, math_fidelity=pybuda.MathFidelity.HiFi2)
-        os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
+        if math_fidelity == "LoFi":
+            pybuda.config.configure_mixed_precision(op_type="multiply", math_fidelity=pybuda.MathFidelity.HiFi2)
+            pybuda.config.configure_mixed_precision(op_type="depthwise", output_df=pybuda.DataFormat.Float16_b, math_fidelity=pybuda.MathFidelity.HiFi2)
+        else:
+            pybuda.config.configure_mixed_precision(op_type="depthwise", output_df=pybuda.DataFormat.Float16_b)
 
     if data_type == "Fp16_b":
         os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"

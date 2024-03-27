@@ -11,7 +11,7 @@ from transformers import ViTForImageClassification
 
 
 @benchmark_model(configs=["base", "large"])
-def vit(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str):
+def vit(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_auto_transposing_placement = True

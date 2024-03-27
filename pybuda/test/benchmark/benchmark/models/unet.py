@@ -10,7 +10,7 @@ from pybuda.config import _get_global_compiler_config
 
 
 @benchmark_model(configs=["256"])
-def unet(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str):
+def unet(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str):
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_tvm_constant_prop = True
 
@@ -30,6 +30,9 @@ def unet(training: bool, config: str, microbatch: int, devtype: str, arch: str, 
 
     if data_type == "Bfp8_b":
         os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
+        if math_fidelity == "HiFi2":
+            pybuda.config.configure_mixed_precision(op_type="matmul", output_df=pybuda.DataFormat.Float16_b)
+            pybuda.config.configure_mixed_precision(op_type="add", output_df=pybuda.DataFormat.Float16_b)
 
     # Set model parameters based on chosen task and model configuration
     if config == "256":

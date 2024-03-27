@@ -12,7 +12,7 @@ from test.model_demos.models.deit import generate_model_deit_imgcls_hf_pytorch
 
 
 @benchmark_model(configs=["base", "small"])
-def deit(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str):
+def deit(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_auto_transposing_placement = True

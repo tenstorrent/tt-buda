@@ -12,7 +12,7 @@ from test.model_demos.models.whisper import generate_model_whisper_decoder_past_
 
 
 @benchmark_model(configs=["tiny","small"])
-def whisper_decoder(training: bool, config: str, microbatch: int, devtype: str, arch: str):
+def whisper_decoder(training: bool, config: str, microbatch: int, devtype: str, arch: str, math_fidelity: str):
     # Determine model variant
     if config == "tiny":
         variant = "openai/whisper-tiny"

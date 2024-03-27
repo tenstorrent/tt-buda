@@ -14,7 +14,7 @@ from ..common import benchmark_model
 from transformers import ResNetForImageClassification
 
 @benchmark_model(configs=["resnet18", "resnet50"])
-def resnet(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str):
+def resnet(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_auto_transposing_placement = True

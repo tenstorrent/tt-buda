@@ -27,7 +27,7 @@ torch.multiprocessing.set_sharing_strategy("file_system")
         "v2_w64",
     ]
 )
-def hrnet(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str):
+def hrnet(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_auto_transposing_placement = True

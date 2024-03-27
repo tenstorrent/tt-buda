@@ -11,7 +11,7 @@ from pybuda.config import _get_global_compiler_config
 
 
 @benchmark_model(configs=["224"])
-def inception_v4(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str):
+def inception_v4(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str):
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_auto_transposing_placement = True
 

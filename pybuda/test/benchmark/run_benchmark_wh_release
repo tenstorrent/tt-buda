@@ -5,6 +5,7 @@ rm perf.json
 # Data Formats that have good accuracy on WH_B0 and that we release as official numbers
 # ------------------------------------------------------------------------------------------------------------------------------------------------------------ #
 
+
 # ResNet bfp_8b
 pybuda/test/benchmark/benchmark.py -m resnet -c resnet50
 
@@ -12,10 +13,10 @@ pybuda/test/benchmark/benchmark.py -m resnet -c resnet50
 pybuda/test/benchmark/benchmark.py -m resnet_quant -c resnet50 -df Fp32 -mf HiFi4 -o perf.json
 
 # Mobilenet v1 bfp8_b
-pybuda/test/benchmark/benchmark.py -m mobilenet_v1 -c 224 -o perf.json
+pybuda/test/benchmark/benchmark.py -m mobilenet_v1 -c 224 -mf HiFi2 -o perf.json
 
 # Mobilenet v2 bfp8_b
-pybuda/test/benchmark/benchmark.py -m mobilenet_v2 -c 224 -o perf.json
+pybuda/test/benchmark/benchmark.py -m mobilenet_v2 -c 224 -mf HiFi2 -o perf.json
 
 # Mobilenet v3 fp16_b
 pybuda/test/benchmark/benchmark.py -m mobilenet_v3_timm -c large -df Fp16_b -mf HiFi2 -o perf.json
@@ -51,7 +52,7 @@ pybuda/test/benchmark/benchmark.py -m yolo_v5 -c s -df Fp16_b -mf HiFi3 -o perf.
 ybuda/test/benchmark/benchmark.py -m inception_v4 -c 224 -o perf.json
 
 # UNet bfp8_b
-pybuda/test/benchmark/benchmark.py -m unet -c 256 -mb 64 -o perf.json
+pybuda/test/benchmark/benchmark.py -m unet -c 256 -mb 64 -mf HiFi2 -o perf.json
 
 # Bert large bfp8_b
 pybuda/test/benchmark/benchmark.py -m bert -c large_tc -o perf.json

@@ -500,7 +500,12 @@ if __name__ == "__main__":
     if args.model == "bert" and args.chips > 1:
         os.environ["PYBUDA_MULTICHIP_BERT"] = str(args.chips)
 
-    kwargs = {"training": args.training, "microbatch": args.microbatch, "data_type": args.dataformat}
+    kwargs = {
+        "training": args.training, 
+        "microbatch": args.microbatch, 
+        "data_type": args.dataformat,
+        "math_fidelity": args.math_fidelity
+    }
 
     device_list = pybuda.detect_available_devices()
     if device_list:
