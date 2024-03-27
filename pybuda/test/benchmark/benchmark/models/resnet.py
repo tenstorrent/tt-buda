@@ -65,7 +65,7 @@ def resnet(training: bool, config: str, microbatch: int, devtype: str, arch: str
     return models, inputs, targets, {}
 
 @benchmark_model(configs=["resnet50"])
-def resnet_quant(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str):
+def resnet_quant(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str):
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
