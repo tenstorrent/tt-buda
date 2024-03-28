@@ -25,6 +25,8 @@ def test_wideresnet_pytorch(variant, test_device):
         variant,
     )
 
+    os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
+
     verify_module(
         model,
         input_shapes=[(inputs[0].shape,)],
@@ -52,6 +54,8 @@ def test_wideresnet_timm(variant, test_device):
         test_device,
         variant,
     )
+
+    os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
 
     verify_module(
         model,

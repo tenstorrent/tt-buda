@@ -54,6 +54,8 @@ def test_resnext_50_torchhub_pytorch(test_device):
     if test_device.arch == BackendDevice.Grayskull:
         os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{72*1024}"
 
+    os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
+
     # STEP 2: Create PyBuda module from PyTorch model
     model = download_model(torch.hub.load,
         "pytorch/vision:v0.10.0", "resnext50_32x4d", pretrained=True
