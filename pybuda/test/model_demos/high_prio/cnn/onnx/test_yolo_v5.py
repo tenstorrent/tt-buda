@@ -10,6 +10,7 @@ import onnx, pytest
 from pybuda.verify.backend import verify_module
 from pybuda import VerifyConfig
 from pybuda.verify.config import TestKind
+from pybuda._C.backend_api import BackendDevice
 
 
 def data_preprocessing(ims: Image.Image, size: tuple) -> tuple:
@@ -70,6 +71,11 @@ def test_yolo_v5_320x320_onnx(test_device, variant):
 
     input_size = 320
 
+    if test_device.arch == BackendDevice.Grayskull:
+        compiler_cfg.enable_tm_cpu_fallback = True
+        if variant == "yolov5x":
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{112*1024}"
+
     # Load the ONNX model
     onnx_model_path = f"./third_party/confidential_customer_models/generated/files/{variant}_{input_size}.onnx"
     onnx_model = onnx.load(onnx_model_path)
@@ -108,16 +114,40 @@ def test_yolo_v5_480x480_onnx(test_device, variant):
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
     os.environ["PYBUDA_RIBBON2"] = "1"
     compiler_cfg.enable_tm_cpu_fallback = True
-    os.environ["PYBUDA_INSERT_SLICE_FOR_CONCAT"] = "1"
-    os.environ["PYBUDA_CONCAT_SLICE_Y"] = "10"
-    os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{112*1024}"
 
-    if variant == "yolov5m":
-        compiler_cfg.balancer_op_override(
-            "concatenate_19.dc.concatenate.30.dc.concatenate.0.dc.concatenate.12",
-            "grid_shape",
-            (1, 1),
-        )
+    if test_device.arch == BackendDevice.Wormhole_B0:
+
+        os.environ["PYBUDA_INSERT_SLICE_FOR_CONCAT"] = "1"
+        os.environ["PYBUDA_CONCAT_SLICE_Y"] = "10"
+        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{112*1024}"
+        if variant == "yolov5m":
+            compiler_cfg.balancer_op_override(
+                "concatenate_19.dc.concatenate.30.dc.concatenate.0.dc.concatenate.12",
+                "grid_shape",
+                (1, 1),
+            )
+    elif test_device.arch == BackendDevice.Grayskull:
+
+        if variant in ["yolov5n", "yolov5s"]:
+            os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
+
+        if variant in ["yolov5m", "yolov5x"]:
+            os.environ["PYBUDA_INSERT_SLICE_FOR_CONCAT"] = "1"
+            os.environ["PYBUDA_CONCAT_SLICE_Y"] = "10"
+            if variant == "yolov5m":
+                compiler_cfg.balancer_op_override(
+                    "concatenate_26.dc.concatenate.30.dc.concatenate.0.dc.concatenate.12",
+                    "grid_shape",
+                    (1, 1),
+                )
+            if variant == "yolov5x":
+                os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
+                os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{112*1024}"
+                compiler_cfg.balancer_op_override(
+                    "concatenate_40.dc.concatenate.30.dc.concatenate.0.dc.concatenate.12",
+                    "grid_shape",
+                    (1, 1),
+                )
 
     input_size = 480
 
@@ -158,37 +188,69 @@ def test_yolo_v5_640x640_onnx(test_device, variant):
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
     os.environ["PYBUDA_RIBBON2"] = "1"
-    os.environ["PYBUDA_INSERT_SLICE_FOR_CONCAT"] = "1"
-    os.environ["PYBUDA_CONCAT_SLICE_Y"] = "10"
 
-    if variant in ["yolov5n", "yolov5s"]:
-        if variant == "yolov5s":
+    if test_device.arch == BackendDevice.Wormhole_B0:
+
+        os.environ["PYBUDA_INSERT_SLICE_FOR_CONCAT"] = "1"
+        os.environ["PYBUDA_CONCAT_SLICE_Y"] = "10"
+
+        if variant in ["yolov5n", "yolov5s"]:
+            if variant == "yolov5s":
+                os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{112*1024}"
+            compiler_cfg.balancer_op_override(
+                "concatenate_259.dc.concatenate.7", "grid_shape", (1, 1)
+            )
+
+        if variant == "yolov5m":
+            compiler_cfg.balancer_op_override(
+                " concatenate_332.dc.concatenate.7", "grid_shape", (1, 1)
+            )
+            compiler_cfg.balancer_op_override(
+                " concatenate_332.dc.concatenate.7", "t_stream_shape", (1, 1)
+            )
             os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{112*1024}"
-        compiler_cfg.balancer_op_override(
-            "concatenate_259.dc.concatenate.7", "grid_shape", (1, 1)
-        )
 
-    if variant == "yolov5m":
-        compiler_cfg.balancer_op_override(
-            " concatenate_332.dc.concatenate.7", "grid_shape", (1, 1)
-        )
-        compiler_cfg.balancer_op_override(
-            " concatenate_332.dc.concatenate.7", "t_stream_shape", (1, 1)
-        )
-        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{112*1024}"
+        if variant == "yolov5l":
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{112*1024}"
+            os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
+            compiler_cfg.balancer_op_override(
+                "concatenate_405.dc.concatenate.7", "grid_shape", (1, 1)
+            )
 
-    if variant == "yolov5l":
-        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{112*1024}"
-        os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
-        compiler_cfg.balancer_op_override(
-            "concatenate_405.dc.concatenate.7", "grid_shape", (1, 1)
-        )
+        if variant == "yolov5x":
+            compiler_cfg.balancer_op_override(
+                "concatenate_478.dc.concatenate.7", "grid_shape", (1, 1)
+            )
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{150*1024}"
 
-    if variant == "yolov5x":
-        compiler_cfg.balancer_op_override(
-            "concatenate_478.dc.concatenate.7", "grid_shape", (1, 1)
-        )
-        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{150*1024}"
+    elif test_device.arch == BackendDevice.Grayskull:
+
+        compiler_cfg.enable_tm_cpu_fallback = True
+
+        if variant == "yolov5l":
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{112*1024}"
+
+        if variant in ["yolov5m", "yolov5x"]:
+            os.environ["PYBUDA_INSERT_SLICE_FOR_CONCAT"] = "1"
+            os.environ["PYBUDA_CONCAT_SLICE_Y"] = "10"
+
+            os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
+
+            if variant == "yolov5m":
+                compiler_cfg.balancer_op_override(
+                    "concatenate_26.dc.concatenate.30.dc.concatenate.0.dc.concatenate.12",
+                    "grid_shape",
+                    (1, 1),
+                )
+                os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{150*1024}"
+
+            if variant == "yolov5x":
+                os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{112*1024}"
+                compiler_cfg.balancer_op_override(
+                    "concatenate_40.dc.concatenate.30.dc.concatenate.0.dc.concatenate.12",
+                    "grid_shape",
+                    (1, 1),
+                )
 
     input_size = 640
 
