@@ -49,6 +49,8 @@ def compare_perf(build_ids: list):
         data.extend(es_res)
         print(f"Got perf for build id: {build_id} with {len(es_res)} records")
 
+    pd.set_option("display.max_rows", None)
+
     df = pd.DataFrame.from_records(data)
     ids = df['build_id'].unique()
 
