@@ -273,11 +273,23 @@ void PerfModel::create_graphs(
     std::vector<NodeMap> epoch_node_map;  // map of original graph to perf graph nodes
 
     std::ofstream op_perf;
+    std::ofstream balancer_score;
     bool dump_op_perf = env_as<bool>("PYBUDA_OP_PERF");
     if (dump_op_perf)
     {
         op_perf.open("op_perf.csv");
         op_perf << "name, type, epoch, grid, tiles, cycles, limiter_cycles" << std::endl;
+
+        balancer_score.open("balancer_score.csv");
+        balancer_score << "epoch, score" << std::endl;
+        size_t epoch = 0;
+        for (float epoch_score : balancer_solution->balancer_score.epoch_scores)
+        {
+            balancer_score << epoch << ", " << epoch_score << std::endl;
+            epoch++;
+        }
+
+        balancer_score << "total, " << balancer_solution->balancer_score.solution_score << std::endl;
     }
 
     // Convert the graph
@@ -304,21 +316,26 @@ void PerfModel::create_graphs(
             create_queue(g, node->as<graphlib::QueueNode>(), balancer_solution, node_map, epoch_node_map);
     }
     if (dump_op_perf)
+    {
         op_perf.close();
+        balancer_score.close();
+    }
 }
 
-OpPerfCalculatedData get_op_perf_calculated_data(const PerfDataP perf_data, std::string const& arch_name)
+OpPerfCalculatedData get_op_perf_calculated_data(const PerfDataP perf_data, std::string const &arch_name)
 {
     OpPerfCalculatedData ret;
     for (auto input : perf_data->inputs)
     {
-        ret.input_bw_needed.push_back(1.0 * input.size_in_bytes() / perf_data->op_perf_data.cycle_count_ideal(arch_name));
+        ret.input_bw_needed.push_back(
+            1.0 * input.size_in_bytes() / perf_data->op_perf_data.cycle_count_ideal(arch_name));
     }
-    ret.output_bw_ideal = 1.0 * perf_data->output.size_in_bytes() / perf_data->op_perf_data.cycle_count_ideal(arch_name);
+    ret.output_bw_ideal =
+        1.0 * perf_data->output.size_in_bytes() / perf_data->op_perf_data.cycle_count_ideal(arch_name);
     return ret;
 }
 
-void PerfModel::calculate_ideal_bws(const SystemSpec& system_spec)
+void PerfModel::calculate_ideal_bws(const SystemSpec &system_spec)
 {
     // For each op, calculate ideal input/output bws
     for (NodeP node : graph->get_nodes())
@@ -441,7 +458,8 @@ bool is_matmul(NodeP node)
 {
     // Matmul type, and not brcst / reduce
     return (
-        node->is_op() && ( (node->get_op_type() == "matmul") || (node->get_op_type() == "sparse_matmul") ) && (node->get_name().find("_brcst_") == std::string::npos) &&
+        node->is_op() && ((node->get_op_type() == "matmul") || (node->get_op_type() == "sparse_matmul")) &&
+        (node->get_name().find("_brcst_") == std::string::npos) &&
         (node->get_name().find("_reduce_") == std::string::npos));
 }
 
@@ -477,7 +495,8 @@ void PerfModel::calculate_utilization(const SystemSpec &system)
             if (is_matmul(node))
             {
                 std::uint32_t cycles = node->get_perf_data()->op_perf_data.cycle_count_ideal(system.arch_name);
-                std::uint32_t theoretical_cycles = node->get_perf_data()->op_perf_data.theoretical_cycles(system.arch_name);
+                std::uint32_t theoretical_cycles =
+                    node->get_perf_data()->op_perf_data.theoretical_cycles(system.arch_name);
                 float util = (float)theoretical_cycles / cycles;
                 std::uint32_t util_p = (util * 100.0);
 
@@ -528,7 +547,8 @@ void PerfModel::calculate_utilization(const SystemSpec &system)
        << (std::uint32_t)(100.0 * total_empty_cores / total_cores) << "%)" << std::endl;
     os << std::endl;
 
-    for (std::uint32_t epoch = 0; epoch < epoch_utilization.size(); epoch++) {
+    for (std::uint32_t epoch = 0; epoch < epoch_utilization.size(); epoch++)
+    {
         os << "Epoch " << epoch << " utilization: " << (std::uint32_t)(100.0 * epoch_utilization[epoch]) << "%"
            << std::endl;
         results["epoch_" + std::to_string(epoch) + "_utilization"] = epoch_utilization[epoch];
@@ -619,7 +639,8 @@ std::unordered_map<std::string, float> run_performance_model(
     bool output_queues_on_host)
 {
     log_info(tt::LogPerfModel, "Running performance model...");
-    PerfModel model = PerfModel(g, graph_name, device_config, balancer_solution, input_queues_on_host, output_queues_on_host);
+    PerfModel model =
+        PerfModel(g, graph_name, device_config, balancer_solution, input_queues_on_host, output_queues_on_host);
     return model.get_results();
 }
 

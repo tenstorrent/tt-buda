@@ -242,6 +242,31 @@ def load_estimated_cycles():
         
     return data_table
 
+def load_balancer_score():
+    """
+    Load balancer score for every epoch and for total solution.
+    """
+    file_path = "balancer_score.csv"
+
+    # Check if file exists
+    if not os.path.exists(file_path):
+        print(f"{file_path} does not exist. Run with PYBUDA_OP_PERF=1 to generate it, if running with pybuda. Loading will continue without it.")
+        return {}
+
+    print(f"Loading {file_path}...")
+    data_table = {}
+    try:
+        with open(file_path, 'r') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                row[' score'] = float(row[' score'])
+                data_table[row["epoch"]] = row
+    except Exception as e:
+        print(f"An error occurred while reading the file: {str(e)}.")
+        sys.exit(6)
+
+    return data_table
+
 def verify_data(netlist_data, perf_data, estimated_data):
     """ 
     Verify that the data is consistent between the 3 sources.
@@ -295,7 +320,7 @@ def merge_data(netlist_data, perf_data, estimated_data, config):
 
     return merged_data
 
-def summarize_epoch(epoch, epoch_data, config):
+def summarize_epoch(epoch, epoch_data, balancer_score_data, config):
     """
     Summarize data for ops in one epoch to get a summary - epoch speed, utilization, slowest op, etc.
     """
@@ -362,6 +387,12 @@ def summarize_epoch(epoch, epoch_data, config):
     required_dram_bw = int(10 * as_gb_sec(clock_speed, required_dram_bw)) / 10 # 1 decimal place
     actual_noc_bw = int(10 * as_gb_sec(clock_speed, actual_noc_bw)) / 10 # 1 decimal place
     actual_dram_bw = int(10 * as_gb_sec(clock_speed, actual_dram_bw)) / 10 # 1 decimal place
+
+    if str(epoch) in balancer_score_data:
+        balancer_epoch_score = balancer_score_data[str(epoch)][' score']
+    else:
+        balancer_epoch_score = 0.0
+
     summary["real_utilization"] = util
     summary["balancer_util"] = balancer_util
     summary["matmul_cores"] = matmul_cores
@@ -373,9 +404,10 @@ def summarize_epoch(epoch, epoch_data, config):
     summary["sum_estimated_lim_err"] = sum_estimated_lim_err
     summary["sum_kernel"] = sum_kernel
     summary["sum_kernel_bw"] = sum_kernel_bw
+    summary["balancer_epoch_score"] = balancer_epoch_score
     return summary
 
-def summarize_model(epoch_summary_data, config):
+def summarize_model(epoch_summary_data, balancer_score_data, config):
     """
     Calculate overall model summary - total speed, utilization, etc.
     """
@@ -395,19 +427,25 @@ def summarize_model(epoch_summary_data, config):
     kernel_estimation_error = int((sum_estimated_kernel_err / float(sum_kernel)) * 100)
     kernel_bw_estimation_error = int((sum_estimated_lim_err / float(sum_kernel_bw)) * 100)
 
+    if "total" in balancer_score_data:
+        balancer_solution_score = balancer_score_data["total"][' score']
+    else:
+        balancer_solution_score = 0.0
+
     return {
         "overall_speed": overall_speed,
         "overall_util": overall_util,
+        "balancer_solution_score": balancer_solution_score,
         "kernel_estimation_error": kernel_estimation_error,
         "kernel_bw_estimation_error": kernel_bw_estimation_error
     }
 
-def summarize_data(data, config):
+def summarize_data(data, balancer_score_data, config):
     """
     Summarize data for ops in epochs to get a per-epoch summary - epoch speed, utilization, slowest op, etc.
     """
-    epoch_summary_data = [summarize_epoch(i, d, config) for i, d in enumerate(data)]
-    model_summary_data = summarize_model(epoch_summary_data, config)
+    epoch_summary_data = [summarize_epoch(i, d, balancer_score_data, config) for i, d in enumerate(data)]
+    model_summary_data = summarize_model(epoch_summary_data, balancer_score_data, config)
     return epoch_summary_data, model_summary_data
 
 def process_epoch_data(epoch_data, config):
@@ -478,11 +516,12 @@ def load_data(config):
     epoch_count = len(netlist_data)
     perf_data = load_perf_analysis(epoch_count, config)
     estimated_data = load_estimated_cycles()
+    balancer_score_data = load_balancer_score()
 
     verify_data(netlist_data, perf_data, estimated_data)
     epoch_data = merge_data(netlist_data, perf_data, estimated_data, config)
     epoch_data = process_epoch_data(epoch_data, config)
-    epoch_summary_data, model_summary_data = summarize_data(epoch_data, config)
+    epoch_summary_data, model_summary_data = summarize_data(epoch_data, balancer_score_data, config)
     model_summary_data['netlist'] = config["netlist"]
 
     data = {
@@ -609,14 +648,18 @@ def draw_epoch_summary(win, epoch, epoch_summary_data):
     win.addstr(f"{data['inputs_per_second']}/s", curses.A_BOLD)
     win.addstr(", Utilization: ")
     win.addstr(f"{data['real_utilization']}%", curses.A_BOLD)
-    win.addstr(", Balancer Utilization: ")
+    win.addstr(", Balancer utilization: ")
     win.addstr(f"{data['balancer_util']}%", curses.A_BOLD)
+    win.addstr(", Balancer score: ")
+    win.addstr(f"{data['balancer_epoch_score']}", curses.A_BOLD)
 
 def draw_model_summary(win, data):
     win.addstr(0, 0, "Netlist: ")
     win.addstr(data['netlist'], curses.A_BOLD)
     win.addstr(" Approximate performance: ")
     win.addstr(f"{data['overall_speed']}/s", curses.A_BOLD)
+    win.addstr(" Balancer score: ")
+    win.addstr(f"{data['balancer_solution_score']}", curses.A_BOLD)
     win.addstr(" Approximate utilization: ")
     win.addstr(f"{data['overall_util']}%", curses.A_BOLD)
     win.addstr(" Kernel estimate error: ")

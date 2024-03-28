@@ -663,9 +663,7 @@ int calculate_epoch_target_cycles(
 }
 
 BalancerPolicySolution run_policy_ribbon2(
-    graphlib::Graph const *graph,
-    const BalancerConfig &config,
-    legalizer::GraphSolver &graph_solver)
+    graphlib::Graph const *graph, const BalancerConfig &config, legalizer::GraphSolver &graph_solver)
 {
     //
     // Ribbon2 policy
@@ -1091,6 +1089,7 @@ BalancerPolicySolution run_policy_ribbon2(
 
         if (applied)
         {
+            applied_solutions.push_back(best_solution);
             log_debug(
                 LogBalancer,
                 "RIBBON2: (epoch={} target_cycles={}) applied solution with score: {} ribbon_size: {} pipeline_cycles: "
@@ -1147,7 +1146,6 @@ BalancerPolicySolution run_policy_ribbon2(
             pre_buffered_graph_snapshot.reset();
             pre_buffered_solution.reset();
             fork_and_join_nodes.clear();
-            applied_solutions.push_back(best_solution);
         }
         else
         {

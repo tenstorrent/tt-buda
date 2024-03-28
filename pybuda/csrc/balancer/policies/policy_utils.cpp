@@ -1895,7 +1895,7 @@ BalancerScore score_solution(const std::vector<EpochSolution> &solutions, const 
     float total_pipeline_cycles = 0;
     for (const auto &solution : solutions)
     {
-        balancer_score.epoch_scores.push_back(device_config.get_clock_freq() / solution.get_pipeline_cycles());
+        balancer_score.epoch_scores.push_back(device_config.get_clock_freq() / (float)solution.get_pipeline_cycles());
         total_pipeline_cycles += solution.get_pipeline_cycles();
     }
 
