@@ -63,6 +63,7 @@ To install a PyBUDA release, follow these steps:
   source env/bin/activate
 
 * Step 4. Pip install PyBuda and TVM
+
 If you have downloaded the latest release wheel files, you can install them directly with pip.
 
 .. code-block:: bash
@@ -72,6 +73,7 @@ If you have downloaded the latest release wheel files, you can install them dire
 To compile PyBUDA from source, follow these steps:
 
 * Step 1. Clone PyBUDA from https://github.com/tenstorrent/tt-buda/
+
 * Step 2. Update submodules
 
 .. code-block:: bash
@@ -82,6 +84,7 @@ To compile PyBUDA from source, follow these steps:
 * Step 3. Compile. PyBUDA's make system will automatically create the needed venv
 
 .. code-block:: bash
+
   make
   source  build/python_env/bin/activate
 
@@ -165,7 +168,7 @@ You may need to append each ``apt-get`` command with ``sudo`` if you do not have
   apt-get install -y build-essential clang-6.0 libhdf5-serial-dev libzmq3-dev
 
 Additional PyBUDA Compile Dependencies
------------------------------
+--------------------------------------
 
 OS Level Dependencies
 ^^^^^^^^^^^^^^^^^^^^^
@@ -177,7 +180,7 @@ You may need to append each ``apt-get`` command with ``sudo`` if you do not have
 .. code-block:: bash
 
   apt-get install -y libyaml-cpp-dev python3-pip sudo git git-lfs
-  apt-get install -y wget cmake cmake-data libgtest-dev libgmock-dev
+  apt-get install -y wget cmake cmake-data
   pip3 install pyyaml
 
 Package Level Dependencies
@@ -213,6 +216,14 @@ By following these steps, ``torchvision`` will be installed in a way that ensure
     pip install /path/to/your/wheel/file/torchvision*.whl
 
   Replace ``/path/to/your/wheel/file/torchvision*.whl`` with the actual path to the ``torchvision`` wheel file in the PyBUDA release bundle.
+
+.. note::
+
+  To run the existing unit tests of PyBUDA components, e.g. after compiling it from source, you need to install the following packages.
+
+  .. code-block:: bash
+
+    apt-get install -y wget libgtest-dev libgmock-dev
 
 TT-SMI
 ------
