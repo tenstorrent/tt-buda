@@ -33,6 +33,7 @@ def test_tri_basic_2_sematic_segmentation_pytorch(test_device):
     os.environ["PYBUDA_RIBBON2"]="1"
     os.environ["PYBUDA_FORCE_EMULATE_HARVESTED"]="1"
     os.environ["ARCH_NAME"]="wormhole_b0"
+    os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
 
 
     # Sample Input 
