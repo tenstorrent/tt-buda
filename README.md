@@ -6,7 +6,7 @@
 
 </h1>
    
-<img src="./docs/public/images/tt_logo.png" alt="tt logo" height="150"/>
+<img src="./docs/public/images/tt_buda_w_logo.png" alt="tt logo" height="250"/>
 
 **TT-Buda** is a software stack that can compile AI/ML models from several different frameworks, and execute them on Tenstorrent hardware.
 
