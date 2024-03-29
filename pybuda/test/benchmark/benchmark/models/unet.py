@@ -13,6 +13,7 @@ from pybuda.config import _get_global_compiler_config
 def unet(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str):
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_tvm_constant_prop = True
+    compiler_cfg.enable_auto_transposing_placement = True
 
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"
@@ -22,17 +23,13 @@ def unet(training: bool, config: str, microbatch: int, devtype: str, arch: str, 
     if compiler_cfg.balancer_policy == "Ribbon":
         compiler_cfg.enable_amp_light()
 
+    os.environ["PYBUDA_ENABLE_HOST_INPUT_NOP_BUFFERING"] = "1"
+
     # These are about to be enabled by default.
     #
     os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
-    if data_type == "Fp16_b":
-        os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
-
-    if data_type == "Bfp8_b":
-        os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
-        if math_fidelity == "HiFi2":
-            pybuda.config.configure_mixed_precision(op_type="matmul", output_df=pybuda.DataFormat.Float16_b)
-            pybuda.config.configure_mixed_precision(op_type="add", output_df=pybuda.DataFormat.Float16_b)
+    os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
+    os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
 
     # Set model parameters based on chosen task and model configuration
     if config == "256":

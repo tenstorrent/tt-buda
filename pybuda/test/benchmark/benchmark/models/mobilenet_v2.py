@@ -34,19 +34,15 @@ def mobilenet_v2(training: bool, config: str, microbatch: int, devtype: str, arc
     if data_type == "Bfp8_b":
         pybuda.config.configure_mixed_precision(name_regex="input.*add.*", output_df=pybuda.DataFormat.Float16_b)
         pybuda.config.configure_mixed_precision(op_type="add", output_df=pybuda.DataFormat.Float16_b)
-        if math_fidelity == "LoFi":
-            pybuda.config.configure_mixed_precision(
-                op_type="depthwise", 
-                input_df={1: (pybuda.DataFormat.Float16_b, False),}, 
-                output_df=pybuda.DataFormat.Float16_b, 
-                math_fidelity=pybuda.MathFidelity.HiFi2
-            )
-            # TODO: Should we remove this override? Evaluation score with this override is 0.6979, without it is 0.6875.
-            pybuda.config.configure_mixed_precision(op_type="multiply", math_fidelity=pybuda.MathFidelity.HiFi2)
-            pybuda.config.configure_mixed_precision(op_type="matmul", math_fidelity=pybuda.MathFidelity.HiFi2)
-        else:
-            pybuda.config.configure_mixed_precision(op_type="depthwise", input_df={1: (pybuda.DataFormat.Float16_b, False),}, output_df=pybuda.DataFormat.Float16_b)
-    
+        pybuda.config.configure_mixed_precision(
+            op_type="depthwise", 
+            input_df={1: (pybuda.DataFormat.Float16_b, False),}, 
+            output_df=pybuda.DataFormat.Float16_b, 
+            math_fidelity=pybuda.MathFidelity.HiFi2
+        )
+        pybuda.config.configure_mixed_precision(op_type="multiply", math_fidelity=pybuda.MathFidelity.HiFi2)
+        pybuda.config.configure_mixed_precision(op_type="matmul", math_fidelity=pybuda.MathFidelity.HiFi2)
+
     if arch == "grayskull":
         os.environ["PYBUDA_MAXIMIZE_SPARSE_UBLOCK"] = "1"
         os.environ["PYBUDA_FORK_JOIN_SKIP_EXPANDING_BUFFERS"] = "1" 
