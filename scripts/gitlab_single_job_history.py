@@ -13,7 +13,7 @@ gitlab_datetime_format = "%Y-%m-%dT%H:%M:%S.%f%z"
 print_datetime_format = "%d-%m-%Y %H:%M:%S"
 
 # Filter conditions
-schedule_name = "Nightly Models"    # Name of the scheduled pipeline to reference
+schedule_name = "PyBuda Dev Models"    # Name of the scheduled pipeline to reference
 job_name = "[job name]"             # Job name, e.g. silicon-nlp-pytorch-xglm-wh-b0-n150
 pipeline_limit_num = 9              # History limit for specified job
 
