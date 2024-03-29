@@ -50,7 +50,7 @@ bbe_files = {
         "files": "*"
     },
     "device_silicon_wormhole_bin": {
-        "path": "device/bin/silicon/wormhole",
+        "path": "umd/device/bin/silicon/x86",
         "files": [
             "create-ethernet-map"
         ]
@@ -85,6 +85,10 @@ bbe_files = {
     },
     "third_party_grayskull": {
         "path": "third_party/tt_llk_grayskull",
+        "files": "*"
+    },
+    "third_party_wormhole_b0": {
+        "path": "third_party/tt_llk_wormhole_b0",
         "files": "*"
     },
     "kernel_gen": {
@@ -133,36 +137,6 @@ bbe_files = {
     "sfpi": {
         "path": "third_party/sfpi",
         "files": "*" 
-    },
-    "debuda": {
-        "path": "dbd/",
-        "files": [
-            "debuda.py",
-            "tt_buffer.py",
-            "tt_coordinate.py",
-            "tt_debuda_server.py",
-            "tt_debug_risc.py",
-            "tt_device.py",
-            "tt_firmware.py",
-            "tt_graph.py",
-            "tt_grayskull.py",
-            "tt_netlist.py",
-            "tt_object.py",
-            "tt_parse_elf.py",
-            "tt_pipe.py",
-            "tt_stream.py",
-            "tt_temporal_epoch.py",
-            "tt_util.py",
-            "tt_wormhole.py"
-        ]
-    },
-    "debuda_commands": {
-        "path": "dbd/debuda_commands",
-        "files": "*",
-    },
-    "debuda-server-standalone": {
-        "path": "build/bin" ,
-        "files": [ "debuda-server-standalone" ],
     },
 }
 
@@ -277,10 +251,6 @@ with open("python_env/core_requirements.txt", "r") as f:
 with open("python_env/dist_requirements.txt", "r") as f:
     requirements += [r for r in f.read().splitlines() if not r.startswith("-r")]
 
-# Add specific requirements for Debuda
-with open("third_party/budabackend/dbd/requirements.txt", "r") as f:
-    requirements += [r for r in f.read().splitlines() if not r.startswith("-r")]
-
 # pybuda._C
 pybuda_c = TTExtension("pybuda._C")
 
@@ -324,11 +294,5 @@ setup(
         "Intended Audience :: Developers",
         "Intended Audience :: Science/Research",
         "Topic :: Scientific/Engineering :: Artificial Intelligence"
-    ],
-    entry_points={
-        'console_scripts': [
-            'debuda = budabackend.dbd.debuda:main'
-        ]
-    }
-
+    ]
 )
