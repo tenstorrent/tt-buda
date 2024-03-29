@@ -4,6 +4,7 @@
 #include "balancer/legalizer/legalizer.hpp"
 
 #include <algorithm>
+#include <unordered_set>
 
 #include "autograd/binding.hpp"
 #include "balancer/balancer.hpp"
@@ -130,6 +131,36 @@ static bool sparse_buffer_legal(Graph const* graph, graphlib::BudaOpNode const* 
     bool user_is_reduce_z =
         user and (user->op_name() == "reduce" and std::get<std::string>(user->buda_attrs().at("dim")) == "z");
     return not user_is_reduce_z;
+}
+
+bool validate_sparse_matmul_model(const graphlib::Graph* graph, const graphlib::BudaOpNode* op, const OpModel& op_model)
+{
+    TT_ASSERT(op->is_sparse_matmul());
+
+    int grid_r = op_model.grid_shape.r;
+    int u_rt = op_model.output_buffers[0].block_shape.ublock.rt;
+    int u_kt = op_model.input_buffers[1].block_shape.ublock.rt;
+    const sparse::SparseBUDA& sparse_buda =
+        graph->data_operands(op)[0]->as<graphlib::ConstantInputNode>()->get_sparse_buda();
+
+    int sparse_tile_ptr_bits = sparse_buda.get_sparse_tile_ptr_bits(grid_r, op_model.t_stream_factor.r, u_rt);
+    int sparse_ublock_idx_bits = sparse_buda.get_sparse_ublock_idx_bits(grid_r, op_model.t_stream_factor.r, u_rt);
+    if (sparse_tile_ptr_bits < 0 or sparse_ublock_idx_bits < 0)
+    {
+        return false;
+    }
+
+    // Calculate bits needed for ublock tile indices (u_rt + u_kt separately encoded)
+    //
+    constexpr int kMaxBits = 16;
+    int u_rt_bits = sparse::get_u_rt_encoding_bits(u_rt);
+    int u_kt_bits = sparse::get_u_kt_encoding_bits(u_kt);
+    if (sparse_tile_ptr_bits + u_rt_bits + u_kt_bits > kMaxBits)
+    {
+        return false;
+    }
+
+    return true;
 }
 
 static bool edge_tms_consume_rz_major(Graph const* graph, graphlib::Edge edge)
@@ -2193,10 +2224,19 @@ static std::pair<OpModel, OpModelFailureReason> calculate_op_model_impl(
 {
     OpModel op_model;
 
+    // If sparse matmul, in0 and in2 shapes depend on u_rt and u_kt. However, we don't know what they are at this point
+    // so we assume worst-case (largest shapes) and update later when the values are known.
+    //
+    op_model.op_shape = get_op_shape(
+        graph,
+        op_node,
+        selected_grid,
+        /* u_kt */ 1,
+        /* u_rt */ 1,  // u_kt and u_rt both set to 1, this provides worst-case scenario for in0/in2 L1 footprints
+        t_stream_factor,
+        fracture_factor,
+        /* calculate_sparse_in0_in2_shapes */ true);  // Need in0/in2 shapes to calculate their L1 footprint!
     op_model.grid_shape = selected_grid;
-    // if sparse matmul, op shape depends on ublock shape (u_rt and u_kt for sparse) -
-    // it needs to be updated after they have been chosen
-    op_model.op_shape = get_op_shape(graph, op_node, selected_grid, 1, 1, t_stream_factor, fracture_factor);
     op_model.buda_op_node = op_node;
     op_model.data_format = op_node->output_df();
     op_model.t_stream_factor = t_stream_factor;
@@ -2330,8 +2370,9 @@ static std::pair<OpModel, OpModelFailureReason> calculate_op_model_impl(
 
         if (op_node->is_sparse_matmul())
         {
-            // in2 operand's shape of sparse matmul depends on chosen u_rt and u_kt, we can update it here
-            // after both u_rt and u_kt have been chosen
+            // in2 operand's shape of sparse matmul depends on chosen u_rt and u_kt, we update it here after both u_rt
+            // and u_kt have been chosen
+            //
             op_model.op_shape = get_op_shape(
                 graph,
                 op_node,
@@ -2339,7 +2380,8 @@ static std::pair<OpModel, OpModelFailureReason> calculate_op_model_impl(
                 ublock.rt,
                 op_model.input_buffers[1].block_shape.ublock.rt,
                 t_stream_factor,
-                fracture_factor);
+                fracture_factor,
+                /* calculate_sparse_in0_in2_shapes */ true);
         }
 
         try_promote_kernel_broadcast_inputs(
@@ -2376,8 +2418,18 @@ static std::pair<OpModel, OpModelFailureReason> calculate_op_model_impl(
         // the sparse mm itself
         op_model.grid_shape.c *= 2;
     }
+
     if (op_model.is_sparse_matmul)
     {
+        // Check if sparse matmul is valid
+        //
+        if (!validate_sparse_matmul_model(graph, op_node, op_model))
+        {
+            return std::make_pair(op_model, IllegalSparseMatmul);
+        }
+
+        // Append SparseBUDA object to OpModel
+        //
         const sparse::SparseBUDA& sparse_buda =
             graph->data_operands(op_node)[0]->as<graphlib::ConstantInputNode>()->get_sparse_buda();
         op_model.sparse_indices = sparse_buda.sparse_indices.size();

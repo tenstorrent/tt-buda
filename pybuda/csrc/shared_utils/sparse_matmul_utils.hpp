@@ -148,6 +148,8 @@ struct SparseCOO
         while (idx++ < (rt_dim * ct_dim)) fmt::print(".{}", ((idx % ct_dim) == 0) ? "\n" : " ");
     }
 
+    // Vertically slice a SparseCOO tensor
+    //
     std::vector<SparseCOO> vslice(int num_slices) const
     {
         TT_ASSERT(shape[0] % num_slices == 0);
@@ -160,6 +162,21 @@ struct SparseCOO
         std::int64_t slice_height = shape[0] / num_slices;
 
         std::vector<SparseCOO> ret(num_slices, SparseCOO({this->shape[0] / num_slices, this->shape[1]}));
+
+        // Calculate total count of indices upfront, in order to reserve vector space once
+        //
+        std::vector<int> cache(num_slices, 0);
+        for (size_t idx = 0; idx < this->rows.size(); idx++)
+        {
+            int slice_idx = this->rows[idx] / slice_height;
+            cache[slice_idx]++;
+        }
+        for (size_t idx = 0; idx < cache.size(); idx++)
+        {
+            ret[idx].rows.reserve(cache[idx]);
+            ret[idx].cols.reserve(cache[idx]);
+            ret[idx].vals.reserve(cache[idx]);
+        }
 
         for (size_t idx = 0; idx < this->rows.size(); idx++)
         {
@@ -182,20 +199,55 @@ struct SparseCOO
         shape[0] *= static_cast<std::int64_t>(std::distance(begin, end));
         SparseCOO ret(shape);
 
+        // Calculate total count of indices upfront, in order to reserve vector space once
+        //
+        std::uint64_t total_count_indices = 0;
+        for (auto iter = begin; iter != end; ++iter)
+        {
+            total_count_indices += iter->vals.size();
+        }
+
+        // Early out if empty
+        //
+        if (total_count_indices == 0)
+        {
+            return ret;
+        }
+
+        // Cols and Vals get reserved, while Rows get resized - we manually manage the Rows indices in the loop below
+        //
+        ret.rows.resize(total_count_indices);
+        ret.cols.reserve(total_count_indices);
+        ret.vals.reserve(total_count_indices);
+
         std::int64_t row_offset = 0;
+        std::int64_t indices_previously_added = 0;
         for (auto iter = begin; iter != end; ++iter)
         {
             SparseCOO const& coo = *iter;
             TT_ASSERT(coo.shape == begin->shape);
-            std::int64_t prev_size = static_cast<std::int64_t>(ret.rows.size());
-            ret.rows.resize(ret.rows.size() + coo.rows.size());
+
+            // Nothing to update if `coo` is empty
+            //
+            if (coo.vals.empty())
+            {
+                row_offset += coo.shape[0];
+                continue;
+            }
+
             for (std::int64_t i = 0; i < static_cast<std::int64_t>(coo.rows.size()); ++i)
-                ret.rows[prev_size + i] = coo.rows[i] + row_offset;
+            {
+                ret.rows[indices_previously_added++] = coo.rows[i] + row_offset;
+            }
             ret.cols.insert(ret.cols.end(), coo.cols.begin(), coo.cols.end());
             ret.vals.insert(ret.vals.end(), coo.vals.begin(), coo.vals.end());
             ret.col_bounds.extend(coo.col_bounds);
             row_offset += coo.shape[0];
         }
+
+        TT_ASSERT(ret.rows.size() == total_count_indices);
+        TT_ASSERT(ret.cols.size() == total_count_indices);
+        TT_ASSERT(ret.vals.size() == total_count_indices);
 
         return ret;
     }
@@ -219,25 +271,38 @@ struct SparseCOO
    private:
     SortOrder sorted_order = SortOrder::UNSORTED;
 
+    struct RowColVal
+    {
+        std::int64_t row;
+        std::int64_t col;
+        float val;
+    };
+
+    // Sorts the COO matrix in either row-major or column-major order
+    //
     void sort_(bool row_major)
     {
-        // TODO: This fn can probably optimized to work in-place with permutations
-        std::vector<std::tuple<int64_t, int64_t, float>> zipped;
+        // If this method ever becomes memory hungry (or slow due to memory allocations), an alternative approach would
+        // be something like this: https://stackoverflow.com/a/17074810/4030496
+
+        // Zip rows, cols, and vals together
+        //
+        std::vector<RowColVal> zipped;
+        zipped.reserve(rows.size());
         for (size_t idx = 0; idx < rows.size(); idx++)
         {
-            zipped.push_back(std::make_tuple(rows[idx], cols[idx], vals[idx]));
+            zipped.push_back(RowColVal{rows[idx], cols[idx], vals[idx]});
         }
 
+        // Sort either row-major or column-major
+        //
         if (row_major)
         {
             std::sort(
                 zipped.begin(),
                 zipped.end(),
                 [](const auto& lhs, const auto& rhs)
-                {
-                    return std::get<0>(lhs) == std::get<0>(rhs) ? std::get<1>(lhs) < std::get<1>(rhs)
-                                                                : std::get<0>(lhs) < std::get<0>(rhs);
-                });
+                { return lhs.row == rhs.row ? lhs.col < rhs.col : lhs.row < rhs.row; });
         }
         else
         {
@@ -245,17 +310,16 @@ struct SparseCOO
                 zipped.begin(),
                 zipped.end(),
                 [](const auto& lhs, const auto& rhs)
-                {
-                    return std::get<1>(lhs) == std::get<1>(rhs) ? std::get<0>(lhs) < std::get<0>(rhs)
-                                                                : std::get<1>(lhs) < std::get<1>(rhs);
-                });
+                { return lhs.col == rhs.col ? lhs.row < rhs.row : lhs.col < rhs.col; });
         }
 
+        // Update original rows, cols, and vals
+        //
         for (size_t idx = 0; idx < rows.size(); idx++)
         {
-            rows[idx] = std::get<0>(zipped[idx]);
-            cols[idx] = std::get<1>(zipped[idx]);
-            vals[idx] = std::get<2>(zipped[idx]);
+            rows[idx] = zipped[idx].row;
+            cols[idx] = zipped[idx].col;
+            vals[idx] = zipped[idx].val;
             col_bounds.extend(cols[idx]);
         }
     }
@@ -309,8 +373,8 @@ struct SparseBUDA
         int bcast_factor,
         int fracture_factor);
 
-    int get_sparse_tiles_per_core_general(int grid_r, int t_factor_r) const;
-    int get_encoding_tiles_per_core_general(int grid_r, int t_factor_r, int u_rt, int u_kt) const;
+    int get_sparse_tiles_per_core_estimate(int grid_r, int t_factor_r) const;
+    int get_encoding_tiles_per_core_estimate(int grid_r, int t_factor_r, int u_rt, int u_kt) const;
     int get_sparse_tile_ptr_bits(int grid_r, int t_factor_r, int u_rt = 1) const;
     int get_sparse_ublock_idx_bits(int grid_r, int t_factor_r, int u_rt = 1) const;
     int get_max_u_kt(int grid_r, int t_factor_r, int u_rt, int sparse_tile_ptr_bits = 0) const;
@@ -347,6 +411,9 @@ struct SparseBUDA
 // SparseBUDA compress_sparse_tensor(std::vector<SparseCOO> const& sparse_zs);
 SparseBUDA compress_sparse_tensor_and_strip_info(
     std::vector<SparseCOO> const& sparse_zs, int bcast_factor, int fracture_factor);
+
+int get_u_rt_encoding_bits(int u_rt);
+int get_u_kt_encoding_bits(int u_kt);
 
 std::ostream& operator<<(std::ostream& out, const SparseCOO::SortOrder& sort_order);
 std::ostream& operator<<(std::ostream& out, SparseBUDA::Layout layout);

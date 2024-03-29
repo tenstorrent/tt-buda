@@ -9,12 +9,19 @@
 #include "passes/t_stream.hpp"
 #include "utils/hash_combine.hpp"
 #include "utils/logger.hpp"
+#include "utils/profile.hpp"
 
 using NodeType = tt::graphlib::NodeType;
 using UBlockOrder = tt::graphlib::UBlockOrder;
 
 namespace tt::balancer
 {
+
+// Returns OpShape
+//
+// Sparse matmul in0 and in2 shapes are costly to calculate, but are often not needed - flag
+// calculate_sparse_in0_in2_shapes is used to control whether to calculate them
+//
 OpShape get_op_shape(
     Graph const* graph,
     Node const* node,
@@ -22,7 +29,8 @@ OpShape get_op_shape(
     int u_rt,
     int u_kt,
     TStreamFactor t_stream_factor,
-    int fracture_factor)
+    int fracture_factor,
+    bool calculate_sparse_in0_in2_shapes)
 {
     std::vector<TensorShape> producer_shapes;
     std::vector<TensorShape> input_shapes;
@@ -30,7 +38,7 @@ OpShape get_op_shape(
 
     const graphlib::OpNode* op_node = node->as<graphlib::OpNode>();
 
-    if (op_node->is_sparse_matmul())
+    if (op_node->is_sparse_matmul() and calculate_sparse_in0_in2_shapes)
     {
         std::vector<graphlib::Node*> data_operands = graph->data_operands(node);
         graphlib::ConstantInputNode* cin = data_operands[0]->as<graphlib::ConstantInputNode>();
@@ -39,31 +47,13 @@ OpShape get_op_shape(
         int sparse_ct = -1;
         int encodings_ct = -1;
 
-        // TODO: Estimates need fixing (include fracture_factor into calculation)
-
-        // Whether to fully calculate num tiles for in0/in2 (slower), or estimate them (faster)
-        if (env_as<bool>("PYBUDA_SPARSE_MM_ENCODING_ESTIMATES_OFF"))
-        {
-            // Full
-            auto [sparse_t, encodings_t, sparse_s, encodings_s, num_strips_per_row] =
-                sparse_buda.get_sparse_tiles_and_encodings(grid_shape.r, t_stream_factor.r, t_stream_factor.c);
-            sparse_ct = (int)sparse_s[3] / 32;
-            encodings_ct = (int)encodings_s[3] / 32;
-        }
-        else
-        {
-            // Estimate
-            sparse_ct = sparse_buda.get_sparse_tiles_per_core_general(grid_shape.r, t_stream_factor.r);
-            encodings_ct = sparse_buda.get_encoding_tiles_per_core_general(grid_shape.r, t_stream_factor.r, u_rt, u_kt);
-        }
-
-        // Lines below call the function that gets actual encodings, and compare to estimates - good for verification
-        // auto [sparse_t, encodings_t, sparse_s, encodings_s] =
-        //     sparse_buda.get_sparse_tiles_and_encodings(grid_shape.r);
-        // int encodings_ct_slow = (int)encodings_s[3] / 32;
-        // TT_ASSERT(
-        //     encodings_ct == encodings_ct_slow, fmt::format("left = {}, right = {}", encodings_ct,
-        //     encodings_ct_slow));
+        // Below functions are estimates, but are very accurate for the purposes of calculating the shapes
+        // - To improve estimates for sparse tiles, we should include the sparse layout - this would make the numbers
+        // exact
+        // - To improve estimates for encoding tiles, we should include the sparse layout but there's still some very
+        // minor encoding details that are not modelled here - however, we're talking few bytes of difference
+        sparse_ct = sparse_buda.get_sparse_tiles_per_core_estimate(grid_shape.r, t_stream_factor.r);
+        encodings_ct = sparse_buda.get_encoding_tiles_per_core_estimate(grid_shape.r, t_stream_factor.r, u_rt, u_kt);
 
         // in0
         input_shapes.emplace_back(1, 1, grid_shape.r, sparse_ct);
@@ -92,6 +82,7 @@ OpShape get_op_shape(
         producer_shapes[0] = input_shapes[0];
         producer_shapes[1] = in1_shape;
         producer_shapes[2] = input_shapes[2];
+
         return OpShape(producer_shapes, input_shapes, output_shapes);
     }
     else
@@ -105,6 +96,7 @@ OpShape get_op_shape(
                 node->as<graphlib::OpNode>(), tms, t_stream_factor, TStreamFactor{}, edge.consumer_input_port_id);
             input_shapes.emplace_back(post_tms_shape(producer_shape, tms));
         }
+
         return OpShape(producer_shapes, input_shapes, {TensorShape(node->shape())});
     }
 }

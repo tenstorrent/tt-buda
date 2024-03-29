@@ -79,7 +79,7 @@ std::ostream& operator<<(std::ostream& out, SparseBUDA::Layout layout)
     return out;
 }
 
-static int get_u_rt_encoding_bits(int u_rt)
+int get_u_rt_encoding_bits(int u_rt)
 {
     // u_rt_bits can be 0
     int u_rt_bits = 32 - __builtin_clz(u_rt);
@@ -87,7 +87,7 @@ static int get_u_rt_encoding_bits(int u_rt)
     return u_rt_bits;
 }
 
-static int get_u_kt_encoding_bits(int u_kt)
+int get_u_kt_encoding_bits(int u_kt)
 {
     int u_kt_bits = 32 - __builtin_clz(u_kt);
     u_kt_bits -= ((u_kt & (u_kt - 1)) == 0);  // power of two check
@@ -392,43 +392,85 @@ static std::pair<std::vector<std::int32_t>, int> encode_strips(
     // Calculate bits needed for ublock (u_rt + u_kt separately encoded)
     int u_rt_bits = get_u_rt_encoding_bits(u_rt);
     int u_kt_bits = get_u_kt_encoding_bits(u_kt);
-    TT_ASSERT(u_kt_bits + u_rt_bits <= 16 - sparse_ublock_idx_bits);
+    int ublock_tile_index_bits = 16 - sparse_tile_ptr_bits;
+    TT_ASSERT(u_rt_bits + u_kt_bits <= ublock_tile_index_bits);
+    int nz_tiles_in_ublock_bits = 16 - sparse_ublock_idx_bits;
 
     using IndexType = std::remove_extent_t<decltype(strip_info_struct::F::index_array)>;
 
-    auto encode_ublock_header = [sparse_ublock_idx_bits](
+    // Encodes ublock header
+    // 16b total
+    // Example:
+    //   - sparse_ublock_idx_bits = 7
+    //   - nz_tiles_in_ublock_bits = 16 - sparse_ublock_idx_bits = 9
+    // If we look at the 16 bits for the above example, it would look like this:
+    //                     MSB [nnnnnnnnn|sssssss] LSB
+    //                          ^^^^^^^^^ ^^^^^^^
+    //                              |        |
+    //    nz_tiles_in_ublock_bits <-|        |
+    //     sparse_ublock_idx_bits <----------|
+    //
+    auto encode_ublock_header = [sparse_ublock_idx_bits, nz_tiles_in_ublock_bits](
                                     IndexType current_ublock_index, IndexType nz_tiles_in_ublock) -> IndexType
     {
-        int ublock_tile_index_bits = 16 - sparse_ublock_idx_bits;
+        // Check if bits exceeded for current_ublock_index
+        //
         if (current_ublock_index >= (1 << sparse_ublock_idx_bits))
+        {
             throw std::runtime_error(
-                fmt::format("Row tiles {} exceed {} bit encoding", current_ublock_index, sparse_ublock_idx_bits));
-        if (nz_tiles_in_ublock > (1 << ublock_tile_index_bits))
-            throw std::runtime_error(fmt::format(
-                "Num tiles in ublock {} exceed {} bit encoding", current_ublock_index, sparse_ublock_idx_bits));
+                fmt::format("UBlock index {} exceeds {} bit encoding", current_ublock_index, sparse_ublock_idx_bits));
+        }
 
-        // 0 means (1 << ublock_tile_index_bits)
-        nz_tiles_in_ublock = (nz_tiles_in_ublock == (1 << ublock_tile_index_bits)) ? 0 : nz_tiles_in_ublock;
+        // Check if bits exceeded for nz_tile_in_ublock
+        // Note: if nz_tiles_in_ublock is (1 << nz_tiles_in_ublock_bits), this is legal, we encode it with 0
+        //
+        if (nz_tiles_in_ublock > (1 << nz_tiles_in_ublock_bits))
+        {
+            throw std::runtime_error(fmt::format(
+                "UBlock index {} exceeds {} bit encoding", current_ublock_index, sparse_ublock_idx_bits));
+        }
+
+        // Use 0 to represent (1 << nz_tiles_in_ublock_bits)
+        nz_tiles_in_ublock = (nz_tiles_in_ublock == (1 << nz_tiles_in_ublock_bits)) ? 0 : nz_tiles_in_ublock;
 
         IndexType encoded = 0;
         encoded |= nz_tiles_in_ublock << sparse_ublock_idx_bits;
-        encoded |= current_ublock_index & ((1u << sparse_ublock_idx_bits) - 1u);
+        encoded |= current_ublock_index;
         return encoded;
     };
 
-    auto encode_index_pair = [sparse_tile_ptr_bits, u_kt_bits](
-                                 IndexType in0, IndexType in1_rt, IndexType in1_ct) -> IndexType
+    // Encodes indices of in0
+    // 16b total
+    // Example:
+    //   - sparse_tile_ptr_bits = 5
+    //   - ublock_tile_index_bits = 16 - sparse_tile_ptr_bits = 11
+    //   - u_rt_bits = 3
+    //   - u_kt_bits = 6
+    // If we look at the 16 bits for the above example, it would look like this:
+    //                     MSB [sssss|xx|rrr|kkkkkk] LSB
+    //                          ^^^^^ ^^ ^^^ ^^^^^^
+    //                            |   |   |    |
+    //     sparse_tile_ptr_bits <-|   |   |    |
+    //              unused bits <-----|   |    |
+    //                u_rt_bits <---------|    |
+    //                u_kt_bits <--------------|
+    //
+    // Note: ublock_tile_index_bits is a union of (u_rt_bits,  u_kt_bits, unused bits)
+    //
+    auto encode_index_pair = [sparse_tile_ptr_bits, ublock_tile_index_bits, u_kt_bits](
+                                 IndexType in0, IndexType in0_rt, IndexType in0_ct) -> IndexType
     {
-        int in1_ptr_bits = 16 - sparse_tile_ptr_bits;
+        // Check that sparse tile ptr index (in0) fits in the number of bits we have (sparse_tile_ptr_bits)
+        //
         if (in0 >= (1u << sparse_tile_ptr_bits))
+        {
             throw std::runtime_error(fmt::format("in0 exceeds {} bit sparse encoding", sparse_tile_ptr_bits));
-        if (((in1_rt << u_kt_bits) | in1_ct) >= (1 << in1_ptr_bits))
-            throw std::runtime_error(fmt::format("in1 exceeds {} bit sparse encoding", in1_ptr_bits));
+        }
 
         IndexType encoded = 0;
-        encoded |= in0 << in1_ptr_bits;
-        encoded |= in1_rt << u_kt_bits;
-        encoded |= in1_ct;
+        encoded |= in0 << ublock_tile_index_bits;
+        encoded |= in0_rt << u_kt_bits;
+        encoded |= in0_ct;
         return encoded;
     };
 
@@ -586,6 +628,14 @@ SparseBUDA::SparseBUDA(
     TT_ASSERT(sparse_ct < SparseBUDA::kMaxSparseIndexValue, "Sparse matrix too wide");
 }
 
+enum EncodingBitErrors
+{
+    MaxSparseTilesExceeded = -1,
+    MaxUBlocksRExceeded = -2
+};
+
+// Returns negative value if failed
+//
 int SparseBUDA::get_sparse_tile_ptr_bits(int grid_r, int t_factor_r, int u_rt) const
 {
     // TODO: num_sparse_tiles should be calculated per core, and max should be used as the result of this fn
@@ -595,14 +645,14 @@ int SparseBUDA::get_sparse_tile_ptr_bits(int grid_r, int t_factor_r, int u_rt) c
     TT_ASSERT(num_sparse_tiles > 0);
     if (num_sparse_tiles > SparseBUDA::kMaxSparseTiles)
     {
-        throw std::runtime_error(fmt::format("Num sparse tiles {} exceeds max {}", num_sparse_tiles, kMaxSparseTiles));
+        return MaxSparseTilesExceeded;
     }
 
     // TODO: This can be divided by fracture factor
     std::uint32_t max_ublocks_r = this->sparse_shape[0] / (TILE_DIM * grid_r * t_factor_r * u_rt);
     if (max_ublocks_r > SparseBUDA::kMaxUblocksR)
     {
-        throw std::runtime_error(fmt::format("Num row tiles {} exceeds max {}", max_ublocks_r + 1, kMaxUblocksR));
+        return MaxUBlocksRExceeded;
     }
 
     std::uint32_t max_num = num_sparse_tiles;
@@ -610,6 +660,8 @@ int SparseBUDA::get_sparse_tile_ptr_bits(int grid_r, int t_factor_r, int u_rt) c
     return num_lz;
 }
 
+// Returns negative value if failed
+//
 int SparseBUDA::get_sparse_ublock_idx_bits(int grid_r, int t_factor_r, int u_rt) const
 {
     // TODO: num_sparse_tiles should be calculated per core, and max should be used as the result of this fn
@@ -619,14 +671,14 @@ int SparseBUDA::get_sparse_ublock_idx_bits(int grid_r, int t_factor_r, int u_rt)
     TT_ASSERT(num_sparse_tiles > 0);
     if (num_sparse_tiles > SparseBUDA::kMaxSparseTiles)
     {
-        throw std::runtime_error(fmt::format("Num sparse tiles {} exceeds max {}", num_sparse_tiles, kMaxSparseTiles));
+        return MaxSparseTilesExceeded;
     }
 
     // TODO: This can be divided by fracture factor
     std::uint32_t max_ublocks_r = this->sparse_shape[0] / (TILE_DIM * grid_r * t_factor_r * u_rt);
     if (max_ublocks_r > SparseBUDA::kMaxUblocksR)
     {
-        throw std::runtime_error(fmt::format("Num row tiles {} exceeds max {}", max_ublocks_r + 1, kMaxUblocksR));
+        return MaxUBlocksRExceeded;
     }
 
     std::uint32_t max_num = std::max(num_sparse_tiles, max_ublocks_r);
@@ -676,11 +728,12 @@ static std::vector<SparseCOO> vslice_layout(
         (layout == SparseBUDA::Layout::ZMajorDataflow) ? (sparse.rt() / grid_r / t_factor_r / bcast_factor) : 1;
     std::vector<SparseCOO> vsliced = sparse.vslice(grid_r * t_factor_r * bcast_factor * dflow_factor);
     std::vector<SparseCOO> slices;
+    slices.reserve(grid_r * t_factor_r);
 
     for (int t = 0; t < t_factor_r; t++)
     {
         std::vector<SparseCOO> b_slices;
-        b_slices.reserve(bcast_factor * grid_r);
+        b_slices.reserve(grid_r * dflow_factor * bcast_factor);
 
         if (layout == SparseBUDA::Layout::BufferOp or layout == SparseBUDA::Layout::ZMajorDataflow)
         {
@@ -882,21 +935,15 @@ SparseBUDA::get_sparse_tiles_and_encodings(
     Layout layout,
     std::string const& visualize_sparse_path) const
 {
-    // TODO: Legalizer should pass max_u_kt, and then this fn *should return* the max possible values given encoding
-    // constraints
-
     int sparse_tile_ptr_bits = get_sparse_tile_ptr_bits(grid_r, t_factor_r, u_rt);
     int sparse_ublock_idx_bits = get_sparse_ublock_idx_bits(grid_r, t_factor_r, u_rt);
+
+    TT_ASSERT(sparse_tile_ptr_bits > 0 and sparse_ublock_idx_bits > 0);
 
     // Calculate bits needed for ublock (u_rt + u_kt separately encoded)
     int u_rt_bits = get_u_rt_encoding_bits(u_rt);
     int u_kt_bits = get_u_kt_encoding_bits(u_kt);
-    TT_ASSERT(
-        sparse_tile_ptr_bits + u_rt_bits + u_kt_bits <= 16,
-        "Can't encode sparse matrix with these parameters",
-        sparse_tile_ptr_bits,
-        u_rt_bits,
-        u_kt_bits);
+    TT_ASSERT(sparse_tile_ptr_bits + u_rt_bits + u_kt_bits <= 16);
 
     std::function<bool(tt::sparse::SparseIndex const&, tt::sparse::SparseIndex const&)> sp_indices_cmp_fn =
         [u_rt, u_kt](SparseIndex const& a, SparseIndex const& b) { return comp_zcr_ublocked(a, b, u_rt, u_kt); };
@@ -1001,7 +1048,7 @@ SparseBUDA::get_sparse_tiles_and_encodings(
     return std::make_tuple<>(sparse_tiles, buda_indices, sparse_shape, encodings_shape, num_strips_per_row);
 }
 
-int SparseBUDA::get_encoding_tiles_per_core_general(int grid_r, int t_factor_r, int u_rt, int u_kt) const
+int SparseBUDA::get_encoding_tiles_per_core_estimate(int grid_r, int t_factor_r, int u_rt, int u_kt) const
 {
     // strip index (with last_* bits)   4b
     // number of ublocks                2b
@@ -1149,7 +1196,7 @@ int SparseBUDA::get_encoding_tiles_per_core_general(int grid_r, int t_factor_r, 
     return (max_space + tile_bytes - 1) / tile_bytes;
 }
 
-int SparseBUDA::get_sparse_tiles_per_core_general(int grid_r, int t_factor_r) const
+int SparseBUDA::get_sparse_tiles_per_core_estimate(int grid_r, int t_factor_r) const
 {
     TT_ASSERT(this->sparse_shape[0] / TILE_DIM >= grid_r * t_factor_r);
     TT_ASSERT(this->sparse_shape[0] / TILE_DIM % (grid_r * t_factor_r) == 0);

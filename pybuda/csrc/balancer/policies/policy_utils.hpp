@@ -272,12 +272,6 @@ bool can_bind_sparse_dense_matmul_pair(
 
 bool close_to_target(std::uint32_t test, std::uint32_t target);
 
-bool validate_sparse_matmul_model(
-    const graphlib::BudaOpNode* op,
-    const OpModel& op_model,
-    const graphlib::Graph* graph,
-    std::unordered_set<std::uint64_t>& validated_cache);
-
 bool can_fit_on_single_epoch(
     tt::placer::InteractivePlacer& ip_fittment_tester,
     const std::string& op_name_1,
@@ -302,7 +296,6 @@ int calculate_target_cycles_for_ribbon_size(
     tt::placer::InteractivePlacer& interactive_placer,
     tt::placer::InteractivePlacer& ip_fittment_tester,
     const std::uint32_t ribbon_size,
-    std::unordered_set<std::uint64_t>& validated_cache,
     const std::vector<std::string>& scheduled_ops,
     const std::unordered_set<string>& epoch_break_ops,
     const graphlib::NodeEpochType current_epoch_type,
@@ -316,7 +309,6 @@ const OpModel* pick_preferred_op_model(
     const T& current_graph_solver,
     const graphlib::BudaOpNode* op,
     const std::uint32_t ribbon_size,
-    std::unordered_set<std::uint64_t>& validated_cache,
     const int target_cycles)
 {
     auto op_models = current_graph_solver.at(op);
@@ -329,21 +321,6 @@ const OpModel* pick_preferred_op_model(
             op_model.grid_shape.r,
             op_model.grid_shape.c,
             op_model.t_stream_factor);
-
-        // If it is sparse matmul op skip op model that can't be encoded.
-        if (op->is_sparse_matmul())
-        {
-            if (!validate_sparse_matmul_model(op, op_model, graph, validated_cache))
-            {
-                log_trace(
-                    LogBalancer,
-                    "    Invalid sparse matmul op model. Grid: {}, {}, stream: {}",
-                    op_model.grid_shape.r,
-                    op_model.grid_shape.c,
-                    op_model.t_stream_factor);
-                continue;
-            }
-        }
 
         // If it is first valid op model select it.
         if (nullptr == prefered_op_model)
@@ -369,12 +346,11 @@ const OpModel& select_best_op_model_ribbon(
     const std::uint32_t current_ribbon_size,
     const BalancerConfig& config,
     const graphlib::Graph* graph,
-    std::unordered_set<std::uint64_t>& validated_cache,
     const int target_cycles)
 {
     log_trace(LogBalancer, "  Selecting best op_model for {}. Choices:", op->name());
     const OpModel* selected_op_model = pick_preferred_op_model(
-        graph, config, current_graph_solver, op, current_ribbon_size, validated_cache, target_cycles);
+        graph, config, current_graph_solver, op, current_ribbon_size, target_cycles);
 
     TT_ASSERT(nullptr != selected_op_model, "No valid op_models for operation: ", op->name());
 

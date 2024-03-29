@@ -406,6 +406,7 @@ void update_ops_on_selected_op_models(graphlib::Graph const* graph, OpModels con
                     sparse_buda.get_sparse_tile_ptr_bits(grid_r, op_model.t_stream_factor.r, u_rt);
                 int sparse_ublock_idx_bits =
                     sparse_buda.get_sparse_ublock_idx_bits(grid_r, op_model.t_stream_factor.r, u_rt);
+                TT_ASSERT(sparse_tile_ptr_bits > 0 and sparse_ublock_idx_bits > 0);
 
                 if (env_as<bool>("PYBUDA_SPARSE_PRINT_PERF_INPUT_DATA"))
                 {

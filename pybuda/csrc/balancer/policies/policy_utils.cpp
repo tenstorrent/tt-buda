@@ -685,7 +685,6 @@ int calculate_target_cycles_for_ribbon_size(
     tt::placer::InteractivePlacer &interactive_placer,
     tt::placer::InteractivePlacer &ip_fittment_tester,
     const std::uint32_t ribbon_size,
-    std::unordered_set<std::uint64_t> &validated_cache,
     const std::vector<std::string> &scheduled_ops,
     const std::unordered_set<string> &epoch_break_ops,
     const graphlib::NodeEpochType current_epoch_type,
@@ -719,7 +718,7 @@ int calculate_target_cycles_for_ribbon_size(
 
         bool op_already_set = false;
         const OpModel *prefered_op_model =
-            pick_preferred_op_model(graph, config, graph_solver, op, ribbon_size, validated_cache, epoch_target_cycles);
+            pick_preferred_op_model(graph, config, graph_solver, op, ribbon_size, epoch_target_cycles);
 
         if (nullptr != prefered_op_model)
         {
@@ -749,7 +748,6 @@ int calculate_target_cycles_for_ribbon_size(
                             graph_solver,
                             dense_matmul_op,
                             ribbon_size,
-                            validated_cache,
                             std::max(epoch_target_cycles, get_limiter_cycles(*prefered_op_model, graph, config)));
                         TT_ASSERT(prefered_op_model_dense != nullptr);
 
@@ -1080,51 +1078,6 @@ bool is_candidate_better_than_current(
     }
 
     return false;
-}
-
-bool validate_sparse_matmul_model(
-    const graphlib::BudaOpNode *op,
-    const OpModel &op_model,
-    const graphlib::Graph *graph,
-    std::unordered_set<std::uint64_t> &validated_cache)
-{
-    if (validated_cache.count(op_model.id.id) > 0)
-        return true;
-
-    TT_ASSERT(op->is_sparse_matmul());
-
-    int grid_r = op_model.grid_shape.r;
-    int u_rt = op_model.output_buffers[0].block_shape.ublock.rt;
-    int u_kt = op_model.input_buffers[1].block_shape.ublock.rt;
-    bool has_buffer_op = op_model.has_sparse_buffer();
-    bool force_buffer_op_layout = env_as<bool>("PYBUDA_FORCE_SPARSE_BUFFER_LAYOUT");
-    bool buffer_op_layout = has_buffer_op or force_buffer_op_layout;
-    const sparse::SparseBUDA &sparse_buda =
-        graph->data_operands(op)[0]->as<graphlib::ConstantInputNode>()->get_sparse_buda();
-    auto layout = sparse::SparseBUDA::create_layout(
-        buffer_op_layout, op_model.t_stream_factor.dir.z_major(), op_model.fracture_factor);
-
-    std::string visualize_sparse_path = "";
-    try
-    {
-        auto [sparse, encodings, sparse_s, encodings_s, num_strips_per_row] =
-            sparse_buda.get_sparse_tiles_and_encodings(
-                grid_r,
-                op_model.t_stream_factor.r,
-                op_model.t_stream_factor.c,
-                u_rt,
-                u_kt,
-                op_model.fracture_factor,
-                layout,
-                visualize_sparse_path);
-    }
-    catch (...)
-    {
-        log_trace(LogBalancer, "RIBBON2: Rejecting sparse matmul that can't be encoded: {}", op->name());
-        return false;  // we can't encode this model
-    }
-    validated_cache.insert(op_model.id.id);
-    return true;
 }
 
 bool can_fit_on_single_epoch(

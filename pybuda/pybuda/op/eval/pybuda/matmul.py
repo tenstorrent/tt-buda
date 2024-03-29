@@ -200,7 +200,7 @@ def lower(type, attr, buda_attr, lc, ops, outputs):
         grid_r = round_up_div(picker.shape[-2], TILE_DIM)
         grid_c = 1  # this is always 1 by default, before balancing, needed for buda eval
 
-        sparse_tile_ptr_bits = sparse_buda.get_sparse_tile_ptr_bits(grid_r, t_factor_r, u_rt)  # Do we need to calculate this here at all? Can't we push a dummy value to buda attrs?
+        sparse_tile_ptr_bits = sparse_buda.get_sparse_tile_ptr_bits(grid_r, t_factor_r, u_rt)
         sparse_ublock_idx_bits = sparse_buda.get_sparse_ublock_idx_bits(grid_r, t_factor_r, u_rt)
         sparse, encodings, _s_shape, _e_shape, _num_strips = sparse_buda.get_sparse_tiles_and_encodings(grid_r)
         sparse, encodings = shapeify_sparse_tiles_and_encodings(

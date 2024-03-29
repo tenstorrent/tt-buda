@@ -41,8 +41,6 @@ BalancerPolicySolution run_policy_ribbon(
     }
 
     bool epoch_completed = false;
-    std::unordered_set<std::uint64_t> validated_cache;  // list of op model IDs that have been validated to be ok, so we
-                                                        // don't have to validate them again
 
     // In case of recompile, we can offset the target cycles to get a different solution.
     const int target_cycles = env_as<int>("PYBUDA_RIBBON_TARGET_CYCLES", 45000) + config.target_cycles_offset;
@@ -59,7 +57,6 @@ BalancerPolicySolution run_policy_ribbon(
             policy_manager.get_current_ribbon_size(),
             config,
             graph,
-            validated_cache,
             target_cycles);
 
         std::tie(std::ignore, epoch_completed, std::ignore) = policy_manager.commit_op(selected_op_model);

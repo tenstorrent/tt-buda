@@ -30,21 +30,11 @@ OpModel get_closest_op_model(
     const legalizer::GraphSolver &graph_solver_snapshot,
     const OpModel &op_model_target,
     const BalancerConfig *balancer_config,
-    const graphlib::Graph *graph,
-    std::unordered_set<std::uint64_t> &validated_cache)
+    const graphlib::Graph *graph)
 {
     std::optional<OpModel> closest_model = std::nullopt;
-    bool is_sparse_matmul = op_model_target.buda_op_node->is_sparse_matmul();
     for (const auto &op_model : graph_solver_snapshot.at(op_model_target.buda_op_node))
     {
-        if (is_sparse_matmul)
-        {
-            if (!validate_sparse_matmul_model(op_model_target.buda_op_node, op_model, graph, validated_cache))
-            {
-                continue;
-            }
-        }
-
         // try to set the same op model as before, if possible. If not, then pick the closest one
         if (op_model == op_model_target)
         {
@@ -91,7 +81,6 @@ EpochSolution optimize_solution(
     const legalizer::GraphSolver &graph_solver,
     placer::InteractivePlacer &interactive_placer,
     const graphlib::Graph *graph,
-    std::unordered_set<std::uint64_t> &validated_cache,
     std::uint32_t max_iterations)
 {
     log_trace(LogBalancer, "RIBBON2: optimize solution, score {}, coming in:", solution.get_score());
@@ -128,7 +117,7 @@ EpochSolution optimize_solution(
             {
                 log_trace(LogBalancer, "RIBBON2: op {} is fast enough", op_model.buda_op_node->name());
                 auto closest_model =
-                    get_closest_op_model(*graph_solver_snapshot, op_model, balancer_config, graph, validated_cache);
+                    get_closest_op_model(*graph_solver_snapshot, op_model, balancer_config, graph);
                 graph_solver_snapshot->set(op_model.buda_op_node, closest_model);
                 if (!(closest_model == op_model))
                 {
@@ -202,24 +191,13 @@ EpochSolution optimize_solution(
                             (get_limiter_cycles(*new_op_model, graph, *balancer_config) <
                              get_limiter_cycles(op_model, graph, *balancer_config)))
                         {
-                            bool op_ok = true;
-                            if (is_sparse_matmul)
-                            {
-                                // Make sure that this sparse model can be encoded correctly
-                                op_ok = validate_sparse_matmul_model(
-                                    op_model.buda_op_node, op_model, graph, validated_cache);
-                            }
-
-                            if (op_ok)
-                            {
-                                new_op_model = op_model;
-                                log_trace(
-                                    LogBalancer,
-                                    "RIBBON2: setting new grid for {}: {} with cycles {}",
-                                    op_model.buda_op_node->name(),
-                                    op_model.grid_shape,
-                                    get_limiter_cycles(op_model, graph, *balancer_config));
-                            }
+                            new_op_model = op_model;
+                            log_trace(
+                                LogBalancer,
+                                "RIBBON2: setting new grid for {}: {} with cycles {}",
+                                op_model.buda_op_node->name(),
+                                op_model.grid_shape,
+                                get_limiter_cycles(op_model, graph, *balancer_config));
                         }
                     }
                     if (same_ribbon && new_op_model.has_value())
@@ -244,7 +222,7 @@ EpochSolution optimize_solution(
                 {
                     // We haven't found anything better, set the same (or closest legal)
                     auto closest_model =
-                        get_closest_op_model(*graph_solver_snapshot, op_model, balancer_config, graph, validated_cache);
+                        get_closest_op_model(*graph_solver_snapshot, op_model, balancer_config, graph);
                     new_solution.update_model(op_index, closest_model);
                     graph_solver_snapshot->set(op_model.buda_op_node, closest_model);
                 }
@@ -620,7 +598,6 @@ int calculate_epoch_target_cycles(
     placer::InteractivePlacer &interactive_placer,
     placer::InteractivePlacer &ip_fittment_tester,
     const uint32_t ribbon_size,
-    std::unordered_set<uint64_t> &validated_cache,
     const std::vector<std::string> &scheduled_ops,
     const std::unordered_set<std::string> &epoch_break_ops,
     const graphlib::NodeEpochType current_epoch_type,
@@ -640,7 +617,6 @@ int calculate_epoch_target_cycles(
             interactive_placer,
             ip_fittment_tester,
             ribbon_size,
-            validated_cache,
             scheduled_ops,
             epoch_break_ops,
             current_epoch_type,
@@ -743,9 +719,6 @@ BalancerPolicySolution run_policy_ribbon2(
     std::tie(scheduled_ops, epoch_break_ops) =
         policy_run_scheduler(graph, config, processed_nodes, processed_schedule, op_names_to_epoch_break);
 
-    std::unordered_set<std::uint64_t> validated_cache;  // list of op model IDs that have been validated to be ok, so we
-                                                        // don't have to validate them again
-
     // In case of recompile, we can offset the target cycles to get a different solution.
     const int target_cycles = env_as<int>("PYBUDA_RIBBON_TARGET_CYCLES", 95000) + config.target_cycles_offset;
     const int max_iterations = env_as<int>("PYBUDA_RIBBON2_OPTIMIZATION_ITERATIONS", 0);
@@ -832,7 +805,6 @@ BalancerPolicySolution run_policy_ribbon2(
                         interactive_placer,
                         ip_fittment_tester,
                         ribbon_size,
-                        validated_cache,
                         scheduled_ops,
                         epoch_break_ops,
                         current_epoch_type,
@@ -863,7 +835,6 @@ BalancerPolicySolution run_policy_ribbon2(
                             ribbon_size,
                             config,
                             graph,
-                            validated_cache,
                             epoch_target_cycles);
                         log_trace(
                             LogBalancer,
@@ -899,7 +870,6 @@ BalancerPolicySolution run_policy_ribbon2(
                                         ribbon_size,
                                         config,
                                         graph,
-                                        validated_cache,
                                         epoch_target_cycles);
 
                                     // Place sparse and dense matmul paired and in the same epoch if possible.
@@ -1024,7 +994,7 @@ BalancerPolicySolution run_policy_ribbon2(
             try
             {
                 auto optimized_solution = optimize_solution(
-                    s, *graph_solver_main, interactive_placer, graph, validated_cache, epoch_max_iterations);
+                    s, *graph_solver_main, interactive_placer, graph, epoch_max_iterations);
                 if (optimized_solution.get_score() > best_solution.get_score())
                 {
                     best_solution = optimized_solution;

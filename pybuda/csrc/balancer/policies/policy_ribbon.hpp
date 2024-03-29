@@ -24,9 +24,4 @@ BalancerPolicySolution run_policy_ribbon2(
     const BalancerConfig &,
     legalizer::GraphSolver &graph_solver);
 
-bool validate_sparse_matmul_model(
-    const graphlib::BudaOpNode *op,
-    const OpModel &op_model,
-    const graphlib::Graph *graph,
-    std::unordered_set<std::uint64_t> &validated_cache);
 }  // namespace tt::balancer

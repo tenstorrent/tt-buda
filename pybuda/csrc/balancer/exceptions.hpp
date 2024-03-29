@@ -23,6 +23,7 @@ namespace tt::balancer
     X(ExceededDramChannelCapacity, "Exceeded DRAM channel capacity")       \
     X(InputBufferAllocationFailure, "Failed to allocate input buffers")    \
     X(PaddingConstraintsNotSatisfied, "Padding constraints not satisfied") \
+    X(IllegalSparseMatmul, "Illegal sparse matmul")                        \
     X(MaxFailureReason, "")
 
 #define X(a, b) a,
