@@ -35,9 +35,6 @@ def yolo_v3(training: bool, config: str, microbatch: int, devtype: str, arch: st
     if data_type == "Bfp8_b":
         os.environ["PYBUDA_FORK_JOIN_SKIP_EXPANDING_BUFFERS"] = "1"
 
-    # TODO: Due to issue tenstorrent/pybuda#1297 
-    pybuda.config.override_op_size("_fused_op_1", (2, 2))
-
     # Set model parameters based on chosen task and model configuration
     config_name = ""
     if config == "default":
