@@ -62,10 +62,8 @@ pybuda/test/benchmark/benchmark.py -m whisper -c small --loop_count 1 -mb 1 --si
 
 # T5
 # Low accuracy.
-pybuda/test/benchmark/benchmark.py -m t5 -c base --loop_count 1 -mb 1 --single-thread --generative -o perf.json
 pybuda/test/benchmark/benchmark.py -m t5 -c large --loop_count 1 -mb 1 --single-thread --generative -o perf.json
 
 # Flan-T5
 # Low accuracy.
-pybuda/test/benchmark/benchmark.py -m flan_t5 -c base --loop_count 1 -mb 1 -mf HiFi2 --single-thread --generative -o perf.json
 pybuda/test/benchmark/benchmark.py -m flan_t5 -c large --loop_count 1 -mb 1 -mf HiFi2 --single-thread --generative -o perf.json

@@ -57,10 +57,8 @@ pybuda/test/benchmark/benchmark.py -m bert -c large_tc -df Fp16_b -mf HiFi3 -o p
 pybuda/test/benchmark/benchmark.py -m whisper -c small --loop_count 1 -mb 1 -df Fp16_b -mf HiFi3 --single-thread --generative -o perf.json
 
 # T5
-pybuda/test/benchmark/benchmark.py -m t5 -c base --loop_count 1 -mb 1 -df Fp16_b -mf HiFi3 --single-thread --generative -o perf.json
 pybuda/test/benchmark/benchmark.py -m t5 -c large --loop_count 1 -mb 1 -df Fp16_b -mf HiFi3 --single-thread --generative -o perf.json
 
 # Flan-T5
-pybuda/test/benchmark/benchmark.py -m flan_t5 -c base --loop_count 1 -mb 1 -df Fp16_b -mf HiFi3 --single-thread --generative -o perf.json
 pybuda/test/benchmark/benchmark.py -m flan_t5 -c large --loop_count 1 -mb 1 -df Fp16_b -mf HiFi3 --single-thread --generative -o perf.json
 
