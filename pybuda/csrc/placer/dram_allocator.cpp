@@ -40,6 +40,8 @@ class RoundRobinPicker : public ChannelPicker
 
         return selected_channel;
     }
+    // we have to reset the next_channel
+    virtual void reset() override { next_channel = skip_ch0 ? 1 : 0; }
 };
 
 class RoundRobinFlipFlopPicker : public ChannelPicker
@@ -85,6 +87,8 @@ class RoundRobinFlipFlopPicker : public ChannelPicker
 
         return selected_channel;
     }
+    // we have to reset the groups
+    virtual void reset() override { groups.clear(); }
 };
 
 class GreatestCapacityPicker : public ChannelPicker
@@ -110,6 +114,8 @@ class GreatestCapacityPicker : public ChannelPicker
 
         return selected_channel;
     }
+    // nothing to reset
+    virtual void reset() override {}
 };
 
 class ClosestPicker : public ChannelPicker
@@ -132,6 +138,7 @@ class ClosestPicker : public ChannelPicker
         const QueueDRAMPlacementParameters &parameters,
         Coord /*c*/,
         const std::vector<std::unique_ptr<ChannelAllocator>> &channel_allocators) override;
+    virtual void reset() override;
 };
 
 DramAllocator::DramAllocator(
@@ -277,6 +284,22 @@ std::pair<uint32_t, uint32_t> DramAllocator::get_dram_free_space()
     p2p_free_space += p2p_allocator->get_capacity();
     return std::make_pair(regular_free_space, p2p_free_space);
 }
+
+// clears allocated blocks from all channel allocators, and resets channel picker
+void DramAllocator::reset_dram_allocator()
+{
+    // clear allocator for each channel
+    for (auto &channel_allocator : channel_allocators)
+    {
+        channel_allocator->clear_allocated_blocks();
+    }
+    // clear also the p2p allocator
+    p2p_allocator->clear_allocated_blocks();
+
+    // reset channel picker
+    channel_picker->reset();
+}
+
 void DramAllocator::allocate_queues(
     std::vector<DRAMScheduleData> &scheduled_queue_placements, bool disable_dynamic_dram, int microbatch_size)
 {
@@ -330,7 +353,12 @@ void DramAllocator::allocate_queues(
         if (is_static_queue(parameters.node, parameters.is_input))
         {
             queue_placement.dram_buffers = allocate_buffers(parameters);
-            log_debug("\tqueue {}: {} buffers allocated", queue_placement.name, queue_placement.dram_buffers.size());
+            log_debug(
+                "\tstatic queue {}: {} buffers allocated, on channel {}, address {} ",
+                queue_placement.name,
+                queue_placement.dram_buffers.size(),
+                queue_placement.dram_buffers[0].dram_channel,
+                queue_placement.dram_buffers[0].dram_address);
         }
         else
         {
@@ -359,13 +387,18 @@ void DramAllocator::allocate_queues(
 
         // Allocate new queues
         queue_placement.dram_buffers = allocate_buffers(parameters);
-        log_debug("\tqueue {}: {} buffers allocated", queue_placement.name, queue_placement.dram_buffers.size());
+        log_debug(
+            "\tdynamic queue {}: {} buffers allocated, on channel {}, address {} ",
+            queue_placement.name,
+            queue_placement.dram_buffers.size(),
+            queue_placement.dram_buffers[0].dram_channel,
+            queue_placement.dram_buffers[0].dram_address);
         queue_placement.epoch_allocate = parameters.producer_epoch;
 
         // Deallocate queues that were used in the previous epoch, if we moved epochs, or if this is the last queue to
         // place
         bool last_queue = (i == dynamic_queues.size() - 1);
-        if ((parameters.producer_epoch > current_epoch) || last_queue)
+        if ((parameters.producer_epoch >= current_epoch) || last_queue)
         {
             for (DRAMScheduleData* queue_placement_pair : dynamic_queues)
             {
@@ -765,6 +798,15 @@ std::uint32_t ClosestPicker::pick_channel(
     }
     current_node = node;
     return pick_channel(parameters, c, channel_allocators);
+}
+
+// Reset the ClosestPicker structures
+void ClosestPicker::reset()
+{
+    solution.clear();
+    unused_channels_in_epoch.clear();
+    unused_channels_in_epoch_prologue.clear();
+    current_node = nullptr;
 }
 
 }  // namespace tt::placer

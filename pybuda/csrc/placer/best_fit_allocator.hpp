@@ -19,5 +19,6 @@ public:
     virtual bool allocate(std::uint32_t size, std::uint32_t &addr) override; // return true if allocated, and update addr
     virtual void deallocate(std::uint32_t addr) override;
     virtual std::uint32_t get_capacity() override;
+    virtual void clear_allocated_blocks();
 };
 }

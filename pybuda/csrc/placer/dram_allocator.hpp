@@ -33,6 +33,7 @@ class ChannelAllocator
     virtual void deallocate(std::uint32_t addr) = 0;
     virtual std::uint32_t get_capacity() = 0;
     virtual Blocks get_blocks() = 0;
+    virtual void clear_allocated_blocks() = 0;
 };
 
 class ChannelPicker
@@ -43,6 +44,7 @@ class ChannelPicker
         const QueueDRAMPlacementParameters &parameters,
         Coord /*c*/,
         const std::vector<std::unique_ptr<ChannelAllocator>> &channel_allocators) = 0;
+    virtual void reset() = 0;
 };
 
 enum DRAMPlacementAlgorithm
@@ -83,6 +85,7 @@ class DramAllocator
         DRAMPlacementAlgorithm placement_algorithm = ROUND_ROBIN,
         AllocationAlgorithm allocator_algorithm = BEST_FIT);
     void allocate_queues(std::vector<DRAMScheduleData> &scheduled_queue_placements, bool disable_dynamic_dram, int microbatch_size);
+    void reset_dram_allocator();
     std::vector<Blocks> get_blocks();
     std::pair<uint32_t, uint32_t> get_dram_free_space();
 };

@@ -172,6 +172,9 @@ std::vector<Coord> get_reader_cores(
 bool disable_dynamic_dram_if_possible(
     const std::vector<DRAMScheduleData> &scheduled_queue_placements, const DramAllocator &allocator);
 
+bool try_static_dram_placement(
+    std::vector<DRAMScheduleData> &scheduled_queue_placements, DramAllocator &chip_dram_allocator, int microbatch_size);
+
 // Place and allocate DRAM queues
 void place_dram_queues(
     graphlib::Graph *graph,

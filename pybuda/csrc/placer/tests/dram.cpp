@@ -113,7 +113,10 @@ class DRAMPlacerTest : public testing::TestWithParam<ARCH>
         std::uint32_t producer_epoch = 0,
         std::uint32_t last_consumer_epoch = 0,
         QueueDRAMPlacementParameters::ConsumerMap consumer_loc = {},
-        QueueDRAMPlacementParameters::ProducerMap producer_loc = {})
+        QueueDRAMPlacementParameters::ProducerMap producer_loc = {},
+        uint32_t queue_size = 32,
+        bool is_cross_epoch_type = true,
+        bool is_cross_chip_type = false)
     {
         std::uint32_t node_number = 0;
         std::string node_name = "queue_" + std::to_string(node_number);
@@ -123,16 +126,16 @@ class DRAMPlacerTest : public testing::TestWithParam<ARCH>
             node_name = "queue_" + std::to_string(node_number);
         }
 
-        auto *node =
-            graph->add_node(tt::graphlib::create_node<tt::graphlib::EpochToEpochQueueNode>(node_name, true, false), 0);
+        auto *node = graph->add_node(
+            tt::graphlib::create_node<tt::graphlib::EpochToEpochQueueNode>(
+                node_name, is_cross_epoch_type, is_cross_chip_type),
+            0);
 
         CoordRange queue_coord_range = {0, 0, grid_r, grid_c};
 
         bool is_input = false;
         bool in_p2p_region_soft = false;
         bool in_p2p_region_hard = false;
-        // set queue size. It should be rounded as specified in method get_next_aligned_address in third_party/budabackend/netlist/tt_backend_api.cpp
-        std::uint32_t queue_size = 32;
         tt::balancer::BlockShape block_shape = {1, 1, 1, tt::balancer::UBlockShape{1, 1}};
 
         std::string input_name = "foo";
@@ -175,6 +178,25 @@ class DRAMPlacerTest : public testing::TestWithParam<ARCH>
         }
         return ret;
     }
+
+    std::vector<std::vector<QueueBufferPlacement>> run_allocator_with_dynamic_dram_fallback()
+    {
+        bool static_placement_success = try_static_dram_placement(
+                queue_placement_params, *allocator, graph->get_microbatch());
+        if (!static_placement_success)
+        {
+            // if static placement was not successful, we try dynamic allocation
+            allocator->allocate_queues(
+                queue_placement_params, /*disable_dynamic_dram*/ false, graph->get_microbatch());
+        }
+        std::vector<std::vector<QueueBufferPlacement>> ret;
+        for (auto &[queue_placement, queue_dram_placement_params] : queue_placement_params)
+        {
+            ret.push_back(queue_placement.dram_buffers);
+        }
+        return ret;
+    }
+
 };  // namespace test
 
 TEST_P(DRAMPlacerTest, RoundRobin)
@@ -271,6 +293,73 @@ TEST_P(DRAMPlacerTest, RoundRobinFlipFlop)
     check_group(0, results.at(q1.first));
     check_group(1, results.at(q2.first));
     check_group(0, results.at(q3.first));
+}
+
+TEST_P(DRAMPlacerTest, DramPlacerFallback)
+{
+    if (get_arch() == ARCH::WORMHOLE_B0)
+    {
+        // Test fallback to dynamic allocation when there is not enough space for static allocation.
+        SetUp(DRAMPlacementAlgorithm::ROUND_ROBIN);
+
+        // 512MB queue size
+        uint32_t queue_size = 512 * 1024 * 1024;
+        std::uint32_t producer_epoch = 0;
+        bool is_cross_epoch_type = false;
+        bool is_cross_chip_type = false;
+        for (int i = 0; i < 10; i++)
+        {
+            add_e2e_queue(1, 1, producer_epoch, i, {}, {}, queue_size, is_cross_epoch_type, is_cross_chip_type);
+        }
+        std::uint32_t producer_epoch_q_13 = 15;
+        std::uint32_t last_consumer_epoch_q_13 = 16;
+        // these 10 queues will be shifted in epoch so that previous 10 queues will be deallocated before these 10
+        // queues are allocated.
+        for (int i = 0; i < 10; i++)
+        {
+            add_e2e_queue(
+                1,
+                1,
+                producer_epoch_q_13,
+                last_consumer_epoch_q_13 + i,
+                {},
+                {},
+                queue_size,
+                is_cross_epoch_type,
+                is_cross_chip_type);
+        }
+        std::vector<std::vector<QueueBufferPlacement>> results = run_allocator_with_dynamic_dram_fallback();
+
+        // Check results
+        std::uint32_t expected_channel = 0;
+        std::uint32_t expected_subchannel = 0;
+
+        // iterate through all queues
+        for (auto queue : results)
+        {
+            // iterate through all buffers in the queue
+            for (auto buff : queue)
+            {
+                EXPECT_EQ(buff.dram_channel, expected_channel);
+                // Each channel is "two in one"
+                if (expected_subchannel == 0)
+                {
+                    EXPECT_LT(buff.dram_address, dram_config->dram_config[0].channel_size / 2);
+                    expected_subchannel = 1;
+                }
+                else
+                {
+                    EXPECT_GE(buff.dram_address, dram_config->dram_config[0].channel_size / 2);
+                    expected_subchannel = 0;
+                    expected_channel++;
+                }
+                if (expected_channel >= device_config.get_dram_num_channels())
+                {
+                    expected_channel = 0;
+                }
+            }
+        }
+    }
 }
 
 /*

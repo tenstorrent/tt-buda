@@ -26,6 +26,7 @@
  * PYBUDA\_TRACE\_SHUTDOWN: show stack trace on shutdown due to error
  * PYBUDA\_OVERRIDE\_NUM\_CHIPS: force the number of chips to use, instead of the auto-detected number
  * PYBUDA\_DISABLE\_DYNAMIC\_DRAM: disable dynamic allocation of e2e queues in inference
+ * PYBUDA\_DISABLE\_AUTOMATIC\_DRAM\_LOGIC: disable automatic logic for static/dynamic allocation of queues. 
  * PYBUDA\_DISABLE\_FORK\_JOIN\_BUF: disable fork-join buffering
  * PYBUDA\_DISABLE\_FORK\_JOIN\_NOPS: don't insert nops if there's not enough buffering. Just add what's available in L1. This should only be used for debug.
  * PYBUDA\_FORK\_JOIN\_DEBUG\_INFO: print debug logs related to fork-join buffering

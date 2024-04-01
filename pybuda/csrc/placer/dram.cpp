@@ -308,6 +308,11 @@ bool disable_dynamic_dram_if_possible(
     // allocated in p2p region if there is space, but can be allocated in regular region if there is no space in p2p.
     // Third, when both in_p2p_region_hard and in_p2p_region_soft are false, queue can only be allocated in regular part
     // of the dram. From this we extract conditions for when we can disable dynamic allocation of queues.
+
+    if (env_as<bool>("PYBUDA_DISABLE_AUTOMATIC_DRAM_LOGIC", 0))
+    {
+        return false;
+    }
     bool disable_dyn_dram = true;
     for (const auto &[chip_id, queue_placements] : scheduled_queue_placements)
     {
@@ -354,6 +359,31 @@ bool disable_dynamic_dram_if_possible(
     }
     return disable_dyn_dram;
 }
+
+// Tries static allocation first, if it fails, clears appropriate structures and returns false.
+bool try_static_dram_placement(
+    std::vector<DRAMScheduleData> &scheduled_queue_placements, DramAllocator &chip_dram_allocator, int microbatch_size)
+{
+    try
+    {
+        // try static allocation if possible
+        chip_dram_allocator.allocate_queues(scheduled_queue_placements, /*disable_dynamic_dram*/ true, microbatch_size);
+        return true;
+    }
+    catch (const tt::placer::FailToAllocateQueues &e)
+    {
+        log_debug("\tStatic allocation of all queues failed, trying dynamic allocation instead");
+        // To handle unsuccessful static allocation, we have to remove all previously placed dram_buffers and reset dram
+        // allocator structure
+        for (auto &queue_placement : scheduled_queue_placements)
+        {
+            queue_placement.first.dram_buffers.clear();
+        }
+        chip_dram_allocator.reset_dram_allocator();
+        return false;
+    }
+}
+
 //
 // The DRAM queues are split into buffers, one for each of the cores that is reading from a queue. These buffers can be
 // freely allocated to any DRAM channel.
@@ -679,24 +709,20 @@ void place_dram_queues(
         int microbatch_size = graph->get_microbatch();
         if (disable_dynamic_dram)
         {
-            try
+            bool static_placement_success = try_static_dram_placement(
+                scheduled_queue_placements.at(chip_id), chip_dram_allocators.at(chip_id), microbatch_size);
+            if (!static_placement_success)
             {
-                chip_dram_allocators.at(chip_id).allocate_queues(scheduled_queue_placements.at(chip_id), disable_dynamic_dram, microbatch_size);
-            }
-            catch (const tt::placer::FailToAllocateQueues& e)
-            {
-                log_debug("\tStatic allocation of all queues failed, trying dynamic allocation instead");
-                // To handle unsuccessful static allocation, we have to remove all previously placed dram_buffers
-                for (auto & que_placement : scheduled_queue_placements.at(chip_id))
-                {
-                    que_placement.first.dram_buffers.clear();
-                }
-                chip_dram_allocators.at(chip_id).allocate_queues(scheduled_queue_placements.at(chip_id), false, microbatch_size);
+                // if static placement was not successful, we try dynamic allocation
+                chip_dram_allocators.at(chip_id).allocate_queues(
+                    scheduled_queue_placements.at(chip_id), /*disable_dynamic_dram*/ false, microbatch_size);
             }
         }
         else
         {
-            chip_dram_allocators.at(chip_id).allocate_queues(scheduled_queue_placements.at(chip_id), disable_dynamic_dram, microbatch_size);
+            // Dynamic allocation
+            chip_dram_allocators.at(chip_id).allocate_queues(
+                scheduled_queue_placements.at(chip_id), disable_dynamic_dram, microbatch_size);
         }
         for (auto &[queue_placement, parameters] : scheduled_queue_placements[chip_id])
         {

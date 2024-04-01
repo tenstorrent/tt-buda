@@ -101,5 +101,15 @@ void BestFitAllocator::deallocate(std::uint32_t addr)
     blocks.allocated_blocks.erase(it);
 }
 
+// Deallocates all allocated blocks from allocator, and frees the space
+void BestFitAllocator::clear_allocated_blocks()
+{
+    Blocks blocks = get_blocks();
+    for (const auto& address_block_pair : blocks.allocated_blocks)
+    {
+        std::uint32_t start_address = address_block_pair.first;
+        deallocate(start_address);
+    }
+}
 
 }
