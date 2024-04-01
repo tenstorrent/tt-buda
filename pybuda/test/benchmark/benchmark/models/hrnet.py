@@ -46,6 +46,8 @@ def hrnet(training: bool, config: str, microbatch: int, devtype: str, arch: str,
     os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
     os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
     if data_type == "Fp16_b":
+        # Hangs with autotranspose on #2542
+        compiler_cfg.enable_auto_transposing_placement = False
         os.environ["PYBUDA_RIBBON2_OPTIMIZATION_ITERATIONS"] = "10"
 
     # Manually enable amp light for Ribbon
