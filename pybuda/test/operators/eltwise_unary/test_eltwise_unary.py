@@ -13,6 +13,7 @@ import numpy as np
 
 import pybuda.op
 from pybuda import TTDevice, BackendType, pybuda_compile, VerifyConfig, CompilerConfig
+from pybuda.verify.config import TestKind
 
 from . import models
 
@@ -49,14 +50,16 @@ if SHAPE_FIXED:
 
 
 @pytest.mark.parametrize("shape", shape, ids=[f"shape{'x'.join([str(jtem) for jtem in item])}" for item in shape])
-@pytest.mark.parametrize("operation", ["Abs", "LeakyRelu", "Exp", "Identity", "Reciprocal", "Sigmoid", "Sqrt", "Gelu", "Log", "Relu", "Buffer"])
+@pytest.mark.parametrize("operation", ["Abs", "LeakyRelu", "Exp", "Identity", "Reciprocal", "Sigmoid", "Sqrt", "Gelu", "Log", "Relu", "Buffer", "Tanh", "Dropout", "Sine", "Cosine", "Argmax", "Clip"])
 @pytest.mark.parametrize("model", [item.split(".")[0] for item in os.listdir(MODELS_PATH) if "model" in item])
+@pytest.mark.parametrize("un_test_kind", [TestKind.INFERENCE])
 def test_eltwise_unary(
-    test_kind,
+    un_test_kind,
     operation,
     model,
     shape
 ):
+    test_kind = un_test_kind
 
     if model == "model_9" and operation == "Reciprocal":
         pytest.xfail("tenstorrent/pybuda#18")
@@ -67,6 +70,9 @@ def test_eltwise_unary(
         kwargs['alpha'] = np.random.rand()
         if test_kind.is_training():
             pcc = 0.95
+    if operation == "Clip":
+        kwargs['min'] = np.random.rand()
+        kwargs['max'] = np.random.rand()
         
     architecture = f'models.{model}.BudaElementWiseUnaryTest(operator=pybuda.op.{operation}, opname="{operation}", shape={shape}'
     for k, v in kwargs.items():
