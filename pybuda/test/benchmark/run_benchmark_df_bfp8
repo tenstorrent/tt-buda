@@ -1,5 +1,3 @@
-rm perf.json
-
 # ------------------------------------------------------------------------------------------------------------------------------------------------------------ #
 # Data Format Bfp8_b
 # ------------------------------------------------------------------------------------------------------------------------------------------------------------ #
@@ -8,28 +6,24 @@ rm perf.json
 
 # Mobilenet v1
 # We keep both commands with LoFi math fidelity, because with LoFi math fidelity we have worse performance.
-pybuda/test/benchmark/benchmark.py -m mobilenet_v1 -c 224 -o perf.json
+pybuda/test/benchmark/benchmark.py -m mobilenet_v1 -c 224 -o pybuda-silicon-wh-b0-perf-all-bfp8_b-perf.json
 
 # Mobilenet v3
-# Low accuracy.
-pybuda/test/benchmark/benchmark.py -m mobilenet_v3_timm -c large -o perf.json
+pybuda/test/benchmark/benchmark.py -m mobilenet_v3_timm -c large -o pybuda-silicon-wh-b0-perf-all-bfp8_b-perf.json
 
 # OpenPose Body
-# Low accuracy.
-pybuda/test/benchmark/benchmark.py -m openpose_osmr_body -c 2d -o perf.json
+pybuda/test/benchmark/benchmark.py -m openpose_osmr_body -c 2d -o pybuda-silicon-wh-b0-perf-all-bfp8_b-perf.json
 
 # YOLOv5
-# Low accuracy.
-pybuda/test/benchmark/benchmark.py -m yolo_v5 -c s -o perf.json
+pybuda/test/benchmark/benchmark.py -m yolo_v5 -c s -o pybuda-silicon-wh-b0-perf-all-bfp8_b-perf.json
 
 # Whisper
-# Low accuracy.
-pybuda/test/benchmark/benchmark.py -m whisper -c small --loop_count 1 -mb 1 --single-thread --generative -o perf.json
+pybuda/test/benchmark/benchmark.py -m whisper -c small --loop_count 1 -mb 1 --single-thread --generative -o pybuda-silicon-wh-b0-perf-all-bfp8_b-perf.json
 
 # T5
 # Low accuracy.
-pybuda/test/benchmark/benchmark.py -m t5 -c large --loop_count 1 -mb 1 --single-thread --generative -o perf.json
+pybuda/test/benchmark/benchmark.py -m t5 -c large --loop_count 1 -mb 1 --single-thread --generative -o pybuda-silicon-wh-b0-perf-all-bfp8_b-perf.json
 
 # Flan-T5
 # Low accuracy.
-pybuda/test/benchmark/benchmark.py -m flan_t5 -c large --loop_count 1 -mb 1 -mf HiFi2 --single-thread --generative -o perf.json
+pybuda/test/benchmark/benchmark.py -m flan_t5 -c large --loop_count 1 -mb 1 -mf HiFi2 --single-thread --generative -o pybuda-silicon-wh-b0-perf-all-bfp8_b-perf.json

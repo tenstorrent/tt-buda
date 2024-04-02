@@ -1,44 +1,41 @@
-rm perf.json
-
-
 # ------------------------------------------------------------------------------------------------------------------------------------------------------------ #
 # Data Format Fp16, Fp16_b
 # ------------------------------------------------------------------------------------------------------------------------------------------------------------ #
 
 # ResNet
-pybuda/test/benchmark/benchmark.py -m resnet -c resnet50 -df Fp16_b -mf HiFi3 -o perf.json
+pybuda/test/benchmark/benchmark.py -m resnet -c resnet50 -df Fp16_b -mf HiFi3 -o pybuda-silicon-wh-b0-perf-all-fp16-perf.json
 
 # Mobilenet v1
-pybuda/test/benchmark/benchmark.py -m mobilenet_v1 -c 224 -df Fp16_b -mf HiFi2 -o perf.json
+pybuda/test/benchmark/benchmark.py -m mobilenet_v1 -c 224 -df Fp16_b -mf HiFi2 -o pybuda-silicon-wh-b0-perf-all-fp16-perf.json
 
 # Mobilenet v2
-pybuda/test/benchmark/benchmark.py -m mobilenet_v2 -c 224 -df Fp16_b -mf HiFi2 -o perf.json
+pybuda/test/benchmark/benchmark.py -m mobilenet_v2 -c 224 -df Fp16_b -mf HiFi2 -o pybuda-silicon-wh-b0-perf-all-fp16-perf.json
 
 # Vit
-pybuda/test/benchmark/benchmark.py -m vit -c base -df Fp16_b -mf HiFi2 -o perf.json
+pybuda/test/benchmark/benchmark.py -m vit -c base -df Fp16_b -mf HiFi2 -o pybuda-silicon-wh-b0-perf-all-fp16-perf.json
 
 # Deit
-pybuda/test/benchmark/benchmark.py -m deit -c base -df Fp16_b -mf HiFi2 -o perf.json
+pybuda/test/benchmark/benchmark.py -m deit -c base -df Fp16_b -mf HiFi2 -o pybuda-silicon-wh-b0-perf-all-fp16-perf.json
 
 # VoVNet v2
-pybuda/test/benchmark/benchmark.py -m vovnet_v2 -c 39 -df Fp16_b -mf HiFi3 -o perf.json
+pybuda/test/benchmark/benchmark.py -m vovnet_v2 -c 39 -df Fp16_b -mf HiFi3 -o pybuda-silicon-wh-b0-perf-all-fp16-perf.json
 
 # OpenPose Hand
-pybuda/test/benchmark/benchmark.py -m openpose_hand -c basic -df Fp16_b -mf HiFi3 -o perf.json
+pybuda/test/benchmark/benchmark.py -m openpose_hand -c basic -df Fp16_b -mf HiFi3 -o pybuda-silicon-wh-b0-perf-all-fp16-perf.json
 
 # HRNet
-pybuda/test/benchmark/benchmark.py -m hrnet -c v2_w64 -df Fp16_b -mf HiFi3 -o perf.json
+pybuda/test/benchmark/benchmark.py -m hrnet -c v2_w64 -df Fp16_b -mf HiFi3 -o pybuda-silicon-wh-b0-perf-all-fp16-perf.json
 
 # YOLOv3
 # Issue to make it run with mb 64 tenstorrent/pybuda#1298
 # Issue to remove PYBUDA_OVERRIDE_INPUT_QUEUE_ENTRIES=32 tenstorrent/pybuda#1299
-pybuda/test/benchmark/benchmark.py -m yolo_v3 -c default -mb 32 -df Fp16_b -mf HiFi3 -o perf.json
+pybuda/test/benchmark/benchmark.py -m yolo_v3 -c default -mb 32 -df Fp16_b -mf HiFi3 -o pybuda-silicon-wh-b0-perf-all-fp16-perf.json
 
 # Inception v4
-pybuda/test/benchmark/benchmark.py -m inception_v4 -c 224 -df Fp16_b -mf HiFi3 -o perf.json
+pybuda/test/benchmark/benchmark.py -m inception_v4 -c 224 -df Fp16_b -mf HiFi3 -o pybuda-silicon-wh-b0-perf-all-fp16-perf.json
 
 # UNet
-pybuda/test/benchmark/benchmark.py -m unet -c 256 -df Fp16_b -mf HiFi3 -o perf.json
+pybuda/test/benchmark/benchmark.py -m unet -c 256 -df Fp16_b -mf HiFi3 -o pybuda-silicon-wh-b0-perf-all-fp16-perf.json
 
 # Bert large
-pybuda/test/benchmark/benchmark.py -m bert -c large_tc -df Fp16_b -mf HiFi3 -o perf.json
+pybuda/test/benchmark/benchmark.py -m bert -c large_tc -df Fp16_b -mf HiFi3 -o pybuda-silicon-wh-b0-perf-all-fp16-perf.json

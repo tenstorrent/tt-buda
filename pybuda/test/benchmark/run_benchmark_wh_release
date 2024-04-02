@@ -1,66 +1,63 @@
-rm perf.json
-
-
 # ------------------------------------------------------------------------------------------------------------------------------------------------------------ #
 # Data Formats that have good accuracy on WH_B0 and that we release as official numbers
 # ------------------------------------------------------------------------------------------------------------------------------------------------------------ #
 
 
 # ResNet bfp_8b
-pybuda/test/benchmark/benchmark.py -m resnet -c resnet50
+pybuda/test/benchmark/benchmark.py -m resnet -c resnet50 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 #ResNet quant fp32
-pybuda/test/benchmark/benchmark.py -m resnet_quant -c resnet50 -df Fp32 -mf HiFi4 -o perf.json
+pybuda/test/benchmark/benchmark.py -m resnet_quant -c resnet50 -df Fp32 -mf HiFi4 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # Mobilenet v1 bfp8_b
-pybuda/test/benchmark/benchmark.py -m mobilenet_v1 -c 224 -mf HiFi2 -o perf.json
+pybuda/test/benchmark/benchmark.py -m mobilenet_v1 -c 224 -mf HiFi2 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # Mobilenet v2 bfp8_b
-pybuda/test/benchmark/benchmark.py -m mobilenet_v2 -c 224 -o perf.json
+pybuda/test/benchmark/benchmark.py -m mobilenet_v2 -c 224 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # Mobilenet v3 fp16_b
-pybuda/test/benchmark/benchmark.py -m mobilenet_v3_timm -c large -df Fp16_b -mf HiFi2 -o perf.json
+pybuda/test/benchmark/benchmark.py -m mobilenet_v3_timm -c large -df Fp16_b -mf HiFi2 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # Vit bfp8_b
-pybuda/test/benchmark/benchmark.py -m vit -c base -o perf.json
+pybuda/test/benchmark/benchmark.py -m vit -c base -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # Deit bfp8_b
-pybuda/test/benchmark/benchmark.py -m deit -c base -o perf.json
+pybuda/test/benchmark/benchmark.py -m deit -c base -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # VoVNet v2 bfp8_b
-pybuda/test/benchmark/benchmark.py -m vovnet_v2 -c 39 -o perf.json
+pybuda/test/benchmark/benchmark.py -m vovnet_v2 -c 39 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # OpenPose Body fp16
-pybuda/test/benchmark/benchmark.py -m openpose_osmr_body -c 2d -df Fp16 -mf HiFi3 -o perf.json
+pybuda/test/benchmark/benchmark.py -m openpose_osmr_body -c 2d -df Fp16 -mf HiFi3 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # OpenPose Hand bfp8_b
-pybuda/test/benchmark/benchmark.py -m openpose_hand -c basic -o perf.json
+pybuda/test/benchmark/benchmark.py -m openpose_hand -c basic -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # HRNet bfp8_b
-pybuda/test/benchmark/benchmark.py -m hrnet -c v2_w64 -o perf.json
+pybuda/test/benchmark/benchmark.py -m hrnet -c v2_w64 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # YOLOv3 bfp8_b
 # Issue to make it run with mb 64 tenstorrent/pybuda#1298
 # Issue to remove PYBUDA_OVERRIDE_INPUT_QUEUE_ENTRIES=32 tenstorrent/pybuda#1299
-pybuda/test/benchmark/benchmark.py -m yolo_v3 -c default -mb 32 -o perf.json
+pybuda/test/benchmark/benchmark.py -m yolo_v3 -c default -mb 32 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # YOLOv5 fp16_b
-pybuda/test/benchmark/benchmark.py -m yolo_v5 -c s -df Fp16_b -mf HiFi3 -o perf.json
+pybuda/test/benchmark/benchmark.py -m yolo_v5 -c s -df Fp16_b -mf HiFi3 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # Inception v4 bfp8_b
-ybuda/test/benchmark/benchmark.py -m inception_v4 -c 224 -o perf.json
+pybuda/test/benchmark/benchmark.py -m inception_v4 -c 224 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # UNet bfp8_b
-pybuda/test/benchmark/benchmark.py -m unet -c 256 -o perf.json
+pybuda/test/benchmark/benchmark.py -m unet -c 256 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # Bert large bfp8_b
-pybuda/test/benchmark/benchmark.py -m bert -c large_tc -o perf.json
+pybuda/test/benchmark/benchmark.py -m bert -c large_tc -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # Whisper fp16_b
-pybuda/test/benchmark/benchmark.py -m whisper -c small --loop_count 1 -mb 1 -df Fp16_b -mf HiFi3 --single-thread --generative -o perf.json
+pybuda/test/benchmark/benchmark.py -m whisper -c small --loop_count 1 -mb 1 -df Fp16_b -mf HiFi3 --single-thread --generative -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # T5 fp16_b
-pybuda/test/benchmark/benchmark.py -m t5 -c large --loop_count 1 -mb 1 -df Fp16_b -mf HiFi3 --single-thread --generative -o perf.json
+pybuda/test/benchmark/benchmark.py -m t5 -c large --loop_count 1 -mb 1 -df Fp16_b -mf HiFi3 --single-thread --generative -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # Flan-T5 fp16_b
-pybuda/test/benchmark/benchmark.py -m flan_t5 -c large --loop_count 1 -mb 1 -df Fp16_b -mf HiFi3 --single-thread --generative -o perf.json
+pybuda/test/benchmark/benchmark.py -m flan_t5 -c large --loop_count 1 -mb 1 -df Fp16_b -mf HiFi3 --single-thread --generative -o pybuda-silicon-wh-b0-perf-all-perf.json
