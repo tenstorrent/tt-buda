@@ -448,8 +448,10 @@ torch::Tensor _copy_from(const torch::Tensor& self, const torch::Tensor& dest, b
         //    "Unsupported (for now) _copy_from TTDevice[{}] to TTDevice[{}]",
         //    self.device().index(),
         //    dest.device().index());
-        TT_ASSERT(dest_nbytes <= self_nbytes, dest_nbytes, self_nbytes);
-        std::memcpy(dest_tensor_data, self_tensor_data, dest_nbytes);
+        auto self_num_items = self.numel();
+        auto dest_num_items = dest.numel();
+        TT_ASSERT(self_num_items == dest_num_items, self_num_items, dest_num_items);
+        std::memcpy(dest_tensor_data, self_tensor_data, self_nbytes);
     }
     else
     {

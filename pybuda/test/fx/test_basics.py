@@ -54,7 +54,6 @@ def test_dangling_ops():
     generic_model_test(DanglingOps())
 
 
-@pytest.mark.skip(reason="https://yyz-gitlab.local.tenstorrent.com/tenstorrent/pybuda/-/issues/2428")
 def test_to_double():
     tensor = torch.rand(32, 32).to('tt')
     tensor.to(dtype=torch.double)
