@@ -21,7 +21,7 @@ def arch_clk(arch):
     """
     Return clock speed for an arch TODO: get this from somewhere?
     """
-    if arch == "wormhole_b0" or arch == "wormhole":
+    if arch == "wormhole_b0":
         return 10**9
     if arch == "grayskull":
         return 1.2 * 10**9
@@ -190,7 +190,7 @@ def load_netlist(config):
 
     # Figure out the number of cores. This is wonky, we need a more reliable source... for now, assume 1 row harvested, and then upsize if 
     # netlists uses more rows or columns
-    if config["arch"] == "wormhole_b0" or config["arch"] == "wormhole":
+    if config["arch"] == "wormhole_b0":
         grid = [9, 8]
     elif config["arch"] == "grayskull":
         grid = [11, 10]

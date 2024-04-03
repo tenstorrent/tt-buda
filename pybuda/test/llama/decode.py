@@ -24,7 +24,7 @@ def main():
 
     parser.add_argument('-d', '--device', choices=['huggingface', 'pytorch', 'golden', 'silicon'], default='huggingface', help='huggingface: run using HF code only, pytorch: use our shim but run in PyTorch, golden/silicon: run via pybuda')
     parser.add_argument('--no-kv-cache', action='store_true', help='Do not use a kv-cache and only generate the first 32 tokens')
-    parser.add_argument('--arch', choices=['greyskull', 'wormhole', 'wormhole_b0'], default='wormhole', help='Architecture to use for silicon')
+    parser.add_argument('--arch', choices=['greyskull', 'wormhole_b0'], default='wormhole_b0', help='Architecture to use for silicon')
     parser.add_argument('--num-chips', type=int, default=1, help='Number of chips to use')
     parser.add_argument('--fuse', action='store_true', help='Fuse layers')
     parser.add_argument('--perf', choices=['none', 'light', 'verbose'], default=None, help='Performance tracing')

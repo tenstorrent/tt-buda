@@ -19,7 +19,7 @@ def main():
     parser = ArgumentParser('Generate text token-by-token starting with a pre-filled KV cache')
     parser.add_argument('-m', '--model', type=str, default='decapoda-research/llama-7b-hf', help='Model name')
     parser.add_argument('-d', '--device', choices=['huggingface', 'pytorch', 'golden', 'silicon'], default='huggingface', help='huggingface: run using HF code only, pytorch: use our shim but run in PyTorch, golden/silicon: run via pybuda')
-    parser.add_argument('--arch', choices=['greyskull', 'wormhole', 'wormhole_b0'], default='wormhole', help='Architecture to use for silicon')
+    parser.add_argument('--arch', choices=['greyskull', 'wormhole_b0'], default='wormhole_b0', help='Architecture to use for silicon')
     parser.add_argument('--precision', choices=['fp32', 'fp16', 'bf16', 'fp8', 'fp8b'], default='fp32', help='Precision to use for all silicon tensors')
     parser.add_argument('--amp-level', type=int, default=0, choices=[0, 1, 2], help='Automatic mixed precision level (0=off, 1=mixed b-formats, 2=mixed a-formats)')
     parser.add_argument('--num-chips', type=int, default=1, help='Number of chips to use')

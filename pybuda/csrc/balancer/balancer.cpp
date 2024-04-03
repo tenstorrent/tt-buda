@@ -95,7 +95,7 @@ legalizer::GraphSolver get_graph_solver(
         return legalizer::GraphSolver::create<legalizer::GrayskullConstraint>(
             graph, legal_op_models, config, cache_collection, use_op_model_recalculation, cut_edges(config, graph));
     }
-    else if (config.device_config.is_wormhole())
+    else if (config.device_config.is_wormhole_b0())
     {
         return legalizer::GraphSolver::create<legalizer::WormholeConstraint>(
             graph, legal_op_models, config, cache_collection, use_op_model_recalculation, cut_edges(config, graph));

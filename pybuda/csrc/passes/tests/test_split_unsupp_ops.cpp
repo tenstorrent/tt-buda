@@ -68,7 +68,7 @@ TEST_F(TestGradEltwiseAdd, split_unsup_grad_wh_b0)
 
 TEST_F(TestGradEltwiseAdd, split_unsup_grad_non_wh_b0)
 {
-    DeviceConfig device_config = create_device_config(ARCH::WORMHOLE);
+    DeviceConfig device_config = create_device_config(ARCH::GRAYSKULL);
     graphlib::Graph* graph = get_graph();
 
     split_unsupported_gradient_ops(graph, device_config);
@@ -92,7 +92,7 @@ TEST_F(TestGradEltwiseSubtract, split_unsup_grad_wh_b0)
 
 TEST_F(TestGradEltwiseSubtract, split_unsup_grad_non_wh_b0)
 {
-    DeviceConfig device_config = create_device_config(ARCH::WORMHOLE);
+    DeviceConfig device_config = create_device_config(ARCH::GRAYSKULL);
     graphlib::Graph* graph = get_graph();
 
     split_unsupported_gradient_ops(graph, device_config);

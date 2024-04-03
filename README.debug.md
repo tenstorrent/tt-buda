@@ -119,7 +119,6 @@
  * PYBUDA\_VERSIM\_DEVICE\_ARCH: This env variable represents the architecture of the Versim device used in the pytest.
 
  ## Golden overrides
- * GOLDEN\_WORMHOLE: run Golden with Wormhole as target device instead of Grayskull (default)
  * GOLDEN\_WORMHOLE\_B0: run Golden with Wormhole_B0 as target device instead of Grayskull (default)
  * PYBUDA\_GOLDEN\_BLACKHOLE: run Golden with Blackhole as target device instead of Grayskull (default)
 

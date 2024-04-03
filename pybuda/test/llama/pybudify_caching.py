@@ -9,7 +9,7 @@ from placement import manual_placer
 
 
 class PyBudify(torch.nn.Module):
-    def __init__(self, pt_module, device='silicon', arch='wormhole', precision='fp32', amp_config_file=None, micro_batch_size=1, fuse=False, num_chips=1, perf=None, verify=False, log_level='ERROR', tti_save=None, tti_load=None,
+    def __init__(self, pt_module, device='silicon', arch='wormhole_b0', precision='fp32', amp_config_file=None, micro_batch_size=1, fuse=False, num_chips=1, perf=None, verify=False, log_level='ERROR', tti_save=None, tti_load=None,
                  prefill_kvs=[], write_index=0, num_layers=None, netlist_name="pybudify_module", opt_level=0, nlp_target_cycles=-1, placement_config_file=None):
         super().__init__()
 
@@ -22,7 +22,7 @@ class PyBudify(torch.nn.Module):
 
         if device != 'pytorch':
             # pybuda workarounds
-            os.environ["GOLDEN_WORMHOLE"] = "1"
+            os.environ["GOLDEN_WORMHOLE_B0"] = "1"
             # os.environ["PYBUDA_ENABLE_BROADCAST_SPLITTING"] = "1"
             #os.environ["PYBUDA_DISABLE_FORK_JOIN_BUF"] = "1"
             # os.environ["PYBUDA_DRAM_PICK_CAPACITY"] = "1"
@@ -94,7 +94,6 @@ class PyBudify(torch.nn.Module):
             pybuda.set_configuration_options(enable_auto_fusing=fuse, performance_trace=perf_level, backend_opt_level=opt_level, input_queues_on_host=False)
 
             pybuda_arch = { 'grayskull': pybuda.BackendDevice.Grayskull,
-                            'wormhole': pybuda.BackendDevice.Wormhole,
                             'wormhole_b0': pybuda.BackendDevice.Wormhole_B0 }[arch]
             
             if tti_load is not None:

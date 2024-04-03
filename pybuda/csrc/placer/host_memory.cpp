@@ -26,7 +26,7 @@ HostMemoryPlacerConfig::HostMemoryPlacerConfig(
                 "from host. Placer opting to allocate the queue on device instead.");
             input_queues_on_host = false;
         }
-        if ((device_config.is_wormhole() || device_config.is_wormhole_b0()) && device_config.chip_ids.size() > 1)
+        if (device_config.is_wormhole_b0() && device_config.chip_ids.size() > 1)
         {
             log_warning(
                 LogPlacer,

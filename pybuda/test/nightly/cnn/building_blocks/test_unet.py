@@ -145,7 +145,7 @@ class UnityConv(nn.Module):
 @pytest.mark.parametrize("input_size", [128, 256, 512])
 @pytest.mark.parametrize("in_channels, out_channels", 
                          [(3, 32), (32, 64), (64, 128), (128, 256), (256, 512)])
-@pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole])
+@pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole_B0])
 def test_unet_double_conv_batchnorm_relu(input_size, in_channels, out_channels, arch):
     expected_to_fail = [
         (128, 32, 64, BackendDevice.Grayskull),
@@ -160,18 +160,18 @@ def test_unet_double_conv_batchnorm_relu(input_size, in_channels, out_channels, 
         (128, 256, 512, BackendDevice.Grayskull),
         (256, 256, 512, BackendDevice.Grayskull),
         (512, 256, 512, BackendDevice.Grayskull),
-        (128, 32, 64, BackendDevice.Wormhole),
-        (256, 32, 64, BackendDevice.Wormhole),
-        (512, 32, 64, BackendDevice.Wormhole),
-        (128, 64, 128, BackendDevice.Wormhole),
-        (256, 64, 128, BackendDevice.Wormhole),
-        (512, 64, 128, BackendDevice.Wormhole),
-        (128, 128, 256, BackendDevice.Wormhole),
-        (256, 128, 256, BackendDevice.Wormhole),
-        (512, 128, 256, BackendDevice.Wormhole),
-        (128, 256, 512, BackendDevice.Wormhole),
-        (256, 256, 512, BackendDevice.Wormhole),
-        (512, 256, 512, BackendDevice.Wormhole)
+        (128, 32, 64, BackendDevice.Wormhole_B0),
+        (256, 32, 64, BackendDevice.Wormhole_B0),
+        (512, 32, 64, BackendDevice.Wormhole_B0),
+        (128, 64, 128, BackendDevice.Wormhole_B0),
+        (256, 64, 128, BackendDevice.Wormhole_B0),
+        (512, 64, 128, BackendDevice.Wormhole_B0),
+        (128, 128, 256, BackendDevice.Wormhole_B0),
+        (256, 128, 256, BackendDevice.Wormhole_B0),
+        (512, 128, 256, BackendDevice.Wormhole_B0),
+        (128, 256, 512, BackendDevice.Wormhole_B0),
+        (256, 256, 512, BackendDevice.Wormhole_B0),
+        (512, 256, 512, BackendDevice.Wormhole_B0)
     ]
 
     if (input_size, in_channels, out_channels, arch) in expected_to_fail:
@@ -213,18 +213,18 @@ def test_unet_double_conv_batchnorm_relu(input_size, in_channels, out_channels, 
         (128, 256, 512, BackendDevice.Grayskull),
         (256, 256, 512, BackendDevice.Grayskull),
         (512, 256, 512, BackendDevice.Grayskull),
-        (128, 32, 64, BackendDevice.Wormhole),
-        (256, 32, 64, BackendDevice.Wormhole),
-        (512, 32, 64, BackendDevice.Wormhole),
-        (128, 64, 128, BackendDevice.Wormhole),
-        (256, 64, 128, BackendDevice.Wormhole),
-        (512, 64, 128, BackendDevice.Wormhole),
-        (128, 128, 256, BackendDevice.Wormhole),
-        (256, 128, 256, BackendDevice.Wormhole),
-        (512, 128, 256, BackendDevice.Wormhole),
-        (128, 256, 512, BackendDevice.Wormhole),
-        (256, 256, 512, BackendDevice.Wormhole),
-        (512, 256, 512, BackendDevice.Wormhole)
+        (128, 32, 64, BackendDevice.Wormhole_B0),
+        (256, 32, 64, BackendDevice.Wormhole_B0),
+        (512, 32, 64, BackendDevice.Wormhole_B0),
+        (128, 64, 128, BackendDevice.Wormhole_B0),
+        (256, 64, 128, BackendDevice.Wormhole_B0),
+        (512, 64, 128, BackendDevice.Wormhole_B0),
+        (128, 128, 256, BackendDevice.Wormhole_B0),
+        (256, 128, 256, BackendDevice.Wormhole_B0),
+        (512, 128, 256, BackendDevice.Wormhole_B0),
+        (128, 256, 512, BackendDevice.Wormhole_B0),
+        (256, 256, 512, BackendDevice.Wormhole_B0),
+        (512, 256, 512, BackendDevice.Wormhole_B0)
     ]
 )
 def test_unet_double_conv_batchnorm_relu_xfail(input_size, in_channels, out_channels, arch):
@@ -252,9 +252,9 @@ def test_unet_double_conv_batchnorm_relu_xfail(input_size, in_channels, out_chan
 @pytest.mark.parametrize("input_size", [128, 256, 512])
 @pytest.mark.parametrize("in_channels, out_channels", 
                          [(3, 32), (32, 64), (64, 128), (128, 256), (256, 512)])
-@pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole])
+@pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole_B0])
 def test_unet_double_conv_relu(input_size, in_channels, out_channels, arch):
-    expected_to_fail = [(512, 256, 512, BackendDevice.Wormhole)]
+    expected_to_fail = [(512, 256, 512, BackendDevice.Wormhole_B0)]
 
     if (input_size, in_channels, out_channels, arch) in expected_to_fail:
         pytest.skip(msg="This combination is expected to fail, moved to _xfail version of the function.")
@@ -282,7 +282,7 @@ def test_unet_double_conv_relu(input_size, in_channels, out_channels, arch):
                    "tenstorrent/pybuda#422")
 @pytest.mark.parametrize(
     "input_size, in_channels, out_channels, arch",
-    [(512, 256, 512, BackendDevice.Wormhole)]
+    [(512, 256, 512, BackendDevice.Wormhole_B0)]
 )
 def test_unet_double_conv_relu_xfail(input_size, in_channels, out_channels, arch):
     compiler_cfg = _get_global_compiler_config()
@@ -309,7 +309,7 @@ def test_unet_double_conv_relu_xfail(input_size, in_channels, out_channels, arch
 @pytest.mark.parametrize("input_size", [128, 256, 512])
 @pytest.mark.parametrize("in_channels, out_channels", 
                          [(3, 32), (32, 64), (64, 128), (128, 256), (256, 512)])
-@pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole])
+@pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole_B0])
 def test_unet_double_conv_batchnorm_relu_maxpool(input_size, in_channels, out_channels, arch):
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
@@ -338,7 +338,7 @@ def test_unet_double_conv_batchnorm_relu_maxpool(input_size, in_channels, out_ch
 
 @pytest.mark.parametrize("input_size", [128, 256, 512])
 @pytest.mark.parametrize("input_channels", [1, 3, 32, 64, 128, 256])
-@pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole])
+@pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole_B0])
 def test_unet_maxpool(input_size, input_channels, arch):
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
@@ -367,7 +367,7 @@ def test_unet_maxpool(input_size, input_channels, arch):
 
 @pytest.mark.parametrize("input_size", [128, 256, 512])
 @pytest.mark.parametrize("input_channels", [256, 128, 64, 32])
-@pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole])
+@pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole_B0])
 def test_unet_upconv(input_size, input_channels, arch):
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
@@ -396,7 +396,7 @@ def test_unet_upconv(input_size, input_channels, arch):
 
 @pytest.mark.parametrize("input_size", [128, 256, 512])
 @pytest.mark.parametrize("input_channels", [256, 128, 64, 32])
-@pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole])
+@pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole_B0])
 def test_unet_upconv_double_conv_relu(input_size, input_channels, arch):
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
@@ -426,7 +426,7 @@ def test_unet_upconv_double_conv_relu(input_size, input_channels, arch):
 @pytest.mark.parametrize("input_size", [128, 256, 512])
 @pytest.mark.parametrize("encoder_activations_channels", [3, 32, 64])
 @pytest.mark.parametrize("upconv_activations_channels", [3, 32, 64])
-@pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole])
+@pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole_B0])
 def test_unet_concat(input_size, encoder_activations_channels, upconv_activations_channels, arch):
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
@@ -453,7 +453,7 @@ def test_unet_concat(input_size, encoder_activations_channels, upconv_activation
 @pytest.mark.parametrize("input_size", [128, 256, 512])
 @pytest.mark.parametrize("input_channels", [128, 64, 32])
 @pytest.mark.parametrize("output_channels", [3, 2, 1])
-@pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole])
+@pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole_B0])
 def test_unet_unityconv(input_size, input_channels, output_channels, arch):
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"

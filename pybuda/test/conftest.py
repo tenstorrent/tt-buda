@@ -176,8 +176,6 @@ class TestDevice:
                 return TestDevice(devtype=BackendType.Golden, arch=DEVICE_CONFIG_TO_BACKEND_DEVICE_TYPE[device_config], devmode=devmode, tti_path=tti_path)
             elif "GOLDEN_WORMHOLE_B0" in os.environ:
                 return TestDevice(devtype=BackendType.Golden, arch=BackendDevice.Wormhole_B0, devmode=devmode, tti_path=tti_path)
-            elif "GOLDEN_WORMHOLE" in os.environ:
-                return TestDevice(devtype=BackendType.Golden, arch=BackendDevice.Wormhole, devmode=devmode, tti_path=tti_path)
             elif "PYBUDA_GOLDEN_BLACKHOLE" in os.environ:
                 return TestDevice(devtype=BackendType.Golden, arch=BackendDevice.Blackhole, devmode=devmode, tti_path=tti_path)
             return TestDevice(devtype=BackendType.Golden, arch=BackendDevice.Grayskull, devmode=devmode, tti_path=tti_path)
@@ -193,8 +191,6 @@ class TestDevice:
             return TestDevice(devtype=BackendType.Versim, arch=versim_backend_device, devmode=devmode, tti_path=tti_path)
         if name == "Grayskull":
             return TestDevice(devtype=BackendType.Silicon, arch=BackendDevice.Grayskull, devmode=devmode, tti_path=tti_path)
-        if name == "Wormhole":
-            return TestDevice(devtype=BackendType.Silicon, arch=BackendDevice.Wormhole, devmode=devmode, tti_path=tti_path)
         if name == "Wormhole_B0":
             return TestDevice(devtype=BackendType.Silicon, arch=BackendDevice.Wormhole_B0, devmode=devmode, tti_path=tti_path)
         if name == "Blackhole":
@@ -238,9 +234,6 @@ class TestDevice:
     def is_grayskull(self):
         return self.arch == BackendDevice.Grayskull
     
-    def is_wormhole(self):
-        return self.arch == BackendDevice.Wormhole or self.arch == BackendDevice.Wormhole_B0
-    
     def is_wormhole_b0(self):
         return self.arch == BackendDevice.Wormhole_B0
     
@@ -258,7 +251,7 @@ def pytest_generate_tests(metafunc):
         metafunc.parametrize("training", (False, True), ids=["inference", "training"])
 
     if "test_device" in metafunc.fixturenames:
-        names = ["Golden", "Model", "Versim", "Grayskull", "Wormhole", "Wormhole_B0", "Blackhole"]
+        names = ["Golden", "Model", "Versim", "Grayskull", "Wormhole_B0", "Blackhole"]
 
         # Set device-mode for the test
         compile_only = metafunc.config.getoption("--compile-only")

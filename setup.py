@@ -140,16 +140,6 @@ bbe_files = {
     },
 }
 
-# Only copy eric if we are building Wormhole
-if "BACKEND_ARCH_NAME" in os.environ and os.environ["BACKEND_ARCH_NAME"] == "wormhole":
-    bbe_files["firmware_erisc_hex"] = {
-        "path": "build/src/firmware/riscv/targets/erisc_app/out",
-        "files": [
-            "erisc_app.hex"
-            "erisc_app.elf"
-        ]
-    }
-
 if "BACKEND_ARCH_NAME" in os.environ and os.environ["BACKEND_ARCH_NAME"] == "wormhole_b0":
     bbe_files["firmware_erisc_hex"] = {
         "path": "build/src/firmware/riscv/targets/erisc_app/out",
@@ -264,7 +254,7 @@ packages = [p for p in find_packages("pybuda") if not p.startswith("test")]
 short_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
 date = subprocess.check_output(['git', 'show', '-s', '--format=%cd', "--date=format:%y%m%d", 'HEAD']).decode('ascii').strip()
 
-arch_codes = {"wormhole": "wh_a0", "wormhole_b0": "wh_b0", "grayskull": "gs"}
+arch_codes = {"wormhole_b0": "wh_b0", "grayskull": "gs"}
 arch_code = arch_codes[os.environ["BACKEND_ARCH_NAME"]]
 
 version = "0.1." + date + "+dev." + arch_code + "." + short_hash

@@ -173,7 +173,7 @@ DramAllocator::DramAllocator(
             allocated_channel_blocks.insert(dram_config.dram_config[i].channel);
 
             allocated_blocks.push_back(Blocks());
-            if (dram_config.device_config.is_wormhole())
+            if (dram_config.device_config.is_wormhole_b0())
             {
                 allocated_blocks.push_back(Blocks());
             }
@@ -208,7 +208,7 @@ DramAllocator::DramAllocator(
             // address is p2p_offset - 1.
             channel_allocators.push_back(std::make_unique<BestFitAllocator>(
                 dram_config.dram_config[0].initial_dram_offset, p2p_offset - 1, allocated_blocks[0]));
-            if (dram_config.device_config.is_wormhole())
+            if (dram_config.device_config.is_wormhole_b0())
             {
                 channel_allocators.push_back(std::make_unique<BestFitAllocator>(
                     std::max(p2p_offset + p2p_size, dram_config.dram_config[0].initial_dram_offset),
@@ -228,7 +228,7 @@ DramAllocator::DramAllocator(
                 // channels from second to last don not contain memory space for communication with other host/device.
                 // They use all space from initial_dram_offset to channel_size - 1. in wormhole, however, we split that
                 // memory in two parts, since wormhole has separate bandwidths for two halves of dram.
-                if (dram_config.device_config.is_wormhole())
+                if (dram_config.device_config.is_wormhole_b0())
                 {
                     // in wormhole we split one channel to two 1GB channels because they have separate bandwidths.
                     channel_allocators.push_back(std::make_unique<BestFitAllocator>(
@@ -435,7 +435,7 @@ void DramAllocator::allocate_queues(
 
     // pass through scheduled queue placements and divide channel by two to get real dram channel index.
     // we do this here because we need virtual channel indices in above lines, for allocator manipulation
-    if (dram_config.device_config.is_wormhole())
+    if (dram_config.device_config.is_wormhole_b0())
     {
         for (std::size_t i = 0; i < scheduled_queue_placements.size(); i++)
         {
@@ -453,13 +453,6 @@ void DramAllocator::allocate_queues(
         graph_name);
 }
 
-static bool is_prologue_queue(const Node *node)
-{
-    return node->as<graphlib::QueueNode>()->is_input() and node->as<graphlib::InputNode>()->is_prologue();
-}
-
-static bool is_output_queue(const Node *node) { return node->as<graphlib::QueueNode>()->is_output(); }
-
 std::vector<QueueBufferPlacement> DramAllocator::allocate_buffers(const QueueDRAMPlacementParameters &parameters)
 {
     std::vector<QueueBufferPlacement> buffer_placement;
@@ -468,16 +461,10 @@ std::vector<QueueBufferPlacement> DramAllocator::allocate_buffers(const QueueDRA
 
     const std::uint32_t num_channels = channel_allocators.size();
 
-    // Patch on DRAM channel selection to get around wormhole_a0 issue
-    bool assign_to_same_channel = this->dram_config.device_config.is_wormhole() and
-                                  not this->dram_config.device_config.is_wormhole_b0() and
-                                  not is_prologue_queue(parameters.node) and not is_output_queue(parameters.node);
-
     for (std::uint32_t row = 0; row < parameters.grid_shape.rows; row++)
     {
         for (std::uint32_t col = 0; col < parameters.grid_shape.columns; col++)
         {
-            bool force_channel_selection = assign_to_same_channel and not buffer_placement.empty();
             std::uint32_t addr;
             std::uint32_t channel;
 
@@ -492,10 +479,6 @@ std::vector<QueueBufferPlacement> DramAllocator::allocate_buffers(const QueueDRA
                     parameters.node->name(),
                     channel_override);
                 channel = channel_override;
-            }
-            else if (force_channel_selection)
-            {
-                channel = buffer_placement.front().dram_channel;
             }
             else
             {
@@ -516,7 +499,7 @@ std::vector<QueueBufferPlacement> DramAllocator::allocate_buffers(const QueueDRA
                         channel = 0;
                     break;
                 }
-                if (!try_p2p_region and not force_channel_selection)
+                if (!try_p2p_region)
                 {
                     channel++;
                     if (channel >= num_channels)
@@ -552,7 +535,7 @@ std::vector<QueueBufferPlacement> DramAllocator::allocate_buffers(const QueueDRA
             }
 
             int real_channel = channel;  // not virtual
-            if (dram_config.device_config.is_wormhole())
+            if (dram_config.device_config.is_wormhole_b0())
             {
                 real_channel = channel / 2;
             }

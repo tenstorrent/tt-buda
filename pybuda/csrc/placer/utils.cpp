@@ -43,7 +43,7 @@ void validate_placer_inputs(const PlacerConfig& config, vector<OpGroupToPlace>& 
             }
 
             // verify all outputs are on MMIO capable devices for wormhole
-            if (config.device_config.is_wormhole() and config.output_ops.find(current_op_name) != config.output_ops.end()) {
+            if (config.device_config.is_wormhole_b0() and config.output_ops.find(current_op_name) != config.output_ops.end()) {
                 // TODO(jchu): update this assert with MMIO chip ids
                 TT_ASSERT(std::find(config.device_config.chips_with_mmio.begin(), config.device_config.chips_with_mmio.end(), op_group.chip_id) != config.device_config.chips_with_mmio.end(),
                     "Placer: For wormhole multichip, we expect all output ops to be placed on MMIO devices.");

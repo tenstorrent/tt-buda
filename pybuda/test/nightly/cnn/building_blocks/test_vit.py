@@ -43,7 +43,7 @@ from pybuda._C.backend_api import BackendType, BackendDevice
 @pytest.mark.parametrize("num_hidden_layers", [6, 8])
 @pytest.mark.parametrize("num_attention_heads", [8, 16])
 @pytest.mark.parametrize("intermed_expansion_factor", [3, 4])
-@pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole])
+@pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole_B0])
 def test_vit_encoder(
     image_size,
     num_channels,
@@ -54,16 +54,16 @@ def test_vit_encoder(
     arch
 ):  
     expected_to_fail = [
-        (256, 3, 32, 6, 8, 3, BackendDevice.Wormhole),
-        (224, 3, 32, 8, 8, 3, BackendDevice.Wormhole),
-        (256, 3, 32, 6, 16, 3, BackendDevice.Wormhole),
-        (224, 3, 32, 8, 16, 3, BackendDevice.Wormhole),
-        (256, 3, 32, 6, 8, 4, BackendDevice.Wormhole),
-        (224, 3, 32, 8, 8, 4, BackendDevice.Wormhole),
-        (256, 3, 32, 8, 8, 4, BackendDevice.Wormhole),
-        (224, 3, 32, 8, 16, 4, BackendDevice.Wormhole),
-        (256, 3, 32, 8, 16, 4, BackendDevice.Wormhole),
-        (256, 3, 32, 6, 16, 4, BackendDevice.Wormhole)
+        (256, 3, 32, 6, 8, 3, BackendDevice.Wormhole_B0),
+        (224, 3, 32, 8, 8, 3, BackendDevice.Wormhole_B0),
+        (256, 3, 32, 6, 16, 3, BackendDevice.Wormhole_B0),
+        (224, 3, 32, 8, 16, 3, BackendDevice.Wormhole_B0),
+        (256, 3, 32, 6, 8, 4, BackendDevice.Wormhole_B0),
+        (224, 3, 32, 8, 8, 4, BackendDevice.Wormhole_B0),
+        (256, 3, 32, 8, 8, 4, BackendDevice.Wormhole_B0),
+        (224, 3, 32, 8, 16, 4, BackendDevice.Wormhole_B0),
+        (256, 3, 32, 8, 16, 4, BackendDevice.Wormhole_B0),
+        (256, 3, 32, 6, 16, 4, BackendDevice.Wormhole_B0)
     ]
 
     if (image_size, num_channels, patch_size, num_hidden_layers, num_attention_heads, 
@@ -106,16 +106,16 @@ def test_vit_encoder(
 @pytest.mark.parametrize(
     "image_size, num_channels, patch_size, num_hidden_layers, num_attention_heads, intermed_expansion_factor, arch",
     [
-        (256, 3, 32, 6, 8, 3, BackendDevice.Wormhole),
-        (224, 3, 32, 8, 8, 3, BackendDevice.Wormhole),
-        (256, 3, 32, 6, 16, 3, BackendDevice.Wormhole),
-        (224, 3, 32, 8, 16, 3, BackendDevice.Wormhole),
-        (256, 3, 32, 6, 8, 4, BackendDevice.Wormhole),
-        (224, 3, 32, 8, 8, 4, BackendDevice.Wormhole),
-        (256, 3, 32, 8, 8, 4, BackendDevice.Wormhole),
-        (224, 3, 32, 8, 16, 4, BackendDevice.Wormhole),
-        (256, 3, 32, 8, 16, 4, BackendDevice.Wormhole),
-        (256, 3, 32, 6, 16, 4, BackendDevice.Wormhole)
+        (256, 3, 32, 6, 8, 3, BackendDevice.Wormhole_B0),
+        (224, 3, 32, 8, 8, 3, BackendDevice.Wormhole_B0),
+        (256, 3, 32, 6, 16, 3, BackendDevice.Wormhole_B0),
+        (224, 3, 32, 8, 16, 3, BackendDevice.Wormhole_B0),
+        (256, 3, 32, 6, 8, 4, BackendDevice.Wormhole_B0),
+        (224, 3, 32, 8, 8, 4, BackendDevice.Wormhole_B0),
+        (256, 3, 32, 8, 8, 4, BackendDevice.Wormhole_B0),
+        (224, 3, 32, 8, 16, 4, BackendDevice.Wormhole_B0),
+        (256, 3, 32, 8, 16, 4, BackendDevice.Wormhole_B0),
+        (256, 3, 32, 6, 16, 4, BackendDevice.Wormhole_B0)
     ]
 )
 def test_vit_encoder_xfail(
@@ -164,7 +164,7 @@ def test_vit_encoder_xfail(
 @pytest.mark.parametrize("num_channels", [3, 1])
 @pytest.mark.parametrize("patch_size", [16, 32])
 @pytest.mark.parametrize("num_attention_heads", [4, 8, 16])
-@pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole])
+@pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole_B0])
 def test_vit_pooler(
     image_size,
     num_channels,

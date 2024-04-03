@@ -11,7 +11,7 @@ import tt_eval
 
 
 @pytest.mark.parametrize("device", ["silicon"])
-@pytest.mark.parametrize("arch", ["greyskull", "wormhole", "wormhole_b0"])
+@pytest.mark.parametrize("arch", ["greyskull", "wormhole_b0"])
 @pytest.mark.parametrize("chips_to_use", ["chip1", "chip2", "chip32"])
 def test_llama(device, arch, chips_to_use):
     '''

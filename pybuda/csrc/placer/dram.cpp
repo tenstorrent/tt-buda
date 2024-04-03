@@ -636,7 +636,7 @@ void place_dram_queues(
                 if (producer_chip_id != consumer_chip_id)
                     in_p2p_region_hard = true;  // won't work if we don't fit
             }
-            if (config.device_config.is_wormhole() and in_p2p_region_soft)
+            if (config.device_config.is_wormhole_b0() and in_p2p_region_soft)
             {
                 // Try to put the activations into mmio-capable p2p region to enable the fast-tilize region
                 // simply round-robin across available mmio capable chips if the consumer chip-id is not mmio capable.

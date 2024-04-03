@@ -902,7 +902,7 @@ def override_op_placement(
         whether to manually transpose this op
 
     chip_id: int
-        pin this op to a specific chip id. Only Wormhole is supported for now.
+        pin this op to a specific chip id. Only Wormhole_B0 is supported for now.
 
     spatial_epoch_break: bool
         Create a new spatial epoch and place `op_name` as the first op in the new epoch.

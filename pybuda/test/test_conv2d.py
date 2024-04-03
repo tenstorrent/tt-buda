@@ -817,7 +817,7 @@ def test_max_pool2d_stream_through_queue(test_device):
 
 @pytest.mark.parametrize("producer_stream_factor", [1, 2, 4])
 def test_max_pool2d_stream_through_queue_1x1(test_device, producer_stream_factor):
-    if not test_device.is_wormhole():
+    if not test_device.is_wormhole_b0():
         pytest.skip()
     in_channels = 64
     kernel_size = 2

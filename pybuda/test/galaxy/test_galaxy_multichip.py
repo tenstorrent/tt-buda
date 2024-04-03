@@ -124,7 +124,7 @@ def test_pt_encoder(test_kind, test_device, size, encoder_count, num_chips):
     relative_atol, pcc = get_relaxed_atol_pcc(test_kind, test_device, size, microbatch)
 
     if test_device.is_silicon() and test_kind.is_training() and size == "base":
-        if test_device.is_wormhole():
+        if test_device.is_wormhole_b0():
             pcc = 0.9
 
     if test_device.is_silicon() and test_kind.is_training() and size == "large":
@@ -175,7 +175,7 @@ def test_pt_encoder(test_kind, test_device, size, encoder_count, num_chips):
 @pytest.mark.parametrize(
     "num_chips", [2, 4, 8, 12, 32], ids=["chip2", "chip4", "chip8", "chip12", "chip32"],
 )
-def test_multichip_wormhole_multi_encoder_split_concurrent(
+def test_multichip_wormhole_b0_multi_encoder_split_concurrent(
     test_kind, cfg, test_device, encoder_count, num_chips
 ):
     hidden_dim = cfg[0]
@@ -221,7 +221,7 @@ def test_multichip_wormhole_multi_encoder_split_concurrent(
         VerifyConfig(
             test_kind=test_kind,
             devtype=test_device.devtype,
-            arch=BackendDevice.Wormhole,
+            arch=BackendDevice.Wormhole_B0,
             relative_atol=relative_atol,
             pcc=pcc,
             accumulation_steps=1,
@@ -541,13 +541,13 @@ def test_galaxy_scan_chip_pairs(scan_chip):
     ]
 
     devtype = BackendType.Silicon
-    arch = BackendDevice.Wormhole
+    arch = BackendDevice.Wormhole_B0
     compiler_cfg = _get_global_compiler_config()
     # pybuda.set_configuration_options(
     #        backend_cluster_descriptor_path=eth_connections_file
     # )
 
-    # Only run this on WH silicon, where create-ethernet-map can be called
+    # Only run this on WH_B0 silicon, where create-ethernet-map can be called
     device_cfg = get_device_config(
         arch,
         [], # chip_ids

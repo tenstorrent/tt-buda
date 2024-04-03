@@ -121,8 +121,8 @@ class InvertedResidual(nn.Module):
 )
 @pytest.mark.parametrize(
     "arch", 
-    (BackendDevice.Grayskull, BackendDevice.Wormhole), 
-    ids=["Grayskull", "Wormhole"]
+    (BackendDevice.Grayskull, BackendDevice.Wormhole_B0), 
+    ids=["Grayskull", "Wormhole_B0"]
 )
 def test_mobilenet_v1_depthwise_separable_conv(
     image_size, 
@@ -143,18 +143,18 @@ def test_mobilenet_v1_depthwise_separable_conv(
         (224, 2, 32, 64, 1, 0.25, BackendDevice.Grayskull),
         (192, 2, 32, 64, 1, 0.25, BackendDevice.Grayskull),
         (160, 2, 32, 64, 1, 0.25, BackendDevice.Grayskull),
-        (224, 2, 32, 64, 1, 1, BackendDevice.Wormhole),
-        (192, 2, 32, 64, 1, 1, BackendDevice.Wormhole),
-        (160, 2, 32, 64, 1, 1, BackendDevice.Wormhole),
-        (128, 2, 32, 64, 1, 1, BackendDevice.Wormhole),
-        (224, 2, 32, 64, 1, 0.75, BackendDevice.Wormhole),
-        (192, 2, 32, 64, 1, 0.75, BackendDevice.Wormhole),
-        (160, 2, 32, 64, 1, 0.75, BackendDevice.Wormhole),
-        (128, 2, 32, 64, 1, 0.75, BackendDevice.Wormhole),
-        (224, 2, 32, 64, 1, 0.25, BackendDevice.Wormhole),
-        (192, 2, 32, 64, 1, 0.25, BackendDevice.Wormhole),
-        (160, 2, 32, 64, 1, 0.25, BackendDevice.Wormhole),
-        (128, 2, 32, 64, 1, 0.25, BackendDevice.Wormhole),
+        (224, 2, 32, 64, 1, 1, BackendDevice.Wormhole_B0),
+        (192, 2, 32, 64, 1, 1, BackendDevice.Wormhole_B0),
+        (160, 2, 32, 64, 1, 1, BackendDevice.Wormhole_B0),
+        (128, 2, 32, 64, 1, 1, BackendDevice.Wormhole_B0),
+        (224, 2, 32, 64, 1, 0.75, BackendDevice.Wormhole_B0),
+        (192, 2, 32, 64, 1, 0.75, BackendDevice.Wormhole_B0),
+        (160, 2, 32, 64, 1, 0.75, BackendDevice.Wormhole_B0),
+        (128, 2, 32, 64, 1, 0.75, BackendDevice.Wormhole_B0),
+        (224, 2, 32, 64, 1, 0.25, BackendDevice.Wormhole_B0),
+        (192, 2, 32, 64, 1, 0.25, BackendDevice.Wormhole_B0),
+        (160, 2, 32, 64, 1, 0.25, BackendDevice.Wormhole_B0),
+        (128, 2, 32, 64, 1, 0.25, BackendDevice.Wormhole_B0),
     ]
 
     if (image_size, input_size_divider, in_channels_base, out_channels_base, 
@@ -198,18 +198,18 @@ def test_mobilenet_v1_depthwise_separable_conv(
         (224, 2, 32, 64, 1, 0.25, BackendDevice.Grayskull),
         (192, 2, 32, 64, 1, 0.25, BackendDevice.Grayskull),
         (160, 2, 32, 64, 1, 0.25, BackendDevice.Grayskull),
-        (224, 2, 32, 64, 1, 1, BackendDevice.Wormhole),
-        (192, 2, 32, 64, 1, 1, BackendDevice.Wormhole),
-        (160, 2, 32, 64, 1, 1, BackendDevice.Wormhole),
-        (128, 2, 32, 64, 1, 1, BackendDevice.Wormhole),
-        (224, 2, 32, 64, 1, 0.75, BackendDevice.Wormhole),
-        (192, 2, 32, 64, 1, 0.75, BackendDevice.Wormhole),
-        (160, 2, 32, 64, 1, 0.75, BackendDevice.Wormhole),
-        (128, 2, 32, 64, 1, 0.75, BackendDevice.Wormhole),
-        (224, 2, 32, 64, 1, 0.25, BackendDevice.Wormhole),
-        (192, 2, 32, 64, 1, 0.25, BackendDevice.Wormhole),
-        (160, 2, 32, 64, 1, 0.25, BackendDevice.Wormhole),
-        (128, 2, 32, 64, 1, 0.25, BackendDevice.Wormhole),
+        (224, 2, 32, 64, 1, 1, BackendDevice.Wormhole_B0),
+        (192, 2, 32, 64, 1, 1, BackendDevice.Wormhole_B0),
+        (160, 2, 32, 64, 1, 1, BackendDevice.Wormhole_B0),
+        (128, 2, 32, 64, 1, 1, BackendDevice.Wormhole_B0),
+        (224, 2, 32, 64, 1, 0.75, BackendDevice.Wormhole_B0),
+        (192, 2, 32, 64, 1, 0.75, BackendDevice.Wormhole_B0),
+        (160, 2, 32, 64, 1, 0.75, BackendDevice.Wormhole_B0),
+        (128, 2, 32, 64, 1, 0.75, BackendDevice.Wormhole_B0),
+        (224, 2, 32, 64, 1, 0.25, BackendDevice.Wormhole_B0),
+        (192, 2, 32, 64, 1, 0.25, BackendDevice.Wormhole_B0),
+        (160, 2, 32, 64, 1, 0.25, BackendDevice.Wormhole_B0),
+        (128, 2, 32, 64, 1, 0.25, BackendDevice.Wormhole_B0),
     ]
 )
 def test_mobilenet_v1_depthwise_separable_conv_xfail(
@@ -267,8 +267,8 @@ def test_mobilenet_v1_depthwise_separable_conv_xfail(
 )
 @pytest.mark.parametrize(
     "arch", 
-    (BackendDevice.Grayskull, BackendDevice.Wormhole), 
-    ids=["Grayskull", "Wormhole"]
+    (BackendDevice.Grayskull, BackendDevice.Wormhole_B0), 
+    ids=["Grayskull", "Wormhole_B0"]
 )
 def test_mobilenet_v2_inverted_residual(
     image_size, 
@@ -284,11 +284,11 @@ def test_mobilenet_v2_inverted_residual(
         (192, 16, 64, 96, 1, 0.25, 6, BackendDevice.Grayskull),
         (224, 32, 160, 320, 1, 0.75, 7, BackendDevice.Grayskull),
         (192, 32, 160, 320, 1, 0.75, 7, BackendDevice.Grayskull),
-        (192, 16, 64, 96, 1, 0.25, 6, BackendDevice.Wormhole),
-        (224, 32, 160, 320, 1, 0.75, 7, BackendDevice.Wormhole),
-        (192, 32, 160, 320, 1, 0.75, 7, BackendDevice.Wormhole),
-        (160, 32, 160, 320, 1, 0.75, 7, BackendDevice.Wormhole),
-        (128, 32, 160, 320, 1, 0.75, 7, BackendDevice.Wormhole)
+        (192, 16, 64, 96, 1, 0.25, 6, BackendDevice.Wormhole_B0),
+        (224, 32, 160, 320, 1, 0.75, 7, BackendDevice.Wormhole_B0),
+        (192, 32, 160, 320, 1, 0.75, 7, BackendDevice.Wormhole_B0),
+        (160, 32, 160, 320, 1, 0.75, 7, BackendDevice.Wormhole_B0),
+        (128, 32, 160, 320, 1, 0.75, 7, BackendDevice.Wormhole_B0)
     ]
 
     if (image_size, input_size_divider, in_channels_base, out_channels_base, 
@@ -326,11 +326,11 @@ def test_mobilenet_v2_inverted_residual(
         (192, 16, 64, 96, 1, 0.25, 6, BackendDevice.Grayskull),
         (224, 32, 160, 320, 1, 0.75, 7, BackendDevice.Grayskull),
         (192, 32, 160, 320, 1, 0.75, 7, BackendDevice.Grayskull),
-        (192, 16, 64, 96, 1, 0.25, 6, BackendDevice.Wormhole),
-        (224, 32, 160, 320, 1, 0.75, 7, BackendDevice.Wormhole),
-        (192, 32, 160, 320, 1, 0.75, 7, BackendDevice.Wormhole),
-        (160, 32, 160, 320, 1, 0.75, 7, BackendDevice.Wormhole),
-        (128, 32, 160, 320, 1, 0.75, 7, BackendDevice.Wormhole)
+        (192, 16, 64, 96, 1, 0.25, 6, BackendDevice.Wormhole_B0),
+        (224, 32, 160, 320, 1, 0.75, 7, BackendDevice.Wormhole_B0),
+        (192, 32, 160, 320, 1, 0.75, 7, BackendDevice.Wormhole_B0),
+        (160, 32, 160, 320, 1, 0.75, 7, BackendDevice.Wormhole_B0),
+        (128, 32, 160, 320, 1, 0.75, 7, BackendDevice.Wormhole_B0)
     ]
 )
 def test_mobilenet_v2_inverted_residual_xfail(

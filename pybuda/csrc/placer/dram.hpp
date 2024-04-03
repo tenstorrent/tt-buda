@@ -75,7 +75,7 @@ struct DramConfig
             return grayskull_locs.at(channel);
         }
 
-        if (device_config.is_wormhole())
+        if (device_config.is_wormhole_b0())
         {
             // TT_ASSERT(channel < wormhole_locs.size());
             auto c = device_config.get_dram_core_coord(channel, subchannel);

@@ -1388,7 +1388,7 @@ int get_limiter_cycles(
     // API is currently returning wrong value for WH
     // tenstorrent/budabackend#2423
     //
-    float dram_bw = device_config.is_wormhole()
+    float dram_bw = device_config.is_wormhole_b0()
                         ? 20.4 / dram_bw_divider
                         : static_cast<float>(device_config.get_dram_bandwidth_bytes_per_cycle()) / dram_bw_divider;
     float pcie_bw = 0 == pcie_access_core_count ? pcie_observed_max : pcie_observed_max / pcie_access_core_count;
@@ -1617,7 +1617,7 @@ bool is_output_write_to_dram_over_target(
     // API is currently returning wrong value for WH
     // tenstorrent/budabackend#2423
     //
-    float dram_bw = device_config.is_wormhole()
+    float dram_bw = device_config.is_wormhole_b0()
                         ? 20.4 / 2
                         : static_cast<float>(device_config.get_dram_bandwidth_bytes_per_cycle()) / 2;
 

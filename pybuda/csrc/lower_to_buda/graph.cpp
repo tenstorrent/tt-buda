@@ -23,7 +23,7 @@ std::string get_subgraph_name(
         case graphlib::NodeEpochType::Optimizer: ret = "opt_"; break;
     }
     ret = ret + std::to_string(subgraph_index) + "_";
-    if (arch_name == "wormhole" or arch_name == "wormhole_b0") {
+    if (arch_name == "wormhole_b0") {
         return ret + std::to_string(epoch_number) + "_" + "temporal_epoch_" + std::to_string(temporal_epoch_id);
     } else {
         return ret + std::to_string(epoch_number);

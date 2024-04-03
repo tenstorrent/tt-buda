@@ -118,9 +118,6 @@ class TTDevice(Device):
             if "GOLDEN_WORMHOLE_B0" in os.environ:
                 if arch is None:
                     arch = BackendDevice.Wormhole_B0
-            elif "GOLDEN_WORMHOLE" in os.environ:
-                if arch is None:
-                    arch = BackendDevice.Wormhole
             elif "PYBUDA_GOLDEN_BLACKHOLE" in os.environ:
                 if arch is None:
                     arch = BackendDevice.Blackhole
@@ -236,7 +233,7 @@ class TTDevice(Device):
                       harvesting_mask=harvesting_mask)
 
         if "PYBUDA_FORCE_EMULATE_HARVESTED" in os.environ and dev_cfg.grid_size.r == 10: # non-harvested
-            if self.arch == BackendDevice.Wormhole_B0 or self.arch == BackendDevice.Wormhole:
+            if self.arch == BackendDevice.Wormhole_B0:
                 harvesting_mask = 2048
             else:
                 harvesting_mask = 2050
@@ -1580,7 +1577,7 @@ def get_default_device_yaml(
     device_yaml_override: Optional[str],
     harvesting_mask: int
 ) -> str:
-    if arch not in {BackendDevice.Grayskull, BackendDevice.Wormhole, BackendDevice.Wormhole_B0, BackendDevice.Blackhole}:
+    if arch not in {BackendDevice.Grayskull, BackendDevice.Wormhole_B0, BackendDevice.Blackhole}:
         raise RuntimeError("Running pybuda_compile with unknown arch config")
     if device_yaml_override:
         return device_yaml_override

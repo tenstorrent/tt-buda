@@ -104,7 +104,7 @@ struct DeviceConfig
             return;
 
         // Get backend related parameters
-        if (this->is_wormhole())
+        if (this->is_wormhole_b0())
         {
             // Load and cache system-level params if needed
             if (this->backend_type == "silicon")
@@ -217,12 +217,12 @@ struct DeviceConfig
 
     // Get if the device is a blackhole
     inline bool is_blackhole() const { return arch == ARCH::BLACKHOLE; }
+
     // Get if the device is a wormhole_b0
     // During the onboarding process of the blackhole architecture,
     // we temporarily treat it as equivalent to the Wormhole_b0 architecture.
     inline bool is_wormhole_b0() const { return arch == ARCH::WORMHOLE_B0 || is_blackhole(); }
-    // Get if the device is a wormhole
-    inline bool is_wormhole() const { return arch == ARCH::WORMHOLE || is_wormhole_b0(); }
+    
     // Get if the device is a grayskull
     inline bool is_grayskull() const { return arch == ARCH::GRAYSKULL; }
 

@@ -132,7 +132,7 @@ class ResnetOutputBlock(nn.Sequential):
 
 @pytest.mark.parametrize("input_size", [128, 256, 512])
 @pytest.mark.parametrize("input_channels", [1, 3])
-@pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole])
+@pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole_B0])
 def test_resnet_input_block(input_size, input_channels, arch):
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
@@ -157,7 +157,7 @@ def test_resnet_input_block(input_size, input_channels, arch):
 
 @pytest.mark.parametrize("input_channels", [512, 2048])
 @pytest.mark.parametrize("num_classes", [10, 100, 1000])
-@pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole])
+@pytest.mark.parametrize("arch", [BackendDevice.Grayskull, BackendDevice.Wormhole_B0])
 def test_resnet_output_block(input_channels, num_classes, arch):
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "CNN"
@@ -187,16 +187,16 @@ def test_resnet_output_block(input_channels, num_classes, arch):
 )
 @pytest.mark.parametrize(
     "arch", 
-    [BackendDevice.Grayskull, BackendDevice.Wormhole]
+    [BackendDevice.Grayskull, BackendDevice.Wormhole_B0]
 )
 def test_resnet_basic_block(input_size, in_channels, out_channels, stride, arch):
     expected_to_fail = [
         (14, 256, 256, 1, BackendDevice.Grayskull),
         (7, 512, 512, 1, BackendDevice.Grayskull),
-        (56, 64, 64, 1, BackendDevice.Wormhole),
-        (28, 128, 128, 1, BackendDevice.Wormhole),
-        (14, 256, 256, 1, BackendDevice.Wormhole),
-        (7, 512, 512, 1, BackendDevice.Wormhole)
+        (56, 64, 64, 1, BackendDevice.Wormhole_B0),
+        (28, 128, 128, 1, BackendDevice.Wormhole_B0),
+        (14, 256, 256, 1, BackendDevice.Wormhole_B0),
+        (7, 512, 512, 1, BackendDevice.Wormhole_B0)
     ]
 
     if (input_size, in_channels, out_channels, stride, arch) in expected_to_fail:
@@ -228,10 +228,10 @@ def test_resnet_basic_block(input_size, in_channels, out_channels, stride, arch)
     [
         (14, 256, 256, 1, BackendDevice.Grayskull),
         (7, 512, 512, 1, BackendDevice.Grayskull),
-        (56, 64, 64, 1, BackendDevice.Wormhole),
-        (28, 128, 128, 1, BackendDevice.Wormhole),
-        (14, 256, 256, 1, BackendDevice.Wormhole),
-        (7, 512, 512, 1, BackendDevice.Wormhole)
+        (56, 64, 64, 1, BackendDevice.Wormhole_B0),
+        (28, 128, 128, 1, BackendDevice.Wormhole_B0),
+        (14, 256, 256, 1, BackendDevice.Wormhole_B0),
+        (7, 512, 512, 1, BackendDevice.Wormhole_B0)
     ]
 )
 def test_resnet_basic_block_xfail(input_size, in_channels, out_channels, stride, arch):
@@ -263,7 +263,7 @@ def test_resnet_basic_block_xfail(input_size, in_channels, out_channels, stride,
 )
 @pytest.mark.parametrize(
     "arch", 
-    [BackendDevice.Grayskull, BackendDevice.Wormhole]
+    [BackendDevice.Grayskull, BackendDevice.Wormhole_B0]
 )
 def test_resnet_bottleneck_block(input_size, in_channels, out_channels, stride, arch):
     expected_to_fail = [
@@ -271,10 +271,10 @@ def test_resnet_bottleneck_block(input_size, in_channels, out_channels, stride, 
         (28, 512, 512, 1, BackendDevice.Grayskull),
         (14, 1024, 1024, 1, BackendDevice.Grayskull),
         (7, 2048, 2048, 1, BackendDevice.Grayskull),
-        (56, 256, 256, 1, BackendDevice.Wormhole),
-        (28, 512, 512, 1, BackendDevice.Wormhole),
-        (14, 1024, 1024, 1, BackendDevice.Wormhole),
-        (7, 2048, 2048, 1, BackendDevice.Wormhole)
+        (56, 256, 256, 1, BackendDevice.Wormhole_B0),
+        (28, 512, 512, 1, BackendDevice.Wormhole_B0),
+        (14, 1024, 1024, 1, BackendDevice.Wormhole_B0),
+        (7, 2048, 2048, 1, BackendDevice.Wormhole_B0)
     ]
 
     if (input_size, in_channels, out_channels, stride, arch) in expected_to_fail:
@@ -310,10 +310,10 @@ def test_resnet_bottleneck_block(input_size, in_channels, out_channels, stride, 
         (28, 512, 512, 1, BackendDevice.Grayskull),
         (14, 1024, 1024, 1, BackendDevice.Grayskull),
         (7, 2048, 2048, 1, BackendDevice.Grayskull),
-        (56, 256, 256, 1, BackendDevice.Wormhole),
-        (28, 512, 512, 1, BackendDevice.Wormhole),
-        (14, 1024, 1024, 1, BackendDevice.Wormhole),
-        (7, 2048, 2048, 1, BackendDevice.Wormhole)
+        (56, 256, 256, 1, BackendDevice.Wormhole_B0),
+        (28, 512, 512, 1, BackendDevice.Wormhole_B0),
+        (14, 1024, 1024, 1, BackendDevice.Wormhole_B0),
+        (7, 2048, 2048, 1, BackendDevice.Wormhole_B0)
     ]
 )
 def test_resnet_bottleneck_block_xfail(input_size, in_channels, out_channels, stride, arch):
@@ -345,7 +345,7 @@ def test_resnet_bottleneck_block_xfail(input_size, in_channels, out_channels, st
 )
 @pytest.mark.parametrize(
     "arch", 
-    [BackendDevice.Grayskull, BackendDevice.Wormhole]
+    [BackendDevice.Grayskull, BackendDevice.Wormhole_B0]
 )
 def test_resnext_bottleneck_block(input_size, in_channels, out_channels, stride, arch):
     expected_to_fail = [
@@ -353,10 +353,10 @@ def test_resnext_bottleneck_block(input_size, in_channels, out_channels, stride,
         (28, 512, 512, 1, BackendDevice.Grayskull),
         (14, 1024, 1024, 1, BackendDevice.Grayskull),
         (7, 2048, 2048, 1, BackendDevice.Grayskull),
-        (56, 256, 256, 1, BackendDevice.Wormhole),
-        (28, 512, 512, 1, BackendDevice.Wormhole),
-        (14, 1024, 1024, 1, BackendDevice.Wormhole),
-        (7, 2048, 2048, 1, BackendDevice.Wormhole)
+        (56, 256, 256, 1, BackendDevice.Wormhole_B0),
+        (28, 512, 512, 1, BackendDevice.Wormhole_B0),
+        (14, 1024, 1024, 1, BackendDevice.Wormhole_B0),
+        (7, 2048, 2048, 1, BackendDevice.Wormhole_B0)
     ]
 
     if (input_size, in_channels, out_channels, stride, arch) in expected_to_fail:
@@ -392,10 +392,10 @@ def test_resnext_bottleneck_block(input_size, in_channels, out_channels, stride,
         (28, 512, 512, 1, BackendDevice.Grayskull),
         (14, 1024, 1024, 1, BackendDevice.Grayskull),
         (7, 2048, 2048, 1, BackendDevice.Grayskull),
-        (56, 256, 256, 1, BackendDevice.Wormhole),
-        (28, 512, 512, 1, BackendDevice.Wormhole),
-        (14, 1024, 1024, 1, BackendDevice.Wormhole),
-        (7, 2048, 2048, 1, BackendDevice.Wormhole)
+        (56, 256, 256, 1, BackendDevice.Wormhole_B0),
+        (28, 512, 512, 1, BackendDevice.Wormhole_B0),
+        (14, 1024, 1024, 1, BackendDevice.Wormhole_B0),
+        (7, 2048, 2048, 1, BackendDevice.Wormhole_B0)
     ]
 )
 def test_resnext_bottleneck_block_xfail(input_size, in_channels, out_channels, stride, arch):

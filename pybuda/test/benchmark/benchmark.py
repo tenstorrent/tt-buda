@@ -426,7 +426,7 @@ if __name__ == "__main__":
     parser.add_argument(        '--disable_output', default=0, type=int, choices=[0, 1], help='Disables the generation of the output json file')
     parser.add_argument(        '--load_tti', default="", type=str, help='Skip compile and load from TTI-archive configured for silicon (specify path to TTI).')
     parser.add_argument(        '--save_tti', default="", type=str, help='Save compilation for TTDevice into a TTI-archive configured for silicon to file and exit program. (speciy path to save to).')
-    parser.add_argument(        '--arch', choices=['grayskull', 'wormhole', 'wormhole_b0'], default=None, help='Set arch for offline TTI compilation.')
+    parser.add_argument(        '--arch', choices=['grayskull', 'wormhole_b0'], default=None, help='Set arch for offline TTI compilation.')
     parser.add_argument(        '--device', choices=['silicon', 'golden', 'model'], default=None, help='Set device.')
     parser.add_argument(        '--runtime_params_yaml', default=None, help='Set runtime params yaml for offline compile of WH devices.')
     parser.add_argument(        '--device-config', choices=['galaxy', 'wh_n150', 'wh_n300', 'gs_e150', 'gs_e300'], default=None, type=str, help='Runtime params yaml for offline compile of WH devices would be configured based on that.')

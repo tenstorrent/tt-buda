@@ -310,7 +310,6 @@ class PyBudify(torch.nn.Module):
                 compiler_cfg.loopback_outputs = names_dict
 
             pybuda_arch = { 'grayskull': pybuda.BackendDevice.Grayskull,
-                            'wormhole': pybuda.BackendDevice.Wormhole,
                             'wormhole_b0': pybuda.BackendDevice.Wormhole_B0 }[arch]
 
             if tti_load is not None:

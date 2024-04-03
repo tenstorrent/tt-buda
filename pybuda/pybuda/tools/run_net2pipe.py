@@ -55,7 +55,7 @@ def generate_blobgen_cmd(
                 physical_grid_size_y = int(device_descriptor_yaml["physical"]["y_size"])
         arch_name = str(device_descriptor_yaml["arch_name"]).lower()
         overlay_version = int(device_descriptor_yaml["features"]["overlay"]["version"])
-        tensix_memsize = 1499136 if "wormhole" in arch_name else 1024 * 1024
+        tensix_memsize = 1499136 if "wormhole_b0" == arch_name else 1024 * 1024
         noc_translation_id_enabled = False
         if "noc" in device_descriptor_yaml["features"] and "translation_id_enabled" in device_descriptor_yaml["features"]["noc"]:
             noc_translation_id_enabled = bool(device_descriptor_yaml["features"]["noc"]["translation_id_enabled"])
@@ -80,7 +80,7 @@ def generate_blobgen_cmd(
         eth_cores = device_descriptor_yaml["eth"]
         if len(eth_cores) > 0:
             l1_overlay_blob_base = 128 + 140 * 1024
-            if "wormhole" in arch_name:
+            if "wormhole_b0" == arch_name:
                 eth_max_memsize = 256 * 1024
                 eth_overlay_blob_base = 0x9000 + 92 * 1024 + 128
                 eth_data_buffer_space_base = 0x9000 + 124 * 1024

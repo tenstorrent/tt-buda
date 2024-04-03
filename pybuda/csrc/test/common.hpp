@@ -309,15 +309,6 @@ DeviceConfig create_device_config(
                 "golden" /*backend_type*/,
                 false /*store_backend_db_to_yaml*/,
                 chip_ids);
-        case tt::ARCH::WORMHOLE:
-            return DeviceConfig(
-                "wormhole" /*arch_name*/,
-                home + "/device/wormhole_80_arch.yaml" /*device_yaml*/,
-                cluster_config_yaml /*cluster_config_yaml*/,
-                runtime_params_yaml /*runtime_params_yaml*/,
-                "golden" /*backend_type*/,
-                false /*store_backend_db_to_yaml*/,
-                chip_ids);
         case tt::ARCH::WORMHOLE_B0:
             return DeviceConfig(
                 "wormhole_b0" /*arch_name*/,

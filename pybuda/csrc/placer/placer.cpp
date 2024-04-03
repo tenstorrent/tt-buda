@@ -1307,7 +1307,7 @@ PlacerSolution placer(const PlacerConfig& config, const vector<string>& schedule
     if (config.device_config.is_grayskull()) {
         return grayskull_placer(config, scheduled_ops);
     } else {
-        TT_ASSERT((config.device_config.is_wormhole() || config.device_config.is_wormhole_b0()), "Placer Failed: Unknown device arch name.");
+        TT_ASSERT(config.device_config.is_wormhole_b0(), "Placer Failed: Unknown device arch name.");
         return wormhole_placer(config, scheduled_ops);
     }
 }

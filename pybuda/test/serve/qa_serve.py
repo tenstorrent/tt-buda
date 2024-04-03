@@ -65,7 +65,7 @@ class BertQADeploy:
         tokenizer = BertTokenizer.from_pretrained(model_name, pad_to_max_length=True)
         self.nlp = pipeline('question-answering', model=model, tokenizer=tokenizer)
 
-        test_device = TestDevice(devtype=BackendType.Golden, arch=BackendDevice.Wormhole)
+        test_device = TestDevice(devtype=BackendType.Golden, arch=BackendDevice.Wormhole_B0)
 
 
         # Create pipeline, with encoders on TT

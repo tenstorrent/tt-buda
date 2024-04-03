@@ -504,7 +504,7 @@ def test_pt_encoder(test_kind, test_device, size, encoder_count, num_chips):
         # set pcc values to highest seen on each type of architecture
         if test_device.is_grayskull():
             pcc = 0.68
-        elif test_device.is_wormhole():
+        elif test_device.is_wormhole_b0():
             pcc = 0.9
 
     import os

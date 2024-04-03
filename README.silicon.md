@@ -7,13 +7,17 @@ To create a docker, run `bin/run-docker.sh` from `third_party/budabackend`. Then
 
 ## Env
 
-Grayskull and Wormhole machines require slightly different setups, so there are setup scripts for each. To build everything run the appropriate script:
+Grayskull, Wormhole and Blackhole machines require slightly different setups, so there are setup scripts for each. To build everything run the appropriate script:
 
 * `source env_for_silicon.sh` (Grayskull) 
 
 or 
 
-* `source env_for_wormhole.sh` (Wormhole)
+* `source env_for_wormhole_b0.sh` (Wormhole B0)
+
+or
+
+* `source env_for_blackhole.sh` (Blackhole)
 
 Now, you should be able to run pybuda pytests and python scripts.
 

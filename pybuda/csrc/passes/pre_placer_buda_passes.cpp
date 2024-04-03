@@ -405,7 +405,7 @@ void fix_untilized_outputs(graphlib::Graph *graph, const DeviceConfig &device_co
 {
     // if multichip-wormhole, we add these untilize-nops indiscriminately for now
     // and will place these ops on an MMIO-capable device.
-    bool is_multichip_wormhole = device_config.is_wormhole() and device_config.chip_ids.size() > 1;
+    bool is_multichip_wormhole = device_config.is_wormhole_b0() and device_config.chip_ids.size() > 1;
 
     std::unordered_map<Node *, int> output_nop_indices; // For the cases where one op feeds multiple outputs
     for (Node *n: graph->nodes_by_type(graphlib::NodeType::kOutput))

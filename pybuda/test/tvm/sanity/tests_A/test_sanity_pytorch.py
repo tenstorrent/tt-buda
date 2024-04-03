@@ -3206,7 +3206,7 @@ def test_kernel_fracturing_with_grouped_conv(test_kind, test_device):
         pytest.skip()
 
     import os
-    if test_device.is_wormhole():
+    if test_device.is_wormhole_b0():
         os.environ["PYBUDA_EXTRA_L1_MARGIN"] = "60000"
 
     compiler_cfg = pybuda.config._get_global_compiler_config()
@@ -3313,7 +3313,7 @@ def test_BN_no_stats(test_kind, test_device):
             ),
         )
     finally:
-        if test_device.is_wormhole():
+        if test_device.is_wormhole_b0():
             del os.environ["PYBUDA_EXTRA_L1_MARGIN"]
 
 

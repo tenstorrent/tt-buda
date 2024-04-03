@@ -135,8 +135,6 @@ def net2placement(
     if device_yaml is None:
         if netlist["devices"]["arch"] == "grayskull":
             device_yaml = "third_party/budabackend/device/grayskull_120_arch.yaml"
-        elif netlist["devices"]["arch"] == "wormhole":
-            device_yaml = "third_party/budabackend/device/wormhole_80_arch.yaml"
         elif netlist["devices"]["arch"] == "wormhole_b0":
             device_yaml = "third_party/budabackend/device/wormhole_b0_80_arch.yaml"
         else:

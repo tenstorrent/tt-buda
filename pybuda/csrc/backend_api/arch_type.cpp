@@ -12,8 +12,6 @@ namespace tt{
         {
             case ARCH::GRAYSKULL:
                 return "GRAYSKULL";
-            case ARCH::WORMHOLE:
-                return "WORMHOLE";
             case ARCH::WORMHOLE_B0:
                 return "WORMHOLE_B0";
             case ARCH::BLACKHOLE:
@@ -34,10 +32,6 @@ namespace tt{
         if (arch_string_lower == "GRAYSKULL")
         {
             return ARCH::GRAYSKULL;
-        }
-        else if (arch_string_lower == "WORMHOLE")
-        {
-            return ARCH::WORMHOLE;
         }
         else if (arch_string_lower == "WORMHOLE_B0")
         {

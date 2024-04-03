@@ -7,7 +7,7 @@ import torch
 
 
 class PyBudify(torch.nn.Module):
-    def __init__(self, pt_module, device='silicon', arch='wormhole', precision='fp32', amp_level=0, micro_batch_size=1, fuse=False, num_chips=1, perf=None, verify=False, log_level='ERROR', tti_save=None, tti_load=None):
+    def __init__(self, pt_module, device='silicon', arch='wormhole_b0', precision='fp32', amp_level=0, micro_batch_size=1, fuse=False, num_chips=1, perf=None, verify=False, log_level='ERROR', tti_save=None, tti_load=None):
         super().__init__()
 
         self.device = device
@@ -17,7 +17,7 @@ class PyBudify(torch.nn.Module):
 
         if device != 'pytorch':
             # pybuda workarounds
-            os.environ["GOLDEN_WORMHOLE"] = "1"
+            os.environ["GOLDEN_WORMHOLE_B0"] = "1"
             os.environ["PYBUDA_ENABLE_BROADCAST_SPLITTING"] = "1"
             #os.environ["PYBUDA_DISABLE_FORK_JOIN_BUF"] = "1"
             os.environ["PYBUDA_DRAM_PICK_CAPACITY"] = "1"
@@ -67,7 +67,6 @@ class PyBudify(torch.nn.Module):
             pybuda.set_configuration_options(default_df_override=fallback, accumulate_df=fallback, amp_level=amp_level, enable_auto_fusing=fuse, performance_trace=perf_level, backend_opt_level=3)
 
             pybuda_arch = { 'grayskull': pybuda.BackendDevice.Grayskull,
-                            'wormhole': pybuda.BackendDevice.Wormhole,
                             'wormhole_b0': pybuda.BackendDevice.Wormhole_B0 }[arch]
             
             if tti_load is not None:

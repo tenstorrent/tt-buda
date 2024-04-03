@@ -42,7 +42,6 @@ verify_cfg = VerifyConfig(run_golden=True, run_net2pipe=True) # Run backend gold
 
 backend_devices = {
     "grayskull" : BackendDevice.Grayskull,
-    "wormhole" : BackendDevice.Wormhole,
     "wormhole_b0": BackendDevice.Wormhole_B0,
 }
 

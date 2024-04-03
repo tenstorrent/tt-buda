@@ -325,7 +325,6 @@ void BackendModule(py::module &m_backend) {
 
     py::enum_<tt::ARCH>(m_backend, "BackendDevice")
         .value("Grayskull", tt::ARCH::GRAYSKULL)
-        .value("Wormhole", tt::ARCH::WORMHOLE)
         .value("Wormhole_B0", tt::ARCH::WORMHOLE_B0)
         .value("Blackhole", tt::ARCH::BLACKHOLE)
         .value("Invalid", tt::ARCH::Invalid)
@@ -335,7 +334,6 @@ void BackendModule(py::module &m_backend) {
             switch (backend_device)
             {
                 case tt::ARCH::GRAYSKULL: return "Grayskull";
-                case tt::ARCH::WORMHOLE: return "Wormhole";
                 case tt::ARCH::WORMHOLE_B0: return "Wormhole_B0";
                 case tt::ARCH::BLACKHOLE: return "Blackhole";
                 case tt::ARCH::Invalid: return "Invalid";
@@ -346,7 +344,6 @@ void BackendModule(py::module &m_backend) {
         .def("from_json", [](std::string const& encoded) {
             static std::unordered_map<std::string, tt::ARCH> decode = {
                 {"Grayskull", tt::ARCH::GRAYSKULL},
-                {"Wormhole", tt::ARCH::WORMHOLE},
                 {"Wormhole_B0", tt::ARCH::WORMHOLE_B0},
                 {"Blackhole", tt::ARCH::BLACKHOLE},
                 {"Invalid", tt::ARCH::Invalid},
