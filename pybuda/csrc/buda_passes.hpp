@@ -64,7 +64,7 @@ std::pair<std::unique_ptr<graphlib::Graph>, placer::PlacerConfigUpdate> run_pre_
     const tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
         &ins_instructions = {},
     const std::vector<std::tuple<std::string, std::string, int>> &insert_queues = {},
-    const std::vector<AMPNodeProperties> &amp_properties = {},
+    std::vector<AMPNodeProperties> amp_properties = {},
     const std::vector<std::string> &op_intermediates_to_save = {},
     bool use_interactive_placer = true,
     bool enable_device_tilize = false);

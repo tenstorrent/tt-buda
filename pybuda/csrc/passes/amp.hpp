@@ -7,7 +7,9 @@
 #include <optional>
 #include <variant>
 #include <unordered_map>
+#include <regex>
 
+#include "graph_lib/graph.hpp"
 #include "lower_to_buda/common.hpp"
 #include "graph_lib/defines.hpp"
 #include "third_party/json/json.hpp"
@@ -76,6 +78,16 @@ struct AMPNodeProperties
     {
     }
 };
+
+class RegexMatcher {
+private:
+    std::unordered_map<std::string, std::regex> regex_cache;
+
+public:
+    bool has_matching_string(const std::string& regex_string, const std::string& candidate_string);
+};
+
+bool is_matched_op(AMPNodeProperties &amp_properties, RegexMatcher &regex_matcher, const graphlib::Node* node);
 
 void to_json(nlohmann::json& j, const AMPNodeProperties& p);
 void from_json(const nlohmann::json& j, AMPNodeProperties& p);

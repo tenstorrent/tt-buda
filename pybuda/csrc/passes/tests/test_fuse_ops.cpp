@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: © 2024 Tenstorrent AI ULC
 //
 // SPDX-License-Identifier: Apache-2.0
-#include "balancer/balancer.hpp"
-#include "balancer/legalizer/graph_solver.hpp"
 #include "balancer/legalizer/legalizer.hpp"
 #include "balancer/tests/test_balancer_utils.hpp"
 #include "graph_lib/defines.hpp"
@@ -18,21 +16,27 @@ using namespace tt;
 namespace tt::test
 {
 
-// Fuse ops with default arguments.
-void fuse_ops(graphlib::Graph* graph, DeviceConfig* device_config = nullptr)
+void fuse_ops(graphlib::Graph* graph, DeviceConfig* device_config, std::vector<tt::passes::AMPNodeProperties> &amp_properties)
 {
     const std::vector<std::vector<std::string>> op_names_to_chip_break;
     const std::vector<std::vector<std::string>> op_names_to_epoch_break;
-
+    
     if (device_config != nullptr)
     {
-        tt::fuse_ops(graph, *device_config, op_names_to_chip_break, op_names_to_epoch_break, {}, {}, {});
+        tt::fuse_ops(graph, *device_config, op_names_to_chip_break, op_names_to_epoch_break, {}, {}, amp_properties);
     }
     else
     {
         tt::fuse_ops(
-            graph, tt::test::create_device_config(), op_names_to_chip_break, op_names_to_epoch_break, {}, {}, {});
+            graph, tt::test::create_device_config(), op_names_to_chip_break, op_names_to_epoch_break, {}, {}, amp_properties);
     }
+}
+
+// Fuse ops with default arguments.
+void fuse_ops(graphlib::Graph* graph, DeviceConfig* device_config = nullptr)
+{
+    std::vector<tt::passes::AMPNodeProperties> amp_properties;
+    fuse_ops(graph, device_config, amp_properties);
 }
 
 // Get vector of all fused ops in the graph.
@@ -343,11 +347,17 @@ struct FuseOpsDataFormatsTest : public BudaGraphTest
         auto out = create_op("add", {add0, add1});
 
         in2_name = in2->name();
+        add0_name = add0->name();
+        add1_name = add1->name();
+        out_name = out->name();
 
         return {out};
     }
 
     std::string in2_name;
+    std::string add0_name;
+    std::string add1_name;
+    std::string out_name;
     ;
 };
 
@@ -400,6 +410,70 @@ TEST_F(FuseOpsDataFormatsTest, fail_fuse_due_to_unaligned_data_formats)
 
     // Since there is op an with different data format type (a) we expect that validation will assert.
     ASSERT_ANY_THROW(tt::passes::validate_data_formats(graph, tt::test::create_device_config()));
+}
+
+TEST_F(FuseOpsDataFormatsTest, fuse_ops_with_single_dataformat_override)
+{
+    graphlib::Graph* graph = get_graph();
+
+
+    // Override output data format for all ops.
+    DataFormat output_df_override = DataFormat::Float32;
+    std::vector<tt::passes::AMPNodeProperties> amp_properties = {tt::passes::AMPNodeProperties(
+        "add",
+        std::nullopt,
+        output_df_override
+    )};
+
+    // Should be on by default.
+    // setenv("PYBUDA_FUSE_DF_OVERRIDE", "1", 1);
+    fuse_ops(graph, nullptr, amp_properties);
+
+    std::vector<BudaOpNode*> fused_ops = get_fused_ops(graph);
+    
+    ASSERT_EQ(fused_ops.size(), 1);
+    ASSERT_EQ(amp_properties.size(), 2);
+    ASSERT_TRUE(amp_properties[1].output_df.has_value());
+    ASSERT_TRUE(amp_properties[1].output_df == output_df_override);
+}
+
+TEST_F(FuseOpsDataFormatsTest, dont_fuse_ops_with_different_dataformat_overrides)
+{
+    graphlib::Graph* graph = get_graph();
+
+    // Override output data format for two ops.
+    std::vector<tt::passes::AMPNodeProperties> amp_properties = {tt::passes::AMPNodeProperties(
+        std::nullopt,
+        std::nullopt,
+        DataFormat::Float32,
+        std::nullopt,
+        std::nullopt,
+        std::nullopt,
+        this->add0_name
+    ), tt::passes::AMPNodeProperties(
+        std::nullopt,
+        std::nullopt,
+        DataFormat::Bfp8_b,
+        std::nullopt,
+        std::nullopt,
+        std::nullopt,
+        this->add1_name
+    ), tt::passes::AMPNodeProperties(
+        std::nullopt,
+        std::nullopt,
+        DataFormat::Float16_b,
+        std::nullopt,
+        std::nullopt,
+        std::nullopt,
+        this->out_name
+    )};
+
+    // Should be on by default.
+    // setenv("PYBUDA_FUSE_DF_OVERRIDE", "1", 1);
+    fuse_ops(graph, nullptr, amp_properties);
+
+    std::vector<BudaOpNode*> fused_ops = get_fused_ops(graph);
+    ASSERT_EQ(fused_ops.size(), 0);
 }
 
 struct FuseOpsLimits : public BudaGraphTest, public testing::WithParamInterface<std::tuple<int, int, int, bool>>

@@ -45,6 +45,7 @@ class FusionGroup
     bool has_reduce;
     bool has_broadcast_c;
     std::uint32_t reduce_dim = 0;
+    std::optional<DataFormat> df_override = std::nullopt;
 
     std::vector<BudaOpNode *> topo_order;
     BudaOpNode* output_op = nullptr;
@@ -113,6 +114,14 @@ class FusionGroup
     bool has_reduce_op() const { return has_reduce; }
     std::uint32_t get_reduce_dim() const { return reduce_dim; }
     Node* get_output_op() const { return output_op; }
+    bool has_df_override() const { return df_override.has_value(); }
+    void set_df_override(DataFormat df) { df_override = df; }
+
+    DataFormat get_df_override() const
+    {
+        TT_ASSERT(this-has_df_override());
+        return df_override.value();
+    }
 
     void set_reduce_op(uint32_t reduce_dim)
     {
@@ -227,7 +236,7 @@ class FusionGroup
     }
 
     // Remove fused ops from the graph, replace with a new fused op. Return pointer to new op.
-    void fuse(Graph *graph, FusionGroupP self, bool reuse_dest_on_srcA_only);
+    BudaOpNode* fuse(Graph *graph, FusionGroupP self, bool reuse_dest_on_srcA_only);
 
     void print() const
     {
@@ -1098,7 +1107,7 @@ FusionGroupP FusionGroup::clone()
 }
 
 // Remove fused ops from the graph, replace with a new fused op.
-void FusionGroup::fuse(Graph *graph, FusionGroupP self, bool reuse_dest_on_srcA_only)
+BudaOpNode* FusionGroup::fuse(Graph *graph, FusionGroupP self, bool reuse_dest_on_srcA_only)
 {
     std::vector<Edge> input_edges;
     InputMapping input_mapping;
@@ -1214,6 +1223,8 @@ void FusionGroup::fuse(Graph *graph, FusionGroupP self, bool reuse_dest_on_srcA_
     }
 
     new_op->set_fused_op(std::make_shared<FusedOp>(self, new_op, input_mapping, output_op, schedules));
+    
+    return new_op;
 }
 
 // Look through the output cone of the node, and see if it converges on something in the fused op.
@@ -1417,14 +1428,30 @@ bool should_fuse_node(
     Graph *graph,
     std::unordered_map<graphlib::NodeId, FusionGroupP> &fused_nodes,
     const std::vector<std::vector<std::string>> &op_names_to_chip_break,
-    const std::vector<std::vector<std::string>> &op_names_to_epoch_break)
-{
+    const std::vector<std::vector<std::string>> &op_names_to_epoch_break,
+    const std::unordered_map<graphlib::NodeId, DataFormat> &op_df_overrides)
+{   
     if (node->tag_value_or<bool>("dont_fuse", false))
         return false;
 
     // If node is already fused or fusion was already attempted for this node.
     if (fused_nodes.count(node->id()) > 0)
         return false;
+    
+    // If node has an output dataformat override which is not compatible with
+    // other node dataformat overrides in the fused op.
+    if (op_df_overrides.count(node->id()) > 0)
+    {
+        DataFormat node_df = op_df_overrides.at(node->id());
+        if (fused_op->has_df_override() and fused_op->get_df_override() != node_df)
+        {
+            log_warning(LogFuser, 
+                        "Unable to fuse node {} with dataformat override {} with fused op with dataformat override {}",
+                        node->name(), node_df, fused_op->get_df_override());
+            return false;
+        }
+        fused_op->set_df_override(node_df);
+    }
 
     // Note: get_dram_input_count isn't perfect because op fusion happens before
     // balancing so we miss out on potential e2e queue inputs.  This only protects
@@ -1509,13 +1536,14 @@ void expand_search(
     BudaOpNode *current_node,
     std::unordered_map<graphlib::NodeId, FusionGroupP> &fused_nodes,
     const std::vector<std::vector<std::string>> &op_names_to_chip_break,
-    const std::vector<std::vector<std::string>> &op_names_to_epoch_break)
+    const std::vector<std::vector<std::string>> &op_names_to_epoch_break,
+    const std::unordered_map<graphlib::NodeId, DataFormat> &op_df_overrides)
 {
     //
     // search below and above for more ops to fuse
     //
 
-    if (!should_fuse_node(fused_op, current_node, graph, fused_nodes, op_names_to_chip_break, op_names_to_epoch_break))
+    if (!should_fuse_node(fused_op, current_node, graph, fused_nodes, op_names_to_chip_break, op_names_to_epoch_break, op_df_overrides))
         return;
 
     fused_op->add_op(current_node);
@@ -1548,7 +1576,8 @@ void expand_search(
                 operand->as<BudaOpNode>(),
                 fused_nodes,
                 op_names_to_chip_break,
-                op_names_to_epoch_break);
+                op_names_to_epoch_break,
+                op_df_overrides);
     }
 
     // Don't go beyond exp for now, because it's expensive and we don't want to do it multiple times
@@ -1565,7 +1594,7 @@ void expand_search(
         Node *user = graph->node_by_id(user_edge.consumer_node_id);
         if (user->node_type() == graphlib::kBudaOp)
             expand_search(
-                fused_op, graph, user->as<BudaOpNode>(), fused_nodes, op_names_to_chip_break, op_names_to_epoch_break);
+                fused_op, graph, user->as<BudaOpNode>(), fused_nodes, op_names_to_chip_break, op_names_to_epoch_break, op_df_overrides);
     }
 }
 
@@ -1595,6 +1624,31 @@ static void tag_ops_dont_fuse(
             node->as<graphlib::TaggedNode>()->tag("dont_fuse");
         }
     }
+}
+
+// Read output_df override from amp_properties and return a mapping of node id to DF
+std::unordered_map<graphlib::NodeId, DataFormat> get_dataformat_override_mapping(graphlib::Graph *graph, const std::vector<tt::passes::AMPNodeProperties> &amp_properties)
+{
+    std::vector<tt::passes::AMPNodeProperties> amp_properties_output_df;
+    std::copy_if(
+        amp_properties.begin(), amp_properties.end(), std::back_inserter(amp_properties_output_df),
+        [](const tt::passes::AMPNodeProperties &amp_property) { return amp_property.output_df.has_value(); }
+    );
+
+    tt::passes::RegexMatcher regex_matcher;
+    std::unordered_map<graphlib::NodeId, DataFormat> df_overrides;
+    for (const auto node : graph->nodes())
+    {
+        for (auto amp_property : amp_properties_output_df)
+        {
+            if (tt::passes::is_matched_op(amp_property, regex_matcher, node))
+            {
+                df_overrides[node->id()] = amp_property.output_df.value();
+            }
+        }
+    }
+
+    return df_overrides;
 }
 
 // We skip fusing op_types that have override for output_df in amp_properties
@@ -1631,7 +1685,7 @@ void fuse_ops(
     const std::vector<std::vector<std::string>> &op_names_to_epoch_break,
     const std::vector<std::string> &op_names_dont_fuse,
     const std::vector<std::string> &op_names_manual_fuse,
-    const std::vector<tt::passes::AMPNodeProperties> &amp_properties)
+    std::vector<tt::passes::AMPNodeProperties> &amp_properties)
 {
     // Map of node IDs and fused groups that contain that node.
     // If fuse group is nullptr, that means that fusing was already attempted and failed for this node.
@@ -1642,7 +1696,15 @@ void fuse_ops(
 
     log_debug(LogFuser, "Fusing ops...");
 
-    skip_fusing_based_on_amp_properties(graph, amp_properties);
+    // Output dataformat overrides.
+    std::unordered_map<graphlib::NodeId, DataFormat> op_df_overrides;
+    
+    if  (env_as<bool>("PYBUDA_FUSE_DF_OVERRIDE", true)) {
+        op_df_overrides = get_dataformat_override_mapping(graph, amp_properties);
+    } else {
+        skip_fusing_based_on_amp_properties(graph, amp_properties);
+    }
+
     tag_ops_dont_fuse(graph, op_names_dont_fuse, op_names_manual_fuse);
 
     std::vector<FusionGroupP> fused_ops;
@@ -1671,12 +1733,12 @@ void fuse_ops(
         if (node->node_type() == graphlib::kBudaOp)
         {
             BudaOpNode *op = node->as<BudaOpNode>();
-            if (!should_fuse_node(fused_op, op, graph, fused_nodes, op_names_to_chip_break, op_names_to_epoch_break))
+            if (!should_fuse_node(fused_op, op, graph, fused_nodes, op_names_to_chip_break, op_names_to_epoch_break, op_df_overrides))
                 continue;
 
             log_trace(LogFuser, "Expand search from {}", node->name());
             expand_search(
-                fused_op, graph, node->as<BudaOpNode>(), fused_nodes, op_names_to_chip_break, op_names_to_epoch_break);
+                fused_op, graph, node->as<BudaOpNode>(), fused_nodes, op_names_to_chip_break, op_names_to_epoch_break, op_df_overrides);
             log_trace(LogFuser, "Legalize fused op from {}, with {} fused ops", node->name(), fused_op->count());
             if (fused_op->legalize(graph, fused_nodes, topo))
             {
@@ -1719,7 +1781,22 @@ void fuse_ops(
     {
         if (!(f->empty()))
         {
-            f->fuse(graph, f, reuse_dest_on_srcA_only);
+            BudaOpNode* new_op = f->fuse(graph, f, reuse_dest_on_srcA_only);
+            if (f->has_df_override())
+            {
+                DataFormat df_override = f->get_df_override();
+                log_debug(LogFuser, "Fused op {} has output_df override: {}", new_op->name(), df_override);
+                amp_properties.push_back(
+                    tt::passes::AMPNodeProperties(
+                    std::nullopt,
+                    std::nullopt,
+                    df_override,
+                    std::nullopt,
+                    std::nullopt,
+                    std::nullopt,
+                    new_op->name()
+                ));
+            }
         }
     }
 

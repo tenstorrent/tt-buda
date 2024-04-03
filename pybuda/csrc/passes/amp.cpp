@@ -62,30 +62,24 @@ namespace tt::passes
 using impl::conjunction;
 using impl::get_queried_nodes;
 
-class RegexMatcher {
-private:
-    std::unordered_map<std::string, std::regex> regex_cache;
-
-public:
-    bool has_matching_string(const std::string& regex_string, const std::string& candidate_string) {
-        // Immediately return true if regex_string is empty
-        if (regex_string.empty()) {
-            return true;
-        }
-        std::smatch base_match;
-        // Check if the regex is already compiled in the cache
-        auto it = regex_cache.find(regex_string);
-        if (it == regex_cache.end()) {
-            // Compile the regex and store it in the cache
-            std::regex compiled_regex(regex_string);
-            regex_cache[regex_string] = compiled_regex;
-            return std::regex_match(candidate_string, base_match, compiled_regex);
-        } else {
-            // Use the compiled regex from the cache
-            return std::regex_match(candidate_string, base_match, it->second);
-        }
+bool RegexMatcher::has_matching_string(const std::string& regex_string, const std::string& candidate_string) {
+    // Immediately return true if regex_string is empty
+    if (regex_string.empty()) {
+        return true;
     }
-};
+    std::smatch base_match;
+    // Check if the regex is already compiled in the cache
+    auto it = regex_cache.find(regex_string);
+    if (it == regex_cache.end()) {
+        // Compile the regex and store it in the cache
+        std::regex compiled_regex(regex_string);
+        regex_cache[regex_string] = compiled_regex;
+        return std::regex_match(candidate_string, base_match, compiled_regex);
+    } else {
+        // Use the compiled regex from the cache
+        return std::regex_match(candidate_string, base_match, it->second);
+    }
+}
 
 
 template <class T>
@@ -376,56 +370,55 @@ std::optional<std::string> original_op_type(const graphlib::Node* node)
     return {};
 }
 
+bool is_matched_op(AMPNodeProperties &amp_properties, RegexMatcher &regex_matcher, const Node* node) {
+    bool is_match = true;
+    if (amp_properties.name_regex_match.has_value())
+    {
+        is_match &= regex_matcher.has_matching_string(amp_properties.name_regex_match.value(), node->name());
+    }
+    if (amp_properties.epoch_type.has_value())
+    {
+        is_match &= amp_properties.epoch_type.value() == node->get_epoch_type();
+    }
+    if (amp_properties.is_gradient_op.has_value())
+    {
+        const graphlib::OpNode* op = dynamic_cast<const graphlib::OpNode*>(node);
+        if (op != nullptr)
+        {
+            is_match &= amp_properties.is_gradient_op.value() == op->is_gradient_op();
+        }
+    }
+    if (amp_properties.op_type.has_value())
+    {
+        const graphlib::OpNode* op_node = dynamic_cast<const graphlib::OpNode*>(node);
+        if (op_node != nullptr)
+        {
+            is_match &= (
+                amp_properties.op_type.value() == op_node->op_name() or
+                amp_properties.op_type.value() == original_op_type(node)
+            );
+        }
+        else if (auto input_node = dynamic_cast<const graphlib::InputNode*>(node); input_node != nullptr)
+        {
+            is_match &= amp_properties.op_type.value() == graphlib::to_string(input_node->input_type());
+        }
+        else
+        {
+            is_match &= false;
+        }
+    }
+    return is_match;
+};
 
 void apply_configuration(const Graph* graph, const std::vector<AMPNodeProperties>& user_properties)
 {
     RegexMatcher regex_matcher;
     for (const auto& amp_properties : user_properties)
     {
-        // TODO-> turn this into a bind and move outside loop
-        auto is_matched_op = [&amp_properties, &regex_matcher](const Node* node) -> bool {
-
-            bool is_match = true;
-            if (amp_properties.name_regex_match.has_value())
-            {
-                is_match &= regex_matcher.has_matching_string(amp_properties.name_regex_match.value(), node->name());
-            }
-            if (amp_properties.epoch_type.has_value())
-            {
-                is_match &= amp_properties.epoch_type.value() == node->get_epoch_type();
-            }
-            if (amp_properties.is_gradient_op.has_value())
-            {
-                const graphlib::OpNode* op = dynamic_cast<const graphlib::OpNode*>(node);
-                if (op != nullptr)
-                {
-                    is_match &= amp_properties.is_gradient_op.value() == op->is_gradient_op();
-                }
-            }
-            if (amp_properties.op_type.has_value())
-            {
-                const graphlib::OpNode* op_node = dynamic_cast<const graphlib::OpNode*>(node);
-                if (op_node != nullptr)
-                {
-                    is_match &= (
-                        amp_properties.op_type.value() == op_node->op_name() or
-                        amp_properties.op_type.value() == original_op_type(node)
-                    );
-                }
-                else if (auto input_node = dynamic_cast<const graphlib::InputNode*>(node); input_node != nullptr)
-                {
-                    is_match &= amp_properties.op_type.value() == graphlib::to_string(input_node->input_type());
-                }
-                else
-                {
-                    is_match &= false;
-                }
-            }
-            return is_match;
-        };
+        auto is_matched_op_ = std::bind(is_matched_op, amp_properties, regex_matcher, std::placeholders::_1);
 
         apply_optimization(
-            graph, get_queried_nodes(graph, is_matched_op), amp_properties 
+            graph, get_queried_nodes(graph, is_matched_op_), amp_properties 
         );
     }
 }

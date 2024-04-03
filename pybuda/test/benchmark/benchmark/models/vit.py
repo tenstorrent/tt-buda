@@ -33,6 +33,7 @@ def vit(training: bool, config: str, microbatch: int, devtype: str, arch: str, d
 
     if data_type == "Bfp8_b":
         pybuda.config.configure_mixed_precision(op_type="reciprocal", output_df=pybuda.DataFormat.Float16_b)
+        os.environ["PYBUDA_FUSE_DF_OVERRIDE"] = "0"
 
     # Set model parameters based on chosen task and model configuration
     img_res = 224

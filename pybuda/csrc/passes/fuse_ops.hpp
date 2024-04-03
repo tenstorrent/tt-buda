@@ -31,7 +31,7 @@ void fuse_ops(
     const std::vector<std::vector<std::string>> &op_names_to_epoch_break,
     const std::vector<std::string> &op_names_dont_fuse,
     const std::vector<std::string> &op_names_manual_fuse,
-    const std::vector<tt::passes::AMPNodeProperties> &amp_properties);
+    std::vector<tt::passes::AMPNodeProperties> &amp_properties);
 
 // Op input type / id
 struct FusedSubOpInput

@@ -34,6 +34,7 @@ def deit(training: bool, config: str, microbatch: int, devtype: str, arch: str, 
 
     if data_type == "Bfp8_b":
         pybuda.config.configure_mixed_precision(op_type="reciprocal", output_df=pybuda.DataFormat.Float16_b)
+        os.environ["PYBUDA_FUSE_DF_OVERRIDE"] = "0"
 
     # Determine model variant
     if config == "base":

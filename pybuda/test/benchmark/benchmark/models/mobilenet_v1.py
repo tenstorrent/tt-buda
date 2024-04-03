@@ -41,6 +41,7 @@ def mobilenet_v1(training: bool, config: str, microbatch: int, devtype: str, arc
             pybuda.config.configure_mixed_precision(op_type="depthwise", output_df=pybuda.DataFormat.Float16_b, math_fidelity=pybuda.MathFidelity.HiFi2)
         else:
             pybuda.config.configure_mixed_precision(op_type="depthwise", output_df=pybuda.DataFormat.Float16_b)
+        os.environ["PYBUDA_FUSE_DF_OVERRIDE"] = "0"
 
     if data_type == "Fp16_b":
         os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
