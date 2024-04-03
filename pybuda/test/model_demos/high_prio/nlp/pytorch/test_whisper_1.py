@@ -120,6 +120,8 @@ def test_whisper_enc_dec(test_device, variant):
         compiler_cfg.enable_auto_fusing = False
         if "large" in variant:
             compiler_cfg.place_on_new_epoch("matmul_2805")
+        if "medium" in variant:
+            compiler_cfg.place_on_new_epoch("matmul_3295")
         if variant == "openai/whisper-base":
             compiler_cfg.amp_level = 1
         else:
