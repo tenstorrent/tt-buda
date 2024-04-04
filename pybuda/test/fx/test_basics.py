@@ -76,7 +76,6 @@ class NonAlignedSize(torch.nn.Module):
     def forward(self, a):
         return a + 1
 
-@pytest.mark.skip(reason="These tests fail when running all of test_basics, but pass by themselves. There's some kind of corruption going on.")
 @pytest.mark.parametrize("rows", [1, 32])
 def test_return_non_aligned_sizes(rows):
     model = torch.compile(NonAlignedSize(), backend=compile_torch)

@@ -33,6 +33,11 @@ class CaptureFX:
 
     def reset_state(self):
         self.graph = None
+        self.node_to_id = {}
+        self.param_to_id = {}
+        self.const_to_id = {}
+        self.id_to_intermed = {}
+        self.output_nodes_per_subgraph = {}
     
     def capture_sample_outputs(self, outputs: List[torch.Tensor], subgraph_id: int):
         assert self.graph is not None
