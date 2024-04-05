@@ -4,6 +4,7 @@
 import sys
 import os
 import math
+import argparse
 from elasticsearch import Elasticsearch
 import pandas as pd
 
@@ -49,8 +50,6 @@ def compare_perf(build_ids: list):
         data.extend(es_res)
         print(f"Got perf for build id: {build_id} with {len(es_res)} records")
 
-    pd.set_option("display.max_rows", None)
-
     df = pd.DataFrame.from_records(data)
     ids = df['build_id'].unique()
 
@@ -62,6 +61,10 @@ def compare_perf(build_ids: list):
     df.drop(columns=['index'], inplace=True)
     df['pct_diff'] = ((df[ids[1]] - df[ids[0]]) / df[ids[0]]) * 100
 
+    return df
+
+def print_diff(df: pd.DataFrame):
+    """ Print the perf diff to console. """
     # format the pct_diff column
     def format_value(value):
         if not math.isnan(value):
@@ -76,26 +79,34 @@ def compare_perf(build_ids: list):
 
     df['pct_diff'] = df['pct_diff'].apply(format_value)
     df = df.round(2)
+    pd.set_option("display.max_rows", None)
     print(df)
 
-
 def main():
-    if len(sys.argv) != 3:
-        print("Usage: python compare_perf.py <build_id1> <build_id2>")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description='Compare performance for two builds.')
+    parser.add_argument('build_ids', nargs=2, help='Build IDs to compare')
+    parser.add_argument('-o', '--output', help='Output file path (CSV format)', default=None)
+    args = parser.parse_args()
 
-    build_ids = sys.argv[1:]
+    build_ids = args.build_ids
 
     # correct the build ids prefix
     prefix = "gitlab-pipeline-"
     build_ids = [(x if x.startswith(prefix) else prefix + str(x)) for x in build_ids]
 
     # compare
-    compare_perf(build_ids)
+    df = compare_perf(build_ids)
+
+    # save to file
+    if args.output:
+        df.to_csv(args.output, index=False)
+
+    print_diff(df)
 
 if __name__ == "__main__":
     main()
 
 
 def test_compare_perf():
-    compare_perf(["gitlab-pipeline-479274", "gitlab-pipeline-479323"])
+    df = compare_perf(["gitlab-pipeline-479274", "gitlab-pipeline-479323"])
+    print_diff(df)
