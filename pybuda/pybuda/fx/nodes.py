@@ -15,6 +15,7 @@ from loguru import logger
 
 from pybuda._C.graph import OpType
 from pybuda.tensor import pytorch_dtype_to_buda_dataformat
+from pybuda.config import CompilerConfig, _get_global_compiler_config
 
 class PyBudaNode:
     def __init__(self, op: OpType, args: List[torch.fx.node.Node]):
@@ -49,7 +50,7 @@ def process_clamp(node, pybuda_op_name):
         assert min_ is not None, "Both min and max attributes for clmap are empty"
         return PyBudaNode(OpType("relu", [min_, "min"]), inputs)
     else:
-        return PyBudaNode(OpType(pybuda_op_name, [min_, max_]), inputs)
+        return PyBudaNode(OpType(pybuda_op_name, named_attrs = {"min": min_, "max": max_}), inputs)
 
 def process_flatten(node, pybuda_op_name):
     return PyBudaNode(OpType(pybuda_op_name, [-1, ]), [node.args[0], ])
@@ -192,7 +193,7 @@ def process_maxpool2d(node, pybuda_op_name):
     if len(node.args) >= 6:
         ceil_mode = node.args[5]
 
-    compiler_cfg = pybuda.config._get_global_compiler_config()
+    compiler_cfg = _get_global_compiler_config()
     add_sub_surround = compiler_cfg.max_pool_add_sub_surround
     add_sub_surround_value = compiler_cfg.max_pool_add_sub_surround_value
     attrs = kernel_size + strides + [dilation, ceil_mode] + padding + [add_sub_surround, add_sub_surround_value, False] # channel-last = False for pt
@@ -330,6 +331,14 @@ def process_cat(node, pybuda_op_name):
     pybuda_node = PyBudaNode(OpType(pybuda_op_name, [dim, ]), node.args[0])
     return pybuda_node
 
+def process_constant_pad_nd(node, pybuda_op_name):
+    padding = node.args[1]
+    value = node.args[2]
+    if value != 0.0:
+        raise ValueError("Buda only supports zero padding") # TODO: add to cpu fallback if padding is not 0
+    pybuda_node = PyBudaNode(OpType(pybuda_op_name, [*padding, 0, False]), [node.args[0], ]) # mode index 0 = constant
+    return pybuda_node
+
 dynamo_to_pybuda_function = {
     "_softmax"                             : (process_softmax, "softmax"),
     "add"                                  : (process_dummy_no_attr, "add"),
@@ -341,6 +350,7 @@ dynamo_to_pybuda_function = {
     "clamp"                                : (process_clamp, "clip"),
     "clone"                                : (process_dummy_no_attr, "nop"),
     "contiguous"                           : (process_dummy_no_attr, "nop"),
+    "constant_pad_nd"                      : (process_constant_pad_nd, "pad"),
     "convolution"                          : (process_conv2d, "conv2d"), #TODO: check if conv3d is also mapped to 'convolution'
     "div"                                  : (process_matmul, "divide"),
     "embedding"                            : (process_embedding, "embedding"),
@@ -351,6 +361,7 @@ dynamo_to_pybuda_function = {
     "getitem"                              : (process_getitem, "index"),
     "gt"                                   : (process_dummy_no_attr, "greater"),
     "gte"                                  : (process_dummy_no_attr, "greater_equal"),
+    "hardtanh"                             : (process_clamp, "clip"),
     "iadd"                                 : (process_dummy_no_attr, "add"),
     "interpolate"                          : (process_interpolate, "resize2d"),
     "lt"                                   : (process_dummy_no_attr, "less"),
@@ -373,6 +384,8 @@ dynamo_to_pybuda_function = {
     "to"                                   : (process_dummy_no_attr, "nop"), #TODO
     "_to_copy"                             : (process_dummy_no_attr, "nop"), #TODO
     "copy_"                                : (process_dummy_no_attr, "nop"), #TODO
+    "lift_fresh_copy"                      : (process_dummy_no_attr, "nop"), #TODO
+    "alias"                                : (process_dummy_no_attr, "nop"), #TODO
     "transpose"                            : (process_transpose, "transpose"),
     "truediv"                              : (process_dummy_no_attr, "divide"),
     "unsqueeze"                            : (process_unsqueeze, "unsqueeze"),
@@ -714,7 +727,7 @@ def unsupported_shared_embedding_input(graph: torch.fx.GraphModule, unsupported_
             visited = set()
             search_up(raw_input, visited)
 
-def get_unsupported_nodes(graph: torch.fx.Graph) -> Tuple[Set[torch.fx.Node], Set[torch.fx.Node]]:
+def get_unsupported_nodes(graph: torch.fx.Graph, config: CompilerConfig) -> Tuple[Set[torch.fx.Node], Set[torch.fx.Node]]:
     # Traverse the FX graph and find all the nodes that are not supported and should fall back to CPU
     # Returns a set of unsupported nodes, and a set of unsupported outputs - since there's only one output node,
     # we represent those by nodes that drive the output, and have to be in a separate set
@@ -730,6 +743,10 @@ def get_unsupported_nodes(graph: torch.fx.Graph) -> Tuple[Set[torch.fx.Node], Se
             continue
         
         if op_name == "getitem":
+            continue
+
+        if op_name in config.cpu_fallback_ops:
+            unsuppored_nodes.add(node)
             continue
 
         if is_supported_op(op_name, node):

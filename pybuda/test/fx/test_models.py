@@ -204,3 +204,85 @@ def test_sd():
     model = model.to("tt")
     pybuda_mod = torch.compile(model, backend=compile_torch)
     image = pybuda_mod(prompt=prompt, num_images_per_prompt=1, output_type="pil").images[0]
+
+from transformers import MobileNetV2FeatureExtractor, MobileNetV2ForImageClassification
+from PIL import Image
+import requests
+
+def test_mobilenet_v2():
+    url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+    image = Image.open(requests.get(url, stream=True).raw)
+
+    feature_extractor = MobileNetV2FeatureExtractor.from_pretrained("Matthijs/mobilenet_v2_1.0_224")
+    model = MobileNetV2ForImageClassification.from_pretrained("Matthijs/mobilenet_v2_1.0_224")
+
+    inputs = feature_extractor(images=image, return_tensors="pt")
+
+    outputs = model(**inputs)
+    logits = outputs.logits
+
+    # model predicts one of the 1000 ImageNet classes
+    predicted_class_idx_cpu = logits.argmax(-1).item()
+    #print("Predicted class:", model.config.id2label[predicted_class_idx])
+
+    pybuda_mod = torch.compile(model.to('tt'), backend=compile_torch)
+    for k, v in inputs.items():
+        inputs[k] = v.to("tt")
+    outputs = pybuda_mod(**inputs)
+    logits = outputs.logits
+
+    # model predicts one of the 1000 ImageNet classes
+    predicted_class_idx_tt = logits.argmax(-1).item()
+    #print("Predicted class:", model.config.id2label[predicted_class_idx])
+
+    assert predicted_class_idx_cpu == predicted_class_idx_tt
+
+# need to pip install ultralytics
+#from ultralytics import YOLO 
+@pytest.mark.skip(reason="WIP")
+def test_yolo_v8():
+
+    # Load a model
+    model = YOLO("yolov8n.pt")  # load a pretrained model (recommended for training)
+
+    # Use the model
+    results = model("https://ultralytics.com/images/bus.jpg")  # predict on an image
+    print(results)
+
+
+    model.to('tt')
+    tt_model = torch.compile(model.model, backend=compile_torch)
+    model.model = tt_model
+    tt_results = model("https://ultralytics.com/images/bus.jpg")  # predict on an image
+    print(tt_results)
+
+class TTAmpModule:
+    def get_amp_supported_dtype(self):
+        return []
+
+    def is_autocast_enabled(self):
+        return False
+
+    def set_autocast_enabled(self, enable):
+        pass
+
+    def get_autocast_dtype(self):
+        return torch.float32
+
+    def set_autocast_dtype(self, dtype):
+        pass
+
+from transformers import AutoTokenizer, AutoModelForCausalLM
+def test_gemma_2b():
+
+    torch._register_device_module("tt", TTAmpModule())
+
+    tokenizer = AutoTokenizer.from_pretrained("google/gemma-2b")
+    model = AutoModelForCausalLM.from_pretrained("google/gemma-2b")
+    model = torch.compile(model.to("tt"), backend=compile_torch)
+
+    input_text = "Write me a poem about Machine Learning."
+    input_ids = tokenizer(input_text, return_tensors="pt").to('tt')
+
+    outputs = model.generate(**input_ids)
+    print(tokenizer.decode(outputs[0]))

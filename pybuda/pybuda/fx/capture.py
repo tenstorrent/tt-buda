@@ -18,7 +18,7 @@ from pybuda.fx.nodes import get_pybuda_node, torch_constant_ops, is_supported_op
 from pybuda.config import _get_global_compiler_config
 from pybuda.fx.mixed_graph import MixedGraph
 from pybuda.fx.schedule import TensorSource, Schedule
-from pybuda.fx.graph_utils import reduce_graph
+from pybuda.fx.graph_utils import reduce_graph, graph_lint
 
 import pybuda
 
@@ -61,7 +61,7 @@ class CaptureFX:
         self.graph.capture_sample_inputs(inputs=sample_inputs, subgraph_id=subgraph_id)
 
         activations = [torch.rand(sample_input.shape).to(sample_input.dtype).to("cpu") for sample_input in sample_inputs]
-        device_graph_changed, _, graph_inputs, intermediate_tensors, output_tensors, schedule = self._append_to_graph(module, aten_module, activations, subgraph_id)
+        device_graph_changed, graph_inputs, intermediate_tensors, output_tensors, schedule = self._append_to_graph(module, aten_module, activations, subgraph_id)
         logger.debug(f"Appending to graph done, captured {len(self.get_buda_graph().nodes())} nodes")
         return device_graph_changed, graph_inputs, intermediate_tensors, output_tensors, schedule
 
@@ -268,8 +268,9 @@ class CaptureFX:
             else:
                 fake_args = tt_act
             shape_prop.run(*fake_args)
-
-        aten_module = aten_module.to("cpu")
+        
+        graph_lint(aten_module.graph)
+        aten_module = aten_module.to("cpu") # why?
     
         module_inputs = []
         output_nids = []
@@ -282,18 +283,18 @@ class CaptureFX:
         reduce_graph(device_graph)
 
         # Find unsupported nodes
-        fallback_ops, fallback_outputs = get_unsupported_nodes(device_graph)
+        fallback_ops, fallback_outputs = get_unsupported_nodes(device_graph, _get_global_compiler_config())
 
         # Filter out unsupported nodes into separate FX graphs
         device_graphs = self.graph.filter_unsupported_nodes(device_graph, fallback_ops, fallback_outputs, subgraph_idx)
         device_graph = None # Zero out the original variable to avoid accidental use
 
         # Generate the schedule so we can evaluate fallback and get proper inputs into the rest of the graph
-        schedule = self.graph.generate_schedule(subgraph_idx)
+        schedule = self.graph.generate_schedule(subgraph_idx, aten_module)
         if len(device_graphs) == 1 and len(device_graphs[0].nodes) == 0:
             # Nothing left in the graph
             logger.debug("No nodes left in the device graph after fallback, skipping")
-            return False, self.get_buda_graph(), [], self.id_to_intermed, output_tensors, schedule
+            return False, [], self.id_to_intermed, output_tensors, schedule
 
         graph_inputs = generate_device_inputs_from_sample_inputs(activations, schedule)
 
@@ -354,7 +355,7 @@ class CaptureFX:
 
         self.get_buda_graph().register_module_inputs(module_inputs, append=True)
         self.get_buda_graph().register_module_outputs(output_nids, output_requires_grad, append=True)
-        return True, self.get_buda_graph(), graph_inputs, self.id_to_intermed, output_tensors, schedule
+        return True, graph_inputs, self.id_to_intermed, output_tensors, schedule
     
 def generate_device_inputs_from_sample_inputs(inputs: List[torch.Tensor], schedule: Schedule) -> List[List[torch.Tensor]]:
     
@@ -387,10 +388,8 @@ def generate_device_inputs_from_sample_inputs(inputs: List[torch.Tensor], schedu
                 return device_graph_inputs
         
         logger.trace(f"Running graph on CPU to generate sample device inputs: {item.graph_index}")
-        graph_module = torch.fx.GraphModule({}, item.graph, f"Input_generator_{item.graph_index}")
-
-
-        graph_outputs = graph_module(*graph_inputs)
+        assert item.graph_module
+        graph_outputs = item.graph_module(*graph_inputs)
     
         # Record intermediates
         for i, output in enumerate(item.outputs):

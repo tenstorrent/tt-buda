@@ -167,9 +167,9 @@ class CompilerConfig:
     compile_depth: int = field(default=CompileDepth.FULL, metadata=as_json(CompileDepth))  # Defines compilation depth. Used to limit scope of some unit tests
 
     enable_tvm_cpu_fallback: bool = True    # Create cpu device for unsupported pybuda ops
-    cpu_fallback_ops: Set[str] = field(default_factory=lambda: set(["embedding"]))  # Which ops should we fall back on
-    enable_tm_cpu_fallback: bool = False  # Extend CPU fallback for TM ops
-    tm_cpu_fallback_max_depth: int = 10  # Max search depth for extended CPU fallback
+    cpu_fallback_ops: Set[str] = field(default_factory=lambda: set(["embedding"])) # Types of ops to fall back to CPU for
+    enable_tm_cpu_fallback: bool = False    # Extend CPU fallback for TM ops
+    tm_cpu_fallback_max_depth: int = 10     # Max search depth for extended CPU fallback
 
     enable_tvm_dropout: bool = False        # (Temporary): Remove when buda supports dropout
     enable_tvm_unsupported_ops: bool = False# Create "unsupported" pybuda ops in python file, allowing user to modify later
@@ -831,6 +831,26 @@ def override_multi_op_fracture_factor(op_name: str, multi_op_fracture_factor: in
     global g_compiler_config
     g_compiler_config.conv_multi_op_fracture_factor_override[op_name] = multi_op_fracture_factor
 
+def add_cpu_fallback_ops(op_types: Union[str, List[str]]):
+    """
+    Add one or more op types to CPU fallback list. These operation will be executed on the host. 
+    """
+    global g_compiler_config
+    if isinstance(op_types, str):
+        g_compiler_config.cpu_fallback_ops.add(op_types)
+    else:
+        g_compiler_config.cpu_fallback_ops.update(op_types)
+
+def remove_cpu_fallback_ops(op_types: Union[str, List[str]]):
+    """
+    Remove one or more op types from the CPU fallback list.
+    """
+    global g_compiler_config
+    if isinstance(op_types, str):
+        g_compiler_config.cpu_fallback_ops.discard(op_types)
+    else:
+        for op_type in op_types:
+            g_compiler_config.cpu_fallback_ops.discard(op_type)
 
 def insert_fracture_group(nodes: List[Union[str, Tuple[str, Union[int, List[int]], Union[int, List[int]]]]], chip_ids: Union[List[int], Dict[str, List[int]]] = []):
     """

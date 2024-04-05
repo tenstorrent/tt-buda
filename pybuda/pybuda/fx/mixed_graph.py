@@ -110,6 +110,24 @@ class MixedGraph:
             }
             return [fallback_graph] # No outputs, nothing to do
 
+        if is_constant_graph(device_graph):
+            graph_to_device(device_graph, 'cpu')
+            self.device_graphs_per_subgraph[subgraph_id] = [fallback_graph]
+            self.fallback_graphs_per_subgraph[subgraph_id] = [device_graph]
+            self.mappings_per_subgraph[subgraph_id] = {
+                "new_io_mapping": new_io_mapping,
+                "placeholder_map": placeholder_map,
+                "copied_node_mapping": copied_node_mapping,
+                "moved_output_mapping": moved_output_mapping
+            }
+
+            # Record outputs
+            for arg in output_node.args[0]:
+                self.output_nodes_per_subgraph[subgraph_id].append(arg)
+                
+            return [fallback_graph]
+
+
         # Some of the unsupported nodes will have nop arguments, which we want to copy over as well. Let's find those first.
         to_copy_ops = unsupported_ops.copy()
         to_copy_ops.update(unsupported_outputs)
@@ -242,7 +260,7 @@ class MixedGraph:
                 if arg.op in ["int", "float"]:
                     continue
 
-                assert False, f"Unsupported argument type {arg.op}"
+                assert False, f"Unsupported argument type {arg.op} for node {arg}"
                 
 
             logger.trace(f"Falling back unsupported op, or needed nop, to fallback graph: {node}")
@@ -533,11 +551,12 @@ class MixedGraph:
         return device_graphs, fallback_graphs
 
 
-    def generate_schedule(self, subgraph_idx: int) -> Schedule:
+    def generate_schedule(self, subgraph_idx: int, aten_module: torch.fx.GraphModule) -> Schedule:
         # For given subgraph, figure out a schedule of FX and Buda graphs that need to run, and how to map inputs to outputs
         schedule = Schedule(
                 self.input_nodes_per_subgraph[subgraph_idx], 
                 self.output_nodes_per_subgraph[subgraph_idx], 
+                aten_module,
                 self.device_graphs_per_subgraph[subgraph_idx],
                 self.fallback_graphs_per_subgraph[subgraph_idx], 
                 self.mappings_per_subgraph[subgraph_idx])

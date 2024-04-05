@@ -55,6 +55,7 @@ class ScheduleItem:
     def __init__(self, fallback: bool, inputs: List[InputSource], outputs: List[OutputDest], graph: Optional[torch.fx.Graph], graph_index: int):
         self.fallback = fallback
         self.graph = graph
+        self.graph_module : Optional[torch.fx.GraphModule] = None
         self.graph_index = graph_index
         self.inputs = inputs
         self.outputs = outputs
@@ -79,6 +80,7 @@ class Schedule:
     def __init__(self, 
             inputs: List[torch.fx.Node], 
             outputs: List[torch.fx.Node],
+            aten_module: torch.fx.GraphModule,
             device_graphs: List[torch.fx.Graph],
             fallback_graphs: List[torch.fx.Graph],
             mappings: Dict[str, Dict[torch.fx.Node, torch.fx.Node]]):
@@ -235,6 +237,10 @@ class Schedule:
                     print(f"Input mappings {i}", im)
                 print("inputs (aten): ", device_mappings)
             assert progress, "No progress made in scheduling"
+
+        # Create graph modules for the graphs
+        for item in self.schedule:
+            item.graph_module = torch.fx.GraphModule(aten_module, item.graph)
 
         logger.trace(f"Schedule: {self}")
         self.validate(len(inputs), len(outputs))

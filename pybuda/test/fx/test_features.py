@@ -230,7 +230,6 @@ class DisjointedGraphs(torch.nn.Module):
 
         return b
 
-@pytest.mark.skip(reason="Fails in shape handling, Allan is working on it.. or we need to cause disjointed graphs differently")
 def test_disjointed_graphs():
     # Test the case where pt2 generates two completely independent graphs
     generic_model_test(DisjointedGraphs(), inputs=(torch.Tensor([[4.0]]),))
@@ -252,21 +251,30 @@ class DisjointedGraphsWithParams(torch.nn.Module):
 
 @pytest.mark.skip(reason="Fails in shape handling, Allan is working on it.. or we need to cause disjointed graphs differently")
 def test_disjointed_graphs_with_params():
-    #torch.set_num_threads(1) # TODO: Multi-thread seems to cause data mismatch
     generic_model_test(DisjointedGraphsWithParams(), inputs=(torch.tensor([4.0]),))
 
-class NoOutputModel(nn.Module):
-    def forward(self, a):
-        pass
+class ModelWithTensorAttributes(nn.Module):
+    def __init__(self, a):
+        super().__init__()
+        self.a = a
+    def forward(self, x):
+        return x + self.a
 
-def test_no_outputs_model():
-    # Test the case where the model has no output
-    generic_model_test(NoOutputModel(), num_outputs=0)
+@pytest.mark.skip(reason="Input 0 for op add_0 is uninitialized, missing queue settings could cause us to access out of bounds queue.")
+def test_model_with_attributes():
+    # Test the case where the model has attributes that are used in the calculation
+    shape = (32, 64)
+    generic_model_test(ModelWithTensorAttributes(torch.rand(*shape).to('tt')), inputs=(torch.rand(*shape),))
 
-class NoInputModel(nn.Module):
+class ModelWithTensorAttributesNoInput(nn.Module):
+    def __init__(self, a):
+        super().__init__()
+        self.a = a
     def forward(self):
-        return torch.zeros((1, 1, 3, 3))
+        return self.a * 2
 
-def test_no_inputs_model():
-    # Test the case where the model has no inputs
-    generic_model_test(NoInputModel(), num_inputs=0)
+def test_model_with_attributes_no_input():
+    # Test the case where the model has attributes that are used in the calculation
+    shape = (32, 64)
+    generic_model_test(ModelWithTensorAttributesNoInput(torch.rand(*shape)), num_inputs=0)
+

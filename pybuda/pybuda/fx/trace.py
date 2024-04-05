@@ -2,6 +2,7 @@
 
 # SPDX-License-Identifier: Apache-2.0
 
+import copy
 from typing import List, Dict, Set, Optional
 from collections import defaultdict
 
@@ -11,7 +12,8 @@ import torch
 class IOTracer:
     # For a list of graphs, find which inputs affect which outputs. Cache results to make tracing faster.
     def __init__(self, graphs: List[torch.fx.Graph]):
-        self.graphs = graphs
+        self.graphs = copy.copy(graphs)
+        assert len(graphs) == len(set(graphs)), "Graph list must not have duplicates"
         self.input_to_output_map : Dict[torch.fx.Node, List[torch.fx.Node]] = {}
 
     def remove_graph(self, graph: torch.fx.Graph):
@@ -30,7 +32,6 @@ class IOTracer:
         if input not in self.input_to_output_map:
             self._trace_graph(input.graph)
 
-        print(" - get_output_nodes", input.name, self.input_to_output_map[input])
         return self.input_to_output_map[input]
 
     def _trace_graph(self, graph: torch.fx.Node):
@@ -43,10 +44,8 @@ class IOTracer:
             for user in node.users:
                 if user.op == "output":
                     node_to_output[node].add(node)
-                    print(f" {node.name} -> direct output")
                 elif user in node_to_output: # depth-first, so we should have already reached the outputs if we hit the node again - no cycles
                     node_to_output[node].update(node_to_output[user])
-                    print(f" {node.name} -> extended output to {node_to_output[user]}")
                 else:
                     node_to_output[node].update(trace(user))
             return node_to_output[node]

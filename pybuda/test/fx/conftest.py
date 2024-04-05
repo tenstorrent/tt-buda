@@ -1,5 +1,13 @@
 import torch
+import pytest
+
 from pybuda.torch_compile import compile_torch
+from pybuda.config import remove_cpu_fallback_ops
+
+@pytest.fixture(autouse=True)
+def disable_embedding_fallback():
+    remove_cpu_fallback_ops("embedding")
+    yield
 
 torch._dynamo.reset()
 def generic_model_test(src_model, num_inputs = 1, num_outputs = 1, inputs = []):

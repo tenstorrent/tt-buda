@@ -342,9 +342,9 @@ class compiledModel(torch.nn.Module):
             if item.fallback:
                 # CPU graph
                 logger.trace(f"Running fallback graph on CPU: {item.graph_index}")
-                graph_module = torch.fx.GraphModule({}, item.graph)
+                #graph_module = torch.fx.GraphModule({}, item.graph)
                 graph_inputs = [i.to('cpu') for i in graph_inputs]
-                graph_outputs = graph_module(*graph_inputs)
+                graph_outputs = item.graph_module(*graph_inputs)
                 logger.trace(f"Done, produced {len(graph_outputs)} outputs.")
                 graph_outputs = tuple(t.to('tt') for t in graph_outputs)
             else:

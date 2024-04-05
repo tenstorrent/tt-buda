@@ -2,7 +2,6 @@
 
 # SPDX-License-Identifier: Apache-2.0
 import pytest
-from tensorflow.security.fuzzing import py
 import torch
 from pybuda.torch_compile import compile_torch
 
