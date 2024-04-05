@@ -15,13 +15,6 @@ def openpose_hand(training: bool, config: str, microbatch: int, devtype: str, ar
     sys.path.append(os.path.join(os.path.dirname(__file__), '../../../../../', 'third_party/confidential_customer_models/'))
     from benchmarks.openpose import OpenPoseHandModel, transfer
 
-    available_devices = pybuda.detect_available_devices()
-    if available_devices:
-        # Hang, this piece of code should be removed when we consume the budabackend fix
-        # https://yyz-gitlab.local.tenstorrent.com/tenstorrent/budabackend/-/merge_requests/1684
-        if available_devices[0] == BackendDevice.Grayskull:
-            return
-
     # Configurations
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.enable_auto_transposing_placement = True
