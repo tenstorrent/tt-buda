@@ -107,7 +107,7 @@ class PythonWriter():
 class PyBudaWriter(PythonWriter):
     incompatible_np_float_types = [tf.bfloat16, ]
 
-    def __init__(self, module_name, framework, contains_incompatible_np_floats=False):
+    def __init__(self, module_name, framework, contains_incompatible_np_floats=False, delete_inputs=True):
         super().__init__(module_name)
 
         self.framework = framework
@@ -115,6 +115,7 @@ class PyBudaWriter(PythonWriter):
         self.const_names = []
         self.num_submodels = 0
         self.contains_incompatible_np_floats = contains_incompatible_np_floats
+        self.delete_inputs = delete_inputs
         self.dev = "TTDevice"
 
     def write_header(self):
@@ -234,8 +235,9 @@ class PyBudaWriter(PythonWriter):
                     self.wl(f"{ops[key].output_name} = {ops[key].function_name}({activation_names}{arg_text}){set_src_layer}")
             else:
                 self.wl(f"{ops[key].output_name} = {ops[key].function_name}(\"{ops[key].node_name}\"{activation_names}{arg_text}){set_src_layer}")
-                for name_to_del in ops[key].inputs_to_delete:
-                    self.wl(f"{name_to_del}._value = None")
+                if self.delete_inputs:
+                    for name_to_del in ops[key].inputs_to_delete:
+                        self.wl(f"{name_to_del}._value = None")
 
         outputs = list(outputs.values())
         if len(outputs) == 1:

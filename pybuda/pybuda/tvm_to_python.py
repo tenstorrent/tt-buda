@@ -2107,7 +2107,10 @@ def compile_tvm_to_python(framework_mod, graph_name, inputs, module_name=None, c
             current_module_name += f"_{json_graph['device']}_{graph_index}" 
 
         if json_graph["device"] == "tt":
-            writer = PyBudaWriter(current_module_name, framework, contains_incompatible_np_floats=contains_incompatible_np_floats)
+            delete_inputs = not ((verify_cfg is not None and verify_cfg.verify_all) or compiler_cfg.enable_op_level_comparision)
+            if not delete_inputs:
+                logger.warning("Preserving Intermediate tensor values in PyBudaModule forward may causes out-of-memory issues")
+            writer = PyBudaWriter(current_module_name, framework, contains_incompatible_np_floats=contains_incompatible_np_floats, delete_inputs=delete_inputs)
         else:
             writer = PyTorchWriter(current_module_name, source_framework=framework)
 

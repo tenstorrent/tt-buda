@@ -173,6 +173,7 @@ class CompilerConfig:
 
     enable_tvm_dropout: bool = False        # (Temporary): Remove when buda supports dropout
     enable_tvm_unsupported_ops: bool = False# Create "unsupported" pybuda ops in python file, allowing user to modify later
+    enable_op_level_comparision: bool = False # Should we need to compare every op with framework output at each compilation stage.
     enable_tvm_constant_prop: bool = False  # Should we constant prop in tvm
     convert_framework_params_to_tvm: bool = True # Convert framework params to relay params
     enable_xla_jax_convert: bool = False    # Convert JAX model to TF through XLA
