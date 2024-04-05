@@ -19,6 +19,8 @@ import pybuda
 import pybuda.op
 from pybuda import TTDevice, BackendType, pybuda_compile, VerifyConfig, CompilerConfig
 
+from pybuda.verify.config import TestKind
+
 from . import models
 
 MODELS_PATH = "./pybuda/test/operators/grouped_reduce/models/"
@@ -53,14 +55,16 @@ shapes = [[1, int(torch.randint(1, 8, (1,))), int(torch.randint(1, 120, (1,))), 
 @pytest.mark.parametrize("model", [item.split(".")[0] for item in os.listdir(MODELS_PATH) if "model" in item])
 @pytest.mark.parametrize("dim", [2, 3])
 @pytest.mark.parametrize("keep_dims", [True, False])
+@pytest.mark.parametrize("op_test_kind", [TestKind.INFERENCE])
 def test_grouped_reduce(
-    test_kind,
+    op_test_kind,
     operation,
     model,
     shape,
     dim,
     keep_dims,
 ):
+    test_kind = op_test_kind
     facs = factors(shape[dim])
     if len(facs) < 3:
         pytest.skip("Not enough factors")

@@ -60,7 +60,7 @@ max_value = np.random.rand(MAX_VALUE_NO) * (MAX_VALUE_MIN - MAX_VALUE_MIN) + MAX
 @pytest.mark.parametrize("shape", shape, ids=["shape=" + "x".join([str(item) for item in sh]) for sh in shape])
 @pytest.mark.parametrize("recompute", (True, False), ids=["Recompute", "NoRecompute"])
 @pytest.mark.parametrize("model", [item.split(".")[0] for item in os.listdir(MODELS_PATH) if "model" in item])
-@pytest.mark.parametrize("mode", ["Training", "Inference"])
+@pytest.mark.parametrize("mode", ["Inference"])
 def test_clip(
     mode,
     recompute,

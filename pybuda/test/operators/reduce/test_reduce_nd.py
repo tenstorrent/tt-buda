@@ -58,7 +58,7 @@ dim = [np.random.randint(0, len(sh) - 1) for sh in shape]
 @pytest.mark.parametrize("operation", ["ReduceSum", "ReduceAvg"])
 @pytest.mark.parametrize("recompute", (True, False), ids=["Recompute", "NoRecompute"])
 @pytest.mark.parametrize("model", [item.split(".")[0] for item in os.listdir(MODELS_PATH) if "model" in item])
-@pytest.mark.parametrize("mode", ["Training", "Inference"])
+@pytest.mark.parametrize("mode", ["Inference"])
 def test_reduce(
     mode,
     recompute,

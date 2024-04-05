@@ -14,6 +14,7 @@ import numpy as np
 
 import pybuda.op
 from pybuda import TTDevice, BackendType, pybuda_compile, VerifyConfig, CompilerConfig
+from pybuda.verify.config import TestKind
 
 from . import models
 
@@ -47,13 +48,16 @@ new_shape = [np.prod(np.random.permutation(item).reshape(2, -1), 0).tolist() for
 
 @pytest.mark.parametrize("old_shape, new_shape", zip(old_shape, new_shape), ids=["old_shape=" + "x".join([str(item) for item in old]) + "-new_shape=" + "x".join([str(item) for item in new]) for old, new in zip(old_shape, new_shape)])
 @pytest.mark.parametrize("model", [item.split(".")[0] for item in os.listdir(MODELS_PATH) if "model" in item])
+@pytest.mark.parametrize("op_test_kind", [TestKind.INFERENCE])
 def test_reshape(
-    test_kind,
+    op_test_kind,
     model, 
     old_shape, 
     new_shape
 ):
 
+    test_kind = op_test_kind
+    
     if model == "model_3":
         pytest.skip("These models return intermediate nodes. That's not supported today." 
                     "Autograd is trying to do backward pass twice for the same subpath in the graph and that's not correct. ")

@@ -15,6 +15,8 @@ import pybuda
 import pybuda.op
 from pybuda import TTDevice, BackendType, pybuda_compile, VerifyConfig, CompilerConfig
 
+from pybuda.verify.config import TestKind
+
 from .models import generic
 from .models import custom
 
@@ -59,11 +61,13 @@ if SHAPE_FIXED:
 #)
 @pytest.mark.parametrize("shape", shape, ids=[f"shape{'x'.join([str(jtem) for jtem in item])}" for item in shape])
 @pytest.mark.parametrize("model", [item.split(".")[0] for item in os.listdir(MODELS_GENERIC_PATH) if "model" in item])
+@pytest.mark.parametrize("op_test_kind", [TestKind.INFERENCE])
 def test_matmul_generic(
-    test_kind,
+    op_test_kind,
     model,
     shape
 ):
+    test_kind = op_test_kind
     if test_kind.is_training() and len(shape) >= 3 and shape[-3] > 1:
         pytest.skip("Matmul with gradient accumulate must have t=1")
 

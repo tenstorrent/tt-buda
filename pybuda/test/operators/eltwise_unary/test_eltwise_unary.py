@@ -52,14 +52,14 @@ if SHAPE_FIXED:
 @pytest.mark.parametrize("shape", shape, ids=[f"shape{'x'.join([str(jtem) for jtem in item])}" for item in shape])
 @pytest.mark.parametrize("operation", ["Abs", "LeakyRelu", "Exp", "Identity", "Reciprocal", "Sigmoid", "Sqrt", "Gelu", "Log", "Relu", "Buffer", "Tanh", "Dropout", "Sine", "Cosine", "Argmax", "Clip"])
 @pytest.mark.parametrize("model", [item.split(".")[0] for item in os.listdir(MODELS_PATH) if "model" in item])
-@pytest.mark.parametrize("un_test_kind", [TestKind.INFERENCE])
+@pytest.mark.parametrize("op_test_kind", [TestKind.INFERENCE])
 def test_eltwise_unary(
-    un_test_kind,
+    op_test_kind,
     operation,
     model,
     shape
 ):
-    test_kind = un_test_kind
+    test_kind = op_test_kind
 
     if model == "model_9" and operation == "Reciprocal":
         pytest.xfail("tenstorrent/pybuda#18")

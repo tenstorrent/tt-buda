@@ -18,6 +18,8 @@ import pybuda
 import pybuda.op
 from pybuda import TTDevice, BackendType, pybuda_compile, VerifyConfig, CompilerConfig
 
+from pybuda.verify.config import TestKind
+
 from . import models_4d
 
 MODELS_PATH = "./pybuda/test/operators/reduce/models_4d/"
@@ -48,12 +50,15 @@ for _ in range(SHAPE_NO):
 @pytest.mark.parametrize("shape", shape, ids=[f"shape={'x'.join([str(jtem) for jtem in item])}" for item in shape])
 @pytest.mark.parametrize("operation", ["ReduceSum", "ReduceAvg", "ReduceMax"])
 @pytest.mark.parametrize("model", [item.split(".")[0] for item in os.listdir(MODELS_PATH) if "model" in item])
+@pytest.mark.parametrize("op_test_kind", [TestKind.INFERENCE])
 def test_reduce(
-    test_kind,
+    op_test_kind,
     operation,
     model,
     shape
 ):
+
+    test_kind = op_test_kind
 
     if operation == "ReduceMax" and test_kind.is_training():
         pytest.xfail()

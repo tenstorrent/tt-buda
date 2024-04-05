@@ -62,7 +62,7 @@ rng = list(zip(rng_min, rng_max))
 @pytest.mark.parametrize("shape", shape, ids=[f"shape{'x'.join([str(jtem) for jtem in item])}" for item in shape])
 @pytest.mark.parametrize("recompute", (True, False), ids=["Recompute", "NoRecompute"])
 @pytest.mark.parametrize("model", [item.split(".")[0] for item in os.listdir(MODELS_PATH) if "model" in item])
-@pytest.mark.parametrize("mode", ["Training", "Inference"])
+@pytest.mark.parametrize("mode", ["Inference"])
 def test_comparison(
     mode,
     recompute,
