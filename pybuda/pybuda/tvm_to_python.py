@@ -1943,6 +1943,13 @@ def compile_tvm_to_python(framework_mod, graph_name, inputs, module_name=None, c
                         input_node["users"] = []
                     input_node["users"].append(nid)
                     input_names.append(input_node["buda_name"])
+                # Handle concatenate case when a single node name in referenced twice in the input list
+                if node["name"] == "pybuda.concatenate" and len(input_names) == 1:              
+                    inp_shape = graph["nodes"][node["inputs"][input_port][0]]["attrs"]["shape"][0][0]
+                    out_shape = node["attrs"]["shape"][0][0]
+                    
+                    if inp_shape[:2] == out_shape[:2] and inp_shape[2] * 2 == out_shape[2]:
+                        input_names = [input_names[0], input_names[0]]
 
                 ops[node["nid"]] = Operation(
                     function_name=function_name,

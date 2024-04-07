@@ -216,7 +216,6 @@ class PyBudaWriter(PythonWriter):
             set_src_layer = ""
             if ops[key].src_layer:
                 set_src_layer = f'.set_src_layer("{ops[key].src_layer}")'
-
             if ops[key].is_submodule_call:
                 if len(ops[key].loop_with):
                     if len(ops[key].loop_with) + 1 == self.num_submodels:
