@@ -24,6 +24,7 @@ def resnet(training: bool, config: str, microbatch: int, devtype: str, arch: str
         os.environ["PYBUDA_RIBBON2"] = "1"
 
     os.environ["PYBUDA_ENABLE_HOST_INPUT_NOP_BUFFERING"] = "1"
+    os.environ["PYBUDA_ALLOW_MULTICOLUMN_SPARSE_MATMUL"] = "1"
 
     # These are about to be enabled by default.
     #
@@ -31,6 +32,7 @@ def resnet(training: bool, config: str, microbatch: int, devtype: str, arch: str
     os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
     os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
     os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
+    os.environ["PYBUDA_RIBBON2_CONSERVATIVE_OPTIMIZATION_ITERATIONS"] = "10"
 
     if data_type == "Fp16_b":
         os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES_APPLY_FILTERING"] = "1"

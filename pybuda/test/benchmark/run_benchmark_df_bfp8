@@ -4,10 +4,6 @@
 
 # Default data format (-df) is Bfp8_b, default math fidelity (-mf) is LoFi
 
-# Mobilenet v1
-# We keep both commands with LoFi math fidelity, because with LoFi math fidelity we have worse performance.
-pybuda/test/benchmark/benchmark.py -m mobilenet_v1 -c 224 -o pybuda-silicon-wh-b0-perf-all-bfp8_b-perf.json
-
 # Mobilenet v3
 pybuda/test/benchmark/benchmark.py -m mobilenet_v3_timm -c large -o pybuda-silicon-wh-b0-perf-all-bfp8_b-perf.json
 

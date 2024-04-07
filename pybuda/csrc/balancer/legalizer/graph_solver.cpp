@@ -970,8 +970,9 @@ void GraphSolver::update_solver(graphlib::Node const* root, bool expand_root, bo
         // Cumulative cost of user edges going out of this producer
         path_changed |= apply_cumulative_costs<false>(user_path_sets, node, EdgeCost::producer_cost_fns);
 
-        // If any of the paths between producer and this consumer changed, we need to visit producer node and add its operands and users to the needs_update list.
-        for(size_t i = 0; i < producers_changed.size(); i++)
+        // If any of the paths between producer and this consumer changed, we need to visit producer node and add its
+        // operands and users to the needs_update list.
+        for (size_t i = 0; i < producers_changed.size(); i++)
         {
             if (path_changed || producers_changed[i])
             {
@@ -986,8 +987,9 @@ void GraphSolver::update_solver(graphlib::Node const* root, bool expand_root, bo
             }
         }
 
-        // If any of the paths between this producer and consumer changed, we need to visit consumer node and add its operands and users to the needs_update list.
-        for(size_t i = 0; i < consumers_changed.size(); i++)
+        // If any of the paths between this producer and consumer changed, we need to visit consumer node and add its
+        // operands and users to the needs_update list.
+        for (size_t i = 0; i < consumers_changed.size(); i++)
         {
             if (path_changed || consumers_changed[i])
             {
@@ -1073,16 +1075,16 @@ const std::vector<OpModel>& GraphSolver::get_legal_op_models(graphlib::Node cons
     // For Queue take its producer OpModels.
     //
 
-    if (node->node_type() == graphlib::kInput) {
+    if (node->node_type() == graphlib::kInput)
+    {
         auto subgraph_link_edges =
-                        graph->operand_edges(node, [](Edge e) { return e.edge_type == graphlib::EdgeType::kSubgraphLink; });
+            graph->operand_edges(node, [](Edge e) { return e.edge_type == graphlib::EdgeType::kSubgraphLink; });
 
         // When we have multiple subgraphs, opmodel must be the same for producer output node and consumer input node
         // so that we can leave producer subgraph output on device and let consumer subgraph input to consume it as is.
-        if (subgraph_link_edges.size() == 1 and
-            node->get_epoch_type() == graphlib::Forward and
-            graph->node_by_id(subgraph_link_edges[0].producer_node_id)->get_epoch_type() == graphlib::Forward
-        ) {
+        if (subgraph_link_edges.size() == 1 and node->get_epoch_type() == graphlib::Forward and
+            graph->node_by_id(subgraph_link_edges[0].producer_node_id)->get_epoch_type() == graphlib::Forward)
+        {
             graphlib::Node* output_node = graph->node_by_id(subgraph_link_edges[0].producer_node_id);
             TT_ASSERT(output_node->node_type() == graphlib::kOutput);
             node = graph->data_operands(output_node).front();
@@ -1901,6 +1903,7 @@ void GraphSolver::invalidate_suboptimal_op_models_for_op(
                     uint32_t disabled_op_models = 0;
                     uint32_t discarded_op_models = 0;
                     Bitset discarded_op_models_bitset;
+                    int sparse_column_limit = env_as<bool>("PYBUDA_ALLOW_MULTICOLUMN_SPARSE_MATMUL", false) ? 2 : 1;
 
                     for (size_t i = 0; i < op_model_count; i++)
                     {
@@ -1910,7 +1913,7 @@ void GraphSolver::invalidate_suboptimal_op_models_for_op(
                             continue;
                         }
 
-                        if (op_models[i].grid_shape.c != 1)
+                        if (op_models[i].grid_shape.c > sparse_column_limit)
                         {
                             discarded_op_models_bitset.set(i);
                             discarded_op_models++;

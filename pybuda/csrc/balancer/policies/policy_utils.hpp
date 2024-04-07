@@ -48,6 +48,7 @@ class EpochSolution
     int pcie_writers_core_count;
     int epoch_target_cycles;
     mutable int pipeline_cycles;
+    mutable int used_cores;
 
     float evaluate() const;
     void recalc_nodes();
@@ -95,6 +96,8 @@ class EpochSolution
     int get_pipeline_cycles() const { return pipeline_cycles; }
     int get_dram_access_core_count() const { return dram_readers_core_count + dram_writers_core_count; }
     int get_pcie_access_core_count() const { return pcie_readers_core_count + pcie_writers_core_count; }
+    float get_used_cores_ratio() const { return static_cast<float>(used_cores) / balancer_config->get_total_cores(); }
+    int get_free_cores() const { return balancer_config->get_total_cores() - used_cores; }
 };
 
 struct EpochCost

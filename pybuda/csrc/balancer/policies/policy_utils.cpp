@@ -1718,7 +1718,7 @@ float EpochSolution::evaluate() const
 
     log_trace(LogBalancer, "RIBBON2: pipeline_cycles = {}", pipeline_cycles);
 
-    float used_cores = 0;
+    int used_cores = 0;
     float utilization = 0;
     for (const auto &op_model : selected_op_models)
     {
@@ -1755,6 +1755,7 @@ float EpochSolution::evaluate() const
         utilization);
 
     this->pipeline_cycles = pipeline_cycles;
+    this->used_cores = used_cores;
 
     return utilization;
 }

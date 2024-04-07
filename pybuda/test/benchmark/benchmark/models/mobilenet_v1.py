@@ -28,23 +28,20 @@ def mobilenet_v1(training: bool, config: str, microbatch: int, devtype: str, arc
     os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
     os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
     os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
+    os.environ["PYBUDA_RIBBON2_CONSERVATIVE_OPTIMIZATION_ITERATIONS"] = "10"
+
 
     if data_type == "Fp16_b":
         os.environ["PYBUDA_SUPRESS_T_FACTOR_MM"] = "40"
+        os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
 
     if data_type == "Bfp8_b":
-        os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
+        os.environ["PYBUDA_FUSE_DF_OVERRIDE"] = "0"
         pybuda.config.configure_mixed_precision(name_regex="input.*add.*", output_df=pybuda.DataFormat.Float16_b)
         pybuda.config.configure_mixed_precision(op_type="add", output_df=pybuda.DataFormat.Float16_b)
-        if math_fidelity == "LoFi":
-            pybuda.config.configure_mixed_precision(op_type="multiply", math_fidelity=pybuda.MathFidelity.HiFi2)
-            pybuda.config.configure_mixed_precision(op_type="depthwise", output_df=pybuda.DataFormat.Float16_b, math_fidelity=pybuda.MathFidelity.HiFi2)
-        else:
-            pybuda.config.configure_mixed_precision(op_type="depthwise", output_df=pybuda.DataFormat.Float16_b)
-        os.environ["PYBUDA_FUSE_DF_OVERRIDE"] = "0"
+        pybuda.config.configure_mixed_precision(op_type="multiply", math_fidelity=pybuda.MathFidelity.HiFi2)
+        pybuda.config.configure_mixed_precision(op_type="depthwise", output_df=pybuda.DataFormat.Float16_b, math_fidelity=pybuda.MathFidelity.HiFi2)
 
-    if data_type == "Fp16_b":
-        os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
 
     # Set model parameters based on chosen task and model configuration
     model_name = ""

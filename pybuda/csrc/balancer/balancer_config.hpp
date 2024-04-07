@@ -135,6 +135,11 @@ struct BalancerConfig
             return {};
         return op_override->second;
     }
+
+    int get_total_cores() const
+    {
+        return device_config.grid_size.size();
+    }
 };
 
 }  // namespace tt::balancer

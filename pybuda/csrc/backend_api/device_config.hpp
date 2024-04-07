@@ -26,6 +26,7 @@ struct DeviceGrid
 
     DeviceGrid(int r, int c) : r(r), c(c) {}
     DeviceGrid(std::pair<int, int> p) : r(p.first), c(p.second) {}
+    int size() const { return r * c; }
 };
 
 struct CoreCoord

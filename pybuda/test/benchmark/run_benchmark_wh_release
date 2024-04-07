@@ -10,7 +10,7 @@ pybuda/test/benchmark/benchmark.py -m resnet -c resnet50 -o pybuda-silicon-wh-b0
 pybuda/test/benchmark/benchmark.py -m resnet_quant -c resnet50 -df Fp32 -mf HiFi4 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # Mobilenet v1 bfp8_b
-pybuda/test/benchmark/benchmark.py -m mobilenet_v1 -c 224 -mf HiFi2 -o pybuda-silicon-wh-b0-perf-all-perf.json
+pybuda/test/benchmark/benchmark.py -m mobilenet_v1 -c 224 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # Mobilenet v2 bfp8_b
 pybuda/test/benchmark/benchmark.py -m mobilenet_v2 -c 224 -o pybuda-silicon-wh-b0-perf-all-perf.json
