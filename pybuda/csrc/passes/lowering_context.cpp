@@ -392,17 +392,25 @@ void copy_operand_edges_to_new_graph(
 
 void lower_edge_tms(Graph *old_graph, Edge &old_edge, std::shared_ptr<graphlib::EdgeAttributes> new_attr)
 {
-    // Broadcasts were in the original dimensions, so we need to conver to 4d buda
+    // Broadcasts were in the original dimensions, so we need to convert to 4d buda
     std::vector<graphlib::OpType> old_tms = old_graph->get_edge_attributes(old_edge)->get_tms();
 
     for (const graphlib::OpType &tm : old_tms)
     {
-        int delta = 4 - old_graph->node_by_id(old_edge.producer_node_id)->shape().as_vector().size();
+        // Handle delta calculation for producers that are greater then 4D. For 4D shapes
+        // and below, we need to account for 4 dimensions to match the Buda expectations.
+        int delta = 0;
+        int producer_rank = old_graph->node_by_id(old_edge.producer_node_id)->shape().as_vector().size();
+        if (producer_rank <= 4) {
+            delta = 4 - producer_rank;
+            producer_rank = 4;
+        }
+
         auto new_tm = graphlib::OpType(tm);
 
         // If TM attr is referenced backwards (negative indexing), directly convert to positive axis.
         if (std::get<int>(new_tm.attr[0]) < 0) {
-            std::get<int>(new_tm.attr[0]) += 4;
+            std::get<int>(new_tm.attr[0]) += producer_rank;
         } else {
             std::get<int>(new_tm.attr[0]) += delta;
         }

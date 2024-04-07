@@ -29,6 +29,8 @@ class Nop(BudaEltwiseUnaryOp):
         relu_en=False,
         relu_threshold=0,
         relu_mode=None,
+        squeeze=None,
+        squeeze_dim=None,
         unsqueeze=None,
         unsqueeze_dim=None,
     ):
@@ -38,8 +40,10 @@ class Nop(BudaEltwiseUnaryOp):
             self.set_buda_attr("relu_en", relu_en)
             self.set_buda_attr("relu_threshold", relu_threshold)
             self.set_buda_attr("relu_mode", relu_mode)
-        # Adding unsqueeze attr for Nop unsqueeze
-        self.unsqueeze = unsqueeze    
+        # Adding (un)squeeze attr for Nop (un)squeeze
+        self.squeeze = squeeze
+        self.squeeze_dim = squeeze_dim
+        self.unsqueeze = unsqueeze
         self.unsqueeze_dim = unsqueeze_dim
 
         return self
@@ -66,8 +70,14 @@ class Nop(BudaEltwiseUnaryOp):
                 f"Tile height {tile_height} is larger than max allowed TILE_DIM {TILE_DIM}"
             )
 
-        # Add NOP unsqueeze condition
-        # extend 4D -> 5D for unsqueeze NOP
+        # Add NOP squeeze condition squash 5D -> 4D for squeeze NOP
+        if hasattr(self, 'squeeze') and hasattr(self, 'squeeze_dim'):
+            if (self.squeeze and self.squeeze_dim != None):
+                if self.squeeze_dim == 0:
+                    ops_updated = Shape.create_buda(shape[1:], tile_height, tile_width)
+                    return ops_updated, []
+
+        # Add NOP unsqueeze condition extend 4D -> 5D for unsqueeze NOP
         if hasattr(self, 'unsqueeze') and hasattr(self, 'unsqueeze_dim'):
             if (self.unsqueeze is not None and self.unsqueeze_dim is not None):
                 if self.unsqueeze_dim == 4:

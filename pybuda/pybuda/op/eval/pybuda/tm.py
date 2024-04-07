@@ -861,6 +861,10 @@ def lower(type, attr, lc, ops, outputs):
 
     elif type == "squeeze":
         assert len(attr) == 1
+        if len(ops[0].shape) >= 5:
+            assert attr[0] == 0, f"Squeeze 5D tensors to 4D is only supported for the 1st dim: {attr[0]}" 
+            return lc.op(BudaNop.create(squeeze="squeeze", squeeze_dim=attr[0]), ops, tag="dont_remove")
+
         return lc.op(BudaNop.create(), ops)
 
     elif (type == "hstack" or type == "hslice") and attr[0] == 1:
