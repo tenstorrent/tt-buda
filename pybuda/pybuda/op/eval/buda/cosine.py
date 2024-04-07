@@ -24,9 +24,10 @@ from pybuda._C.graph import UBlockOrder, Shape
 
 class Cosine(BudaEltwiseUnaryOp):
     @classmethod
-    def create(cls, vector=""):
+    def create(cls, vector=None):
         self = cls("cosine")
-        self.set_buda_attr("vector", vector)
+        if vector is not None:
+            self.set_buda_attr("vector", vector)
         return self
 
     def eval(self, tensors):

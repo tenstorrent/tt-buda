@@ -44,13 +44,13 @@ class Cosine(PyEltwiseUnaryOp):
 
     def lower(self, lc, tensors, outputs):
         assert len(tensors) == 1, "Cosine should  have one input"
-        vector = ""
         if bool(int(os.environ.get("PYBUDA_ENABLE_TINY_TILE", "0"))):
             node_shape = list(tensors[0].shape)
             tile_height = calculate_tile_size(node_shape[-2])
             tile_width = calculate_tile_size(node_shape[-1])
             vector = "" if tile_height == TILE_DIM else "r"
         else:
+            vector = None
             tile_height, tile_width = TILE_DIM, TILE_DIM
 
         lc.op(
