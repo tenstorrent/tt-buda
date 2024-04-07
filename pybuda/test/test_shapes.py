@@ -59,9 +59,6 @@ broadcast_shapes = (
     ( (32, 1),           (1, 1) ),
     ( (1, 1, 1, 32, 32), (1, 1, 1, 1, 32) ),
 
-    # Invalid test case (commenting out), previously doing broadcast on the wrong axis (3th instead of 4th)
-    # ( (1, 1, 1, 32, 32), (1, 1, 1, 32, 1) ), 
-
     # not divisible by 32
     ( (1, 1, 32, 33),    (1, 1, 1, 33) ),
     ( (1, 1, 33, 32),    (1, 1, 33, 1) ),
