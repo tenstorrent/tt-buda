@@ -123,6 +123,8 @@ class VerifyConfig:
     if verify_all:
         verify_pipeline_result_vs_framework = True
         verify_pybuda_codegen_vs_framework = True
+        verify_tvm_compile = True
+        verify_each_buda_pass = True
 
     def __post_init__(self):
         # set defaults if not set explicitly by user. Relax under silicon, focus on pcc more.
