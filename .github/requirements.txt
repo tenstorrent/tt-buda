@@ -1,1 +1,1 @@
-check-copyright
+check-copyright @ git+https://github.com/espressif/check-copyright.git@master
