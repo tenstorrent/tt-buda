@@ -16,4 +16,4 @@ jobs:
       - name: Install requirements
         run: python -m pip install -r .github/requirements.txt
       - name: Check SPDX licenses
-        run: python -m check_copyright --verbose --dry-run --config ./check_copyright_config.yaml .
+        run: python -m check_copyright --verbose --dry-run --config ./check_copyright_config.yml .

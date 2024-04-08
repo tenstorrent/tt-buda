@@ -9,8 +9,8 @@ on:
 
 jobs:
   static-checks:
-    uses: ./.github/workflows/static-checks.yaml
+    uses: ./.github/workflows/static-checks.yml
     secrets: inherit
   build-artifacts:
-    uses: ./.github/workflows/build-artifacts.yaml
+    uses: ./.github/workflows/build-artifacts.yml
     secrets: inherit

@@ -9,14 +9,14 @@ on:
 
 jobs:
   static-checks:
-    uses: ./.github/workflows/all-static-checks.yaml
+    uses: ./.github/workflows/all-static-checks.yml
     secrets: inherit
   build-artifact:
-    uses: ./.github/workflows/build-artifact.yaml
+    uses: ./.github/workflows/build-artifact.yml
     secrets: inherit
   sanity-test:
-    uses: ./.github/workflows/sanity-test.yaml
+    uses: ./.github/workflows/sanity-test.yml
     secrets: inherit
   silicon-test:
-    uses: ./.github/workflows/silicon-test.yaml
+    uses: ./.github/workflows/silicon-test.yml
     secrets: inherit
