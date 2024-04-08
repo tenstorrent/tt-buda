@@ -540,7 +540,7 @@ if __name__ == "__main__":
 
     if model_config is None:
         print("The model configuration is empty. ")
-        exit(0)
+        exit(1)
         
     duts, inputs, targets, other = model_config
     implied_microbatch = inputs[0].shape[0]
@@ -557,6 +557,7 @@ if __name__ == "__main__":
             "machine_name": socket.gethostname()
         }
         print("Error encountered while running benchmark: ", e)
+        exit(1)
 
     import subprocess
     short_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
