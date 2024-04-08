@@ -1,0 +1,15 @@
+name: "Silicon tests"
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  silicon-test:
+    runs-on: ubuntu-latest
+    steps:
+      # - uses: actions/checkout@v4
+      - name: TBD silicon test
+        run: echo "TBD silicon test placeholder"
+      - name: Sleep 20
+        run: echo "Sleep 20"

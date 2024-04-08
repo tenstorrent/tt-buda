@@ -1,0 +1,16 @@
+name: Pull request workflow
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  static-checks:
+    uses: ./.github/workflows/static-checks.yaml
+    secrets: inherit
+  build-artifacts:
+    uses: ./.github/workflows/build-artifacts.yaml
+    secrets: inherit

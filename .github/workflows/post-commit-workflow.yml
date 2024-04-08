@@ -1,0 +1,22 @@
+name: "Post commit workflow"
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    branches:
+      - main
+
+jobs:
+  static-checks:
+    uses: ./.github/workflows/all-static-checks.yaml
+    secrets: inherit
+  build-artifact:
+    uses: ./.github/workflows/build-artifact.yaml
+    secrets: inherit
+  sanity-test:
+    uses: ./.github/workflows/sanity-test.yaml
+    secrets: inherit
+  silicon-test:
+    uses: ./.github/workflows/silicon-test.yaml
+    secrets: inherit

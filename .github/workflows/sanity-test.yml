@@ -1,0 +1,15 @@
+name: "Sanity tests"
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  sanity-test:
+    runs-on: ubuntu-latest
+    steps:
+      # - uses: actions/checkout@v4
+      - name: TBD sanity test
+        run: echo "TBD sanity test placeholder"
+      - name: Sleep 10
+        run: echo "Sleep 10"
