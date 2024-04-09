@@ -57,7 +57,6 @@ def test_to_double():
     tensor = torch.rand(32, 32).to('tt')
     tensor.to(dtype=torch.double)
  
-@pytest.mark.skip(reason="https://yyz-gitlab.local.tenstorrent.com/tenstorrent/pybuda/-/issues/2429")
 def test_print():
     tensor = torch.rand(32, 32).to('tt')
     print(tensor)

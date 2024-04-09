@@ -376,7 +376,7 @@ def generate_device_inputs_from_sample_inputs(inputs: List[torch.Tensor], schedu
         graph_inputs = []
         for i in item.inputs:
             if i.src == TensorSource.INTERMEDIATE:
-                graph_inputs.append(intermediates[i.index].to('tt'))
+                graph_inputs.append(intermediates[i.index])
             elif i.src == TensorSource.INPUT:
                 graph_inputs.append(inputs[i.index])
             else:

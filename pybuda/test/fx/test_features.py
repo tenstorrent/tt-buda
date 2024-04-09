@@ -157,7 +157,6 @@ class ClipArgmaxSandwich(torch.nn.Module):
             ]
         return pooled_output
 
-@pytest.mark.skip(reason="https://yyz-gitlab.local.tenstorrent.com/tenstorrent/pybuda/-/issues/2496")
 def test_fallback_before_and_after():
     # Fallback before and after, with device in the middle
     shape = (1, 128, 768)

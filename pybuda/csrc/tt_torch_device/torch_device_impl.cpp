@@ -608,7 +608,7 @@ TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)
     // m.impl("aten::to", &tt::to);
     m.impl("aten::_copy_from_and_resize", &tt::_copy_from_and_resize);
     m.impl("aten::_reshape_alias", &tt::_reshape_alias);
-    m.impl("aten::as_strided", &tt::as_strided);
+    // m.impl("aten::as_strided", &tt::as_strided);
     m.impl("aten::index.Tensor_out", &tt::index_outf);
     m.impl("aten::view", &tt::view);
 }
