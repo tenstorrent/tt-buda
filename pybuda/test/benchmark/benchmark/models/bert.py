@@ -9,25 +9,13 @@ from typing import Optional
 
 from pybuda import PyTorchModule
 from pybuda.config import _get_global_compiler_config
-from transformers import BertModel, BertConfig
+from transformers import BertModel, BertConfig, BertForSequenceClassification
+
 
 from ..common import benchmark_model
 
-# Embedding wrapper that extends and passes attention mask through - to run on host
-class EmbWrapper(torch.nn.Module):
-    def __init__(self, bert):
-        super().__init__()
-        self.bert = bert
-    def forward(self, input_ids, attention_mask, token_type_ids):
-        attention_mask = attention_mask * 1.0
-        emb_output = self.bert.embeddings(input_ids, token_type_ids)
-        # input_ids = input_ids * 1.0
-        # emb_output = input_ids.unsqueeze(2).repeat(1, 1, 1024)
-        extended_attention_mask = (1.0 - attention_mask) * -10000.0
-        extended_attention_mask = extended_attention_mask.unsqueeze(dim=-2)
-        return emb_output, extended_attention_mask
+class BertEncoderWrapper(torch.nn.Module):
 
-class BertWrapper(torch.nn.Module):
     def __init__(self, bert):
         super().__init__()
         self.bert = bert
@@ -35,11 +23,20 @@ class BertWrapper(torch.nn.Module):
     def forward(self, input_ids, attention_mask, token_type_ids):
         attention_mask = attention_mask * 1.0
         emb_output = self.bert.embeddings(input_ids, token_type_ids)
-        # input_ids = input_ids * 1.0
-        # emb_output = input_ids.unsqueeze(2).repeat(1, 1, 1024)
         extended_attention_mask = (1.0 - attention_mask) * -10000.0
         extended_attention_mask = extended_attention_mask.unsqueeze(dim=-2)
         return self.bert.encoder(emb_output, extended_attention_mask)
+
+
+class BertWrapper(torch.nn.Module):
+
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
+
+    def forward(self, input_ids, token_type_ids):
+        return self.model(input_ids, token_type_ids)
+
 
 @benchmark_model(configs=["tiny", "base", "large", "base_tc", "large_tc"])
 def bert(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str, force_num_layers: Optional[int] = None):
@@ -56,9 +53,6 @@ def bert(training: bool, config: str, microbatch: int, devtype: str, arch: str, 
         model_name = "bert-base-uncased"
         seq_len = 128
         target_microbatch = 128
-        # Testing!
-        #if not force_num_layers:
-        #    pybuda.config._get_global_compiler_config().place_on_new_epoch(f"matmul_518")
     elif config == "large":
         model_name = "bert-large-uncased"
         if training:
@@ -122,51 +116,42 @@ def bert(training: bool, config: str, microbatch: int, devtype: str, arch: str, 
     if microbatch == 0:
         microbatch = target_microbatch
 
-    cfg = BertConfig.from_pretrained(model_name)
-    if force_num_layers:
-        cfg.num_hidden_layers = force_num_layers
-    model = BertModel(config=cfg)
-    if not training:
-        model.eval()
+    if config == "large_tc":
+        model = BertForSequenceClassification.from_pretrained(model_name)
+    else:
+        cfg = BertConfig.from_pretrained(model_name)
+        if force_num_layers:
+            cfg.num_hidden_layers = force_num_layers
+        model = BertModel(config=cfg)
 
-    #
-    # Apply functional workarounds
-    #
+    # Configure model mode for training or evaluation
     if training:
-        #_get_global_compiler_config().enable_broadcast_splitting = True # fork error workaround
-        pass
+        model.train()
+    else:
+        model.eval()
 
     #
     # Create inputs, targets, models
     #
-    if "PYBUDA_SKIP_EMBEDDINGS" in os.environ:
+    if config == "large_tc":
         inputs = [
-            torch.rand(microbatch, seq_len, cfg.hidden_size), # emb_output
-            torch.rand(microbatch, 1, 1, seq_len), # extended_attention_mask
+            torch.randint(high=25000, size=(microbatch, seq_len), dtype=torch.int), # input tokens
+            torch.randint(high=2, size=(microbatch, seq_len), dtype=torch.int), # token type IDs
         ]
-        models = {"tt": PyTorchModule("bert_encoders", model.encoder)}
-    elif bool(int(os.environ.get("PYBUDA_DEVICE_EMBEDDINGS", "0"))) and not training:
+        models = {"tt": PyTorchModule("bert", BertWrapper(model))}
+    else:
         inputs = [
             torch.randint(high=25000, size=(microbatch, seq_len), dtype=torch.int), # input tokens
             torch.randint(high=2, size=(microbatch, 1, seq_len), dtype=torch.float), # mask
             torch.randint(high=2, size=(microbatch, seq_len), dtype=torch.int), # token type IDs
         ]
-        models = {"tt": PyTorchModule("bert", BertWrapper(model))}
+        models = {"tt": PyTorchModule("bert", BertEncoderWrapper(model))}
         pybuda.config._get_global_compiler_config().cpu_fallback_ops.remove("embedding")
-    else:
-        inputs = [
-            torch.randint(high=25000, size=(microbatch, seq_len), dtype=torch.int), # input tokens
-            torch.randint(high=2, size=(microbatch, seq_len), dtype=torch.int), # mask
-            torch.randint(high=2, size=(microbatch, seq_len), dtype=torch.int), # token type IDs
-        ]
-        models = {"cpu-pre": PyTorchModule("bert_emb", EmbWrapper(model)), "tt": PyTorchModule("bert_encoders", model.encoder)}
 
     targets = tuple()
     if training:
         targets = [torch.rand(microbatch, seq_len, cfg.hidden_size)]
         models["cpu-loss"] = PyTorchModule("l1loss", torch.nn.L1Loss())
-
-    #pybuda.config.set_num_repeated_patterns(models["tt"].get_name(), len(models["tt"].module.layer))
 
     return models, inputs, targets, {}
 
