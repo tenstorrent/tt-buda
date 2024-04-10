@@ -1,0 +1,13 @@
+name: Pull request workflow
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-artifacts:
+    uses: ./.github/workflows/build-artifacts.yaml
+    secrets: inherit
