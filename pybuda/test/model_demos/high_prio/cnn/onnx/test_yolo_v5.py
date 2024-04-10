@@ -82,7 +82,7 @@ def test_yolo_v5_320x320_onnx(test_device, variant):
     model_name = f"{variant}_{input_size}_onnx"
 
     # Load data sample
-    url = "https://ultralytics.com/images/zidane.jpg"
+    url = "http://images.cocodataset.org/val2017/000000397133.jpg"
     image = Image.open(requests.get(url, stream=True).raw).convert("RGB")
 
     # Data preprocessing on Host
@@ -157,7 +157,7 @@ def test_yolo_v5_480x480_onnx(test_device, variant):
     model_name = f"{variant}_{input_size}_onnx"
 
     # Load data sample
-    url = "https://ultralytics.com/images/zidane.jpg"
+    url = "http://images.cocodataset.org/val2017/000000397133.jpg"
     image = Image.open(requests.get(url, stream=True).raw).convert("RGB")
 
     # Data preprocessing on Host
@@ -203,10 +203,10 @@ def test_yolo_v5_640x640_onnx(test_device, variant):
 
         if variant == "yolov5m":
             compiler_cfg.balancer_op_override(
-                " concatenate_332.dc.concatenate.7", "grid_shape", (1, 1)
+                "concatenate_332.dc.concatenate.7", "grid_shape", (1, 1)
             )
             compiler_cfg.balancer_op_override(
-                " concatenate_332.dc.concatenate.7", "t_stream_shape", (1, 1)
+                "concatenate_332.dc.concatenate.7", "t_stream_shape", (1, 1)
             )
             os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{112*1024}"
 
@@ -260,7 +260,7 @@ def test_yolo_v5_640x640_onnx(test_device, variant):
     model_name = f"{variant}_{input_size}_onnx"
 
     # Load data sample
-    url = "https://ultralytics.com/images/zidane.jpg"
+    url = "http://images.cocodataset.org/val2017/000000397133.jpg"
     image = Image.open(requests.get(url, stream=True).raw).convert("RGB")
 
     # Data preprocessing on Host
