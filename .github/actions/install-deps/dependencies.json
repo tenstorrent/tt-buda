@@ -6,6 +6,7 @@
     "libyaml-cpp-dev",
     "libboost-all-dev",
     "libsndfile1",
-    "libhwloc-dev"
+    "libhwloc-dev",
+    "libzmq3-dev"
   ]
 }
