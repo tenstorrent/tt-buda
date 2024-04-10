@@ -1,4 +1,4 @@
-name: "Post commit workflow"
+name: Post commit workflow
 
 on:
   workflow_dispatch:
@@ -8,6 +8,6 @@ on:
       - main
 
 jobs:
-  build-artifact:
-    uses: ./.github/workflows/build-artifact.yaml
+  build-artifacts:
+    uses: ./.github/workflows/build-artifacts.yml
     secrets: inherit
