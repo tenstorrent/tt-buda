@@ -4,6 +4,9 @@ on:
   workflow_dispatch:
   workflow_call:
 
+env:
+  PYTHON_VERSION: "python3.10"
+
 jobs:
   build-artifacts:
     strategy:
