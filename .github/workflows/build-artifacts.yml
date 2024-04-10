@@ -14,10 +14,10 @@ jobs:
         arch: ["grayskull"]
     runs-on: ubuntu-22.04
     steps:
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/install-deps
         with:
           os: ubuntu-22.04
-      - uses: actions/checkout@v4      
       - name: Update submodule
         run: git submodule update --init --recursive
       - name: Build for ${{ matrix.arch }}
