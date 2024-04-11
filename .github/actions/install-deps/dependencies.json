@@ -1,0 +1,12 @@
+{
+  "ubuntu-22.04": [
+    "software-properties-common",
+    "build-essential",
+    "python3.10-venv",
+    "libyaml-cpp-dev",
+    "libboost-all-dev",
+    "libsndfile1",
+    "libhwloc-dev",
+    "libzmq3-dev"
+  ]
+}

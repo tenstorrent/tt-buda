@@ -1,17 +1,23 @@
-name: "Build artifacts"
+name: Build artifacts
 
 on:
   workflow_dispatch:
   workflow_call:
+
+env:
+  PYTHON_VERSION: "python3.10"
 
 jobs:
   build-artifacts:
     strategy:
       matrix:
         arch: ["grayskull"]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/install-deps
+        with:
+          os: ubuntu-22.04
       - name: Update submodule
         run: git submodule update --init --recursive
       - name: Build for ${{ matrix.arch }}
