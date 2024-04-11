@@ -2,6 +2,7 @@
 
 # SPDX-License-Identifier: Apache-2.0
 import os
+import pwd
 import tempfile
 import filelock
 import shutil
@@ -69,8 +70,8 @@ def create_symlink(target_path: str, symlink_path: str, *, remove_existing: bool
     # Path objects for target and symlink
     target, symlink = Path(target_path), Path(symlink_path)
 
-    # Create a lock file in a standard temporary directory
-    lock_file_path = os.path.join(tempfile.gettempdir(), f"{symlink.name}.lock")
+    # Create a lock file in a standard temporary directory under user's name
+    lock_file_path = os.path.join(tempfile.gettempdir(), pwd.getpwuid(os.getuid()).pw_name, f"{symlink.name}.lock")
     lock = filelock.FileLock(lock_file_path)
 
     with lock:

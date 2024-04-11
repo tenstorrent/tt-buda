@@ -27,6 +27,7 @@ from pybuda import (
     CompileDepth,
     VerifyConfig,
     PyTorchModule,
+    ci
 )
 from pybuda.ttdevice import get_device_config
 from pybuda.config import CompileDepth, _get_global_compiler_config
@@ -2158,3 +2159,40 @@ def test_conv2d_transpose_1(test_device):
             test_kind=TestKind.INFERENCE,
         )
     )
+
+# Verify that create sym link function creates a lock file in /tmp/user directory
+def test_symlink_creation_per_user_lock():
+    # create a simple file in the working sub directory
+    # working_directory/subdir/file.txt
+    working_directory = os.getcwd()
+    subdir = os.path.join(working_directory, "subdir")
+    os.makedirs(subdir, exist_ok=True)
+    file_path = os.path.join(subdir, "file.txt")
+    with open(file_path, "w") as f:
+        f.write("hello world")
+
+    # create a symlink to the file in the working sub directory
+    # working_directory/symlink.txt -> working_directory/subdir/file.txt
+    symlink_path = os.path.join(working_directory, "symlink.txt")
+    ci.create_symlink(file_path, symlink_path)
+
+    # check if the symlink was created
+    assert os.path.islink(symlink_path)
+
+    # check if there is a lock file in /tmp/user directory
+    # /tmp/user/symlink.txt.lock
+    import pwd
+    user = pwd.getpwuid(os.getuid()).pw_name
+    assert user is not None
+    lock_file_path = f"/tmp/{user}/symlink.txt.lock"
+    # check if lock_file_path exists
+    assert os.path.exists(lock_file_path)
+
+    # Test cleanup
+    # remove the symlink
+    os.remove(symlink_path)
+    # remove subdir and its file content
+    os.remove(file_path)
+    os.rmdir(subdir)
+    # remove the lock file
+    os.remove(lock_file_path)
