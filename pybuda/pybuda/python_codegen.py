@@ -234,8 +234,9 @@ class PyBudaWriter(PythonWriter):
                     self.wl(f"{ops[key].output_name} = {ops[key].function_name}({activation_names}{arg_text}){set_src_layer}")
             else:
                 self.wl(f"{ops[key].output_name} = {ops[key].function_name}(\"{ops[key].node_name}\"{activation_names}{arg_text}){set_src_layer}")
-                for name_to_del in ops[key].inputs_to_delete:
-                    self.wl(f"{name_to_del}._value = None")
+                if self.delete_inputs:
+                    for name_to_del in ops[key].inputs_to_delete:
+                        self.wl(f"{name_to_del}._value = None")
 
         outputs = list(outputs.values())
         if len(outputs) == 1:
