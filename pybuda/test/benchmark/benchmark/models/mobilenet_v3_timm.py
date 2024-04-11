@@ -27,6 +27,7 @@ def mobilenet_v3_timm(training: bool, config: str, microbatch: int, devtype: str
     os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
     os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
     os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
+    os.environ["PYBUDA_RIBBON2_CONSERVATIVE_OPTIMIZATION_ITERATIONS"] = "10"
 
     if arch == "grayskull":
         os.environ["PYBUDA_MAXIMIZE_SPARSE_UBLOCK"] = "1" 

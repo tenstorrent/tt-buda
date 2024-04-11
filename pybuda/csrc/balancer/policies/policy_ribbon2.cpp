@@ -382,7 +382,7 @@ EpochSolution optimize_solution_conservative(
     std::uint32_t iterations = 0;
     std::uint32_t bad_iterations = 0;
     const BalancerConfig *balancer_config = solution.get_balancer_config();
-    std::vector<OpModel> blacklisted_models;
+    std::unordered_set<std::uint64_t> blacklisted_models;
 
     // If all cores are all used no point in optimization.
     //
@@ -390,12 +390,18 @@ EpochSolution optimize_solution_conservative(
 
     if (max_iterations > 0)
     {
-        log_trace(LogBalancer, "RIBBON2: optimize solution, score {}, coming in:", solution.get_score());
+        log_trace(
+            LogBalancer,
+            "RIBBON2: optimize solution, score {}, pipeline cycles {} coming in:",
+            solution.get_score(),
+            solution.get_pipeline_cycles());
         solution.print();
     }
 
     while ((bad_iterations < 3) && (iterations < max_iterations))
     {
+        std::vector<std::uint64_t> models_used_iterration;
+
         // Find the slowest cycle count
         float slowest_cycles = 0;
         for (const OpModel &op_model : best_solution.get_selected_op_models())
@@ -468,8 +474,7 @@ EpochSolution optimize_solution_conservative(
                         new_solution.get_free_cores())
                         continue;
 
-                    if (std::find(blacklisted_models.begin(), blacklisted_models.end(), op_model) !=
-                        blacklisted_models.end())
+                    if (blacklisted_models.find(op_model.id.id) != blacklisted_models.end())
                     {
                         log_trace(LogBalancer, "RIBBON2: skipping blacklisted op_model");
                         continue;
@@ -507,7 +512,8 @@ EpochSolution optimize_solution_conservative(
                         new_op_model->grid_shape);
                     new_solution.update_model(op_index, new_op_model.value());
                     graph_solver_snapshot->set(source_op_model.buda_op_node, new_op_model.value());
-                    blacklisted_models.push_back(new_op_model.value());  // record in case this bump ended up being bad
+                    models_used_iterration.push_back(
+                        new_op_model.value().id.id);  // record in case this bump ended up being bad
                 }
                 else
                 {
@@ -530,6 +536,7 @@ EpochSolution optimize_solution_conservative(
 
         if (bad_solution)
         {
+            blacklisted_models.insert(models_used_iterration.begin(), models_used_iterration.end());
             bad_iterations++;
             iterations++;
             continue;
@@ -589,24 +596,23 @@ EpochSolution optimize_solution_conservative(
         //
         interactive_placer.rewind_epoch();
 
-        if (new_solution.get_score() > best_solution.get_score() and
+        if (new_solution.get_pipeline_cycles() < best_solution.get_pipeline_cycles() and
             placed_ops == solution.get_selected_op_models().size())
         {
             best_solution = new_solution;
             bad_iterations = 0;
-            blacklisted_models.clear();
-            log_trace(LogBalancer, "RIBBON2: improved to {}", best_solution.get_score());
+            log_trace(LogBalancer, "RIBBON2: improved to {}", best_solution.get_pipeline_cycles());
         }
         else
         {
+            blacklisted_models.insert(models_used_iterration.begin(), models_used_iterration.end());
             bad_iterations++;
             log_trace(LogBalancer, "RIBBON2: solution got worse, bad iterations in a row = {}", bad_iterations);
         }
         iterations++;
     }
 
-    if (best_solution.get_score() > solution.get_score() and
-        best_solution.get_pipeline_cycles() < solution.get_pipeline_cycles())
+    if (best_solution.get_pipeline_cycles() < solution.get_pipeline_cycles())
     {
         log_debug(
             LogBalancer,
@@ -617,10 +623,6 @@ EpochSolution optimize_solution_conservative(
             solution.get_pipeline_cycles(),
             best_solution.get_pipeline_cycles());
         best_solution.print();
-    }
-    else
-    {
-        best_solution = solution;
     }
 
     return best_solution;

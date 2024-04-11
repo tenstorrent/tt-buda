@@ -22,7 +22,6 @@ def vovnet_v2(training: bool, config: str, microbatch: int, devtype: str, arch: 
 
     os.environ["PYBUDA_DISABLE_EXPLICIT_DRAM_IO"] = "1"
     os.environ["PYBUDA_ENABLE_HOST_INPUT_NOP_BUFFERING"] = "1"
-    os.environ["PYBUDA_RIBBON2_CONSERVATIVE_OPTIMIZATION_ITERATIONS"] = "10"
 
     # These are about to be enabled by default.
     #
@@ -30,6 +29,7 @@ def vovnet_v2(training: bool, config: str, microbatch: int, devtype: str, arch: 
     os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
     os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
     os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
+    os.environ["PYBUDA_RIBBON2_CONSERVATIVE_OPTIMIZATION_ITERATIONS"] = "10"
 
     if config == "39" and data_type != "Bfp8_b":
         compiler_cfg.enable_amp_light()

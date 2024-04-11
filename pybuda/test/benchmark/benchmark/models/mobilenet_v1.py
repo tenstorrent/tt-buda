@@ -30,7 +30,6 @@ def mobilenet_v1(training: bool, config: str, microbatch: int, devtype: str, arc
     os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
     os.environ["PYBUDA_RIBBON2_CONSERVATIVE_OPTIMIZATION_ITERATIONS"] = "10"
 
-
     if data_type == "Fp16_b":
         os.environ["PYBUDA_SUPRESS_T_FACTOR_MM"] = "40"
         os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
