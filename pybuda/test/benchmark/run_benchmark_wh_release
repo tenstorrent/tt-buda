@@ -38,7 +38,6 @@ pybuda/test/benchmark/benchmark.py -m hrnet -c v2_w64 -o pybuda-silicon-wh-b0-pe
 
 # YOLOv3 bfp8_b
 # Issue to make it run with mb 64 tenstorrent/pybuda#1298
-# Issue to remove PYBUDA_OVERRIDE_INPUT_QUEUE_ENTRIES=32 tenstorrent/pybuda#1299
 pybuda/test/benchmark/benchmark.py -m yolo_v3 -c default -mb 32 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # YOLOv5 fp16_b

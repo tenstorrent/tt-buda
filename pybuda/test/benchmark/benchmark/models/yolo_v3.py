@@ -22,7 +22,6 @@ def yolo_v3(training: bool, config: str, microbatch: int, devtype: str, arch: st
         compiler_cfg.balancer_policy = "Ribbon"
         os.environ["PYBUDA_RIBBON2"] = "1" 
 
-    os.environ["PYBUDA_OVERRIDE_INPUT_QUEUE_ENTRIES"] = "32"
     os.environ["PYBUDA_ENABLE_HOST_INPUT_NOP_BUFFERING"] = "1"
 
     # These are about to be enabled by default.
@@ -36,6 +35,9 @@ def yolo_v3(training: bool, config: str, microbatch: int, devtype: str, arch: st
         os.environ["PYBUDA_FORK_JOIN_SKIP_EXPANDING_BUFFERS"] = "1"
         os.environ["PYBUDA_ALLOW_MULTICOLUMN_SPARSE_MATMUL"] = "1"
         os.environ["PYBUDA_RIBBON2_CONSERVATIVE_OPTIMIZATION_ITERATIONS"] = "10"
+
+    if data_type == "Fp16_b":
+        os.environ["PYBUDA_OVERRIDE_INPUT_QUEUE_ENTRIES"] = "32"
 
     # Set model parameters based on chosen task and model configuration
     config_name = ""
