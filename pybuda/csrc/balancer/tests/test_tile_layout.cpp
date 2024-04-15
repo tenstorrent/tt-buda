@@ -8,7 +8,7 @@
 #include "balancer/types.hpp"
 #include "graph_lib/utils.hpp"
 #include "gtest/gtest.h"
-#include "net2pipe/tile_maps.h"
+#include "third_party/budabackend/src/net2pipe/inc/tile_maps.h"
 #include "utils/logger.hpp"
 
 namespace tt::test
