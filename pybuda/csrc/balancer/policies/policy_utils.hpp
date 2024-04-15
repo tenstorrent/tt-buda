@@ -6,12 +6,15 @@
 #include <random>
 #include <tuple>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include "balancer/balancer.hpp"
 #include "balancer/balancer_utils.hpp"
 #include "balancer/policies/policy_types.hpp"
+#include "balancer/types.hpp"
+#include "graph_lib/graph.hpp"
 #include "utils/logger.hpp"
 
 namespace tt::placer
@@ -33,8 +36,12 @@ namespace tt::balancer
 class EpochSolution
 {
    public:
+    // Sets of nodes and ops that are part of the current epoch.
     std::unordered_set<const tt::graphlib::Node*> current_epoch_nodes;
     std::unordered_set<const tt::graphlib::Node*> current_epoch_ops;
+
+    // Map of op nodes to their selected op models.
+    OpModels current_epoch_op_models;
 
    private:
     std::uint32_t ribbon_size;
@@ -90,6 +97,7 @@ class EpochSolution
     const BalancerConfig* get_balancer_config() const { return balancer_config; }
     const std::vector<OpModel>& get_selected_op_models() const { return selected_op_models; }
     std::uint32_t get_ribbon_size() const { return ribbon_size; }
+    const OpModels& get_current_epoch_op_models() const { return current_epoch_op_models; }
     const std::unordered_set<const tt::graphlib::Node*>& get_current_epoch_ops() { return current_epoch_ops; }
     const std::unordered_set<const tt::graphlib::Node*>& get_current_epoch_nodes() { return current_epoch_nodes; }
     int get_epoch_target_cycles() const { return epoch_target_cycles; }
@@ -190,10 +198,17 @@ int get_limiter_cycles(
     const OpModel& op_model,
     const Graph* graph,
     const BalancerConfig& balancer_config,
+    const OpModels* selected_op_models);
+
+int get_limiter_cycles(
+    const OpModel& op_model,
+    const Graph* graph,
+    const BalancerConfig& balancer_config,
     const int dram_access_core_count = 0,
     const int pcie_access_core_count = 0,
     const std::unordered_set<const tt::graphlib::Node*>* current_epoch_nodes = nullptr,
-    bool invalidate_cached = false);
+    bool invalidate_cached = false,
+    const OpModels* selected_op_models = nullptr);
 
 int get_limiter_cycles(
     const OpModel& op_model,
@@ -204,7 +219,8 @@ int get_limiter_cycles(
     const int dram_access_core_count = 0,
     const int pcie_access_core_count = 0,
     const std::unordered_set<const tt::graphlib::Node*>* current_epoch_nodes = nullptr,
-    bool invalidate_cached = false);
+    bool invalidate_cached = false,
+    const OpModels* selected_op_models = nullptr);
 
 bool is_output_write_to_dram_over_target(
     const OpModel& op_model, const DeviceConfig& device_config, const int target_exec_cycles);
@@ -242,7 +258,8 @@ bool is_candidate_better_than_current(
     const Graph* graph,
     int ribbon_size,
     int target_exec_cycles,
-    const BalancerConfig& device_config);
+    const BalancerConfig& device_config,
+    const OpModels* graph_solver_selected_op_models);
 
 std::uint32_t pick_ribbon_size(
     std::uint32_t start_index,
@@ -312,7 +329,8 @@ const OpModel* pick_preferred_op_model(
     const T& current_graph_solver,
     const graphlib::BudaOpNode* op,
     const std::uint32_t ribbon_size,
-    const int target_cycles)
+    const int target_cycles,
+    const OpModels* graph_solver_selected_op_models = nullptr)
 {
     auto op_models = current_graph_solver.at(op);
     const OpModel* prefered_op_model = nullptr;
@@ -333,7 +351,14 @@ const OpModel* pick_preferred_op_model(
         }
 
         // If we already have valid op model selected compare it with new one and select better.
-        if (is_candidate_better_than_current(*prefered_op_model, op_model, graph, ribbon_size, target_cycles, config))
+        if (is_candidate_better_than_current(
+                *prefered_op_model,
+                op_model,
+                graph,
+                ribbon_size,
+                target_cycles,
+                config,
+                graph_solver_selected_op_models))
         {
             prefered_op_model = &op_model;
         }
@@ -353,7 +378,13 @@ const OpModel& select_best_op_model_ribbon(
 {
     log_trace(LogBalancer, "  Selecting best op_model for {}. Choices:", op->name());
     const OpModel* selected_op_model = pick_preferred_op_model(
-        graph, config, current_graph_solver, op, current_ribbon_size, target_cycles);
+        graph,
+        config,
+        current_graph_solver,
+        op,
+        current_ribbon_size,
+        target_cycles,
+        &current_graph_solver.get_selected_op_models());
 
     TT_ASSERT(nullptr != selected_op_model, "No valid op_models for operation: ", op->name());
 

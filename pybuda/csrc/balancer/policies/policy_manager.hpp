@@ -104,6 +104,8 @@ class PolicyManager
         graph_solver_main->invalidate_suboptimal_op_models(invalidation_strategy);
     }
 
+    const OpModels& get_selected_op_models() const { return graph_solver_main->get_selected_op_models(); }
+
     // Simple getters.
     //
     std::uint32_t get_current_ribbon_size() const { return current_ribbon_size; }

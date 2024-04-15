@@ -5,8 +5,13 @@
 
 #include <experimental/filesystem>
 #include <fstream>
+#include <unordered_set>
 
+#include "balancer/balancer.hpp"
+#include "balancer/data_movement_bw_estimation.hpp"
 #include "balancer/legalizer/legalizer.hpp"
+#include "balancer/types.hpp"
+#include "graph_lib/graph.hpp"
 #include "passes/fork_join.hpp"
 #include "placer/dram.hpp"
 #include "placer/interactive_placer.hpp"
@@ -14,6 +19,7 @@
 #include "scheduler/scheduler.hpp"
 #include "shared_utils/placement_printer.hpp"
 #include "shared_utils/pretty_table.hpp"
+#include "utils/assert.hpp"
 
 using Graph = tt::graphlib::Graph;
 using Node = tt::graphlib::Node;
@@ -892,7 +898,8 @@ bool is_candidate_better_than_current(
     const Graph *graph,
     int ribbon_size,
     int target_exec_cycles,
-    const BalancerConfig &balancer_config)
+    const BalancerConfig &balancer_config,
+    const OpModels *graph_solver_selected_op_models)
 {
     TT_ASSERT(current.buda_op_node == candidate.buda_op_node);
 
@@ -930,8 +937,8 @@ bool is_candidate_better_than_current(
         return false;
     }
 
-    int current_cycles = get_limiter_cycles(current, graph, balancer_config);
-    int candidate_cycles = get_limiter_cycles(candidate, graph, balancer_config);
+    int current_cycles = get_limiter_cycles(current, graph, balancer_config, graph_solver_selected_op_models);
+    int candidate_cycles = get_limiter_cycles(candidate, graph, balancer_config, graph_solver_selected_op_models);
 
     // Both op_models are within target. Prefer smaller number of columns.
     //
@@ -1324,10 +1331,28 @@ int get_limiter_cycles(
     const OpModel &op_model,
     const Graph *graph,
     const BalancerConfig &balancer_config,
+    const OpModels *selected_op_models)
+{
+    return get_limiter_cycles(
+        op_model,
+        graph,
+        balancer_config,
+        0 /* dram_access_core_count */,
+        0 /* pcie_access_core_count */,
+        nullptr /* current_epoch_nodes */,
+        false /* invalidate_cached */,
+        selected_op_models);
+}
+
+int get_limiter_cycles(
+    const OpModel &op_model,
+    const Graph *graph,
+    const BalancerConfig &balancer_config,
     const int dram_access_core_count,
     const int pcie_access_core_count,
     const std::unordered_set<const tt::graphlib::Node *> *current_epoch_nodes,
-    bool invalidate_cached)
+    bool invalidate_cached,
+    const OpModels *selected_op_models)
 {
     return get_limiter_cycles(
         op_model,
@@ -1338,7 +1363,8 @@ int get_limiter_cycles(
         dram_access_core_count,
         pcie_access_core_count,
         current_epoch_nodes,
-        invalidate_cached);
+        invalidate_cached,
+        selected_op_models);
 }
 
 // Modelling and rough calculation of limiter cycles for op model.
@@ -1363,10 +1389,14 @@ int get_limiter_cycles(
     const int dram_access_core_count,
     const int pcie_access_core_count,
     const std::unordered_set<const tt::graphlib::Node *> *current_epoch_nodes,
-    bool invalidate_cached)
+    bool invalidate_cached,
+    const OpModels *selected_op_models)
 {
     static const bool model_pcie_bw = env_as<bool>("PYBUDA_TEMP_BALANCER_MODEL_PCIE_BW", true);
     static const bool disable_model_kb_prologue_bw = env_as<bool>("PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW", false);
+
+    // Should we use estimates for the NOC bandwidth.
+    static const bool use_noc_bw_estimates = env_as<bool>("PYBUDA_BALANCER_USE_NOC_BW_ESTIMATES", false);
 
     const float inefficency_divider = 2.0;
     const float subchannel_oversub_coeff = 1.5;
@@ -1416,6 +1446,15 @@ int get_limiter_cycles(
         bool producer_is_host_input_buffer =
             producer_node->node_type() == tt::graphlib::NodeType::kBudaOp &&
             producer_node->as<tt::graphlib::BudaOpNode>()->has_tag("host_input_buffer");
+
+        if (use_noc_bw_estimates && !producer_is_queue && selected_op_models)
+        {
+            TT_ASSERT(selected_op_models->count(producer_node) > 0);
+            noc_bw = static_cast<float>(
+                get_bandwidth_estimation(
+                    graph, edge, selected_op_models->at(producer_node), op_model, false /* is_queue */)
+                    .get_bandwidth());
+        }
 
         // Legacy path for modelling BW
         //
@@ -1700,6 +1739,7 @@ float EpochSolution::evaluate() const
     const int non_matmul_penalty = use_legacy_util_eval ? 128 : 8;
     const int sparse_matmul_penalty = 128;
     log_trace(LogBalancer, "RIBBON2: Calculating solution score for ribbon size {}", ribbon_size);
+
     for (const auto &op_model : selected_op_models)
     {
         // We have full epoch candidate. Recalculate impact on data BW.
@@ -1710,7 +1750,9 @@ float EpochSolution::evaluate() const
             *balancer_config,
             dram_readers_core_count + dram_writers_core_count,
             pcie_readers_core_count + pcie_writers_core_count,
-            &current_epoch_nodes);
+            &current_epoch_nodes,
+            false, /* invalidate_cache */
+            &current_epoch_op_models);
 
         if (cycles > pipeline_cycles)
             pipeline_cycles = cycles;
@@ -1769,7 +1811,7 @@ void EpochSolution::print() const
             "RIBBON2: (ribbon={})   {}: {}",
             ribbon_size,
             op_model.buda_op_node->name(),
-            get_limiter_cycles(op_model, graph, *balancer_config));
+            get_limiter_cycles(op_model, graph, *balancer_config, &current_epoch_op_models));
     }
 }
 
@@ -1780,11 +1822,13 @@ void EpochSolution::recalc_nodes()
     pcie_readers_core_count = 0;
     pcie_writers_core_count = 0;
     current_epoch_ops.clear();
+    current_epoch_op_models.clear();
     current_epoch_nodes.clear();
 
     for (const auto &op_model : selected_op_models)
     {
-        current_epoch_ops.insert(op_model.buda_op_node);
+        current_epoch_ops.emplace(op_model.buda_op_node);
+        current_epoch_op_models.emplace(op_model.buda_op_node, op_model);
     }
     current_epoch_nodes = calculate_current_epoch_nodes(graph, current_epoch_ops);
 
