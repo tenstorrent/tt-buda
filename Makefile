@@ -47,7 +47,7 @@ INCDIR = $(OUT)/include
 TESTDIR = $(OUT)/test
 DOCSDIR = $(OUT)/docs
 SUBMODULESDIR = $(OUT)/submodules
-TORCHVISIONDIR = $(OUT)/vision
+TORCHVISIONDIR = build_deps/vision
 
 # Top level flags, compiler, defines etc.
 
@@ -73,7 +73,6 @@ SUBMODULES=$(shell git submodule status | grep -o "third_party/[^ ]*")
 SUBMODULES_UPDATED=$(addprefix $(SUBMODULESDIR)/, $(SUBMODULES:%=%.checkout))
 SKIP_BBE_UPDATE ?= 0
 SKIP_SUBMODULE_UPDATE ?= $(SKIP_BBE_UPDATE)
-TORCH_VISION_INSTALL ?= 0
 
 all: update_submodules build ;
 
@@ -98,17 +97,17 @@ build: pybuda third_party/tvm torchvision ;
 
 third_party/tvm: $(SUBMODULESDIR)/third_party/tvm.build ;
 
-torchvision: python_env
-ifeq ($(TORCH_VISION_INSTALL), 1)
+torchvision: build_deps/torchvision.build ;
+
+build_deps/torchvision.build: python_env
 	@if [ ! -d $(TORCHVISIONDIR) ]; then \
-		git clone --branch v0.16.0 https://github.com/pytorch/vision.git $(TORCHVISIONDIR); \
+		git clone --depth 1 --branch v0.16.0 https://github.com/pytorch/vision.git $(TORCHVISIONDIR); \
 	fi
 	echo "Building torchvision..."
-	bash -c "source $(PYTHON_ENV)/bin/activate && cd $(TORCHVISIONDIR) && PYTORCH_VERSION=2.1.0 _GLIBCXX_USE_CXX11_ABI=1 python3 setup.py bdist_wheel -d build_out/"
-	cp -r $(TORCHVISIONDIR)/build_out build_out
-	pip install build_out/torchvision*.whl
-	touch $(SUBMODULESDIR)/third_party/$@.build
-endif
+	bash -c "source $(PYTHON_ENV)/bin/activate && cd $(TORCHVISIONDIR) && PYTORCH_VERSION=2.1.0 _GLIBCXX_USE_CXX11_ABI=1 python setup.py bdist_wheel -d build_out"
+	bash -c "source $(PYTHON_ENV)/bin/activate && pip install $(TORCHVISIONDIR)/build_out/torchvision*.whl"
+
+	touch $@
 
 $(SUBMODULESDIR)/third_party/tvm.build: python_env $(SUBMODULESDIR)/third_party/tvm.checkout
 	bash -c "source $(PYTHON_ENV)/bin/activate && ./third_party/tvm/install.sh"
@@ -117,7 +116,7 @@ $(SUBMODULESDIR)/third_party/tvm.build: python_env $(SUBMODULESDIR)/third_party/
 clean: third_party/budabackend/clean
 	rm -rf $(OUT)
 	rm -rf third_party/tvm/build
-	rm -rf build_out/
+	rm -rf build_deps/
 
 clean_no_python:
 	find $(OUT)/ -maxdepth 1 -mindepth 1 -type d -not -name 'python_env' -print0 | xargs -0 -I {} rm -Rf {}

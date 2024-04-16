@@ -28,6 +28,7 @@ PYBUDA_CSRC_BACKENDAPI_DEPS = $(addprefix $(OBJDIR)/, $(PYBUDA_CSRC_BACKENDAPI_S
 third_party/budabackend/clean:
 	#ROOT=third_party/budabackend $(MAKE) -C third_party/budabackend clean
 	cd third_party/budabackend; rm -rf build
+	rm -f $(SUBMODULESDIR)/third_party/budabackend.build
 
 third_party/budabackend: $(SUBMODULESDIR)/third_party/budabackend.build ;
 

@@ -48,7 +48,7 @@ bp_data
 third_party/llvm
 device_images
 generated_modules
-build_out/
+build_deps/
 
 # ClangD
 compile_commands.json
