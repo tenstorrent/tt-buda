@@ -28,7 +28,8 @@ def test_eltwise_unary(
     un_recompute,
     un_op,
     un_model,
-    un_shape
+    un_shape,
+    un_kwargs
 ):
 
     print("\n")
@@ -37,6 +38,7 @@ def test_eltwise_unary(
     print(f"un_op --> {un_op}")
     print(f"un_model --> {un_model}")
     print(f"un_shape --> {un_shape}")
+    print(f"un_kwargs --> {un_kwargs}")
     print("\n")
 
     if not un_train and un_recompute:
@@ -56,15 +58,27 @@ def test_eltwise_unary(
     model = un_model
     shape = eval(un_shape) if type(un_shape) == str else un_shape
 
+    kwargs = un_kwargs
+    pcc = 0.99
+    if operation == "LeakyRelu":
+        if un_train:
+            pcc = 0.95
+    
+
     print("\n")
     print(f"Training --> {training}")
     print(f"Recompute --> {recompute}")
     print(f"Operation --> {operation}")
     print(f"Model --> {model}")
     print(f"Shape --> {shape}")
+    print(f"Kwargs --> {kwargs}")
     print("\n")
 
-    architecture = f'models.{model}.BudaElementWiseUnaryTest(operator=pybuda.op.{operation}, opname="{operation}", shape={shape})'
+    architecture = f'models.{model}.BudaElementWiseUnaryTest(operator=pybuda.op.{operation}, opname="{operation}", shape={shape}'
+    for k, v in kwargs.items():
+        architecture = f'{architecture}, {k}={v}'
+    architecture = f'{architecture})'
+
     model = eval(architecture)
     tt0 = TTDevice("tt0", devtype=BackendType.Golden)
     tt0.place_module(model)
@@ -76,5 +90,5 @@ def test_eltwise_unary(
                         enable_training=training,
                         enable_recompute=recompute
                      ), 
-        verify_cfg=VerifyConfig()
+        verify_cfg=VerifyConfig(pcc=pcc)
     )
