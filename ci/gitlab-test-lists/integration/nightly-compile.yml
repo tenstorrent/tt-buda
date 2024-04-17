@@ -1,0 +1,130 @@
+.compile-nightly-models:
+  stage: nightly-compile
+  tags:
+    - 8-core
+  timeout: 30m
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - api_failure
+  variables:
+    # Configure default pytest arguments for all tests
+    PYTEST_ADDOPTS: "-svv --compile-only --durations=10 --durations-min=10 --junitxml=$CI_PROJECT_DIR/test-results/report.xml"
+    # Compiler configurations
+    PYBUDA_DEVMODE: 1
+    PYBUDA_VERIFY_GOLDEN: 1
+    PYBUDA_EMULATE_SILICON_DEVICE: 1
+    PYBUDA_VERIFY_POST_AUTOGRAD_PASSES: 1
+    PYBUDA_VERIFY_POST_PLACER: 1
+    PYBUDA_VERIFY_NET2PIPE: 3
+  cache:
+    - key: "$CI_PROJECT_PATH_SLUG-huggingface"
+      paths:
+        - .cache/huggingface
+      policy: pull
+    - key: "$CI_PROJECT_PATH_SLUG-torch"
+      paths:
+        - .cache/torch
+      policy: pull
+  script:
+    - env
+    - env | { grep PYBUDA_ || true; }
+    - env | { grep TT_BACKEND_ || true; }
+
+.compile-nightly-models-gs-e150:
+  extends: .compile-nightly-models
+  variables:
+    ARCH_NAME: "grayskull"
+  script:
+    - !reference [.compile-nightly-models, script]
+  needs:
+    - !reference [.common_deps, needs]
+    - pybuda-gs-wheel
+    
+.compile-nightly-models-gs-e300:
+  extends: .compile-nightly-models
+  variables:
+    PYTEST_ADDOPTS: "-svv --no-silicon --durations=10 --durations-min=10 --junitxml=$CI_PROJECT_DIR/test-results/report.xml"
+    PYBUDA_FORCE_EMULATE_HARVESTED: 1
+    ARCH_NAME: "grayskull"
+  script:
+    - !reference [.compile-nightly-models, script]
+  needs:
+    - !reference [.common_deps, needs]
+    - pybuda-gs-wheel
+
+.compile-nightly-models-wh-b0-n150:
+  extends: .compile-nightly-models
+  variables:
+    GOLDEN_WORMHOLE_B0: 1
+    PYBUDA_FORCE_EMULATE_HARVESTED: 1
+    ARCH_NAME: "wormhole_b0"
+  script:
+    - !reference [.compile-nightly-models, script]
+  needs:
+    - !reference [.common_deps, needs]
+    - pybuda-wh-b0-wheel
+
+## Wormhole_b0
+
+compile-matrix-customer-model-wh-b0:
+  extends: .compile-nightly-models-wh-b0-n150
+  parallel:
+    matrix:
+      - TEST_GROUP: group_1
+      - TEST_GROUP: group_4
+      - TEST_GROUP: group_10
+      - TEST_GROUP: group_16
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n150, script]
+  - !reference [.common_prep, script]
+  - !reference [.rsync_package, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/$TEST_GROUP --device-config wh_n150
+
+compile-matrix-model-demos-wh-b0:
+  extends: .compile-nightly-models-wh-b0-n150
+  parallel:
+    matrix:
+      - TEST_GROUP: nlp/pytorch/test_t5.py::test_t5_small_tiny_tile[Wormhole_B0]
+      - TEST_GROUP: nlp/pytorch/test_albert.py::test_albert_token_classification_pytorch[Wormhole_B0-base-v2]
+      - TEST_GROUP: nlp/pytorch/test_dpr.py::test_dpr_context_encoder_pytorch[Wormhole_B0-facebook/dpr-ctx_encoder-multiset-base]
+      - TEST_GROUP: cnn/pytorch/test_autoencoder.py::test_linear_ae_pytorch[Wormhole_B0]
+      - TEST_GROUP: nlp/pytorch/test_albert.py::test_albert_token_classification_pytorch[Wormhole_B0-base-v1]
+      - TEST_GROUP: nlp/pytorch/test_bert.py::test_bert_sequence_classification_pytorch[Wormhole_B0]
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n150, script]
+  - !reference [.common_prep, script]
+  - !reference [.rsync_package, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/$TEST_GROUP --device-config wh_n150
+
+## Grayskull
+
+compile-matrix-gs-e150:
+  extends: .compile-nightly-models-gs-e150
+  parallel:
+    matrix:
+      - TEST_GROUP: test_efficientnet.py::test_efficientnet_torchvision[Grayskull-efficientnet_b0]
+      - TEST_GROUP: test_efficientnet.py::test_efficientnet_timm[Grayskull-efficientnet_b0]
+      - TEST_GROUP: test_autoencoder.py::test_conv_ae_pytorch[Grayskull]
+      - TEST_GROUP: test_mobilenet_v3.py::test_mobilenetv3_timm[Grayskull-mobilenetv3_small_100]
+  script:
+  - !reference [.compile-nightly-models-gs-e150, script]
+  - !reference [.common_prep, script]
+  - !reference [.rsync_package, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/$TEST_GROUP --device-config gs_e150
+
+compile-matrix-gs-e300:
+  extends: .compile-nightly-models-gs-e300
+  parallel:
+    matrix:
+      - TEST_GROUP: test_efficientnet.py::test_efficientnet_torchvision[Golden-efficientnet_b0]
+      - TEST_GROUP: test_efficientnet.py::test_efficientnet_timm[Golden-efficientnet_b0]
+      - TEST_GROUP: test_mobilenet_v1.py::test_mobilenetv1_basic[Golden]
+      - TEST_GROUP: test_mobilenet_v1.py::test_mobilenetv1_192[Golden]
+  script:
+  - !reference [.compile-nightly-models-gs-e300, script]
+  - !reference [.common_prep, script]
+  - !reference [.rsync_package, script]
+  - pytest --devtype golden pybuda/test/model_demos/high_prio/cnn/pytorch/$TEST_GROUP --device-config gs_e300
