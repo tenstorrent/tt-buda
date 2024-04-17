@@ -587,7 +587,7 @@ def generate_initial_graph(context: CompileContext) -> CompileDepth:
         # move index ops to weights if applicable
         move_index_to_mm_weights(context.graph)
 
-        # link past cache ios will change the number on inputs / outputs, so it is called bfore we clone the initial graph
+        # link past cache ios will change the number on inputs / outputs, so it is called before we clone the initial graph
         new_params = link_past_cache_ios(context.graph)
         inputs_to_remove = []
         for k, v in new_params.items():

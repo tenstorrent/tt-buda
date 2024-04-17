@@ -676,6 +676,19 @@ def pytorch_tensor_to_tensor_desc(t: torch.Tensor, df: DataFormat = None, elemen
     else:
         # If we already know dataformat, don't infer
         format = df
+        
+        # Before we push the tensors to the queue, we need to make sure that the 
+        # tensors are in the right format and aligned between PyBuda and PyTorch. 
+        # If this isn't the case, expected shapes on the queues will be invalid 
+        # and the runtime will crash. 
+        #
+        # Therefore, when we know the data format, we should check if the tensor
+        # is appropriate/supported PyTorch format. If that isn't the case, we should
+        # convert it to the appropriate PyTorch aligned format.
+        pytorch_dtype = buda_dataformat_to_pytorch_dtype(format)
+        if t.dtype != pytorch_dtype:
+            logger.warning(f"Converting tensor from {t.dtype} to {pytorch_dtype}")
+            t = t.type(pytorch_dtype)
 
     tilize_ndim = 4
     shape = list(t.shape)
