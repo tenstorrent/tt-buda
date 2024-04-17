@@ -113,6 +113,16 @@ $(SUBMODULESDIR)/third_party/tvm.build: python_env $(SUBMODULESDIR)/third_party/
 	bash -c "source $(PYTHON_ENV)/bin/activate && ./third_party/tvm/install.sh"
 	touch $@
 
+build_tests: pybuda/csrc/balancer/tests pybuda/csrc/graph_lib/tests pybuda/csrc/passes/tests pybuda/csrc/pattern_matcher/tests pybuda/csrc/placer/tests ;
+
+run_tests: build_tests
+	@echo "Running tests..."
+	@BUDA_HOME="third_party/budabackend" $(TESTDIR)/pybuda/csrc/balancer/tests/balancer_unit_tests
+	@BUDA_HOME="third_party/budabackend" $(TESTDIR)/pybuda/csrc/graph_lib/tests/graphlib_unit_tests
+	@BUDA_HOME="third_party/budabackend" $(TESTDIR)/pybuda/csrc/passes/tests/passes_unit_tests
+	@BUDA_HOME="third_party/budabackend" $(TESTDIR)/pybuda/csrc/pattern_matcher/tests/pattern_matcher_unit_tests
+	@BUDA_HOME="third_party/budabackend" $(TESTDIR)/pybuda/csrc/placer/tests/placer_unit_tests
+
 clean: third_party/budabackend/clean
 	rm -rf $(OUT)
 	rm -rf third_party/tvm/build
