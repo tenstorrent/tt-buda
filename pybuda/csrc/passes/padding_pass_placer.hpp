@@ -99,11 +99,11 @@ std::unordered_map<tt::graphlib::Node *, const tt::balancer::BudaOpNodeLegalizer
     const tt::balancer::BalancerConfig &,
     std::shared_ptr<balancer::BalancerCacheCollection>);
 
-void remove_padding(tt::graphlib::Graph *, tt::graphlib::Node *, Padding &);
+void remove_padding(tt::graphlib::Graph *, tt::graphlib::Node *, const Padding &);
 
-void restore_smm(tt::graphlib::Graph *, tt::graphlib::Node *, Padding &);
+void restore_smm(tt::graphlib::Graph *, tt::graphlib::Node *, const Padding &);
 
-void remove_pad(tt::graphlib::Graph *, tt::graphlib::Node *, Padding &padding);
+void remove_pad(tt::graphlib::Graph *, tt::graphlib::Node *, const Padding &padding);
 
 void remove_unpad(tt::graphlib::Graph *, tt::graphlib::Node * /* , Padding &padding */);
 

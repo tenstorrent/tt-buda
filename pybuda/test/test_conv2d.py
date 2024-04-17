@@ -95,14 +95,13 @@ def test_conv2d(
     relative_atol = 0.3 if test_kind.is_training() and test_device.devtype == BackendType.Silicon else 0.1
     pcc = 0.96 if test_device.devtype == BackendType.Silicon else 0.99
 
-    pybuda.config.set_configuration_options(enable_conv_prestride=False, enable_t_streaming=False)
+    pybuda.config.set_configuration_options(enable_conv_prestride=False)
     try:
         pybuda.verify.verify_module(mod, [(1, in_channels, original_shape[0], original_shape[1])],
             VerifyConfig(test_kind=test_kind, devtype=test_device.devtype, arch=test_device.arch, relative_atol=relative_atol, pcc=pcc))
     except RuntimeError as e:
         if (
             "Compile failed for TTDevice" in str(e) or
-            "Nodes have no valid grids, exiting" in str(e) or
             "Could not satisfy all constraints for edge" in str(e)
             ):
             pytest.xfail("tenstorrent/pybuda#185")
@@ -176,7 +175,7 @@ def test_convtranspose2d(
         pybuda.verify.verify_module(mod, [(1, in_channels, original_shape[0], original_shape[1])],
             VerifyConfig(test_kind=test_kind, devtype=test_device.devtype, arch=test_device.arch, relative_atol=relative_atol, pcc=pcc))
     except RuntimeError as e:
-        if "Compile failed for TTDevice" in str(e) or "nodes have no valid grids, exiting" in str(e):
+        if "Compile failed for TTDevice" in str(e):
             pytest.xfail("tenstorrent/pybuda#185")
         raise
 

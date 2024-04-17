@@ -56,6 +56,29 @@ using LegalOpModels = std::unordered_map<Node const *, std::vector<tt::balancer:
 namespace tt::padding_placer
 {
 
+// Inserts buffering queue instead of nop node.
+void insert_queue_instead_of_nop(
+    Graph *graph,
+    Node *producer_node,
+    Node *nop_node
+)
+{
+    std::stringstream name_ss;
+        name_ss << "queue_replacement_for_" << nop_node->name();
+
+    std::unique_ptr<graphlib::BufferingQueueNode> queue_node_uniq = graphlib::create_node<graphlib::BufferingQueueNode>(name_ss.str(), 1);
+    log_debug(LogPadding, "\tCreating dram buffering queue node {} to replace nop {} ", name_ss.str(), nop_node->name());
+    queue_node_uniq->set_node_type(graphlib::NodeType::kQueue);
+    queue_node_uniq->set_output_df(producer_node->output_df());
+    Node* queue_node = graph->add_node(std::move(queue_node_uniq), graph->get_subgraph_id_for_node(producer_node->id()));
+    queue_node->set_shape(producer_node->shape());
+    // Set the number of entries in the queue to the microbatch size.
+    queue_node->as<graphlib::QueueNode>()->set_num_entries(graph->get_microbatch());
+    // Inherit the epoch type from producer node.
+    queue_node->set_epoch_type(producer_node->get_epoch_type());
+    // After we have made queue_node, we now replace nop with it.
+    replace_node(graph, /*original_node*/ nop_node, /*new_node*/ queue_node, /*skip_operands*/ false);
+}
 bool pad_pass_placer(
     Graph *graph,
     const std::unordered_map<graphlib::Node *, 
@@ -77,46 +100,57 @@ bool pad_pass_placer(
         const BudaOpNodeLegalizerFailureInfo failure_info = node_fail_pair.second;
         log_debug(LogPadding, "Padding node {} with {}", node->name(), failure_info.toString().c_str());
 
-        if (node->as<graphlib::TaggedNode>()->has_tag("padding"))
-            continue;
-
+        // If the node has no valid grids and has padding_nop tag, we replace it with buffering queue.
         if (node->as<graphlib::TaggedNode>()->has_tag("padding_nop"))
+        {
+            std::vector<Node *> oprands = graph->data_operands(node);
+            TT_ASSERT(oprands.size() == 1, "number of operands of padding_nop should be 1");
+            Node *producer_node = oprands[0];
+            insert_queue_instead_of_nop(graph, producer_node, /*nop_node*/ node);
+            padded = true;
+            continue;
+        }
+
+        if (node->as<graphlib::TaggedNode>()->has_tag("padding"))
             continue;
 
         std::uint32_t user_access_cnt = failure_info.getOpModelFailureCountByType(OpModelFailureReason::UserAccessPreventsStreaming);
         std::uint32_t buffer_alloc_cnt = failure_info.getOpModelFailureCountByType(OpModelFailureReason::InputBufferAllocationFailure);
 
         int padding_try_it = 0;
-        bool buffer_alloc_flag = false;
         bool padded_loop = false;
 
         Padding padding;
         // Preserve the original shape
         padding.orig_shape = node->shape();
+        bool no_failures = false;
 
         while (padding_try_it++ < PADDING_TRY_MAX && buffer_alloc_cnt > 0)
         {
-
             padded_loop = pad_node(graph, node, padding);
             
             if (padded_loop) 
             {
 
                 std::unordered_map<Node*, const BudaOpNodeLegalizerFailureInfo> failures = check_node_legality(graph, node, balancer_config, balancer_cache_collection);
+                // user_access_cnt shouldn't be updated in padding loop because it is only used after the loop if there are still failures and graph is unpadded.
+                buffer_alloc_cnt = (failures.size() > 0) ? failures[node].getOpModelFailureCountByType(OpModelFailureReason::InputBufferAllocationFailure) : 0;
                 if (failures.size() > 0)
                 {
+                    // If we have tried to pad the node, but it failed, we remove padding and try again.
+                    // Note, padding structure stays intact, and we resume padding in next iteration from where we have stopped.
                     remove_padding(graph, node, padding);
                     if (padded_loop)
                         padded_loop = false;
 
                     if (padding.added_nop)
                         break;
-                        
-                    buffer_alloc_cnt = failures[node].getOpModelFailureCountByType(OpModelFailureReason::InputBufferAllocationFailure);
+                    log_debug(LogPadding, "Node {} is illegal after padding: lhs_rt {} lhs_ct {} rhs_ct {}", node->name(), padding.pad_lhs_rt, padding.pad_lhs_ct, padding.pad_rhs_ct);
                 }
                 else
                 {
-                    buffer_alloc_flag = true;
+                    no_failures = true;
+                    log_debug(LogPadding, "Node {} is legal after padding: lhs_rt {} lhs_ct: {} rhs_ct: {}", node->name(), padding.pad_lhs_rt, padding.pad_lhs_ct, padding.pad_rhs_ct);
                     padded |= padded_loop;
                     break;
                 }
@@ -125,23 +159,21 @@ bool pad_pass_placer(
 
         }
 
-        if (!buffer_alloc_flag) 
+
+        if (!no_failures)
         {
+            if (buffer_alloc_cnt > 0)
+            {
+                // After padding loop we still have input buffer allocation count issues.
+                log_warning(LogPadding, "Couldn't find padding for node: {} after {} iterations.", node->name(), padding_try_it);
+            }
 
             if (user_access_cnt > 0)
             {
+                // Inserting queue helps with user access failures but can also solve input buffer allocation issues.
                 insert_queue(graph, node);
                 padded = true;
             }
-            else 
-            {
-                // Reset padding structure
-                Padding padding;
-                // Preserve the original shape
-                padding.orig_shape = node->shape();
-                padded |= pad_node(graph, node, padding);
-            }
-
         }
 
     }
@@ -179,7 +211,7 @@ std::unordered_map<Node *, const BudaOpNodeLegalizerFailureInfo> check_node_lega
 }
 
 
-void remove_padding(Graph *graph, Node *node, Padding &padding)
+void remove_padding(Graph *graph, Node *node, const Padding &padding)
 {
     if (node->node_type() != NodeType::kBudaOp)
         return;
@@ -191,14 +223,14 @@ void remove_padding(Graph *graph, Node *node, Padding &padding)
     node->set_shape(padding.orig_shape);
 }
 
-void remove_pad(Graph *graph, Node *node, Padding &padding)
+void remove_pad(Graph *graph, Node *node, const Padding &padding)
 {
     if (node->as<BudaOpNode>()->is_sparse_matmul())
         restore_smm(graph, node, padding);
     remove_buda_pad(graph, node);
 }
 
-void restore_smm(Graph *graph, Node *node, Padding &padding)
+void restore_smm(Graph *graph, Node *node, const Padding &padding)
 {
 
     std::vector<Edge> incoming_edges = graph->operand_data_edges(node);

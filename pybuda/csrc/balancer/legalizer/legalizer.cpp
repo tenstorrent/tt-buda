@@ -772,11 +772,15 @@ static std::tuple<int, bool, bool> calculate_user_buffer_factor(
 
         // Only applies to users on the same epoch
         if (user_node->get_epoch_type() != op_node->get_epoch_type())
+        {
             continue;
+        }
 
         // Can always stream through queues
         if (user_node->node_type() == graphlib::NodeType::kQueue)
+        {
             continue;
+        }
 
         auto shape = op_node->shape();
         auto edge_attrs = graph->get_edge_attributes(user);
@@ -2758,8 +2762,10 @@ LegalOpModels get_legal_op_models(
         if (valid_grids.empty())
         {
             nodes_without_legal_op_model.emplace(node, failure_info);
+            std::uint32_t buffer_alloc_cnt = nodes_without_legal_op_model[node].getOpModelFailureCountByType(OpModelFailureReason::InputBufferAllocationFailure);
+            std::uint32_t user_access_cnt = nodes_without_legal_op_model[node].getOpModelFailureCountByType(OpModelFailureReason::UserAccessPreventsStreaming);
             log_warning(
-                LogBalancer, "No valid grids found for node: {} {} {}", node->name(), node->get_type(), node->shape());
+                LogBalancer, "No valid grids found for node: {} {} {}, buffer_alloc_cnt {},  user_access_cnt {}  ", node->name(), node->get_type(), node->shape(), buffer_alloc_cnt, user_access_cnt);
         }
         valid_op_models.emplace(node, valid_grids);
     }
