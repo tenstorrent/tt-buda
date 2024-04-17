@@ -120,6 +120,26 @@ class NLPPipelineWrapper(torch.nn.Module):
         total_length = self.max_length
 
         pad_len = total_length - orig_len
+
+        if "cache_position" in kwargs:            
+            # Cache positions indicate the positions of input sequence tokens within the sequence. They're utilized to
+            # update cache positions and to deduce the complete sequence length.
+            #
+            # However, cache_position is presumed to be unpadded (for accurate sequence length calculations). Consequently,
+            # it poses issues during compilation, particularly as we assume tile-aligned dimensions at some point. Therefore, 
+            # cache_position is expected to be arranged from (1, orig_len) and serves as a constant for the model if not defined 
+            # as input. Hence, we're removing it from the kwargs and relying on the model's default.
+            #
+            # For more details, refer to the following code snippet:
+            # - build/python_env/lib/python3.10/site-packages/transformers/generation/utils.py:2404 =>
+            # => model_kwargs["cache_position"] = torch.arange(cur_len, device=input_ids.device)
+            #
+            # This displays that cache_position is generated internally during pipeline setup, and is not expected to be
+            # provided as input for the model.
+            
+            logger.warning("Removing cache_position from kwargs. It is not expected to be provided as input for the model.")
+            kwargs.pop("cache_position", None)
+
         input_ids = torch.nn.functional.pad(input_ids, (0, pad_len), value=self.pad_token_id)
         attention_mask = torch.ones_like(input_ids)
         attention_mask[:, -pad_len:] = 0
