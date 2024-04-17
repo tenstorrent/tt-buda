@@ -12,8 +12,10 @@ from pybuda import (
     PyTorchModule,
 )
 from test.utils import download_model
+from pybuda.pybudaglobal import TILE_DIM
 from pybuda.verify.config import TestKind
 from pybuda.verify.backend import verify_module
+from pybuda.transformers.pipeline import pipeline as pybuda_pipeline
 
 
 def cpu_sanity_run_0():
@@ -300,9 +302,11 @@ def test_gemma_2b_single_decoder(test_device, variant):
 def test_gemma_2b(test_device, variant):
     # Random see for reproducibility
     torch.manual_seed(42)
-    
+
     # Configurations
     compiler_cfg = pybuda.config._get_global_compiler_config()
+    compiler_cfg.balancer_policy = "Ribbon"
+    os.environ["PYBUDA_RIBBON2"] = "1"
 
     config = download_model(GemmaConfig.from_pretrained, variant)
     config_dict = config.to_dict()
@@ -355,12 +359,7 @@ def test_gemma_2b_1x1(test_device, variant):
     os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "wormhole_b0_1x1.yaml"
     compiler_cfg.balancer_policy = "Ribbon"
     os.environ["PYBUDA_RIBBON2"] = "1"
-    # compiler_cfg.amp_level = 1
-    # os.environ["PYBUDA_EXTRA_L1_MARGIN"] = "20000"
-    # os.environ["PYBUDA_ENABLE_SINGLE_BUFFER_FALLBACK"] = "1"
-    # compiler_cfg.enable_single_buffer_fallback = True
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
-
 
     config = download_model(GemmaConfig.from_pretrained, variant)
     config_dict = config.to_dict()
@@ -400,5 +399,66 @@ def test_gemma_2b_1x1(test_device, variant):
     )
 
 
+@pytest.mark.parametrize("variant", variants, ids=variants)
+def test_gemma_2b_gen(test_device, variant):
+    # Random seed for reproducibility
+    torch.manual_seed(42)
+    
+    # Configurations
+    compiler_cfg = pybuda.config._get_global_compiler_config()
+    compiler_cfg.balancer_policy = "Ribbon"
+    os.environ["PYBUDA_RIBBON2"] = "1"
+    compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
+
+    config = download_model(GemmaConfig.from_pretrained, variant)
+    config_dict = config.to_dict()
+    config_dict["return_dict"] = False
+    config_dict["use_cache"] = False
+    
+    config = GemmaConfig(**config_dict)
+    pytorch_model = download_model(GemmaForCausalLM.from_pretrained, variant, config=config)
+    
+    # Load tokenizer
+    tokenizer = download_model(AutoTokenizer.from_pretrained, variant)
+    tokenizer.pad_token = tokenizer.eos_token
+
+    # Sample input
+    prompt = "What is your favorite city?"
+    inputs = tokenizer(prompt, return_tensors="pt")
+
+    # Sanity run
+    generate_ids = pytorch_model.generate(inputs.input_ids, max_length=30)
+    generated_pt_text = tokenizer.batch_decode(generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
+    
+    print("Based on prompt:")
+    print(f"{prompt}")
+    print(f"\nPyTorch (sanity) generated:")
+    pt_ans = generated_pt_text.split('\n\n')[1]
+    print(f"{pt_ans}")
+    
+    # Initialize and Run text2text generator on Tenstorrent device
+    text2text_generator = pybuda_pipeline(
+        "text2text-generation",
+        model=pytorch_model,
+        tokenizer=tokenizer,
+        pybuda_max_length=32,
+    )
+    generated_tt_text = text2text_generator(
+        prompt,
+        max_length=32,
+        num_beams=1,
+        num_return_sequences=1,
+        no_repeat_ngram_size=2,
+    )
+    
+    print("Based on prompt:")
+    print(f"{prompt}")
+    print(f"\nTT generated:")
+    for sequence in generated_tt_text:
+        tt_ans = sequence['generated_text']
+        tt_ans = tt_ans.split('\n\n')[1]
+        print(f"{tt_ans}")
+
+
 if __name__ == "__main__":
-    test_gemma_2b()
+    test_gemma_2b_gen()
