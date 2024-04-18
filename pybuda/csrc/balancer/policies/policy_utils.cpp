@@ -1347,6 +1347,27 @@ int get_limiter_cycles(
 int get_limiter_cycles(
     const OpModel &op_model,
     const Graph *graph,
+    const DeviceConfig &device_config,
+    const bool input_queues_on_host,
+    const bool output_queues_on_host,
+    const OpModels *selected_op_models)
+{
+    return get_limiter_cycles(
+        op_model,
+        graph,
+        device_config,
+        input_queues_on_host,
+        output_queues_on_host,
+        0 /* dram_access_core_count */,
+        0 /* pcie_access_core_count */,
+        nullptr /* current_epoch_nodes */,
+        false /* invalidate_cached */,
+        selected_op_models);
+}
+
+int get_limiter_cycles(
+    const OpModel &op_model,
+    const Graph *graph,
     const BalancerConfig &balancer_config,
     const int dram_access_core_count,
     const int pcie_access_core_count,
@@ -1611,6 +1632,10 @@ int get_limiter_cycles(
         pcie_bw = pcie_observed_max / op_model.grid_shape.volume();
     }
 
+    // Revert noc_bw for output to rough estimation as it is not currently supported by bandwidth estimation.
+    //
+    noc_bw = static_cast<float>(device_config.get_noc_bandwidth_bytes_per_cycle()) / inefficency_divider;
+
     for (const Edge &edge : data_users)
     {
         const tt::graphlib::Node *user_node = graph->node_by_id(edge.consumer_node_id);
@@ -1727,7 +1752,7 @@ bool buffer_graph(
     return graph_modified;
 }
 
-float EpochSolution::evaluate() const
+void EpochSolution::evaluate() const
 {
     static const bool use_legacy_util_eval = env_as<bool>("PYBUDA_TEMP_RIBBON2_LEGACY_UTIL_EVAL", false);
     float pipeline_cycles = 0;
@@ -1798,8 +1823,8 @@ float EpochSolution::evaluate() const
 
     this->pipeline_cycles = pipeline_cycles;
     this->used_cores = used_cores;
-
-    return utilization;
+    this->needs_eval = false;
+    this->utilization = utilization;
 }
 
 void EpochSolution::print() const
@@ -1815,22 +1840,27 @@ void EpochSolution::print() const
     }
 }
 
-void EpochSolution::recalc_nodes()
+void EpochSolution::recalc_nodes(bool update_current_epoch_collections)
 {
     dram_readers_core_count = 0;
     dram_writers_core_count = 0;
     pcie_readers_core_count = 0;
     pcie_writers_core_count = 0;
-    current_epoch_ops.clear();
-    current_epoch_op_models.clear();
-    current_epoch_nodes.clear();
 
-    for (const auto &op_model : selected_op_models)
+    if (update_current_epoch_collections)
     {
-        current_epoch_ops.emplace(op_model.buda_op_node);
-        current_epoch_op_models.emplace(op_model.buda_op_node, op_model);
+        current_epoch_ops.clear();
+        current_epoch_op_models.clear();
+        current_epoch_nodes.clear();
+
+        for (const auto &op_model : selected_op_models)
+        {
+            current_epoch_ops.emplace(op_model.buda_op_node);
+            current_epoch_op_models.emplace(op_model.buda_op_node, op_model);
+        }
+
+        current_epoch_nodes = calculate_current_epoch_nodes(graph, current_epoch_ops);
     }
-    current_epoch_nodes = calculate_current_epoch_nodes(graph, current_epoch_ops);
 
     for (const auto &op_model : selected_op_models)
     {

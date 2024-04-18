@@ -307,7 +307,11 @@ void PerfModel::create_graphs(
                         << op->get_perf_data()->output.size_in_tiles() << ", "
                         << op->get_perf_data()->op_perf_data.cycle_count_ideal(device_config.arch_name) << ", "
                         << op->get_perf_data()->op_perf_data.cycle_count_bw_limited(
-                               device_config, g, input_queues_on_host, output_queues_on_host)
+                               device_config,
+                               g,
+                               input_queues_on_host,
+                               output_queues_on_host,
+                               balancer_solution->selected_op_models)
                         << std::endl;
         }
         else if (node->node_type() == graphlib::NodeType::kBudaNaryTM)

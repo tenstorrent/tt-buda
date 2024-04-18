@@ -46,7 +46,6 @@ class EpochSolution
    private:
     std::uint32_t ribbon_size;
     std::vector<OpModel> selected_op_models;
-    float utilization;
     const BalancerConfig* balancer_config;
     const Graph* graph;
     int dram_readers_core_count;
@@ -54,11 +53,13 @@ class EpochSolution
     int pcie_readers_core_count;
     int pcie_writers_core_count;
     int epoch_target_cycles;
+    mutable bool needs_eval;
+    mutable float utilization;
     mutable int pipeline_cycles;
     mutable int used_cores;
 
-    float evaluate() const;
-    void recalc_nodes();
+    void evaluate() const;
+    void recalc_nodes(bool update_current_epoch_collections = true);
 
    public:
     EpochSolution(
@@ -69,31 +70,48 @@ class EpochSolution
         int epoch_target_cycles = -1) :
         ribbon_size(ribbon_size),
         selected_op_models(selected_op_models),
-        utilization(0.0f),
         balancer_config(balancer_config),
         graph(graph),
         epoch_target_cycles(epoch_target_cycles)
     {
+        current_epoch_ops.reserve(selected_op_models.size());
+        current_epoch_op_models.reserve(selected_op_models.size());
         recalc_nodes();
-        utilization = evaluate();
+        evaluate();
     }
 
     void update_model(std::uint32_t index, const OpModel& model)
     {
+        int old_model_grid_size = selected_op_models[index].grid_shape.volume();
         selected_op_models[index] = model;
-        recalc_nodes();
-        utilization = evaluate();
+        current_epoch_op_models[model.buda_op_node] = model;
+        used_cores += model.grid_shape.volume() - old_model_grid_size;
+        recalc_nodes(false /* update_current_epoch_collections */);
+        needs_eval = true;
     }
 
     void set_op_count(std::size_t op_count)
     {
+        current_epoch_ops.clear();
+        current_epoch_op_models.clear();
+        current_epoch_ops.reserve(op_count);
+        current_epoch_op_models.reserve(op_count);
         selected_op_models.resize(op_count);
         recalc_nodes();
-        utilization = evaluate();
+        needs_eval = true;
+        evaluate();
     }
 
     void print() const;
-    float get_score() const { return utilization; }
+    float get_score() const
+    {
+        if (needs_eval)
+        {
+            evaluate();
+        }
+
+        return utilization;
+    }
     const BalancerConfig* get_balancer_config() const { return balancer_config; }
     const std::vector<OpModel>& get_selected_op_models() const { return selected_op_models; }
     std::uint32_t get_ribbon_size() const { return ribbon_size; }
@@ -101,7 +119,15 @@ class EpochSolution
     const std::unordered_set<const tt::graphlib::Node*>& get_current_epoch_ops() { return current_epoch_ops; }
     const std::unordered_set<const tt::graphlib::Node*>& get_current_epoch_nodes() { return current_epoch_nodes; }
     int get_epoch_target_cycles() const { return epoch_target_cycles; }
-    int get_pipeline_cycles() const { return pipeline_cycles; }
+    int get_pipeline_cycles() const
+    {
+        if (needs_eval)
+        {
+            evaluate();
+        }
+
+        return pipeline_cycles;
+    }
     int get_dram_access_core_count() const { return dram_readers_core_count + dram_writers_core_count; }
     int get_pcie_access_core_count() const { return pcie_readers_core_count + pcie_writers_core_count; }
     float get_used_cores_ratio() const { return static_cast<float>(used_cores) / balancer_config->get_total_cores(); }
@@ -209,6 +235,14 @@ int get_limiter_cycles(
     const std::unordered_set<const tt::graphlib::Node*>* current_epoch_nodes = nullptr,
     bool invalidate_cached = false,
     const OpModels* selected_op_models = nullptr);
+
+int get_limiter_cycles(
+    const OpModel& op_model,
+    const Graph* graph,
+    const DeviceConfig& device_config,
+    const bool input_queues_on_host,
+    const bool output_queues_on_host,
+    const OpModels* selected_op_models);
 
 int get_limiter_cycles(
     const OpModel& op_model,

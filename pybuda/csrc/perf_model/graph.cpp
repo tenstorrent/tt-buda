@@ -15,7 +15,7 @@ SystemSpec SystemSpec::get_for_device(const DeviceConfig &device_config)
     {
         return SystemSpec{
             .clock_period = 1 / (1.2 * 1000000000),
-            .noc_bw = 1,                                 // TODO
+            .noc_bw = 1,                                  // TODO
             .dram_bw = {10, 10, 10, 10, 10, 10, 10, 10},  // bytes/s
             .grid_size_r = 10,
             .grid_size_c = 12,
@@ -26,7 +26,7 @@ SystemSpec SystemSpec::get_for_device(const DeviceConfig &device_config)
     // wormhole and blackhole flavours
     return SystemSpec{
         .clock_period = 1 / (1.2 * 1000000000),
-        .noc_bw = 1,                         // TODO
+        .noc_bw = 1,                          // TODO
         .dram_bw = {60, 60, 60, 60, 60, 60},  // bytes/s
         .grid_size_r = 10,
         .grid_size_c = 8,
@@ -57,13 +57,13 @@ std::uint32_t TensorData::size_in_bytes() const
         case DataFormat::Float32: return size * 4;
         case DataFormat::Int32: return size * 4;
 
-        default: return size * 4; // anything else?
+        default: return size * 4;  // anything else?
     }
 }
 
-std::uint32_t TensorData::size_in_tiles(bool include_z) const 
-{ 
-    auto out = shape.volume() / (32 * 32); 
+std::uint32_t TensorData::size_in_tiles(bool include_z) const
+{
+    auto out = shape.volume() / (32 * 32);
     if (!include_z)
         out /= shape.z();
     return out;
@@ -153,12 +153,18 @@ std::vector<NodeP> Graph::get_outputs() const
     return ret;
 }
 
-void OpPerfData::_get_bw_limited_execution_cycles(const DeviceConfig &device_config, const graphlib::Graph *graph, bool input_queues_on_host, bool output_queues_on_host)
+void OpPerfData::_get_bw_limited_execution_cycles(
+    const DeviceConfig &device_config,
+    const graphlib::Graph *graph,
+    bool input_queues_on_host,
+    bool output_queues_on_host,
+    const std::unordered_map<graphlib::Node const *, balancer::OpModel> &selected_op_models)
 {
     if (_has_bw_limited_execution_cycles)
         return;
 
-    _cycle_bw_limited = get_limiter_cycles(op_model, graph, device_config, input_queues_on_host, output_queues_on_host);
+    _cycle_bw_limited = get_limiter_cycles(
+        op_model, graph, device_config, input_queues_on_host, output_queues_on_host, &selected_op_models);
     _has_bw_limited_execution_cycles = true;
 }
 

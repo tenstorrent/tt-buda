@@ -641,6 +641,7 @@ std::shared_ptr<BalancerSolution> run_balancer_and_placer(
     return std::make_shared<BalancerSolution>(
         balancer_policy_solution.placer_solution.value(),
         op_models,
+        balancer_policy_solution.graph_solver_solution.selected_op_models,
         block_shape_map,
         output_host_tms,
         cut_edges,

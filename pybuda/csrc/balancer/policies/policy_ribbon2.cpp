@@ -84,11 +84,14 @@ OpModel get_closest_op_model(
 std::optional<OpModel> get_closest_op_model_conservative(
     const legalizer::GraphSolver &graph_solver_snapshot,
     const OpModel &op_model_target,
+    const OpModels *selected_op_models_target,
     const BalancerConfig *balancer_config,
     const graphlib::Graph *graph,
     const int ribbon_size)
 {
     std::optional<OpModel> closest_model = std::nullopt;
+    const OpModels &selected_op_models = graph_solver_snapshot.get_selected_op_models();
+
     for (const auto &op_model : graph_solver_snapshot.at(op_model_target.buda_op_node))
     {
         if (op_model == op_model_target)
@@ -108,11 +111,11 @@ std::optional<OpModel> get_closest_op_model_conservative(
                 if (closest_model.has_value())
                 {
                     int my_delta = std::abs(
-                        get_limiter_cycles(op_model, graph, *balancer_config) -
-                        get_limiter_cycles(op_model_target, graph, *balancer_config));
+                        get_limiter_cycles(op_model, graph, *balancer_config, &selected_op_models) -
+                        get_limiter_cycles(op_model_target, graph, *balancer_config, selected_op_models_target));
                     int best_delta = std::abs(
-                        get_limiter_cycles(*closest_model, graph, *balancer_config) -
-                        get_limiter_cycles(op_model_target, graph, *balancer_config));
+                        get_limiter_cycles(*closest_model, graph, *balancer_config, &selected_op_models) -
+                        get_limiter_cycles(op_model_target, graph, *balancer_config, selected_op_models_target));
 
                     if (my_delta < best_delta)
                     {
@@ -173,7 +176,7 @@ EpochSolution optimize_solution(
 
         // Now go through the models, and bump up the ones that are slowest
         auto graph_solver_snapshot = std::make_unique<legalizer::GraphSolver>(graph_solver);
-        const OpModels* selected_op_models = &graph_solver_snapshot->get_selected_op_models();
+        const OpModels *selected_op_models = &graph_solver_snapshot->get_selected_op_models();
         auto new_solution = best_solution;
         auto target_cycles = 0.9 * slowest_cycles;
         std::vector<OpModel> blacklisted_models;  // models from previous bad iterations that shouldn't be tried again
@@ -248,8 +251,7 @@ EpochSolution optimize_solution(
                         if (same_ribbon && (op_model.grid_shape.r != (int)new_solution.get_ribbon_size()))
                             continue;
 
-                        if (get_limiter_cycles(op_model, graph, *balancer_config, selected_op_models) >=
-                            slowest_cycles)
+                        if (get_limiter_cycles(op_model, graph, *balancer_config, selected_op_models) >= slowest_cycles)
                             continue;
 
                         // Find the slowest improvement over the current op_model, to reduce drastic changes
@@ -438,13 +440,19 @@ EpochSolution optimize_solution_conservative(
         //
         for (std::size_t op_index = 0; op_index < new_solution.get_selected_op_models().size(); op_index++)
         {
-            const OpModel &source_op_model = new_solution.get_selected_op_models()[op_index];
-            float cycles = get_limiter_cycles(source_op_model, graph, *balancer_config, selected_op_models);
+            const OpModel &source_op_model = best_solution.get_selected_op_models()[op_index];
+            float cycles =
+                get_limiter_cycles(source_op_model, graph, *balancer_config, &best_solution.current_epoch_op_models);
             if (cycles <= target_cycles)
             {
                 log_trace(LogBalancer, "RIBBON2: op {} is fast enough", source_op_model.buda_op_node->name());
                 std::optional<OpModel> closest_model = get_closest_op_model_conservative(
-                    *graph_solver_snapshot, source_op_model, balancer_config, graph, solution.get_ribbon_size());
+                    *graph_solver_snapshot,
+                    source_op_model,
+                    &best_solution.current_epoch_op_models,
+                    balancer_config,
+                    graph,
+                    solution.get_ribbon_size());
                 if (closest_model.has_value() and
                     closest_model.value().grid_shape.volume() - source_op_model.grid_shape.volume() <=
                         new_solution.get_free_cores())
@@ -534,7 +542,12 @@ EpochSolution optimize_solution_conservative(
                     // We haven't found anything better, set the same (or closest legal).
                     //
                     std::optional<OpModel> closest_model = get_closest_op_model_conservative(
-                        *graph_solver_snapshot, source_op_model, balancer_config, graph, solution.get_ribbon_size());
+                        *graph_solver_snapshot,
+                        source_op_model,
+                        &best_solution.current_epoch_op_models,
+                        balancer_config,
+                        graph,
+                        solution.get_ribbon_size());
 
                     if (!closest_model.has_value())
                     {
