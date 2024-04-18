@@ -298,6 +298,7 @@ def test_gemma_2b_single_decoder(test_device, variant):
     )
 
 
+@pytest.mark.skip(reason="Tested as part of a full generative model run")
 @pytest.mark.parametrize("variant", variants, ids=variants)
 def test_gemma_2b(test_device, variant):
     # Random see for reproducibility
@@ -346,6 +347,7 @@ def test_gemma_2b(test_device, variant):
     )
 
 
+@pytest.mark.skip(reason="Tested as part of a full generative model run")
 @pytest.mark.parametrize("variant", variants, ids=variants)
 def test_gemma_2b_1x1(test_device, variant):
     pytest.xfail("Passing locally, failing on CI. Keeping as XFail to be able to track potential regressions.")
