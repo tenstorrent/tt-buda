@@ -2671,6 +2671,43 @@ def test_tvm_adv_index_bool_cpu_2(test_kind, test_device):
     )
 
 
+@pytest.mark.parametrize("input_shape", ((1, 1, 256, 256), (1, 256, 256)))
+def test_tvm_simplifyreshape(test_device, input_shape):
+
+    # Set PyBuda configuration parameters
+    compiler_cfg = pybuda.config._get_global_compiler_config()
+    compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
+
+    class Model(nn.Module):
+        def __init__(self, new_shape_1, new_shape_2):
+            super().__init__()
+            self.new_shape_1 = new_shape_1
+            self.new_shape_2 = new_shape_2
+
+        def forward(self,input):
+            input = torch.reshape(input, self.new_shape_1)
+            input = torch.transpose(input, 1, 3)
+            input = torch.transpose(input, 2, 3)
+            input = torch.reshape(input, self.new_shape_2)
+            return input
+
+    new_shape_1 = (1, 16, 16, 256)
+    new_shape_2 = input_shape
+    model = Model(new_shape_1, new_shape_2)
+    tt_model = PyTorchModule("simplifyreshape", model)
+
+    verify_module(
+        tt_model,
+        (input_shape,),
+        verify_cfg=VerifyConfig(
+            arch=test_device.arch,
+            devtype=test_device.devtype,
+            devmode=test_device.devmode,
+            test_kind=TestKind.INFERENCE,
+            verify_tvm_compile=True,
+        )
+    )
+    
 def test_tvm_hslice_a(test_kind, test_device):
     # Only run recompute test in post-commit
     if test_kind.is_training():
