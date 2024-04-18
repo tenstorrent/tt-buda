@@ -25,6 +25,10 @@ using Edge = graphlib::Edge;
 using EdgeType = graphlib::EdgeType;
 using EdgeAttributes = graphlib::EdgeAttributes;
 using PortId = graphlib::PortId;
+using AMPNodeProperties = tt::passes::AMPNodeProperties;
+
+bool are_compatible(const AMPNodeProperties &amp_properties1, const AMPNodeProperties &amp_properties2);
+void merge_amp_properties(AMPNodeProperties &amp_properties, const AMPNodeProperties &new_properties);
 
 // Sub-topo order of ops in schedule whole result will be broadcast to another schedule
 struct SubTopo
@@ -45,7 +49,7 @@ class FusionGroup
     bool has_reduce;
     bool has_broadcast_c;
     std::uint32_t reduce_dim = 0;
-    std::optional<DataFormat> df_override = std::nullopt;
+    std::optional<AMPNodeProperties> amp_properties = std::nullopt;
 
     std::vector<BudaOpNode *> topo_order;
     BudaOpNode* output_op = nullptr;
@@ -114,13 +118,20 @@ class FusionGroup
     bool has_reduce_op() const { return has_reduce; }
     std::uint32_t get_reduce_dim() const { return reduce_dim; }
     Node* get_output_op() const { return output_op; }
-    bool has_df_override() const { return df_override.has_value(); }
-    void set_df_override(DataFormat df) { df_override = df; }
+    bool has_amp_properties() const { return amp_properties.has_value(); }
 
-    DataFormat get_df_override() const
+    AMPNodeProperties get_amp_properties() const
     {
-        TT_ASSERT(this-has_df_override());
-        return df_override.value();
+        TT_ASSERT(this-has_amp_properties());
+        return amp_properties.value();
+    }
+
+    void update_amp_properties(const AMPNodeProperties &new_properties)
+    {
+        if (not has_amp_properties())
+            amp_properties = AMPNodeProperties();
+
+        merge_amp_properties(amp_properties.value(), new_properties);
     }
 
     void set_reduce_op(uint32_t reduce_dim)
@@ -1223,7 +1234,7 @@ BudaOpNode* FusionGroup::fuse(Graph *graph, FusionGroupP self, bool reuse_dest_o
     }
 
     new_op->set_fused_op(std::make_shared<FusedOp>(self, new_op, input_mapping, output_op, schedules));
-    
+
     return new_op;
 }
 
@@ -1429,7 +1440,7 @@ bool should_fuse_node(
     std::unordered_map<graphlib::NodeId, FusionGroupP> &fused_nodes,
     const std::vector<std::vector<std::string>> &op_names_to_chip_break,
     const std::vector<std::vector<std::string>> &op_names_to_epoch_break,
-    const std::unordered_map<graphlib::NodeId, DataFormat> &op_df_overrides)
+    const std::unordered_map<graphlib::Node *, AMPNodeProperties> &op_df_overrides)
 {   
     if (node->tag_value_or<bool>("dont_fuse", false))
         return false;
@@ -1438,19 +1449,13 @@ bool should_fuse_node(
     if (fused_nodes.count(node->id()) > 0)
         return false;
     
-    // If node has an output dataformat override which is not compatible with
-    // other node dataformat overrides in the fused op.
-    if (op_df_overrides.count(node->id()) > 0)
+    // If node has a dataformat override which is not compatible with other node dataformat overrides in the fused op.
+    if (op_df_overrides.count(node) > 0 and
+        fused_op->has_amp_properties() and
+        not are_compatible(fused_op->get_amp_properties(), op_df_overrides.at(node)))
     {
-        DataFormat node_df = op_df_overrides.at(node->id());
-        if (fused_op->has_df_override() and fused_op->get_df_override() != node_df)
-        {
-            log_warning(LogFuser, 
-                        "Unable to fuse node {} with dataformat override {} with fused op with dataformat override {}",
-                        node->name(), node_df, fused_op->get_df_override());
-            return false;
-        }
-        fused_op->set_df_override(node_df);
+        log_warning(LogFuser, "Unable to fuse node {} because of incompatible dataformat override.", node->name());
+        return false;
     }
 
     // Note: get_dram_input_count isn't perfect because op fusion happens before
@@ -1537,7 +1542,7 @@ void expand_search(
     std::unordered_map<graphlib::NodeId, FusionGroupP> &fused_nodes,
     const std::vector<std::vector<std::string>> &op_names_to_chip_break,
     const std::vector<std::vector<std::string>> &op_names_to_epoch_break,
-    const std::unordered_map<graphlib::NodeId, DataFormat> &op_df_overrides)
+    const std::unordered_map<graphlib::Node *, AMPNodeProperties> &op_df_overrides)
 {
     //
     // search below and above for more ops to fuse
@@ -1553,6 +1558,10 @@ void expand_search(
     uint32_t reduce_dim = 0;
     if (find_reduce_dim(current_node, reduce_dim) && !fused_op->has_reduce_op())
         fused_op->set_reduce_op(reduce_dim);
+
+    // If the current node has dataformat overrides add them to the fused op.
+    if (op_df_overrides.count(current_node) > 0)
+        fused_op->update_amp_properties(op_df_overrides.at(current_node));
 
     bool disable_broadcast = env_as<bool>("PYBUDA_FUSE_DISABLE_BROADCAST");
 
@@ -1626,56 +1635,101 @@ static void tag_ops_dont_fuse(
     }
 }
 
-// Read output_df override from amp_properties and return a mapping of node id to DF
-std::unordered_map<graphlib::NodeId, DataFormat> get_dataformat_override_mapping(graphlib::Graph *graph, const std::vector<tt::passes::AMPNodeProperties> &amp_properties)
+bool allowed_dataformat_overrides(const AMPNodeProperties &amp_property)
 {
-    std::vector<tt::passes::AMPNodeProperties> amp_properties_output_df;
-    std::copy_if(
-        amp_properties.begin(), amp_properties.end(), std::back_inserter(amp_properties_output_df),
-        [](const tt::passes::AMPNodeProperties &amp_property) { return amp_property.output_df.has_value(); }
-    );
+    if (not env_as<bool>("PYBUDA_FUSE_DF_OVERRIDE", true))
+        return false;
+
+    if (amp_property.input_df.has_value())
+        return false;
+
+    return true;
+}
+
+// Whether two AMPNodeProperties have conflicting dataformat overrides or not.
+bool are_compatible(const AMPNodeProperties &amp_properties1, const AMPNodeProperties &amp_properties2) {
+    bool compatible = true;
+    if (amp_properties1.output_df.has_value() and amp_properties2.output_df.has_value())
+        compatible &= amp_properties1.output_df.value() == amp_properties2.output_df.value();
+
+    if (amp_properties1.intermediate_df.has_value() and amp_properties2.intermediate_df.has_value())
+        compatible &= amp_properties1.intermediate_df.value() == amp_properties2.intermediate_df.value();
+
+    if (amp_properties1.accumulate_df.has_value() and amp_properties2.accumulate_df.has_value())
+        compatible &= amp_properties1.accumulate_df.value() == amp_properties2.accumulate_df.value();
+
+    if (amp_properties1.math_fidelity.has_value() and amp_properties2.math_fidelity.has_value())
+        compatible &= amp_properties1.math_fidelity.value() == amp_properties2.math_fidelity.value();
+
+    return compatible;
+}
+
+void merge_amp_properties(AMPNodeProperties &amp_properties, const AMPNodeProperties &new_properties) {
+    TT_ASSERT(are_compatible(amp_properties, new_properties));
+
+    if (new_properties.output_df.has_value())
+        amp_properties.output_df = new_properties.output_df;
+
+    if (new_properties.intermediate_df.has_value())
+        amp_properties.intermediate_df = new_properties.intermediate_df;
+
+    if (new_properties.accumulate_df.has_value())
+        amp_properties.accumulate_df = new_properties.accumulate_df;
+
+    if (new_properties.math_fidelity.has_value())
+        amp_properties.math_fidelity = new_properties.math_fidelity;
+}
+
+bool is_amp_light(const AMPNodeProperties &amp_property)
+{
+    return amp_property.op_type.has_value() and
+           amp_property.op_type.value() == "matmul" and
+           amp_property.math_fidelity.has_value() and
+           amp_property.input_parameter_indices_to_optimize.has_value();
+}
+
+// Create a mapping of node id to AMPNodeProperties (dataformat overrides).
+std::unordered_map<graphlib::Node *, AMPNodeProperties> get_dataformat_override_mapping(graphlib::Graph *graph, std::vector<AMPNodeProperties> &amp_properties)
+{
+    std::vector<AMPNodeProperties> valid_amp_properties;
+    for (const auto &amp_property : amp_properties)
+    {
+        // Skip AMP light properties for now since these can lower math fidelity and we can lose precision.
+        // TODO: if we fuse general matmul at some point we should consider implementing this as well.
+        if (not is_amp_light(amp_property))
+        {
+            valid_amp_properties.push_back(amp_property);
+        }
+    }
 
     tt::passes::RegexMatcher regex_matcher;
-    std::unordered_map<graphlib::NodeId, DataFormat> df_overrides;
+    std::unordered_map<graphlib::Node *, AMPNodeProperties> df_overrides;
     for (const auto node : graph->nodes())
     {
-        for (auto amp_property : amp_properties_output_df)
+        for (AMPNodeProperties &amp_property : valid_amp_properties)
         {
             if (tt::passes::is_matched_op(amp_property, regex_matcher, node))
             {
-                df_overrides[node->id()] = amp_property.output_df.value();
+                if (allowed_dataformat_overrides(amp_property))
+                {
+                    if (df_overrides.count(node) > 0)
+                    {
+                        merge_amp_properties(df_overrides[node], amp_property);
+                    }
+                    else
+                    {
+                        df_overrides[node] = amp_property;
+                    }
+                }
+                else
+                {
+                    node->as<graphlib::TaggedNode>()->tag("dont_fuse");
+                }   
             }
         }
     }
 
     return df_overrides;
-}
-
-// We skip fusing op_types that have override for output_df in amp_properties
-void skip_fusing_based_on_amp_properties(graphlib::Graph *graph, const std::vector<tt::passes::AMPNodeProperties> &amp_properties)
-{
-    std::unordered_set<std::string> op_types_skip_fusing;
-    for (const auto& amp_property : amp_properties)
-    {
-        if (amp_property.op_type.has_value() && amp_property.output_df.has_value())
-        {
-            op_types_skip_fusing.insert(amp_property.op_type.value());
-        }
-    }
-
-    for (Node *node : graphlib::topological_sort(*graph))
-    {
-        if(node->node_type() == graphlib::NodeType::kBudaOp)
-        {
-            std::string op_type = node->as<graphlib::BudaOpNode>()->op_type().op;
-            if (op_types_skip_fusing.find(op_type) != op_types_skip_fusing.end())
-            {
-                // current node has op_type which has output_df override in amp_properties
-                // therefore, we mark that node with dont_fuse to skip fusing.
-                node->as<graphlib::TaggedNode>()->tag("dont_fuse");
-            }
-        }
-    }
 }
 
 void fuse_ops(
@@ -1685,7 +1739,7 @@ void fuse_ops(
     const std::vector<std::vector<std::string>> &op_names_to_epoch_break,
     const std::vector<std::string> &op_names_dont_fuse,
     const std::vector<std::string> &op_names_manual_fuse,
-    std::vector<tt::passes::AMPNodeProperties> &amp_properties)
+    std::vector<AMPNodeProperties> &amp_properties)
 {
     // Map of node IDs and fused groups that contain that node.
     // If fuse group is nullptr, that means that fusing was already attempted and failed for this node.
@@ -1696,14 +1750,8 @@ void fuse_ops(
 
     log_debug(LogFuser, "Fusing ops...");
 
-    // Output dataformat overrides.
-    std::unordered_map<graphlib::NodeId, DataFormat> op_df_overrides;
-    
-    if  (env_as<bool>("PYBUDA_FUSE_DF_OVERRIDE", true)) {
-        op_df_overrides = get_dataformat_override_mapping(graph, amp_properties);
-    } else {
-        skip_fusing_based_on_amp_properties(graph, amp_properties);
-    }
+    // Data format overrides for every node.
+    std::unordered_map<graphlib::Node *, AMPNodeProperties> op_df_overrides = get_dataformat_override_mapping(graph, amp_properties);
 
     tag_ops_dont_fuse(graph, op_names_dont_fuse, op_names_manual_fuse);
 
@@ -1781,21 +1829,29 @@ void fuse_ops(
     {
         if (!(f->empty()))
         {
-            BudaOpNode* new_op = f->fuse(graph, f, reuse_dest_on_srcA_only);
-            if (f->has_df_override())
+            BudaOpNode *new_op = f->fuse(graph, f, reuse_dest_on_srcA_only);
+
+            // Recalculate all dataformat overrides since we could have removed some nodes in legalize.
+            bool has_df_overrides = false;
+            AMPNodeProperties fused_op_properties;
+            if (f->has_amp_properties())
             {
-                DataFormat df_override = f->get_df_override();
-                log_debug(LogFuser, "Fused op {} has output_df override: {}", new_op->name(), df_override);
-                amp_properties.push_back(
-                    tt::passes::AMPNodeProperties(
-                    std::nullopt,
-                    std::nullopt,
-                    df_override,
-                    std::nullopt,
-                    std::nullopt,
-                    std::nullopt,
-                    new_op->name()
-                ));
+                for (BudaOpNode *op : f->get_topo_order())
+                {
+                    if (op_df_overrides.count(op) > 0)
+                    {
+                        AMPNodeProperties op_properties = op_df_overrides.at(op);
+                        
+                        merge_amp_properties(fused_op_properties, op_properties);
+                        has_df_overrides = true;
+                    }
+                }
+            }
+
+            // Save AMP properties for new fused op.
+            if (has_df_overrides) {
+                fused_op_properties.name_regex_match = new_op->name();
+                amp_properties.push_back(fused_op_properties);
             }
         }
     }

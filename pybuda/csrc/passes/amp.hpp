@@ -87,7 +87,7 @@ public:
     bool has_matching_string(const std::string& regex_string, const std::string& candidate_string);
 };
 
-bool is_matched_op(AMPNodeProperties &amp_properties, RegexMatcher &regex_matcher, const graphlib::Node* node);
+bool is_matched_op(const AMPNodeProperties &amp_properties, RegexMatcher &regex_matcher, const graphlib::Node* node);
 
 void to_json(nlohmann::json& j, const AMPNodeProperties& p);
 void from_json(const nlohmann::json& j, AMPNodeProperties& p);

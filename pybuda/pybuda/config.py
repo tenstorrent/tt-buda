@@ -1203,8 +1203,7 @@ def configure_mixed_precision(
     assert math_fidelity is None or isinstance(math_fidelity, MathFidelity)
     assert name_regex is None or isinstance(name_regex, str)
     assert op_type or epoch_type or name_regex or is_gradient_op
-    if input_df is None:
-        input_df = {}
+
     if isinstance(input_df, dict):
         for operand_index, config in input_df.items():
             assert len(config) == 2, f"For operand index {operand_index}, invalid config"

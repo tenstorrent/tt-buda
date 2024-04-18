@@ -370,7 +370,7 @@ std::optional<std::string> original_op_type(const graphlib::Node* node)
     return {};
 }
 
-bool is_matched_op(AMPNodeProperties &amp_properties, RegexMatcher &regex_matcher, const Node* node) {
+bool is_matched_op(const AMPNodeProperties &amp_properties, RegexMatcher &regex_matcher, const Node* node) {
     bool is_match = true;
     if (amp_properties.name_regex_match.has_value())
     {
