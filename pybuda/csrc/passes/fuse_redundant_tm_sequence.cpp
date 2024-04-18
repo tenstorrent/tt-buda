@@ -46,40 +46,126 @@ graphlib::Shape replacement_output_shape(graphlib::Shape input_shape, const TMPa
     return input_shape;
 }
 
+std::string pattern_to_string(const TMPattern& pattern) {
+    std::stringstream ss;
+    for (uint i = 0; i < pattern.size(); i++) {
+       ss << pattern[i].op_name;
+       if (pattern[i].attrs.size() > 0) {
+            ss << "(";
+            for (auto attr : pattern[i].attrs) {
+                ss << attr << ",";
+            }
+            ss << ")";
+       }
+       if (i < pattern.size() - 1)
+            ss << "-->";
+    }
+    return ss.str();
+}
 
-void replace_pattern_with_new_pattern(
+bool replace_pattern_with_new_pattern(
     tt::graphlib::Graph* graph,
     const TMPattern& current_pattern, 
     const TMPattern& replace_pattern, 
     graphlib::Node *sequence_producer, 
-    graphlib::Node * node) {
+    graphlib::Node * terminal_node) {
 
-    //Bypass all nodes until the end of the current pattern
+    log_debug(LogTMFusion, "Trying to replace pattern from {} to {}.", pattern_to_string(current_pattern), pattern_to_string(replace_pattern));
+
+    bool multiple_user = false;
+    std::vector<graphlib::Node *> users;
+    graphlib::Node * fuse_node = nullptr;
+
+    // Check whether the matched pattern has multiple user or not
+    // if there are multiple user at the end of the pattern matched node and
+    // multiple user are same op and same shape
+    // then the matched pattern can be fused by using replace pattern
+    // and other user nodes are connected to the fused op.
     auto current_node = graph->users(sequence_producer)[0];
+    while (current_node != terminal_node) {
+        users = graph->users(current_node);
+        if (users.size() > 1) {
+            bool user_is_terminal_node = std::find(users.begin(), users.end(), terminal_node) != users.end();
+
+            // If there is a fork in the middle of the matched pattern, we cannot fuse TMs
+            if (!user_is_terminal_node) {
+                log_debug(LogTMFusion, "There is a fork in the middle of the matched pattern - cannot fuse tms.");
+                return false;
+            }
+
+            OpType op_type = terminal_node->as<graphlib::OpNode>()->op_type();
+            for (auto& user : users) {
+
+                if (user->node_type() != graphlib::NodeType::kPyOp) {
+                    // All users should be PyOps
+                    return false;
+                }
+
+                if (user->as<graphlib::OpNode>()->op_type().op != op_type.op) {
+                    // All users should be the same op
+                    log_debug(LogTMFusion, "There is a user at the end of the matched pattern which is different op - cannot fuse tms.");
+                    return false;
+                }
+
+                if (user->shape() != terminal_node->shape()) {
+                    // All users should have the same shape
+                    log_debug(LogTMFusion, "There is a user at the end of the matched pattern which is same op but different shape - cannot fuse tms.");
+                    return false;
+                }
+            }
+            multiple_user = true;
+            break;
+
+        }
+        current_node = users[0];
+    }
+
+    // remove the edges of the users if it is same op and same shape
+    if (multiple_user) {
+        for (auto& user : users) {
+            if (user != terminal_node) {
+                auto edge_to_remove = graph->get_edges(current_node, user)[0];
+                graph->remove_edge(edge_to_remove);
+            }
+        }
+    }
+    // Bypass all nodes until the end of the current pattern
+    current_node = graph->users(sequence_producer)[0];
 
     // remove old pattern
-    while (current_node != node) {
+    while (current_node != terminal_node) {
         TT_ASSERT(graph->users(current_node).size() == 1);
         auto next_node = graph->users(current_node)[0];
         bypass_node(graph, current_node, true);
         current_node = next_node;
     }
 
-    TT_ASSERT(graph->get_edges(sequence_producer, node).size() == 1);
-    auto current_edge = graph->get_edges(sequence_producer, node)[0];
+    TT_ASSERT(graph->get_edges(sequence_producer, terminal_node).size() == 1);
+    auto current_edge = graph->get_edges(sequence_producer, terminal_node)[0];
     for (uint i = 0; i < replace_pattern.size(); i++) {
         auto op = replace_pattern[i];
         std::string name = sequence_producer->name() + "_fused_tm_op_" + std::to_string(i);
         auto new_node = graph->add_node(
             std::make_unique<graphlib::PyOpNode>(name, op.as_op_type()), graph->get_subgraph_id_for_node(sequence_producer->id()));
+        fuse_node = new_node;
         auto [new_in_edge, new_out_edge] = graphlib::insert_node_on_edge(graph, current_edge, new_node);
         current_edge = new_out_edge;
     }
 
     // Remove the final node
-    bypass_node(graph, node, true);
+    bypass_node(graph, terminal_node, true);
+
+    // connect the edge of the users to the fused op
+    if (multiple_user) {
+        for (auto& user : users){
+            if (user != terminal_node)
+                graph->add_edge(fuse_node, user);
+        }
+    }
+
     recalculate_shapes(graph);
     log_info(LogTMFusion, "Found replaceable TM sequence. Fuse from {} tms into {} tms.", current_pattern.size(), replace_pattern.size());
+    return true;
 }
 
 
@@ -164,12 +250,13 @@ bool fuse_tm_sequences(tt::graphlib::Graph* graph,TMPatternPairs& pattern_map) {
                     bool same_shape = output_shape == op->shape();
                     if (same_pattern and same_shape) {
                         // Replace current pattern with replace pattern
-                        replace_pattern_with_new_pattern(graph, current_pattern, replace_pattern, sequence_producer, node);
+                        bool is_pattern_replaced = replace_pattern_with_new_pattern(graph, current_pattern, replace_pattern, sequence_producer, node);
                         // Break and reset
                         current_pattern.clear();
                         sequence_producer = nullptr;
-                        updated = true;
-                        updated_anything = true;
+                        updated = is_pattern_replaced;
+                        if (is_pattern_replaced)
+                            updated_anything = is_pattern_replaced;
                         potential_prefix = true;
                         continue;
                     }
