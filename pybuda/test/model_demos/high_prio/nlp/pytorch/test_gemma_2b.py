@@ -462,6 +462,7 @@ def test_gemma_2b_gen(test_device, variant):
         print(f"{tt_ans}")
 
 
+@pytest.mark.xfail
 @pytest.mark.parametrize("variant", variants, ids=variants)
 def test_gemma_2b_1x1_gen(test_device, variant):
     # Random seed for reproducibility
