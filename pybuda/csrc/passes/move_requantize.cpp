@@ -1,4 +1,6 @@
-
+// SPDX-FileCopyrightText: © 2024 Tenstorrent AI ULC
+//
+// SPDX-License-Identifier: Apache-2.0
 #include <pybind11/pybind11.h>
 
 #include "graph_lib/node_types.hpp"

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: © 2024 Tenstorrent AI ULC
+//
+// SPDX-License-Identifier: Apache-2.0
 #include "balancer/bandwidth_estimator_impl.hpp"
 #include "balancer/bandwidth_bucket.hpp"
 
