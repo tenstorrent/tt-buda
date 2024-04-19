@@ -10,6 +10,9 @@ include:
   - ci/gitlab-test-lists/.gitlab-ci.wormhole_b0_silicon_perf_bfp8_b_manual.yml
   - ci/gitlab-test-lists/.gitlab-ci.wormhole_b0_silicon_perf_fp16_manual.yml
   - ci/gitlab-test-lists/.gitlab-ci.wormhole_b0_silicon_perf_release_manual.yml
+  - ci/gitlab-test-lists/benchmarking/.gitlab-ci.wormhole_b0_silicon_perf_release_public.yml
+  - ci/gitlab-test-lists/benchmarking/.gitlab-ci.grayskull_e75_perf_release_public.yml
+  - ci/gitlab-test-lists/benchmarking/.gitlab-ci.grayskull_e150_perf_release_public.yml
 
 # Dissable other jobs from .gitlab-ci.wheels.yml
 pybuda-gs-latest-bbe-wheel:

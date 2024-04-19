@@ -1,0 +1,154 @@
+.silicon-wh-b0-perf-release-public:
+  extends: .backend-wh-b0-common
+  rules:
+    - if: ($CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_MESSAGE =~ /\[perf_public\]/)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_MESSAGE =~ /\[perf_wh_public\]/)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_MESSAGE =~ /\[no_ci_perf_public\]/)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_MESSAGE =~ /\[no_ci_perf_wh_public\]/)
+  timeout: 120m
+  stage: perf-wh-b0-silicon-release-public
+  variables:
+    ARCH_NAME: "wormhole_b0"
+    BACKEND_ARCH_NAME: "wormhole_b0"
+    LD_LIBRARY_PATH: "versim/wormhole_b0/lib:versim/wormhole_b0/lib/ext"
+    PYTEST_ADDOPTS: "-svv --silicon-only --durations=10 --durations-min=10 --junitxml=$CI_PROJECT_DIR/test-results/report.xml"
+    PYTEST_CURRENT_TEST: $CI_JOB_NAME
+  tags:
+    - wh-1-card
+    - n150
+    - performance
+  artifacts:
+    paths:
+      - /builds/tenstorrent/pybuda/*-perf.json
+      - "*netlist.yaml"
+    expire_in: 1 day
+    when: always
+  script:
+    - !reference [.common_prep, script]
+    - !reference [.retry_on_hang_wh, script]
+    - !reference [.lib_gl_package, script]
+    - git submodule update --init --recursive third_party/benchmarking
+    - pip install -r third_party/benchmarking/requirements.txt
+    - pip install --upgrade huggingface_hub
+
+#Release
+pybuda-silicon-wh-b0-perf-public-resnet:
+  extends: .silicon-wh-b0-perf-release-public
+  script:
+    - !reference [.silicon-wh-b0-perf-release-public, script]
+    - python third_party/benchmarking/benchmark.py  -d tt -m resnet -c resnet50 --task image_classification -mb 256 -df Bfp8_b -mf LoFi --loop_count 128 --save_output
+
+pybuda-silicon-wh-b0-perf-public-mobilenet-v1:
+  extends: .silicon-wh-b0-perf-release-public
+  script:
+    - !reference [.silicon-wh-b0-perf-release-public, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m mobilenetv1 -c 224 --task image_classification -mb 256 -df Bfp8_b -mf LoFi --loop_count 128 --save_output
+
+pybuda-silicon-wh-b0-perf-public-mobilenet-v2:
+  extends: .silicon-wh-b0-perf-release-public
+  script:
+    - !reference [.silicon-wh-b0-perf-release-public, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m mobilenetv2 -c 224 --task image_classification -mb 256 -df Bfp8_b -mf LoFi --loop_count 128 --save_output
+
+pybuda-silicon-wh-b0-perf-public-mobilenet-v3:
+  extends: .silicon-wh-b0-perf-release-public
+  script:
+    - !reference [.silicon-wh-b0-perf-release-public, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m mobilenetv3 -c lg --task image_classification -mb 64 -mf LoFi --loop_count 128 --save_output
+
+pybuda-silicon-wh-b0-perf-public-vovnet-v2:
+  extends: .silicon-wh-b0-perf-release-public
+  script:
+    - !reference [.silicon-wh-b0-perf-release-public, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m vovnet_v2 -c 39 --task image_classification -mb 128 -df Bfp8_b -mf LoFi --loop_count 128 --save_output
+
+pybuda-silicon-wh-b0-perf-public-openpose-body:
+  extends: .silicon-wh-b0-perf-release-public
+  script:
+    - !reference [.silicon-wh-b0-perf-release-public, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m open_pose -c 2d --task pose_estimation -mb 128 -df Fp16 --loop_count 128 --save_output
+
+pybuda-silicon-wh-b0-perf-public-hrnet:
+  extends: .silicon-wh-b0-perf-release-public
+  script:
+    - !reference [.silicon-wh-b0-perf-release-public, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m hrnet -c v2_w64 --task image_classification -mb 128 -df Bfp8_b -mf LoFi --loop_count 128 --save_output
+
+pybuda-silicon-wh-b0-perf-public-yolo-v5:
+  extends: .silicon-wh-b0-perf-release-public
+  script:
+    - !reference [.silicon-wh-b0-perf-release-public, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m yolo_v5 -c s --task object_detection -mb 128 --loop_count 1 --save_output
+
+pybuda-silicon-wh-b0-perf-public-inception-v4:
+  extends: .silicon-wh-b0-perf-release-public
+  script:
+    - !reference [.silicon-wh-b0-perf-release-public, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m inception_v4 -c 224 --task image_classification -mb 128 -df Bfp8_b -mf LoFi --loop_count 128 --save_output
+
+# TODO: Enable pulling dataset for unet. Currently FAILs.
+# pybuda-silicon-wh-b0-perf-public-unet:
+#   extends: .silicon-wh-b0-perf-release-public
+#   script:
+#     - !reference [.silicon-wh-b0-perf-release-public, script]
+#     - python third_party/benchmarking/benchmark.py -d tt -m unet -c 256 --task segmentation -mb 128 -df Bfp8_b -mf LoFi --loop_count 1 --save_output
+
+pybuda-silicon-wh-b0-perf-public-vit:
+  extends: .silicon-wh-b0-perf-release-public
+  script:
+    - !reference [.silicon-wh-b0-perf-release-public, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m vit -c base --task image_classification -mb 256 -df Bfp8_b -mf LoFi --loop_count 128 --save_output
+
+pybuda-silicon-wh-b0-perf-public-deit:
+  extends: .silicon-wh-b0-perf-release-public
+  script:
+    - !reference [.silicon-wh-b0-perf-release-public, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m deit -c base --task image_classification -mb 256 -df Bfp8_b -mf LoFi --loop_count 128 --save_output
+
+pybuda-silicon-wh-b0-perf-public-bert-large:
+  extends: .silicon-wh-b0-perf-release-public
+  script:
+    - !reference [.silicon-wh-b0-perf-release-public, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m bert -c large --task text_classification -mb 128 -df Bfp8_b -mf LoFi --loop_count 128 --save_output
+
+pybuda-silicon-wh-b0-perf-public-whisper:
+  extends: .silicon-wh-b0-perf-release-public
+  script:
+    - !reference [.silicon-wh-b0-perf-release-public, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m whisper_enc_dec -c small --task asr -mb 1 --loop_count 1 --save_output
+
+pybuda-silicon-wh-b0-perf-public-t5-large_enc_dec:
+  extends: .silicon-wh-b0-perf-release-public
+  script:
+    - !reference [.silicon-wh-b0-perf-release-public, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m t5_past_cache_enc_dec -c large --task text_summarization -mb 1 --loop_count 1 --save_output
+
+pybuda-silicon-wh-b0-perf-public-t5-large:
+  extends: .silicon-wh-b0-perf-release-public
+  script:
+    - !reference [.silicon-wh-b0-perf-release-public, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m t5 -c large --task text_summarization -mb 1 --loop_count 1 --save_output
+
+pybuda-silicon-wh-b0-perf-public-flan-t5-large_enc_dec:
+  extends: .silicon-wh-b0-perf-release-public
+  script:
+    - !reference [.silicon-wh-b0-perf-release-public, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m flant5_past_cache_enc_dec -c large --task text_summarization -mb 1 --loop_count 1 --save_output
+
+pybuda-silicon-wh-b0-perf-public-flan-t5-large:
+  extends: .silicon-wh-b0-perf-release-public
+  script:
+    - !reference [.silicon-wh-b0-perf-release-public, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m flant5 -c large --task text_summarization -mb 1 --loop_count 1 --save_output
+
+pybuda-silicon-wh-b0-perf-public-falcon-7b-large:
+  extends: .silicon-wh-b0-perf-release-public
+  script:
+    - !reference [.silicon-wh-b0-perf-release-public, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m falcon -c 7b-instruct --task hellaswag -df Fp16_b -mb 32 --loop_count 1 --save_output
+
+pybuda-silicon-wh-b0-perf-public-sd-large:
+  extends: .silicon-wh-b0-perf-release-public
+  script:
+    - !reference [.silicon-wh-b0-perf-release-public, script]
+    - python third_party/benchmarking/benchmark.py -d tt -m stable_diffusion -c v1-4 --task image_generation -df Fp16_b -mb 1 --loop_count 1 --save_output
