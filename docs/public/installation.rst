@@ -186,24 +186,9 @@ You may need to append each ``apt-get`` command with ``sudo`` if you do not have
 Package Level Dependencies
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-In addition, if you intend to utilize ``torchvision`` for your model development, we strongly recommend installing it using a specific method that ensures optimal compatibility with PyBUDA. This method involves building and installing `torchvision` from its source code, which allows for the necessary dependencies and configurations to be correctly set up.
+In addition, if you intend to utilize ``torchvision`` for your model development, we strongly recommend using the ``torchvision`` version built with CXX11 ABI, that ensures optimal compatibility with PyBUDA.
 
-To do this, you should use the following commands:
-
-.. code-block:: bash
-
-  export TORCH_VISION_INSTALL=1
-  make torchvision
-
-The ``export TORCH_VISION_INSTALL=1`` command sets an environment variable that our Makefile script uses to determine whether to install ``torchvision``. By setting this variable to 1, you're instructing the script to proceed with the ``torchvision`` installation.
-
-The ``make torchvision`` command then triggers the build and installation process. This process includes cloning the ``torchvision`` repository, checking out the desired version, and building ``torchvision`` using its ``setup.py`` script.
-
-By following these steps, ``torchvision`` will be installed in a way that ensures it works effectively with PyBUDA.
-
-.. note::
-
-  The ``TORCH_VISION_INSTALL`` flag is not limited to the ``make torchvision`` command. It can also be used with the standard ``make build`` command. When this flag is set to 1, the build process will include the installation of ``torchvision``, regardless of the specific ``make`` command used. This allows for flexibility in your build process, enabling you to include or exclude the ``torchvision`` installation as needed.
+When building PyBUDA from source, the recommended version of ``torchvision`` is built and installed by default.
 
 .. note::
 
