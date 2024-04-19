@@ -13,6 +13,7 @@ import pybuda
 from pybuda import (
     VerifyConfig,
     PyTorchModule,
+    CompileDepth,
 )
 from test.utils import download_model
 from pybuda.pybudaglobal import TILE_DIM
@@ -465,14 +466,17 @@ def test_gemma_2b_gen(test_device, variant):
         print(f"{tt_ans}")
 
 
-@pytest.mark.xfail
 @pytest.mark.parametrize("variant", variants, ids=variants)
 def test_gemma_2b_1x1_gen(test_device, variant):
     # Random seed for reproducibility
     torch.manual_seed(42)
-    
-    # Configurations
+
     compiler_cfg = pybuda.config._get_global_compiler_config()
+    
+    if "CI_PROJECT_DIR" in os.environ:
+        pytest.skip("Failing on CI with Read 0xffffffff from ARC scratch[6]: you should reset the board")
+
+    # Configurations
     compiler_cfg.balancer_policy = "Ribbon"
     os.environ["PYBUDA_RIBBON2"] = "1"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
