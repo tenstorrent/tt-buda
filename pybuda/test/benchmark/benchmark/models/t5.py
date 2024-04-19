@@ -25,6 +25,7 @@ def t5(training: bool, config: str, microbatch: int, devtype: str, arch: str, da
     os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
     os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
     os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
+    os.environ["PYBUDA_EXP_APPROX"] = "1"
 
     if data_type == "Bfp8_b":
         pybuda.config.configure_mixed_precision(op_type="add", output_df=pybuda.DataFormat.Float16_b)
@@ -70,6 +71,7 @@ def flan_t5(training: bool, config: str, microbatch: int, devtype: str, arch: st
     os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
     os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
     os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
+    os.environ["PYBUDA_EXP_APPROX"] = "1"
 
     # Determine model variant
     if config == "base":
