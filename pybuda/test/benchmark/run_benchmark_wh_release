@@ -50,7 +50,7 @@ pybuda/test/benchmark/benchmark.py -m inception_v4 -c 224 -o pybuda-silicon-wh-b
 pybuda/test/benchmark/benchmark.py -m unet -c 256 -mb 64 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # Bert large bfp8_b
-pybuda/test/benchmark/benchmark.py -m bert -c large_tc -o pybuda-silicon-wh-b0-perf-all-perf.json
+pybuda/test/benchmark/benchmark.py -m bert -c large_tc -m 64 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # Whisper fp16_b
 pybuda/test/benchmark/benchmark.py -m whisper -c small --loop_count 1 -mb 1 -df Fp16_b -mf HiFi3 --single-thread --generative -o pybuda-silicon-wh-b0-perf-all-perf.json

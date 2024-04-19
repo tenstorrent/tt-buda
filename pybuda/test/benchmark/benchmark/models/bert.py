@@ -103,6 +103,7 @@ def bert(training: bool, config: str, microbatch: int, devtype: str, arch: str, 
             os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
             os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
             if data_type == "Bfp8_b":
+                os.environ["PYBUDA_FORK_JOIN_BUF_QUEUES"] = "1"
                 os.environ["PYBUDA_EXP_APPROX"] = "1"
                 pybuda.config.configure_mixed_precision(op_type="add", output_df=pybuda.DataFormat.Float16_b)
                 pybuda.config.configure_mixed_precision(op_type="subtract", output_df=pybuda.DataFormat.Float16_b)

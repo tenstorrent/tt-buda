@@ -34,6 +34,7 @@ def deit(training: bool, config: str, microbatch: int, devtype: str, arch: str, 
         os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
 
     if data_type == "Bfp8_b":
+        os.environ["PYBUDA_FORK_JOIN_BUF_QUEUES"] = "1"
         pybuda.config.configure_mixed_precision(op_type="reciprocal", output_df=pybuda.DataFormat.Float16_b)
         os.environ["PYBUDA_FUSE_DF_OVERRIDE"] = "0"
 

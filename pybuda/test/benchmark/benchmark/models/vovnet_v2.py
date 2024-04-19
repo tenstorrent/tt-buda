@@ -31,6 +31,9 @@ def vovnet_v2(training: bool, config: str, microbatch: int, devtype: str, arch: 
     os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
     os.environ["PYBUDA_RIBBON2_CONSERVATIVE_OPTIMIZATION_ITERATIONS"] = "10"
 
+    if data_type == "Bfp8_b":
+        os.environ["PYBUDA_FORK_JOIN_BUF_QUEUES"] = "1"
+
     if config == "39" and data_type != "Bfp8_b":
         compiler_cfg.enable_amp_light()
 

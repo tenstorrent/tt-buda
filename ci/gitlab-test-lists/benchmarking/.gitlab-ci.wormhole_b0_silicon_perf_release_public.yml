@@ -109,7 +109,7 @@ pybuda-silicon-wh-b0-perf-public-bert-large:
   extends: .silicon-wh-b0-perf-release-public
   script:
     - !reference [.silicon-wh-b0-perf-release-public, script]
-    - python third_party/benchmarking/benchmark.py -d tt -m bert -c large --task text_classification -mb 128 -df Bfp8_b -mf LoFi --loop_count 128 --save_output
+    - python third_party/benchmarking/benchmark.py -d tt -m bert -c large --task text_classification -mb 64 -df Bfp8_b -mf LoFi --loop_count 128 --save_output
 
 pybuda-silicon-wh-b0-perf-public-whisper:
   extends: .silicon-wh-b0-perf-release-public
