@@ -4,25 +4,25 @@
 
 
 # ResNet bfp_8b
-pybuda/test/benchmark/benchmark.py -m resnet -c resnet50 -o pybuda-silicon-wh-b0-perf-all-perf.json
+pybuda/test/benchmark/benchmark.py -m resnet -c resnet50 -mb 256 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 #ResNet quant fp32
-pybuda/test/benchmark/benchmark.py -m resnet_quant -c resnet50 -df Fp32 -mf HiFi4 -o pybuda-silicon-wh-b0-perf-all-perf.json
+pybuda/test/benchmark/benchmark.py -m resnet_quant -c resnet50 -df Fp32 -mf HiFi4 -mb 64 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # Mobilenet v1 bfp8_b
-pybuda/test/benchmark/benchmark.py -m mobilenet_v1 -c 224 -o pybuda-silicon-wh-b0-perf-all-perf.json
+pybuda/test/benchmark/benchmark.py -m mobilenet_v1 -c 224 -mb 256 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # Mobilenet v2 bfp8_b
-pybuda/test/benchmark/benchmark.py -m mobilenet_v2 -c 224 -o pybuda-silicon-wh-b0-perf-all-perf.json
+pybuda/test/benchmark/benchmark.py -m mobilenet_v2 -c 224 -mb 256 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # Mobilenet v3 fp16_b
-pybuda/test/benchmark/benchmark.py -m mobilenet_v3_timm -c large -df Fp16_b -mf HiFi2 -o pybuda-silicon-wh-b0-perf-all-perf.json
+pybuda/test/benchmark/benchmark.py -m mobilenet_v3_timm -c large -df Fp16_b -mf HiFi2 -mb 64 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # Vit bfp8_b
-pybuda/test/benchmark/benchmark.py -m vit -c base -o pybuda-silicon-wh-b0-perf-all-perf.json
+pybuda/test/benchmark/benchmark.py -m vit -c base -mb 256 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # Deit bfp8_b
-pybuda/test/benchmark/benchmark.py -m deit -c base -o pybuda-silicon-wh-b0-perf-all-perf.json
+pybuda/test/benchmark/benchmark.py -m deit -c base -mb 256 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # VoVNet v2 bfp8_b
 pybuda/test/benchmark/benchmark.py -m vovnet_v2 -c 39 -o pybuda-silicon-wh-b0-perf-all-perf.json
@@ -47,7 +47,7 @@ pybuda/test/benchmark/benchmark.py -m yolo_v5 -c s -df Fp16_b -mf HiFi3 -o pybud
 pybuda/test/benchmark/benchmark.py -m inception_v4 -c 224 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # UNet bfp8_b
-pybuda/test/benchmark/benchmark.py -m unet -c 256 -o pybuda-silicon-wh-b0-perf-all-perf.json
+pybuda/test/benchmark/benchmark.py -m unet -c 256 -mb 64 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 # Bert large bfp8_b
 pybuda/test/benchmark/benchmark.py -m bert -c large_tc -o pybuda-silicon-wh-b0-perf-all-perf.json
