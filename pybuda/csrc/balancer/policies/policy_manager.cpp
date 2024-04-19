@@ -456,7 +456,6 @@ bool PolicyManager::buffer_epoch()
             op_models,
             config.device_config.get_l1_usable_size(),
             prev_inst,
-            config.fork_join_tiles_treshold,
             ribbon_policy ? &ribbon_buffering_factor : [](const tt::balancer::OpModel&) { return 1; });
     }
 

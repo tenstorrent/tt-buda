@@ -31,7 +31,6 @@ struct PostPlacerConfig {
         bool input_queues_on_host,
         bool output_queues_on_host,
         DramQueueMap manual_dram_queue_placement,
-        std::uint32_t fork_join_tiles_treshold,
         std::uint32_t output_queue_multiplier = 2,
         std::uint32_t input_queue_multiplier = 2,
         bool enable_cross_chip_buffering = true,
@@ -45,7 +44,6 @@ struct PostPlacerConfig {
         microbatch_count(microbatch_count),
         enable_t_streaming(enable_t_streaming),
         enable_cross_chip_buffering(enable_cross_chip_buffering),
-        fork_join_tiles_treshold(fork_join_tiles_treshold),
         placement_algorithm(placement_algorithm)
     {
     }
@@ -60,7 +58,6 @@ struct PostPlacerConfig {
     std::uint32_t microbatch_count;
     bool enable_t_streaming;
     bool enable_cross_chip_buffering;
-    std::uint32_t fork_join_tiles_treshold;
     placer::DRAMPlacementAlgorithm placement_algorithm;
 };
 

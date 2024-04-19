@@ -807,7 +807,6 @@ bool apply_solution(
             op_models,
             config.device_config.get_l1_usable_size(),
             prev_inst,
-            config.fork_join_tiles_treshold,
             &ribbon_buffering_factor);
 
         for (auto &fj : fj_buffering.nop_buffered_fjs)

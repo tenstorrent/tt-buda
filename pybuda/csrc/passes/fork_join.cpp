@@ -8,7 +8,6 @@
 #include <queue>
 #include <unordered_map>
 
-#include "balancer/balancer.hpp"
 #include "buda_passes.hpp"
 #include "graph_lib/edge.hpp"
 #include "graph_lib/graph.hpp"
@@ -16,11 +15,13 @@
 #include "graph_lib/node_types.hpp"
 #include "graph_lib/utils.hpp"
 #include "passes/eth_stream_reduction.hpp"
-#include "passes/fuse_ops.hpp"
 #include "post_placer_buda_passes.hpp"
 #include "reportify/reportify.hpp"
 #include "utils/logger.hpp"
 #include "utils/ordered_associative_containers/ordered_map.hpp"
+
+#include "pybind11/pybind11.h"
+
 namespace tt
 {
 
@@ -29,6 +30,25 @@ using Graph = graphlib::Graph;
 using NodeId = graphlib::NodeId;
 // Trace fork BFS until join
 using NodeMap = std::unordered_map<Node *, std::pair<Node *, std::uint32_t>>;
+
+void PyInsertionInstruction::insert(graphlib::Graph *graph)
+{
+    PYBIND11_OVERRIDE_PURE(
+        void,                 /* Return type */
+        InsertionInstruction, /* Parent class */
+        insert,               /* Name of function in C++ (must match Python name) */
+        graph                 /* Argument(s) */
+    );
+}
+
+InsInstructionUniqueId PyInsertionInstruction::unique_id() const
+{
+    PYBIND11_OVERRIDE_PURE(
+        InsInstructionUniqueId, /* Return type */
+        InsertionInstruction,   /* Parent class */
+        unique_id,              /* Name of function in C++ (must match Python name) */
+    );
+}
 
 struct CurrentState
 {
@@ -1508,7 +1528,6 @@ void add_buffering_on_path(
     balancer::OpModelMap *op_models_post_placer,
     balancer::OpModels *op_models,
     const std::uint32_t usable_l1_size,
-    const int fork_join_tiles_treshold,
     std::function<int(const tt::balancer::OpModel &)> buffering_factor,
     const ForkJoin &fj,
     FJGraph& fj_graph)
@@ -1747,11 +1766,9 @@ void add_buffering_on_path(
         }
         bool merge_nops = dests.size() > 1;
 
-        if (add_buffer_queues && (int)to_add > (int)fork_join_tiles_treshold && buff_mem_consumption < max_queue_mem &&
+        if (add_buffer_queues && buff_mem_consumption < max_queue_mem &&
             !src_is_recompute)
         {
-            // number of tiles to add (to_add) is greater than threshold config.fork_join_tiles_treshold => use queues
-            // instead of nops
             auto edges = graph->user_data_edges(src);
             for (std::uint32_t fork_id = 0; fork_id < edges.size(); fork_id++)
             {
@@ -1771,19 +1788,25 @@ void add_buffering_on_path(
                             (int)ceil((float)to_add / (float)op_model.op_shape.outputs.at(0).volume_in_tiles()));
                         int queue_size = (int)(ceil(to_add * tile_size));  // in bytes
 
-                        // if dests have more than one element that means that I want to add queue with source src but
-                        // more than 1 destination. Even though I make 2 instructions, later there won't be 2 queues but
-                        // one that feeds to 2 consumers if dests.size() is 2 for example.
-                        std::shared_ptr<InsertionInstruction> ins = std::make_shared<QueueInsertionInstruction>(
-                            src->name() /* src */,
-                            dest->name() /* dest */,
-                            false /* hoist_tms */,
-                            num_entries,
-                            queue_size,
-                            e.consumer_input_port_id /* input_id */,
-                            fork_id /* fork_id */);
-                        InsInstructionUniqueId key = ins->unique_id();
-                        insert_queue_ins_to_instructions(instructions, key, ins);
+                        if (num_entries > 0)
+                        {
+                            log_trace(LogGraphCompiler, "Adding instruction for buffering queue from {} to {} with {} entries", src->name(), dest->name(), num_entries);
+
+                            // if dests have more than one element that means that I want to add queue with source src but
+                            // more than 1 destination. Even though I make 2 instructions, later there won't be 2 queues but
+                            // one that feeds to 2 consumers if dests.size() is 2 for example.
+                            std::shared_ptr<InsertionInstruction> ins = std::make_shared<QueueInsertionInstruction>(
+                                src->name() /* src */,
+                                dest->name() /* dest */,
+                                false /* hoist_tms */,
+                                num_entries,
+                                queue_size,
+                                e.consumer_input_port_id /* input_id */,
+                                fork_id /* fork_id */);
+                            InsInstructionUniqueId key = ins->unique_id();
+                            insert_queue_ins_to_instructions(instructions, key, ins);
+                        }
+
                     }
                 }
             }
@@ -2051,7 +2074,6 @@ generate_graph_buffering(
     const std::uint32_t usable_l1_size,
     const tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
         previous_ins_instructions,
-    const int fork_join_tiles_treshold,
     std::function<int(const tt::balancer::OpModel &)> buffering_factor)
 {
     tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
@@ -2130,7 +2152,6 @@ generate_graph_buffering(
                     op_models_post_placer,
                     op_models,
                     usable_l1_size,
-                    fork_join_tiles_treshold,
                     buffering_factor,
                     fj,
                     fj_graph);
@@ -2155,7 +2176,6 @@ generate_graph_buffering(
                     op_models_post_placer,
                     op_models,
                     usable_l1_size,
-                    fork_join_tiles_treshold,
                     buffering_factor,
                     fj,
                     fj_graph);
@@ -2190,7 +2210,6 @@ FJBufferingResult insert_fork_join_buffering(
     const std::uint32_t usable_l1_size,
     const tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
         &previous_ins_instructions,
-    const int fork_join_tiles_treshold,
     std::function<int(const tt::balancer::OpModel &)> buffering_factor)
 {
     // We can't change the graph, only adjust buffer sizes.
@@ -2221,7 +2240,6 @@ FJBufferingResult insert_fork_join_buffering(
             op_models,
             usable_l1_size,
             previous_ins_instructions,
-            fork_join_tiles_treshold,
             buffering_factor);
 
     // if instructions is not subset of previous instructions, then we have some new instructions (nop or queue)

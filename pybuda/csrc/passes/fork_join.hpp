@@ -4,14 +4,18 @@
 #pragma once
 
 #include <optional>
+#include <string>
+#include <set>
 
-#include "balancer/balancer.hpp"
+#include "balancer/types.hpp"
+#include "graph_lib/defines.hpp"
+#include "utils/env.hpp"
+#include "utils/hash_combine.hpp"
 #include "utils/ordered_associative_containers/ordered_map.hpp"
+
 namespace tt
 {
 
-using NodeId = tt::graphlib::NodeId;
-using PortId = tt::graphlib::PortId;
 namespace graphlib
 {
 class Graph;
@@ -43,18 +47,18 @@ struct InsInstructionUniqueIdHash : public std::unary_function<InsInstructionUni
     }
 };
 
-using ForkJoinId = std::pair<NodeId, NodeId>;
-using ForkJoin = std::pair<std::vector<Node *>, std::vector<Node *>>;
+using ForkJoinId = std::pair<graphlib::NodeId, graphlib::NodeId>;
+using ForkJoin = std::pair<std::vector<graphlib::Node *>, std::vector<graphlib::Node *>>;
 
 // information on buffered fork-join
 struct FJBufferingInfo
 {
-    Node *join;          /* join node ptr */
+    graphlib::Node *join;          /* join node ptr */
     std::uint32_t req;   /* required buffering */
     std::uint32_t avail; /* available buffering */
     const ForkJoin *fj;  /* pointer to buffered fork-join */
 
-    FJBufferingInfo(Node *join, std::uint32_t req, std::uint32_t avail, const ForkJoin *fj) :
+    FJBufferingInfo(graphlib::Node *join, std::uint32_t req, std::uint32_t avail, const ForkJoin *fj) :
         join(join), req(req), avail(avail), fj(fj)
     {
     }
@@ -65,8 +69,8 @@ struct ForkJoinIdHash : public std::unary_function<ForkJoinId, std::size_t>
     std::size_t operator()(const ForkJoinId &fj_id) const
     {
         std::size_t seed = 0;
-        tt::hash_combine(seed, static_cast<std::size_t>(std::hash<NodeId>{}(fj_id.first)));
-        tt::hash_combine(seed, static_cast<std::size_t>(std::hash<NodeId>{}(fj_id.second)));
+        tt::hash_combine(seed, static_cast<std::size_t>(std::hash<graphlib::NodeId>{}(fj_id.first)));
+        tt::hash_combine(seed, static_cast<std::size_t>(std::hash<graphlib::NodeId>{}(fj_id.second)));
         return seed;
     }
 };
@@ -100,7 +104,7 @@ struct InsertionInstruction
 
     virtual InsInstructionUniqueId unique_id() const = 0;
 
-    std::pair<Node *, Node *> is_instruction_still_valid(graphlib::Graph *graph);
+    std::pair<graphlib::Node *, graphlib::Node *> is_instruction_still_valid(graphlib::Graph *graph);
 
     virtual void insert(graphlib::Graph *graph) = 0;
 };
@@ -111,26 +115,9 @@ struct PyInsertionInstruction : public InsertionInstruction
     /* Inherit the constructors */
     using InsertionInstruction::InsertionInstruction;
 
-    /* Trampoline (need one for each virtual function) */
-    void insert(graphlib::Graph *graph) override
-    {
-        PYBIND11_OVERRIDE_PURE(
-            void,                 /* Return type */
-            InsertionInstruction, /* Parent class */
-            insert,               /* Name of function in C++ (must match Python name) */
-            graph                 /* Argument(s) */
-        );
-    }
+    void insert(graphlib::Graph *graph) override;
 
-    /* Trampoline (need one for each virtual function) */
-    InsInstructionUniqueId unique_id() const override
-    {
-        PYBIND11_OVERRIDE_PURE(
-            InsInstructionUniqueId, /* Return type */
-            InsertionInstruction,   /* Parent class */
-            unique_id,              /* Name of function in C++ (must match Python name) */
-        );
-    }
+    InsInstructionUniqueId unique_id() const override;
 };
 
 struct NopInsertionInstruction : public InsertionInstruction
@@ -231,7 +218,6 @@ FJBufferingResult insert_fork_join_buffering(
     const std::uint32_t usable_l1_size,
     const tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
         &previous_ins_instructions,
-    const int fork_join_tiles_treshold,
     std::function<int(const tt::balancer::OpModel &)> buffering_factor = [](const tt::balancer::OpModel &)
     { return 1; });
 
@@ -257,7 +243,7 @@ class FJGraph
     // buffered_fjs map contains information about fork-joins that are already buffered. Key to map is fork node id, and
     // value is tuple of: join node id, required buffering, available buffering, and pointer to buffered fork-join
     // itself.
-    std::unordered_map<NodeId, std::vector<FJBufferingInfo>> buffered_fjs;
+    std::unordered_map<graphlib::NodeId, std::vector<FJBufferingInfo>> buffered_fjs;
     std::unordered_map<const ForkJoin *, const ForkJoin *> parent_fj_map;
     std::vector<const ForkJoin *> nop_buffered_fjs;
 
@@ -270,14 +256,14 @@ class FJGraph
 
     void create_parents_map();
 
-    FJBufferingInfo find_sub_fork_join_from_node(const ForkJoin &fj, const std::vector<Node *> &path, Node *fork);
+    FJBufferingInfo find_sub_fork_join_from_node(const ForkJoin &fj, const std::vector<graphlib::Node *> &path, graphlib::Node *fork);
 
     void update_buffered_fj_map(const ForkJoin &fj, FJBufferingInfo fj_buff_info);
 
     // getters
     std::unordered_map<const ForkJoin *, const ForkJoin *> &get_parent_fj_map() { return parent_fj_map; }
 
-    const std::unordered_map<NodeId, std::vector<FJBufferingInfo>> &get_buffered_fjs() { return buffered_fjs; }
+    const std::unordered_map<graphlib::NodeId, std::vector<FJBufferingInfo>> &get_buffered_fjs() { return buffered_fjs; }
 
     std::vector<const ForkJoin *> get_topo_sorted_fjs() { return topo_sort_fjs; }
     std::vector<ForkJoin> &get_fjs() { return fork_joins; }
@@ -286,9 +272,9 @@ class FJGraph
     // setters
 
     // add buffered fork_join info to map of buffered fork-joins
-    void add_elem_to_buffered_fjs(NodeId fork_id, FJBufferingInfo buff_fj_info);
+    void add_elem_to_buffered_fjs(graphlib::NodeId fork_id, FJBufferingInfo buff_fj_info);
     // erase element with the key fork_id and index idx from the map
-    void erase_elem_from_buffered_fjs(NodeId fork_id, std::size_t idx);
+    void erase_elem_from_buffered_fjs(graphlib::NodeId fork_id, std::size_t idx);
 
     void add_nop_buffered_fj(const ForkJoin *fj) { nop_buffered_fjs.push_back(fj); }
 };

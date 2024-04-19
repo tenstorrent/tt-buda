@@ -536,8 +536,7 @@ PostPlacerResults run_post_placer_buda_passes(
             &balancer_solution->op_models,
             nullptr /* inline op models */,
             config.device_config.get_l1_usable_size(),
-            previous_ins_instructions,
-            config.fork_join_tiles_treshold
+            previous_ins_instructions
             );
 
         results.ins_instructions = fj_buffering.instructions;

@@ -984,7 +984,6 @@ def run_balancer_and_placer(context: CompileContext) -> CompileDepth:
             input_queues_on_host=balancer_config.input_queues_on_host,
             output_queues_on_host=balancer_config.output_queues_on_host,
             manual_dram_queue_placement=context.compiler_cfg.manual_dram_queue_placement,
-            fork_join_tiles_treshold=balancer_config.fork_join_tiles_treshold,
             enable_cross_chip_buffering=cross_chip_buffering,
             placement_algorithm=context.compiler_cfg.dram_placement_algorithm)
 
