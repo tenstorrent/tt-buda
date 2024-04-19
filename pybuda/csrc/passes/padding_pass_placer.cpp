@@ -79,6 +79,26 @@ void insert_queue_instead_of_nop(
     // After we have made queue_node, we now replace nop with it.
     replace_node(graph, /*original_node*/ nop_node, /*new_node*/ queue_node, /*skip_operands*/ false);
 }
+
+bool check_if_queue_fixes_failures(
+    Graph *graph,
+    Node *node,
+    const BalancerConfig &balancer_config,
+    std::shared_ptr<balancer::BalancerCacheCollection> balancer_cache_collection)
+{
+    // try adding queue
+    std::vector<Node *> inserted_queues = insert_queue(graph, node);
+    std::unordered_map<Node *, const BudaOpNodeLegalizerFailureInfo> failures =
+        check_node_legality(graph, node, balancer_config, balancer_cache_collection);
+    bool queue_fixes_failures = failures.size() == 0;
+    // remove added queues from graph
+    for (Node *queue : inserted_queues)
+    {
+        tt::graphlib::bypass_node(graph, queue, true /*remove_queue*/);
+    }
+    return queue_fixes_failures;
+}
+
 bool pad_pass_placer(
     Graph *graph,
     const std::unordered_map<graphlib::Node *, 
@@ -125,6 +145,11 @@ bool pad_pass_placer(
         padding.orig_shape = node->shape();
         bool no_failures = false;
 
+        // Check if adding queue after the node fixes failures. After padding loop is done, we will decide whether it is
+        // better to pad the node or just to add queue.
+        bool queue_fixes_failures =
+            check_if_queue_fixes_failures(graph, node, balancer_config, balancer_cache_collection);
+
         while (padding_try_it++ < PADDING_TRY_MAX && buffer_alloc_cnt > 0)
         {
             padded_loop = pad_node(graph, node, padding);
@@ -142,19 +167,26 @@ bool pad_pass_placer(
                     remove_padding(graph, node, padding);
                     if (padded_loop)
                         padded_loop = false;
-
-                    if (padding.added_nop)
-                        break;
                     log_debug(LogPadding, "Node {} is illegal after padding: lhs_rt {} lhs_ct {} rhs_ct {}", node->name(), padding.pad_lhs_rt, padding.pad_lhs_ct, padding.pad_rhs_ct);
                 }
                 else
                 {
                     no_failures = true;
                     log_debug(LogPadding, "Node {} is legal after padding: lhs_rt {} lhs_ct: {} rhs_ct: {}", node->name(), padding.pad_lhs_rt, padding.pad_lhs_ct, padding.pad_rhs_ct);
+                    // If we added queue and also padded the node, we want to check if only adding the queue had solved
+                    // the failures (queue_fixes_failures). If it did, we remove padding and keep the queue.
+                    if (padding.added_queue && queue_fixes_failures)
+                    {
+                        remove_padding(graph, node, padding);
+                        insert_queue(graph, node);
+                        std::unordered_map<Node *, const BudaOpNodeLegalizerFailureInfo> failures =
+                            check_node_legality(graph, node, balancer_config, balancer_cache_collection);
+                        TT_ASSERT(
+                            failures.size() == 0, "Adding queue is expected to fix all failures in this situation");
+                    }
                     padded |= padded_loop;
                     break;
                 }
-
             }
 
         }
@@ -1020,6 +1052,7 @@ void insert_unpad(
             orig_c
         );
 
+        padding.added_queue = true;
         insert_serialized_dram_queue_between_ops(
             // graph
             graph,
@@ -1048,6 +1081,7 @@ void insert_unpad(
             orig_c
         );
 
+        padding.added_queue = true;
         insert_serialized_dram_queue_between_ops(
             // graph
             graph,
@@ -1088,10 +1122,10 @@ void insert_unpad(
 
 }
 
-void insert_queue(Graph *graph, Node *node)
+std::vector<Node*> insert_queue(Graph *graph, Node *node)
 {
     std::vector<Edge> outgoing_edges = graph->user_data_edges(node);
-
+    std::vector<Node*> queue_nodes;
     // Insert unpad for each outgoing node.
     for (Edge outgoing_edge : outgoing_edges)
     {
@@ -1101,19 +1135,19 @@ void insert_queue(Graph *graph, Node *node)
         if (outgoing_node->node_type() == NodeType::kQueue)
             continue;
 
-        insert_serialized_dram_queue_between_ops(
-            // graph
-            graph,
-            // producer name
-            node->name(),
-            // consumer name
-            outgoing_node->name(),
-            // operand index is always zero,
-            // because vstack has only one operand
-            (PortId) outgoing_edge.consumer_input_port_id
-        );
-
+        std::tuple<Edge, graphlib::Node *, Edge> new_queue_info = insert_serialized_dram_queue_between_ops(
+                // graph
+                graph,
+                // producer name
+                node->name(),
+                // consumer name
+                outgoing_node->name(),
+                // operand index is always zero,
+                // because vstack has only one operand
+                (PortId)outgoing_edge.consumer_input_port_id);
+        queue_nodes.push_back(std::get<1>(new_queue_info));
     }  // end for, outgoing edges
+    return queue_nodes;
 }
 
 BudaOpNode* create_op(

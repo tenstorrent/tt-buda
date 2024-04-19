@@ -45,6 +45,8 @@ struct Padding
 
     // Flag that indicates NOP insertion.
     bool added_nop = false;
+    // Flag that indicates queue insertion.
+    bool added_queue = false;
 };
 
 // Padding criterion says how we want to compute
@@ -151,9 +153,7 @@ void set_padded_node_out_shape(Node *, Padding &);
 
 void insert_unpad(tt::graphlib::Graph *, tt::graphlib::Node *, tt::graphlib::Edge, Padding &, bool);
 
-void insert_queue(tt::graphlib::Graph *, tt::graphlib::Node *);
-
-void insert_queue(tt::graphlib::Graph *graph, tt::graphlib::Node *node);
+std::vector<Node*> insert_queue(tt::graphlib::Graph *, tt::graphlib::Node *);
 
 tt::graphlib::BudaOpNode *create_op(
     tt::graphlib::Graph *,
