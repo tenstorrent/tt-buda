@@ -140,6 +140,18 @@ struct EpochCost
     int runtime_cycles = 0;
 };
 
+OpCycleEstimates get_op_cycles_estimates(
+    const OpModel& op_model,
+    const Graph* graph,
+    const DeviceConfig& device_config,
+    const bool input_queues_on_host,
+    const bool output_queues_on_host,
+    const int dram_access_core_count = 0,
+    const int pcie_access_core_count = 0,
+    const std::unordered_set<const tt::graphlib::Node*>* current_epoch_nodes = nullptr,
+    bool invalidate_cached = false,
+    const OpModels* selected_op_models = nullptr);
+
 OpModelMap to_op_model_map(OpModels const& selected_op_models);
 
 placer::PlacerSolution run_placer(

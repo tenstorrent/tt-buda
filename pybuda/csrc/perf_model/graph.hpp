@@ -69,10 +69,10 @@ struct OpPerfData
 
    private:
     bool _has_execution_cycles = false;  // cache because calls are expensive
-    bool _has_bw_limited_execution_cycles = false;
+    bool _has_op_cycle_estimates = false;
     std::uint32_t _cycle_count_ideal;
     std::uint32_t _theoretical_cycles;
-    std::uint32_t _cycle_bw_limited;
+    balancer::OpCycleEstimates _op_cycle_estimates;
 
     void _get_execution_cycles(std::string const &arch_name)
     {
@@ -83,7 +83,7 @@ struct OpPerfData
         _has_execution_cycles = true;
     }
 
-    void _get_bw_limited_execution_cycles(
+    void _get_op_cycle_estimates(
         const DeviceConfig &device_config,
         const graphlib::Graph *graph,
         bool input_queues_on_host,
@@ -101,16 +101,16 @@ struct OpPerfData
         _get_execution_cycles(arch_name);
         return _theoretical_cycles;
     }
-    std::uint32_t cycle_count_bw_limited(
+    const balancer::OpCycleEstimates& get_op_cycle_estimates(
         const DeviceConfig &device_config,
         const graphlib::Graph *graph,
         bool input_queues_on_host,
         bool output_queues_on_host,
         const std::unordered_map<graphlib::Node const *, balancer::OpModel> &selected_op_models)
     {
-        _get_bw_limited_execution_cycles(
+        _get_op_cycle_estimates(
             device_config, graph, input_queues_on_host, output_queues_on_host, selected_op_models);
-        return _cycle_bw_limited;
+        return _op_cycle_estimates;
     }
 };
 

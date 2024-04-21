@@ -70,6 +70,8 @@ class PerfModel
         std::vector<NodeMap> &epoch_node_map);
 
     void calculate_utilization(const SystemSpec &system);
+
+    constexpr static unsigned int c_op_max_num_inputs = 8;
 };
 
 std::unordered_map<std::string, float> run_performance_model(

@@ -278,7 +278,12 @@ void PerfModel::create_graphs(
     if (dump_op_perf)
     {
         op_perf.open("op_perf.csv");
-        op_perf << "name, type, epoch, grid, tiles, cycles, limiter_cycles" << std::endl;
+        op_perf << "name, type, epoch, grid, tiles, cycles, limiter_cycles";
+        for (unsigned int input_idx = 0; input_idx < c_op_max_num_inputs; ++input_idx)
+        {
+            op_perf << ", " << "estimated_input_bw_" << input_idx;
+        }
+        op_perf << ", estimated_output_bw_0" << std::endl;
 
         balancer_score.open("balancer_score.csv");
         balancer_score << "epoch, score" << std::endl;
@@ -300,19 +305,36 @@ void PerfModel::create_graphs(
             create_op(g, node->as<graphlib::BudaOpNode>(), balancer_solution, node_map, epoch_node_map);
             NodeP op = node_map.at(node);
             if (dump_op_perf)
+            {
+                const balancer::OpCycleEstimates& op_cycle_estimates = 
+                    op->get_perf_data()->op_perf_data.get_op_cycle_estimates(
+                        device_config,
+                        g,
+                        input_queues_on_host,
+                        output_queues_on_host,
+                        balancer_solution->selected_op_models);
+
                 op_perf << op->get_name() << ", " << op->get_op_type() << ", "
                         << balancer_solution->placer_solution.temporal_epoch_id(op->get_name()) << ","
                         << op->get_perf_data()->op_perf_data.grid.size_r << "x"
                         << op->get_perf_data()->op_perf_data.grid.size_c << ", "
                         << op->get_perf_data()->output.size_in_tiles() << ", "
                         << op->get_perf_data()->op_perf_data.cycle_count_ideal(device_config.arch_name) << ", "
-                        << op->get_perf_data()->op_perf_data.cycle_count_bw_limited(
-                               device_config,
-                               g,
-                               input_queues_on_host,
-                               output_queues_on_host,
-                               balancer_solution->selected_op_models)
-                        << std::endl;
+                        << op_cycle_estimates.calculate_op_limiter_cycles() << ", ";
+
+                for (unsigned int input_idx = 0; input_idx < c_op_max_num_inputs; ++input_idx)
+                {
+                    float input_bw = input_idx < op_cycle_estimates.input_bw_estimates.size() ?
+                                     op_cycle_estimates.input_bw_estimates[input_idx] : 0.0f;
+
+                    op_perf << std::to_string(input_bw) << ", ";
+                }
+
+                // Dump estimated output bandwidth
+                float max_out_bw_est = *std::max_element(
+                    op_cycle_estimates.output_bw_estimates.begin(), op_cycle_estimates.output_bw_estimates.end());
+                op_perf << std::to_string(max_out_bw_est) << std::endl;
+            }
         }
         else if (node->node_type() == graphlib::NodeType::kBudaNaryTM)
             create_tm(g, node->as<graphlib::BudaNaryTMNode>(), balancer_solution, node_map, epoch_node_map);

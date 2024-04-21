@@ -673,6 +673,33 @@ struct ResourceUsage
     int consumer_phases = 0;
 };
 
+struct OpCycleEstimates
+{
+    int kernel_cycles = 0;
+
+    std::vector<float> input_bw_estimates;
+    std::vector<int> memory_read_cycles;
+
+    std::vector<float> output_bw_estimates;
+    std::vector<int> memory_write_cycles;
+
+    int calculate_op_limiter_cycles() const
+    {
+        int limiter_cycles = kernel_cycles;
+        for (int in_memory_read_cycle : memory_read_cycles)
+        {
+            limiter_cycles = std::max(limiter_cycles, in_memory_read_cycle);
+        }
+        for (int out_memory_write_cycle : memory_write_cycles)
+        {
+            limiter_cycles = std::max(limiter_cycles, out_memory_write_cycle);
+        }
+
+        return limiter_cycles;
+    }
+    
+};
+
 inline std::ostream &operator<<(std::ostream &os, CanCoord const &coord)
 {
     os << "CanCoord{.w = " << coord.w << ", .t = " << coord.t << ", .rt = " << coord.rt << ", .ct = " << coord.ct

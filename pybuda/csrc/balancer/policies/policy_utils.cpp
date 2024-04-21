@@ -1388,6 +1388,34 @@ int get_limiter_cycles(
         selected_op_models);
 }
 
+int get_limiter_cycles(
+    const OpModel &op_model,
+    const Graph *graph,
+    const DeviceConfig &device_config,
+    const bool input_queues_on_host,
+    const bool output_queues_on_host,
+    const int dram_access_core_count,
+    const int pcie_access_core_count,
+    const std::unordered_set<const tt::graphlib::Node *> *current_epoch_nodes,
+    bool invalidate_cached,
+    const OpModels *selected_op_models)
+{
+    const OpCycleEstimates op_cycle_estimates = get_op_cycles_estimates(
+        op_model,
+        graph,
+        device_config,
+        input_queues_on_host,
+        output_queues_on_host,
+        dram_access_core_count,
+        pcie_access_core_count,
+        current_epoch_nodes,
+        invalidate_cached,
+        selected_op_models);
+
+    return op_cycle_estimates.calculate_op_limiter_cycles();
+}
+
+
 // Modelling and rough calculation of limiter cycles for op model.
 // Limiter cycles are used to estimate how long would it take to execute the op model on the device.
 // There are 3 main types of limiters:
@@ -1401,7 +1429,7 @@ int get_limiter_cycles(
 // 2. DRAM bandwidth(read/write from/to DRAM on device - non host queues to OP)
 // 3. PCIe bandwidth(read/write from/to host via PCIe - host queues to OP)
 //
-int get_limiter_cycles(
+OpCycleEstimates get_op_cycles_estimates(
     const OpModel &op_model,
     const Graph *graph,
     const DeviceConfig &device_config,
@@ -1427,6 +1455,9 @@ int get_limiter_cycles(
     std::vector<Edge> data_operands = graph->operand_data_edges(op_model.buda_op_node);
     std::vector<Edge> data_users = graph->user_data_edges(op_model.buda_op_node);
 
+    std::vector<float> input_bw_estimates(data_operands.size(), 0.0f), output_bw_estimates(data_users.size(), 0.0f);
+    std::vector<int> memory_read_cycles(data_operands.size(), 0), memory_write_cycles(data_users.size(), 0);
+
     // Use half of theoretical max for better average estimate for now.
     //
     float noc_bw = static_cast<float>(device_config.get_noc_bandwidth_bytes_per_cycle()) / inefficency_divider;
@@ -1450,10 +1481,11 @@ int get_limiter_cycles(
         pcie_bw = dram_bw;
     }
 
-    int memory_read_cycles = 0;
-
     for (const Edge &edge : data_operands)
     {
+        const unsigned int input_idx = edge.consumer_input_port_id;
+        const unsigned int input_tensor_size_bytes = op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes();
+
         Node *producer_node = graph->node_by_id(edge.producer_node_id);
         bool producer_is_queue =
             producer_node->node_type() == NodeType::kQueue || producer_node->node_type() == NodeType::kInput;
@@ -1485,10 +1517,9 @@ int get_limiter_cycles(
             {
                 if (!input_is_host_queue)
                 {
-                    memory_read_cycles = std::max(
-                        memory_read_cycles,
-                        static_cast<int>(
-                            op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / dram_bw));
+
+                    input_bw_estimates[input_idx] = dram_bw;
+                    memory_read_cycles[input_idx] = static_cast<int>(input_tensor_size_bytes / dram_bw);
                 }
                 else
                 {
@@ -1498,10 +1529,8 @@ int get_limiter_cycles(
                             pcie_observed_max / op_model.get_input_grid_shape(edge.consumer_input_port_id).volume();
                     }
 
-                    memory_read_cycles = std::max(
-                        memory_read_cycles,
-                        static_cast<int>(
-                            op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / pcie_bw));
+                    input_bw_estimates[input_idx] = pcie_bw;
+                    memory_read_cycles[input_idx] = static_cast<int>(input_tensor_size_bytes / pcie_bw);
                 }
             }
             else if (producer_is_host_input_buffer)
@@ -1511,15 +1540,14 @@ int get_limiter_cycles(
                     pcie_bw = pcie_observed_max / op_model.get_input_grid_shape(edge.consumer_input_port_id).volume();
                 }
 
-                memory_read_cycles = std::max(
-                    memory_read_cycles,
-                    static_cast<int>(op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / pcie_bw));
+                input_bw_estimates[input_idx] = pcie_bw;
+                memory_read_cycles[input_idx] = static_cast<int>(input_tensor_size_bytes / pcie_bw);
             }
             else
             {
-                memory_read_cycles = std::max(
-                    memory_read_cycles,
-                    static_cast<int>(op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / noc_bw));
+
+                input_bw_estimates[input_idx] = noc_bw;
+                memory_read_cycles[input_idx] = static_cast<int>(input_tensor_size_bytes / noc_bw);
             }
         }
         else
@@ -1541,25 +1569,24 @@ int get_limiter_cycles(
                     // kb (queue -> op)
                     //
                     TT_ASSERT(!input_is_prologue);
-                    memory_read_cycles = std::max(
-                        memory_read_cycles,
-                        static_cast<int>(
+
+                    input_bw_estimates[input_idx] = dram_bw;      
+                    memory_read_cycles[input_idx] = static_cast<int>(
                             (op_model.input_buffers[edge.consumer_input_port_id].kernel_broadcast_tiles *
                              tile_size_bytes(op_model.input_buffers[edge.consumer_input_port_id].data_format)) /
-                            dram_bw / graph->get_microbatch()));  // divide by microbatch as we only transfer data once
-                                                                  // per input in epoch
+                            dram_bw / graph->get_microbatch());              
                 }
                 else if (input_is_prologue)
                 {
                     // prologue (queue -> op)
                     //
                     TT_ASSERT(!input_is_kb);
-                    memory_read_cycles = std::max(
-                        memory_read_cycles,
-                        static_cast<int>(
-                            op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / dram_bw /
-                            graph->get_microbatch()));  // divide by microbatch as we only transfer data once per input
-                                                        // in epoch
+
+                    input_bw_estimates[input_idx] = dram_bw;
+                    memory_read_cycles[input_idx] = static_cast<int>(
+                            input_tensor_size_bytes / dram_bw /
+                            graph->get_microbatch());  // divide by microbatch as we only transfer data once per input
+                                                       // in epoch
                 }
                 else if (input_is_host_queue)
                 {
@@ -1571,19 +1598,16 @@ int get_limiter_cycles(
                         pcie_bw =
                             pcie_observed_max / op_model.get_input_grid_shape(edge.consumer_input_port_id).volume();
                     }
-                    memory_read_cycles = std::max(
-                        memory_read_cycles,
-                        static_cast<int>(
-                            op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / pcie_bw));
+
+                    input_bw_estimates[input_idx] = pcie_bw;
+                    memory_read_cycles[input_idx] = static_cast<int>(input_tensor_size_bytes / pcie_bw);
                 }
                 else
                 {
                     // streaming (queue -> op)
-                    //
-                    memory_read_cycles = std::max(
-                        memory_read_cycles,
-                        static_cast<int>(
-                            op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / dram_bw));
+
+                    input_bw_estimates[input_idx] = dram_bw;
+                    memory_read_cycles[input_idx] = static_cast<int>(input_tensor_size_bytes / dram_bw);
                 }
             }
             else if (producer_is_host_input_buffer)
@@ -1593,9 +1617,8 @@ int get_limiter_cycles(
                     pcie_bw = pcie_observed_max / op_model.get_input_grid_shape(edge.consumer_input_port_id).volume();
                 }
 
-                memory_read_cycles = std::max(
-                    memory_read_cycles,
-                    static_cast<int>(op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / pcie_bw));
+                input_bw_estimates[input_idx] = pcie_bw;
+                memory_read_cycles[input_idx] = static_cast<int>(input_tensor_size_bytes / pcie_bw);
             }
             else
             {
@@ -1604,28 +1627,25 @@ int get_limiter_cycles(
                     // streaming (op -> op) with kernel broadcast
                     //
                     TT_ASSERT(!producer_is_queue and !input_is_prologue);
-                    memory_read_cycles = std::max(
-                        memory_read_cycles,
-                        static_cast<int>(
+
+                    input_bw_estimates[input_idx] = noc_bw;
+                    memory_read_cycles[input_idx] = static_cast<int>(
                             (op_model.input_buffers[edge.consumer_input_port_id].kernel_broadcast_tiles *
                              tile_size_bytes(op_model.input_buffers[edge.consumer_input_port_id].data_format)) /
-                            noc_bw));
+                            noc_bw);
                 }
                 else
                 {
                     // streaming (op -> op)
                     //
                     TT_ASSERT(!producer_is_queue and !input_is_prologue and !input_is_kb);
-                    memory_read_cycles = std::max(
-                        memory_read_cycles,
-                        static_cast<int>(
-                            op_model.input_buffers[edge.consumer_input_port_id].total_size_bytes() / noc_bw));
+                    
+                    input_bw_estimates[input_idx] = noc_bw;
+                    memory_read_cycles[input_idx] = static_cast<int>(input_tensor_size_bytes / noc_bw);
                 }
             }
         }
     }
-
-    int memory_write_cycles = 0;
 
     if (0 == pcie_access_core_count)
     {
@@ -1638,39 +1658,44 @@ int get_limiter_cycles(
 
     for (const Edge &edge : data_users)
     {
+        const unsigned int output_idx = edge.producer_output_port_id;
+        const unsigned int output_tensor_size_bytes = op_model.output_buffers[edge.producer_output_port_id].total_size_bytes();
+
         const tt::graphlib::Node *user_node = graph->node_by_id(edge.consumer_node_id);
         bool consumer_is_queue = user_node->node_type() == NodeType::kQueue ||
                                  user_node->node_type() == NodeType::kOutput ||
                                  (nullptr != current_epoch_nodes && current_epoch_nodes->count(user_node) == 0);
 
         const bool output_is_host_queue = is_output_host_queue(output_queues_on_host, graph, user_node);
+        float write_bw;
 
         if (consumer_is_queue)
         {
             if (!output_is_host_queue)
             {
-                memory_write_cycles = std::max(
-                    memory_write_cycles,
-                    static_cast<int>(
-                        op_model.output_buffers[edge.producer_output_port_id].total_size_bytes() / dram_bw));
+                write_bw = dram_bw;
             }
             else
             {
-                memory_write_cycles = std::max(
-                    memory_write_cycles,
-                    static_cast<int>(
-                        op_model.output_buffers[edge.producer_output_port_id].total_size_bytes() / pcie_bw));
+                write_bw = pcie_bw;
             }
         }
         else
         {
-            memory_write_cycles = std::max(
-                memory_write_cycles,
-                static_cast<int>(op_model.output_buffers[edge.producer_output_port_id].total_size_bytes() / noc_bw));
+            write_bw = noc_bw;
         }
+
+        output_bw_estimates[output_idx] = write_bw;
+        memory_write_cycles[output_idx] = static_cast<int>(output_tensor_size_bytes / write_bw);
     }
 
-    return std::max({kernel_cycles, memory_read_cycles, memory_write_cycles});
+    return OpCycleEstimates{
+        .kernel_cycles = kernel_cycles,
+        .input_bw_estimates = std::move(input_bw_estimates),
+        .memory_read_cycles = std::move(memory_read_cycles),
+        .output_bw_estimates = std::move(output_bw_estimates),
+        .memory_write_cycles = std::move(memory_write_cycles)
+    };
 }
 
 bool is_output_write_to_dram_over_target(

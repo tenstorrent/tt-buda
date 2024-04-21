@@ -17,6 +17,10 @@ import pickle
 from collections import defaultdict
 from loguru import logger
 
+
+__MAX_NUM_INPUTS = 8
+
+
 def arch_clk(arch):
     """
     Return clock speed for an arch TODO: get this from somewhere?
@@ -295,14 +299,25 @@ def merge_data(netlist_data, perf_data, estimated_data, config):
             data_table[op['op_name']] = op
             for k, d in netlist_data[epoch_idx][op['op_name']].items():
                 data_table[op['op_name']][k] = d
+
+            has_input_on_idx = lambda idx: f'input_pipe_bw_{idx}' in data_table[op['op_name']] and try_parse_float(data_table[op['op_name']][f'input_pipe_bw_{idx}'])
+
             if len(estimated_data) > 0:
                 data_table[op['op_name']]['estimated_cycles'] = estimated_data[op['op_name']][' cycles']
                 data_table[op['op_name']]['estimated_lim_cycles'] = estimated_data[op['op_name']][' limiter_cycles']
                 data_table[op['op_name']]['tiles'] = estimated_data[op['op_name']][' tiles']
+                for i in range(__MAX_NUM_INPUTS):
+                    if has_input_on_idx(i):
+                        data_table[op['op_name']][f'estimated_input_bw_{i}'] = estimated_data[op['op_name']][f' estimated_input_bw_{i}']
+                data_table[op['op_name']]['estimated_output_bw_0'] = estimated_data[op['op_name']][' estimated_output_bw_0']
             else:
                 data_table[op['op_name']]['estimated_cycles'] = 0
                 data_table[op['op_name']]['estimated_lim_cycles'] = 0
                 data_table[op['op_name']]['tiles'] = 0
+                for i in range(__MAX_NUM_INPUTS):
+                    if has_input_on_idx(i):
+                        data_table[op['op_name']][f'estimated_input_bw_{i}'] = 0
+                data_table[op['op_name']]['estimated_output_bw_0'] = 0
 
         merged_data.append(data_table)
 
@@ -637,7 +652,7 @@ highlight_funcs = {
     'est': lambda x, d: curses.color_pair(1) if abs(x-d['kernel']) >= 0.5 * d['kernel'] else curses.color_pair(3) if abs(x-d['kernel']) >= 0.2 * d['kernel'] else curses.color_pair(0),
     'est_lim': lambda x, d: curses.color_pair(1) if abs(x-d['bw_kernel']) >= 0.5 * d['bw_kernel'] else curses.color_pair(3) if abs(x-d['bw_kernel']) >= 0.2 * d['bw_kernel'] else curses.color_pair(0)
 }
-for i in range(8):
+for i in range(__MAX_NUM_INPUTS):
     highlight_funcs[f"in{i}_bw"] = (lambda x, d, i=i: curses.color_pair(1) if f"in{i}_req" in d and try_parse_float(x) < try_parse_float(d[f"in{i}_req"]) else curses.color_pair(0))
 
 def draw_epoch_summary(win, epoch, epoch_summary_data):
@@ -826,28 +841,40 @@ def main(stdscr, data):
                     'bw_util': 'bw_bound_math_utilization',
                     'bw problem': 'bw_problem',
                     'out_req': 'required_output_pipe_bw_0',
+                    'out_est': 'estimated_output_bw_0',
                     'out_bw': 'output_pipe_bw_0',
                     'in0_req': 'required_input_bw_0',
+                    'in0_est': 'estimated_input_bw_0',
                     'in0_bw': 'input_pipe_bw_0',
                     'in1_req': 'required_input_bw_1',
+                    'in1_est': 'estimated_input_bw_1',
                     'in1_bw': 'input_pipe_bw_1',
                     'in2_req': 'required_input_bw_2',
+                    'in2_est': 'estimated_input_bw_2',
                     'in2_bw': 'input_pipe_bw_2',
                     'in3_req': 'required_input_bw_3',
+                    'in3_est': 'estimated_input_bw_3',
                     'in3_bw': 'input_pipe_bw_3',
                     'in4_req': 'required_input_bw_4',
+                    'in4_est': 'estimated_input_bw_4',
                     'in4_bw': 'input_pipe_bw_4',
                     'in5_req': 'required_input_bw_5',
+                    'in5_est': 'estimated_input_bw_5',
                     'in5_bw': 'input_pipe_bw_5',
                     'in6_req': 'required_input_bw_6',
+                    'in6_est': 'estimated_input_bw_6',
                     'in6_bw': 'input_pipe_bw_6',
                     'in7_req': 'required_input_bw_7',
+                    'in7_est': 'estimated_input_bw_7',
                     'in7_bw': 'input_pipe_bw_7',
                     }
             max_rows = len(data['epochs'][config['epoch']]) - 2
             if all(d["balancer_util"] == 0 for d in data['epoch_summary']): # we had no balancer util numbers loaded
                 del mapping["est"]
                 del mapping["est_lim"]
+                for i in range(__MAX_NUM_INPUTS):
+                    del mapping[f"in{i}_est"]
+                del mapping["out_est"]
 
         else:
             # Summary columns

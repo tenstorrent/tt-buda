@@ -153,19 +153,28 @@ std::vector<NodeP> Graph::get_outputs() const
     return ret;
 }
 
-void OpPerfData::_get_bw_limited_execution_cycles(
+void OpPerfData::_get_op_cycle_estimates(
     const DeviceConfig &device_config,
     const graphlib::Graph *graph,
     bool input_queues_on_host,
     bool output_queues_on_host,
     const std::unordered_map<graphlib::Node const *, balancer::OpModel> &selected_op_models)
 {
-    if (_has_bw_limited_execution_cycles)
+    if (_has_op_cycle_estimates)
         return;
 
-    _cycle_bw_limited = get_limiter_cycles(
-        op_model, graph, device_config, input_queues_on_host, output_queues_on_host, &selected_op_models);
-    _has_bw_limited_execution_cycles = true;
+    _op_cycle_estimates = get_op_cycles_estimates(
+        op_model, 
+        graph, 
+        device_config, 
+        input_queues_on_host, 
+        output_queues_on_host, 
+        0 /* dram_access_core_count */,
+        0 /* pcie_access_core_count */,
+        nullptr /* current_epoch_nodes */,
+        false /* invalidate_cached */,
+        &selected_op_models);
+    _has_op_cycle_estimates = true;
 }
 
 }  // namespace tt::perf_model
