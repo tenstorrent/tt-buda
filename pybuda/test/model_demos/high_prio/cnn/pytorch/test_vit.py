@@ -17,6 +17,13 @@ from datasets import load_dataset
 from PIL import Image
 from transformers import AutoImageProcessor, ViTForImageClassification
 
+
+dataset = load_dataset("huggingface/cats-image")
+image_1 = dataset["test"]["image"][0]
+url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+image_2 = Image.open(requests.get(url, stream=True).raw)
+
+
 def generate_model_vit_imgcls_hf_pytorch(test_device, variant):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()
@@ -38,11 +45,6 @@ def generate_model_vit_imgcls_hf_pytorch(test_device, variant):
     
     return tt_model, [img_tensor], {}
 
-
-dataset = load_dataset("huggingface/cats-image")
-image_1 = dataset["test"]["image"][0]
-url = "http://images.cocodataset.org/val2017/000000039769.jpg"
-image_2 = Image.open(requests.get(url, stream=True).raw)
 
 variants = ["google/vit-base-patch16-224", "google/vit-large-patch16-224"]
 @pytest.mark.parametrize("variant", variants, ids=variants)
@@ -72,6 +74,7 @@ def test_vit_classify_224_hf_pytorch(variant, test_device):
 
 variants = ["google/vit-base-patch16-224", "google/vit-large-patch16-224"]
 @pytest.mark.parametrize("variant", variants, ids=variants)
+@pytest.mark.skip(reason="Redundant, already tested with test_vit_classification_1x1_demo")
 def test_vit_classify_224_hf_pytorch_1x1(variant, test_device):
     if test_device.arch == BackendDevice.Grayskull:
         pytest.skip()
@@ -97,3 +100,62 @@ def test_vit_classify_224_hf_pytorch_1x1(variant, test_device):
             pcc=0.9
         )
     )
+
+modes = [
+    "verify",
+    "demo"
+]
+variants = [
+    "google/vit-base-patch16-224",
+    "google/vit-large-patch16-224",
+]
+@pytest.mark.parametrize("mode", modes, ids=modes)
+@pytest.mark.parametrize("variant", variants, ids=variants)
+def test_vit_classification_1x1_demo(test_device, mode, variant):
+    if test_device.arch == BackendDevice.Grayskull:
+        pytest.skip("Not supported")
+
+    # Setup for 1x1 grid
+    os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "wormhole_b0_1x1.yaml"
+    
+    # Configurations
+    compiler_cfg = pybuda.config._get_global_compiler_config()
+    compiler_cfg.balancer_policy = "Ribbon"
+    os.environ["PYBUDA_RIBBON2"] = "1"
+    compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
+    compiler_cfg.enable_tvm_cpu_fallback = False
+    
+    # Load image preprocessor and model
+    image_processor = download_model(AutoImageProcessor.from_pretrained,  variant)
+    framework_model = download_model(ViTForImageClassification.from_pretrained, variant)
+    model_name = "_".join(variant.split('/')[-1].split('-')[:2]) + f"_{mode}"
+    tt_model = pybuda.PyTorchModule(model_name, framework_model)
+
+    # Load and preprocess image
+    dataset = load_dataset("huggingface/cats-image")
+    input_image = dataset["test"]["image"][0]
+    input_image = image_processor(input_image, return_tensors="pt").pixel_values
+    
+    if mode == "verify":
+        # Verify model on Tenstorrent device
+        verify_module(
+            tt_model,
+            input_shapes=[(input_image.shape,)],
+            inputs=[(input_image,)],
+            verify_cfg=VerifyConfig(
+                arch=test_device.arch,
+                devtype=test_device.devtype,
+                devmode=test_device.devmode,
+                test_kind=TestKind.INFERENCE,
+            )
+        )
+    elif mode == "demo":
+        # Run inference on Tenstorrent device
+        output_q = pybuda.run_inference(tt_model, inputs=([input_image]))
+        output = output_q.get()[0].value().detach().float().numpy()
+
+        # Postprocessing
+        predicted_class_idx = output.argmax(-1).item()
+
+        # Print output
+        print("Predicted class:", framework_model.config.id2label[predicted_class_idx])
