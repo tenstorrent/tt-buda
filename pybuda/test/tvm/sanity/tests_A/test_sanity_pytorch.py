@@ -488,10 +488,101 @@ def test_tvm_sigmoid(test_kind, test_device, input_shape):
                 test_kind=test_kind,
             )
     )
+    
+input_shapes = [(1, 3, 8, 32, 32), (1, 16, 128, 10, 10)]
+scale_factors = [(1, 1, 1), (2, 3, 5), (4, 7, 9), (2, 8, 6)]
+upsample_modes = ["nearest"]
 
 
+@pytest.mark.parametrize(
+    "input_shape", input_shapes, ids=[f"input{str(s)}" for s in input_shapes]
+)
+@pytest.mark.parametrize(
+    "scale_factors", scale_factors, ids=[f"sfactor({str(s)})" for s in scale_factors]
+)
+@pytest.mark.parametrize(
+    "upsample_mode", upsample_modes, ids=[f"umode({str(u)})" for u in upsample_modes]
+)
+def test_tvm_upsample3d(test_kind, test_device, input_shape, scale_factors, upsample_mode):
+    if test_kind.is_training():
+        pytest.xfail()  # Backward is currently unsupported
+
+    _get_global_compiler_config().compile_depth = CompileDepth.BUDA_GRAPH_PRE_PLACER
+
+    class Upsample3d(nn.Module):
+        def __init__(self, scale_factors, upsample_mode):
+            super().__init__()
+            self.resize = torch.nn.Upsample(
+                scale_factor=scale_factors,
+                mode=upsample_mode,
+            )
+        def forward(self, a):
+            b = self.resize(a)
+
+            return b
+
+    model = Upsample3d(scale_factors, upsample_mode)
+    mod = PyTorchModule("Upsample3d", model)
+    verify_module(
+            mod,
+            (input_shape,),
+            verify_cfg=VerifyConfig(
+                arch=test_device.arch,
+                devtype=test_device.devtype,
+                test_kind=test_kind,
+            )
+    )
+
+input_shapes = [(1, 3, 4, 4), (1, 5, 2, 2) ,(1, 7, 2, 3), (1, 4, 5, 5), (1, 5, 6, 7)]
+scale_factors = [(6, 12), (5, 10), (7, 12), (8, 25), (10, 24)]
+upsample_modes = ["nearest_neighbor", "bilinear"]
+
+@pytest.mark.parametrize(
+    "input_shapes", input_shapes, ids=[f"input{str(s)}" for s in input_shapes]
+)
+@pytest.mark.parametrize(
+    "scale_factors", scale_factors, ids=[f"sfactor({str(s)})" for s in scale_factors]
+)
+@pytest.mark.parametrize(
+    "upsample_mode", upsample_modes, ids=[f"umode({str(u)})" for u in upsample_modes]
+)
+@pytest.mark.parametrize("align_corners", (True, False), ids=["align", "no_align"])
+def test_tvm_upsample2d_channel_last(test_kind, test_device, input_shapes, scale_factors, upsample_mode, align_corners):
+    if test_kind.is_training():
+        pytest.xfail()  # Backward is currently unsupported
+
+    _get_global_compiler_config().compile_depth = CompileDepth.BUDA_GRAPH_PRE_PLACER
+    
+    if scale_factors[0] % input_shapes[-3] != 0 or scale_factors[1] % input_shapes[-2] != 0:
+        pytest.skip()
+        
+    if align_corners and upsample_mode != "bilinear":
+            pytest.skip()
+    class Upsample2d(PyBudaModule):
+        def __init__(self, name):
+            super().__init__(name)
+
+        def forward(self, input):
+            if upsample_mode == "nearest_neighbor":
+                return pybuda.op.Resize2d("", input, sizes=scale_factors, method=upsample_mode, channel_last=1) 
+            else:
+                return pybuda.op.Resize2d("", input, sizes=scale_factors, method=upsample_mode, align_corners=align_corners, channel_last=1) 
+        
+    model = Upsample2d("channel_last")
+    
+    verify_module(
+            model,
+            (input_shapes,),
+            verify_cfg=VerifyConfig(
+                arch=test_device.arch,
+                devtype=test_device.devtype,
+                test_kind=test_kind,
+            )
+    )
+    
+    
 input_shapes = [(1, 128, 10, 10), (1, 16, 34, 60)]
-scale_factors = [2, 3]
+scale_factors = [(1, 1), (1, 2), (2, 3), (5, 2), (6, 3), (4, 6), (5,4)]
 upsample_modes = ["nearest", "bilinear"]
 
 

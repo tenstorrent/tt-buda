@@ -92,9 +92,6 @@ def shape(type, attr, ops):
                 assert (
                     attr[0] % shape[-3] == 0 and attr[1] % shape[-2] == 0
                 ), "Only support upsample with integer scale factor"
-                assert (
-                    attr[0] // shape[-3] == attr[1] // shape[-2]
-                ), "Only support same scale factor for H and W"
             else:
                 assert attr[1] < shape[-2], "One dim downsamples, the other dim should also downsample"
                 assert (
@@ -111,9 +108,6 @@ def shape(type, attr, ops):
                 assert (
                     attr[0] % shape[-2] == 0 and attr[1] % shape[-1] == 0
                 ), "Only support upsample with integer scale factor"
-                assert (
-                    attr[0] // shape[-2] == attr[1] // shape[-1]
-                ), "Only support same scale factor for H and W"
             else:
                 assert attr[1] < shape[-1], "One dim downsamples, the other dim should also downsample"
                 assert (
@@ -159,9 +153,6 @@ def shape(type, attr, ops):
                 assert (
                     attr[0] % shape[-3] == 0 and attr[1] % shape[-2] == 0 and attr[2] % shape[-1] == 0
                 ), "Only support upsample with integer scale factor"
-                assert (
-                    attr[0] // shape[-3] == attr[1] // shape[-2] == attr[2] // shape[-1]
-                ), "Only support same scale factor for H and W"
             else:
                 assert attr[1] < shape[-2], "One dim downsamples, the other dim should also downsample"
                 assert attr[2] < shape[-1], "One dim downsamples, the other dim should also downsample"
@@ -190,7 +181,9 @@ def decompose_upsample_2d(attr, dc, inputs, resize_method):
     if channel_last:
         w, y, x, cin = (shape.w, shape.z, shape.r, shape.c)
         activations = dc.op("reshape", [activations], (w, 1, y * x, cin))
-        scale_factor = attr[0] // shape[-3]
+        scale_factor_y = attr[0] // shape[-3]
+        scale_factor_x = attr[1] // shape[-2]
+        scale_factor = (scale_factor_x, scale_factor_y)
     else:
         w, cin, y, x = (shape.w, shape.z, shape.r, shape.c)
         activations = dc.op(
@@ -200,7 +193,9 @@ def decompose_upsample_2d(attr, dc, inputs, resize_method):
         )
         activations = dc.op(TransposeTM.create(2, 3), [activations])
 
-        scale_factor = attr[0] // shape[-2]
+        scale_factor_y = attr[0] // shape[-2]
+        scale_factor_x = attr[1] // shape[-1]
+        scale_factor = (scale_factor_x, scale_factor_y)
 
     if resize_method == "nearest":
         dident = create_nearest_neighbor_upsample_picker_matrix(scale_factor, shape, channel_last=channel_last)
@@ -233,7 +228,7 @@ def decompose_upsample_2d(attr, dc, inputs, resize_method):
                 result = dc.op("sparse_matmul", [dident_tensor, activations])
 
     if channel_last:
-        result = dc.op("reshape", [result], (w, y * scale_factor, x * scale_factor, cin))
+        result = dc.op("reshape", [result], (w, y * scale_factor_y, x * scale_factor_x, cin))
         dc.fuse(result)
     else:
         result = dc.op(TransposeTM.create(2, 3), [result])
@@ -243,8 +238,8 @@ def decompose_upsample_2d(attr, dc, inputs, resize_method):
             (
                 w,
                 cin,
-                y * scale_factor,
-                x * scale_factor,
+                y * scale_factor_y,
+                x * scale_factor_x,
             ),
         )
 
@@ -262,7 +257,10 @@ def decompose_upsample_3d(attr, dc, inputs, resize_method):
     w, cin, din, y, x = (shape.v, shape.w, shape.z, shape.r, shape.c)
     activations = dc.op("reshape", inputs, (w, 1, cin*din, y*x),)
     activations = dc.op(TransposeTM.create(-2, -1), [activations])
-    scale_factor = attr[0] // shape[-3]
+    scale_factor_d = attr[0] // shape[-3]
+    scale_factor_y = attr[1] // shape[-2]
+    scale_factor_x = attr[2] // shape[-1]
+    scale_factor = (scale_factor_x, scale_factor_y, scale_factor_d)
 
     if resize_method == "nearest":
         dident_yx = create_nearest_neighbor_upsample_picker_matrix(scale_factor, shape, channel_last=channel_last)
@@ -280,7 +278,7 @@ def decompose_upsample_3d(attr, dc, inputs, resize_method):
     #    result = dc.op("reshape", [result], (w, y * scale_factor, x * scale_factor, cin))
     #    dc.fuse(result)
     #else: 
-    result = dc.op("reshape", [result], (w, cin, din*scale_factor, y*scale_factor, x*scale_factor,),)
+    result = dc.op("reshape", [result], (w, cin, din * scale_factor_d, y * scale_factor_y, x * scale_factor_x,),)
 
     dc.fuse(result)
 
@@ -329,9 +327,6 @@ def decompose_resize2d(attr, dc, inputs, resize_method):
             assert (
                 attr[0] % shape[-3] == 0 and attr[1] % shape[-2] == 0
             ), "Only support upsample with integer scale factor"
-            assert (
-                attr[0] // shape[-3] == attr[1] // shape[-2]
-            ), "Only support same scale factor for H and W"
         else:
             assert attr[1] < shape[-2], "One dim downsamples, the other dim should also downsample"
             assert (
@@ -346,9 +341,6 @@ def decompose_resize2d(attr, dc, inputs, resize_method):
             assert (
                 attr[0] % shape[-2] == 0 and attr[1] % shape[-1] == 0
             ), "Only support upsample with integer scale factor"
-            assert (
-                attr[0] // shape[-2] == attr[1] // shape[-1]
-            ), "Only support same scale factor for H and W"
         else:
             assert attr[1] < shape[-1], "One dim downsamples, the other dim should also downsample"
             assert (
@@ -358,8 +350,9 @@ def decompose_resize2d(attr, dc, inputs, resize_method):
                 shape[-2] // attr[0] == shape[-1] // attr[1]
             ), "Only support same scale factor for H and W"
 
-    scale_factor = scale_factor = attr[0] // shape[-3] if channel_last else attr[0] // shape[-2]
-    if scale_factor == 1:
+    scale_factor_y = attr[0] // shape[-2]
+    scale_factor_x = attr[1] // shape[-1]
+    if scale_factor_x == 1 and scale_factor_y == 1:
         result = dc.op(Nop.create(), [activations])
         dc.fuse(result)
         return
@@ -401,9 +394,6 @@ def decompose_resize3d(attr, dc, inputs, resize_method):
             assert (
                 attr[0] % shape[-3] == 0 and attr[1] % shape[-2] == 0 and attr[2] % shape[-1] == 0
             ), "Only support upsample with integer scale factor"
-            assert (
-                attr[0] // shape[-3] == attr[1] // shape[-2] == attr[2] // shape[-1]
-            ), "Only support same scale factor for H and W"
         else:
             assert attr[1] < shape[-2], "One dim downsamples, the other dim should also downsample"
             assert attr[2] < shape[-1], "One dim downsamples, the other dim should also downsample"
@@ -414,8 +404,10 @@ def decompose_resize3d(attr, dc, inputs, resize_method):
                 shape[-3] // attr[0] == shape[-2] // attr[1] == shape[-1] // attr[2]
             ), "Only support same scale factor for H and W" 
  
-    scale_factor = scale_factor = attr[0] // shape[-4] if channel_last else attr[0] // shape[-3]
-    if scale_factor == 1:
+    scale_factor_d = attr[0] // shape[-3]
+    scale_factor_y = attr[1] // shape[-2]
+    scale_factor_x = attr[2] // shape[-1]
+    if scale_factor_x == 1 and scale_factor_y == 1 and scale_factor_d == 1:
         result = dc.op(Nop.create(), [activations])
         dc.fuse(result)
         return

@@ -653,11 +653,11 @@ def create_nearest_neighbor_upsample_picker_matrix(
         if for_din:
             raise RuntimeError("Resize3d is not supported in channel-last format yet")
 
-        rows = torch.arange(shape[-3] * scale_factor * shape[-2] * scale_factor)
+        rows = torch.arange(shape[-3] * scale_factor[0] * shape[-2] * scale_factor[1])
         cols = []
         for i in range(shape[-3]):
             col = (
-                torch.arange(shape[-2]).repeat_interleave(scale_factor).repeat(scale_factor)
+                torch.arange(shape[-2]).repeat_interleave(scale_factor[0]).repeat(scale_factor[1])
                 + i * (shape[-2])
             )
             cols.append(col)
@@ -675,12 +675,12 @@ def create_nearest_neighbor_upsample_picker_matrix(
         )
     else:
         if for_din:
-            rows = torch.arange(shape[-3] * scale_factor * shape[-4])
+            rows = torch.arange(shape[-3] * scale_factor[2] * shape[-4])
             #cols = torch.arange(shape[-3]).repeat_interleave(scale_factor)
             cols = []
             for i in range(shape[-4]):
                 col = (
-                    torch.arange(shape[-3]).repeat_interleave(scale_factor)
+                    torch.arange(shape[-3]).repeat_interleave(scale_factor[2])
                     + i * shape[-3]
                 )
                 cols.append(col)
@@ -688,11 +688,11 @@ def create_nearest_neighbor_upsample_picker_matrix(
             sparse_r = rows.shape[0]
             sparse_c = shape[-3] * shape[-4]
         else:
-            rows = torch.arange(shape[-2] * scale_factor * shape[-1] * scale_factor)
+            rows = torch.arange(shape[-2] * scale_factor[0] * shape[-1] * scale_factor[1])
             cols = []
             for i in range(shape[-2]):
                 col = (
-                    torch.arange(shape[-1]).repeat_interleave(scale_factor).repeat(scale_factor)
+                    torch.arange(shape[-1]).repeat_interleave(scale_factor[0]).repeat(scale_factor[1])
                     + i * shape[-1]
                 )
                 cols.append(col)
@@ -759,23 +759,23 @@ def create_bilinear_upsample_picker_matrix(
 
     # Final dident shape
     num_cols = r * c
-    num_rows = num_cols * scale_factor * scale_factor
+    num_rows = num_cols * scale_factor[0] * scale_factor[1]
 
-    upsample_c_idx = torch.arange(0, c * scale_factor)
-    upsample_r_idx = torch.arange(0, r * scale_factor)
+    upsample_c_idx = torch.arange(0, c * scale_factor[0])
+    upsample_r_idx = torch.arange(0, r * scale_factor[1])
     if align_corners:
         upsample_c_idx_adjusted = up_idx_to_orig_idx_align_corners(
-            upsample_c_idx, c, c * scale_factor
+            upsample_c_idx, c, c * scale_factor[0]
         )
         upsample_r_idx_adjusted = up_idx_to_orig_idx_align_corners(
-            upsample_r_idx, r, r * scale_factor
+            upsample_r_idx, r, r * scale_factor[1]
         )
     else:
         upsample_c_idx_adjusted = up_idx_to_orig_idx_no_align_corners(
-            upsample_c_idx, scale_factor
+            upsample_c_idx, scale_factor[0]
         )
         upsample_r_idx_adjusted = up_idx_to_orig_idx_no_align_corners(
-            upsample_r_idx, scale_factor
+            upsample_r_idx, scale_factor[1]
         )
 
     # Clip index between 0 and c
