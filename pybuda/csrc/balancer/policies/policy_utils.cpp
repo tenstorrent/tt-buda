@@ -1939,6 +1939,16 @@ OpCycleEstimates get_op_cycles_estimates(
     const float inefficency_divider = 2.0;
     const float subchannel_oversub_coeff = 1.5;
     const float pcie_observed_max = 24;
+
+    // Use max between 1 and the computed fork divider to guard against the case when the passed in dram access core
+    // count is 0, so the scaled estimated dram read bandwidth would be infinite
+    const float dram_fork_divider = std::max(
+        1.0f, 
+        std::ceil(
+            dram_access_core_count / (device_config.get_dram_num_channels() * device_config.get_dram_num_subchannels() /
+                                      subchannel_oversub_coeff)));
+    const float dram_bw_divider = std::max(inefficency_divider, dram_fork_divider);
+
     TT_ASSERT(op_model.buda_op_node);
     int kernel_cycles = op_model.get_execution_cycles(device_config.arch_name, false, invalidate_cached);
     std::vector<Edge> data_operands = graph->operand_data_edges(op_model.buda_op_node);
@@ -1950,10 +1960,6 @@ OpCycleEstimates get_op_cycles_estimates(
     // Use half of theoretical max for better average estimate for now.
     //
     float noc_bw = static_cast<float>(device_config.get_noc_bandwidth_bytes_per_cycle()) / inefficency_divider;
-    float dram_fork_divider = std::ceil(
-            dram_access_core_count / (device_config.get_dram_num_channels() * device_config.get_dram_num_subchannels() /
-                                      subchannel_oversub_coeff));
-    float dram_bw_divider = std::max(inefficency_divider, dram_fork_divider);
 
     // API is currently returning wrong value for WH
     // tenstorrent/budabackend#2423
