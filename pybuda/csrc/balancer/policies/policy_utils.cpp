@@ -1415,6 +1415,492 @@ int get_limiter_cycles(
     return op_cycle_estimates.calculate_op_limiter_cycles();
 }
 
+// The couple of functions below are taken from legalizer.cpp and modified a bit so they can be used to compute the 
+// shape of the  input queue during balancing.
+// TODO: Avoid replicating this logic in two places tenstorrent/pybuda#2606
+OpModel make_queue_op_model(
+    TensorShape input_shape, GridShape grid_shape, BlockShape block_shape, DataFormat data_format, bool prologue)
+{
+    BufferModel input_buffer_model;
+    input_buffer_model.block_shape = block_shape;
+    input_buffer_model.buffer_factor = 1;
+    input_buffer_model.l1_size_tiles = input_buffer_model.block_shape.volume();
+    input_buffer_model.data_format = data_format;
+
+    OpModel input_op_model;
+    input_op_model.grid_shape = grid_shape;
+    input_op_model.op_shape.outputs.push_back(input_shape);
+    input_op_model.output_buffers.push_back(input_buffer_model);
+    input_op_model.data_format = data_format;
+    input_op_model.input_prologue = prologue;
+
+    input_op_model.fracture_factor = 1;
+
+    return input_op_model;
+}
+
+GridShape compatible_queue_grid_for_users(
+    TensorShape const& input_shape,
+    std::vector<OpModel const*> const& users,
+    bool parameter = false)
+{
+    TT_ASSERT(not users.empty());
+    GridShape grid_shape = users[0]->grid_shape;
+    for (OpModel const* user_op_model : users)
+    {
+        GridShape user_grid_shape = user_op_model->grid_shape;
+        bool user_is_matmul = (user_op_model->op_type() == "matmul");
+        grid_shape.r = std::min(grid_shape.r, user_grid_shape.r);
+        grid_shape.c = std::min(
+            grid_shape.c,
+            (user_is_matmul && !parameter)
+                ? 1
+                : user_grid_shape.c);  // for matmul, only one column reads, so giving it more only hurts it
+    }
+
+    int grid_r = FactorizedInt(input_shape.rt).get_nearest_factor_le(grid_shape.r);
+    int grid_c = FactorizedInt(input_shape.ct).get_nearest_factor_le(grid_shape.c);
+    return GridShape(grid_r, grid_c);
+};
+
+ UBlockShape compatible_queue_ublock_for_users(
+    TensorShape const& input_shape,
+    GridShape grid_shape,
+    std::vector<graphlib::Edge> const& user_edges,
+    std::vector<OpModel const*> const& users)
+{
+    TT_ASSERT(not user_edges.empty());
+    TT_ASSERT(not users.empty());
+    TT_ASSERT(user_edges.size() == users.size());
+    // For now just take the first user, unclear what's best for all users
+    Edge user_edge = user_edges.front();
+    OpModel const* user_op_model = users.front();
+    UBlockShape ublock = user_op_model->input_buffers[user_edge.consumer_input_port_id].block_shape.ublock;
+
+    // Clamp ublock to tensor shape, needed if bcasting
+    TT_ASSERT((input_shape.rt % grid_shape.r) == 0);
+    TT_ASSERT((input_shape.ct % grid_shape.c) == 0);
+    int par_r = input_shape.rt / grid_shape.r;
+    int par_c = input_shape.ct / grid_shape.c;
+    ublock.rt = gcd(ublock.rt, par_r);
+    ublock.ct = gcd(ublock.ct, par_c);
+
+    return ublock;
+};
+
+OpModel pick_op_model_for_input_queue(
+    const Graph *graph, 
+    const OpModels *op_models, 
+    const OpModel &consumer_op_model,
+    const DeviceConfig &device_config,
+    Node *node)
+{
+    // We use these lookup functions to check if we have already selected an op model for the target op or we are 
+    // curently evaluating a solution for the target op, to avoid creating a copy of the op models map which also 
+    // contains the op we are currently processing.
+    const Node* consumer_op_node = dynamic_cast<const Node*>(consumer_op_model.buda_op_node);
+    auto has_selected_op_model = [&](const Node* node) -> bool
+    {
+        return node == consumer_op_node || op_models->count(node);
+    };
+
+    auto get_selected_op_model = [&](const Node* node) -> OpModel const&
+    {
+        if (node == consumer_op_node)
+        {
+            return consumer_op_model;
+        }
+
+        return op_models->at(node);
+    };
+
+    // when enabled, we won't force the input-activations to be blocked to 1x1
+    bool enable_reblock_input_activations = env_as<bool>("PYBUDA_REBLOCK_INPUT_ACT");
+    const std::uint32_t reblock_input_max_size =
+        64;  // reblock small inputs smaller than this, regardless of enable switch
+
+
+    static constexpr int kMaxPrefetchBufStreams = 24;
+
+    GridShape grid_shape;
+    BlockShape block_shape;
+    graphlib::Shape shape = node->shape();
+    TensorShape input_shape(shape);
+    graphlib::InputNode* input = dynamic_cast<graphlib::InputNode*>(node);
+
+    std::vector<Node*> all_data_loopback = graph->data_operands(node);
+    std::vector<Edge> all_user_edges = graph->user_data_edges(node);
+    std::vector<Edge> all_partial_datacopy_edges = graph->operand_edges(
+        node, [](Edge e) { return (e.edge_type == tt::graphlib::EdgeType::kPartialDataCopy); });
+
+    std::vector<OpModel const*> users;
+    std::vector<OpModel const*> prologue_users;
+
+    for (const Edge& edge : all_user_edges)
+    {
+        graphlib::Node* user = graph->node_by_id(edge.consumer_node_id);
+        if (!has_selected_op_model(user))
+        {
+            continue;
+        }
+        OpModel const& user_op_model = get_selected_op_model(user);
+        users.push_back(&user_op_model);
+        if (user_op_model.parameter_buffers[edge.consumer_input_port_id])
+        {
+            prologue_users.push_back(&user_op_model);
+        }
+    }
+
+    // Filter out graph edges to only look at the part of the graph for which we have op models selected.
+    std::vector<Edge> user_edges;
+    std::copy_if(all_user_edges.begin(), all_user_edges.end(), std::back_inserter(user_edges), [&](const Edge& e)
+    {
+        return has_selected_op_model(graph->node_by_id(e.consumer_node_id));
+    });
+
+    std::vector<Node*> data_loopback;
+    std::copy_if(all_data_loopback.begin(), all_data_loopback.end(), std::back_inserter(data_loopback), [&](Node* n)
+    {
+        return has_selected_op_model(n);
+    });
+
+    std::vector<Edge> partial_datacopy_edges;
+    std::copy_if(all_partial_datacopy_edges.begin(), all_partial_datacopy_edges.end(), 
+        std::back_inserter(partial_datacopy_edges), 
+        [&](const Edge& e)
+        {
+            Node* output_node = graph->node_by_id(e.producer_node_id);
+            std::vector<Node*> output_operands = graph->data_operands(output_node);
+            TT_ASSERT(output_operands.size() == 1);
+            Node* writeback_op = output_operands.front();
+
+            return has_selected_op_model(writeback_op);
+        });
+
+    TT_ASSERT(not users.empty());
+    
+    bool all_users_prologue = prologue_users.size() == users.size();
+    bool is_embedding_table =
+        input->is_parameter() and
+        graph->node_by_id(user_edges.front().consumer_node_id)->as<graphlib::OpNode>()->is_embedding();
+
+    std::vector<Node*> users_tilize = graph->data_users(input);
+
+    bool is_tilize_op_input = std::any_of(
+        users_tilize.begin(),
+        users_tilize.end(),
+        [](Node* n)
+        {
+            graphlib::OpNode* op_node = dynamic_cast<graphlib::OpNode*>(n);
+            return op_node->is_tilize();
+        });
+    //
+    // Each branch must initialize grid_shape and block_shape
+    //
+    if (is_embedding_table || is_tilize_op_input)
+    {
+        TT_ASSERT(!is_embedding_table || users.size() == 1);
+        TT_ASSERT(!is_embedding_table || user_edges.size() == 1);
+        TT_ASSERT(user_edges.front().consumer_input_port_id == 0);
+        // Embedding table constraints
+        //   - prologue = false
+        //   - grid_r must = 1 for now
+        //   - grid_c must = op.grid_c
+        //   - mblock_m must = [1, 1]
+        all_users_prologue = false;
+        OpModel const& op_model = *users.front();
+        grid_shape.r = 1;
+        grid_shape.c = op_model.grid_shape.c;
+        TT_ASSERT(input->shape().ct() % grid_shape.c == 0);
+
+        if (is_embedding_table)
+        {
+            block_shape =
+                BlockShape(1 /* t */, 1 /* mblock_m */, 1 /* mblock_n */, 
+                           UBlockShape(input->shape().rt(), input->shape().ct() / grid_shape.c));
+        }
+        else if (is_tilize_op_input)
+        {
+            block_shape = BlockShape(input_shape, 1 /* par_c */, 1 /* par_r */, 1 /* par_t */, 
+                                     UBlockShape(1 /* rt */, op_model.ublock_shape().ct));
+        }
+    }
+
+    else if (not partial_datacopy_edges.empty())
+    {
+        // op model for partial datacopy inputs is determined by output that feeds it
+        Node* output_node = graph->node_by_id(partial_datacopy_edges.front().producer_node_id);
+        std::vector<Node*> output_operands = graph->data_operands(output_node);
+        TT_ASSERT(output_operands.size() == 1);
+        Node* writeback_op = output_operands.front();
+
+        OpModel const& op_model = get_selected_op_model(writeback_op);
+        grid_shape = op_model.grid_shape;
+        block_shape = op_model.block_shape();
+    
+        for (const Edge& edge : partial_datacopy_edges)
+        {
+            Node* other_output = graph->node_by_id(edge.producer_node_id);
+            Node* other_writeback_op = graph->data_operands(other_output).front();
+            OpModel const& other_op_model = get_selected_op_model(other_writeback_op);
+            TT_ASSERT(
+                other_op_model.grid_shape == grid_shape,
+                "Partial datacopy grid shape mismatch on {} and {}",
+                writeback_op->name(),
+                other_output->name());
+            bool block_shapes_match = other_op_model.block_shape().mblock_m == block_shape.mblock_m and
+                                      other_op_model.block_shape().mblock_n == block_shape.mblock_n and
+                                      other_op_model.block_shape().ublock == block_shape.ublock;
+            TT_ASSERT(
+                block_shapes_match,
+                "Partial datacopy block shape mismatch on (note, t's don't have to match)",
+                writeback_op->name(),
+                other_op_model.block_shape(),
+                other_output->name(),
+                block_shape);
+        }
+
+        // Update read-view with t multiplier
+        TT_ASSERT(node->shape().volume() % output_node->shape().volume() == 0);
+        size_t multiplier = node->shape().volume() / output_node->shape().volume();
+        block_shape.t *= multiplier;
+    }
+    else if (not data_loopback.empty())
+    {
+        // If an optimizer node writes to this input (kDataLoopback) then we need to inherit its blockshape
+        Node* node = data_loopback[0];
+        if (node->node_type() == NodeType::kOutput)
+        {
+            node = graph->data_operands(node)[0];
+        }
+
+        OpModel const& op_model = get_selected_op_model(node);
+        grid_shape = op_model.grid_shape;
+        block_shape = op_model.block_shape();
+
+        // Users need to be at least as big as the optimizer op writing to it because otherwise the
+        // parameters wouldn't be able to fit on their core grid. This can be enforced by the balancer
+        // policies, but for now we assert.
+        for (OpModel const* user_op_model : prologue_users)
+        {
+            GridShape user_grid_shape = user_op_model->grid_shape;
+            if (user_grid_shape.r < grid_shape.r or user_grid_shape.c < grid_shape.c)
+            {
+                log_debug(
+                    LogBalancer,
+                    "Optimizer grid for input exceeds consumer op grid dims: {} optimizer({}) user({})",
+                    node->name(),
+                    grid_shape,
+                    user_grid_shape);
+                log_debug(LogBalancer, "  Fallback to stream parameters: {}", node->name());
+                all_users_prologue = false;
+            }
+        }
+    }   
+    else if (input and (input->is_parameter() or input->is_optimizer_parameter() or input->is_constant()))
+    {
+        // If it's a parameter, we need the grid shape of the smallest consumer grid dims
+        grid_shape = compatible_queue_grid_for_users(input_shape, users, true /*parameter*/);
+        UBlockShape ublock = compatible_queue_ublock_for_users(input_shape, grid_shape, user_edges, users);
+        block_shape = BlockShape(input_shape, grid_shape.r, grid_shape.c, 1, ublock);
+
+        // Test to make sure that after placing all ops that reference this prologue buffer still fit in L1
+        // Fallback to streaming the param buffer
+        if (all_users_prologue)
+        {
+            int idx = 0;
+            for (OpModel const* user_op_model_ptr : prologue_users)
+            {
+                // Take a copy to test if we fit in L1 with updated parameter grid blocking
+                OpModel user_op_model = *user_op_model_ptr;
+                Edge edge = user_edges[idx++];
+
+                // Only replace the parameter buffer model if not kernel broadcast, we've
+                // already determined that the entire buffer can fit in this core's L1
+                bool is_kernel_broadcast =
+                    user_op_model.input_buffers[edge.consumer_input_port_id].kernel_broadcast_tiles > 0;
+                if (not is_kernel_broadcast)
+                    user_op_model.parameter_buffers[edge.consumer_input_port_id] =
+                        BufferModel(block_shape, 1, graph->node_by_id(edge.producer_node_id)->output_df());
+
+                bool out_of_memory =
+                    user_op_model.get_l1_memory_usage() > device_config.get_l1_usable_size();
+                int num_prefetch_streams = 0;
+                Node* user = graph->node_by_id(edge.consumer_node_id);
+                for (const Edge& operand_edge : graph->operand_data_edges(user))
+                {
+                    if (user_op_model.parameter_buffers[operand_edge.consumer_input_port_id])
+                    {
+                        graphlib::Shape operand_shape = graph->node_by_id(operand_edge.producer_node_id)->shape();
+                        std::vector<OpModel const*> operand_users;
+                        for (Node* operand_user_node :
+                                graph->data_users(graph->node_by_id(operand_edge.producer_node_id)))
+                        {
+                            if (has_selected_op_model(operand_user_node))
+                            {
+                                operand_users.push_back(&get_selected_op_model(operand_user_node));
+                            }
+                        }
+                        GridShape operand_grid_shape = compatible_queue_grid_for_users(
+                            operand_shape, operand_users, true /*parameter*/);
+
+                        num_prefetch_streams +=
+                            (round_up_div(user_op_model.grid_shape.r, operand_grid_shape.r) *
+                                round_up_div(user_op_model.grid_shape.c, operand_grid_shape.c));
+                    }
+                }
+                bool out_of_prefetch_streams = num_prefetch_streams > kMaxPrefetchBufStreams;
+
+                if (out_of_memory or out_of_prefetch_streams)
+                {
+                    // tenstorrent/pybuda#390
+                    // TT_ASSERT(prologue_users.size() > 1, "Single user should alway fit in L1, unless op
+                    // model calculation changed");
+
+                    log_debug(
+                        LogBalancer,
+                        "Smallest consumer grid shape forces other parameter consumer to fall out of L1, "
+                        "prologue_users[{}] out_of_memory[{}] out_of_prefetch_streams[{}]",
+                        prologue_users.size(),
+                        out_of_memory,
+                        out_of_prefetch_streams);
+                    log_debug(LogBalancer, "  Fallback to stream parameters: {}", node->name());
+                    all_users_prologue = false;
+                    break;
+                }
+            }
+        }
+    }
+    else if (
+        (enable_reblock_input_activations or
+            (node->shape().rt() * node->shape().ct() <= reblock_input_max_size)) and
+        input and input->is_activation())
+    {
+        // If it's activation, we'll arbitrarily pick the smallest grid shape
+        grid_shape = compatible_queue_grid_for_users(input_shape, users);
+        UBlockShape ublock = compatible_queue_ublock_for_users(input_shape, grid_shape, user_edges, users);
+        block_shape = BlockShape(input_shape, grid_shape.r, grid_shape.c, 1, ublock);
+    }
+    else
+    {
+        // We can choose anything for ordinary input, so 1x1 grid/ublock for now (to support bcast shapes)
+        grid_shape = GridShape(1 /* r */, 1 /* c */);
+        block_shape = BlockShape(input_shape, grid_shape.r, grid_shape.c, 
+                                 1 /* par_t */, UBlockShape(1 /* rt */, 1 /* ct */));
+
+        bool exceeds_dram_channel_size = (block_shape.volume() * tile_size_bytes(node->output_df())) >
+                                          device_config.get_dram_channel_capacity();
+        if (exceeds_dram_channel_size)
+        {
+            FactorizedShape legal_grid_shapes = FactorizedShape(input_shape.rt, input_shape.ct);
+            FactorizedShape::Iterator legal_grid_shapes_iter = legal_grid_shapes.begin();
+            bool init = true;
+            while (exceeds_dram_channel_size and legal_grid_shapes_iter != legal_grid_shapes.end())
+            {
+                if (init)
+                {
+                    grid_shape = compatible_queue_grid_for_users(input_shape, users);
+                    init = false;
+                }
+                else
+                {
+                    grid_shape = GridShape(*legal_grid_shapes_iter++);
+                }
+
+                block_shape = BlockShape(input_shape, grid_shape.r, grid_shape.c, 1 /* par_t */, 
+                                         UBlockShape(1 /* rt */, 1 /* ct */));
+                exceeds_dram_channel_size = (block_shape.volume() * tile_size_bytes(node->output_df())) >
+                                            device_config.get_dram_channel_capacity();
+            }
+
+            TT_ASSERT(
+                not exceeds_dram_channel_size,
+                "Could not find queue grid size large enough to fit queue into dram");
+        }
+    }
+
+    return make_queue_op_model(input_shape, grid_shape, block_shape, node->output_df(), all_users_prologue);
+}
+
+std::optional<OpModel> get_op_model_for_input_queue(
+    const Graph *graph, 
+    const OpModels *op_models, 
+    const OpModel &consumer_op_model,
+    const DeviceConfig &device_config,
+    Node *node)
+{
+    try
+    {
+        return std::make_optional(pick_op_model_for_input_queue(
+            graph, op_models, consumer_op_model, device_config, node));
+    }
+    catch (...)
+    {
+        // These errors can happen with training (loopback edges) and/or partial data copy edges since at that point it
+        // is possible that we don't have a selected op model for any of the queue producers / consumers.
+        // TODO: Get rid of this try-catch when tenstorrent/pybuda#2607 is resolved.
+        log_debug(
+            LogBalancer, "Failed to compute op model for a queue '{}' on a {} -> {} queue-to-op connection",
+            node->name(),
+            node->name(),
+            consumer_op_model.buda_op_node->name());
+        return std::nullopt;
+    }
+}
+
+float get_dram_read_bw_estimation_for_edge(
+    const Graph *graph,
+    const Edge &queue_to_op_edge,
+    const OpModels *selected_op_models,
+    const OpModel &consumer_op_model,
+    Node *queue_node,
+    const DeviceConfig &device_config,
+    float default_dram_bw,
+    float dram_fork_divider)
+{
+    float edge_dram_bw = default_dram_bw;
+    std::vector<Node*> queue_data_inputs = graph->data_operands(queue_node);
+
+    if (queue_node->node_type() == NodeType::kInput)
+    {
+        std::optional<OpModel> queue_op_model = get_op_model_for_input_queue(
+            graph, selected_op_models, consumer_op_model, device_config, queue_node);
+        if (queue_op_model.has_value())
+        {
+            edge_dram_bw = static_cast<float>(get_bandwidth_estimation(
+                graph,
+                queue_to_op_edge,
+                queue_op_model.value(),
+                consumer_op_model,
+                true /* is_queue */).get_bandwidth());
+
+            edge_dram_bw = std::ceil(edge_dram_bw / dram_fork_divider);
+        }
+    }
+    else if (queue_data_inputs.size() > 0)
+    {
+        // If the queue node has data inputs, it means that it is an epoch to epoch queue or a buffer queue within the 
+        // same epoch, so the shape of it will be the same as the shape of the producer op.
+        TT_ASSERT(queue_data_inputs.size() == 1);
+        const Node *op_feeding_queue = queue_data_inputs[0];
+
+        if (selected_op_models->count(op_feeding_queue) > 0)
+        {
+            const OpModel &op_feeding_queue_op_model = selected_op_models->at(op_feeding_queue);
+
+            edge_dram_bw = static_cast<float>(get_bandwidth_estimation(
+                graph,
+                queue_to_op_edge,
+                op_feeding_queue_op_model,
+                consumer_op_model,
+                true /* is_queue */).get_bandwidth());
+
+            edge_dram_bw = std::ceil(edge_dram_bw / dram_fork_divider);
+        }
+    }
+
+    return edge_dram_bw;
+}
 
 // Modelling and rough calculation of limiter cycles for op model.
 // Limiter cycles are used to estimate how long would it take to execute the op model on the device.
@@ -1447,6 +1933,9 @@ OpCycleEstimates get_op_cycles_estimates(
     // Should we use estimates for the NOC bandwidth.
     static const bool use_noc_bw_estimates = env_as<bool>("PYBUDA_BALANCER_USE_NOC_BW_ESTIMATES", false);
 
+    // Should we use estimates for the DRAM bandwidth.
+    static const bool use_dram_bw_estimates = env_as<bool>("PYBUDA_BALANCER_USE_DRAM_BW_ESTIMATES", false);
+
     const float inefficency_divider = 2.0;
     const float subchannel_oversub_coeff = 1.5;
     const float pcie_observed_max = 24;
@@ -1461,11 +1950,10 @@ OpCycleEstimates get_op_cycles_estimates(
     // Use half of theoretical max for better average estimate for now.
     //
     float noc_bw = static_cast<float>(device_config.get_noc_bandwidth_bytes_per_cycle()) / inefficency_divider;
-    float dram_bw_divider = std::max(
-        inefficency_divider,
-        std::ceil(
+    float dram_fork_divider = std::ceil(
             dram_access_core_count / (device_config.get_dram_num_channels() * device_config.get_dram_num_subchannels() /
-                                      subchannel_oversub_coeff)));
+                                      subchannel_oversub_coeff));
+    float dram_bw_divider = std::max(inefficency_divider, dram_fork_divider);
 
     // API is currently returning wrong value for WH
     // tenstorrent/budabackend#2423
@@ -1509,6 +1997,18 @@ OpCycleEstimates get_op_cycles_estimates(
                     .get_bandwidth());
         }
 
+        float edge_dram_bw = dram_bw;
+        const bool estimates_supported_for_op_type = 
+            !op_model.buda_op_node->is_embedding() && !op_model.buda_op_node->is_tilize();
+        const bool can_run_dram_bw_estimations = 
+            producer_is_queue && selected_op_models && !input_is_host_queue && estimates_supported_for_op_type;
+
+        if (use_dram_bw_estimates && can_run_dram_bw_estimations)
+        {
+            edge_dram_bw = get_dram_read_bw_estimation_for_edge(
+                graph, edge, selected_op_models, op_model, producer_node, device_config, dram_bw, dram_fork_divider);
+        }
+
         // Legacy path for modelling BW
         //
         if (disable_model_kb_prologue_bw)
@@ -1518,8 +2018,8 @@ OpCycleEstimates get_op_cycles_estimates(
                 if (!input_is_host_queue)
                 {
 
-                    input_bw_estimates[input_idx] = dram_bw;
-                    memory_read_cycles[input_idx] = static_cast<int>(input_tensor_size_bytes / dram_bw);
+                    input_bw_estimates[input_idx] = edge_dram_bw;
+                    memory_read_cycles[input_idx] = static_cast<int>(input_tensor_size_bytes / edge_dram_bw);
                 }
                 else
                 {
@@ -1570,11 +2070,11 @@ OpCycleEstimates get_op_cycles_estimates(
                     //
                     TT_ASSERT(!input_is_prologue);
 
-                    input_bw_estimates[input_idx] = dram_bw;      
+                    input_bw_estimates[input_idx] = edge_dram_bw;      
                     memory_read_cycles[input_idx] = static_cast<int>(
                             (op_model.input_buffers[edge.consumer_input_port_id].kernel_broadcast_tiles *
                              tile_size_bytes(op_model.input_buffers[edge.consumer_input_port_id].data_format)) /
-                            dram_bw / graph->get_microbatch());              
+                            edge_dram_bw / graph->get_microbatch());              
                 }
                 else if (input_is_prologue)
                 {
@@ -1582,9 +2082,9 @@ OpCycleEstimates get_op_cycles_estimates(
                     //
                     TT_ASSERT(!input_is_kb);
 
-                    input_bw_estimates[input_idx] = dram_bw;
+                    input_bw_estimates[input_idx] = edge_dram_bw;
                     memory_read_cycles[input_idx] = static_cast<int>(
-                            input_tensor_size_bytes / dram_bw /
+                            input_tensor_size_bytes / edge_dram_bw /
                             graph->get_microbatch());  // divide by microbatch as we only transfer data once per input
                                                        // in epoch
                 }
@@ -1606,8 +2106,8 @@ OpCycleEstimates get_op_cycles_estimates(
                 {
                     // streaming (queue -> op)
 
-                    input_bw_estimates[input_idx] = dram_bw;
-                    memory_read_cycles[input_idx] = static_cast<int>(input_tensor_size_bytes / dram_bw);
+                    input_bw_estimates[input_idx] = edge_dram_bw;
+                    memory_read_cycles[input_idx] = static_cast<int>(input_tensor_size_bytes / edge_dram_bw);
                 }
             }
             else if (producer_is_host_input_buffer)

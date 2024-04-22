@@ -27,9 +27,11 @@ struct TestNocBandwidthEstimator : testing::Test
 
         graphlib::Shape shape = graphlib::Shape::create({1, 1, 512, 160});
 
-        auto in0_a = create_input(*graph, "in0_a", graphlib::Shape::create({1, 1, shape[2], 256}));    // 1x1x512x256
-        auto in0_b = create_input(*graph, "in0_b", graphlib::Shape::create({1, 1, 256, shape[3]}));    // 1x1x256x160
-        auto matmul0 = add_node<graphlib::PyOpNode>(*graph, "matmul0", "matmul", {}, {in0_a, in0_b});  // 1x1x512x160
+        auto in0_a = create_input(*graph, "in0_a", graphlib::Shape::create({1, 1, shape[2], 256})); // 1x1x512x256
+        auto in0_b = create_input(*graph, "in0_b", graphlib::Shape::create({1, 1, 256, shape[3]})); // 1x1x256x160
+        auto in0_a_nop = add_node<graphlib::PyOpNode>(*graph, "in0_a_nop", "nop", {}, {in0_a}); // 1x1x512x256
+        auto in0_b_nop = add_node<graphlib::PyOpNode>(*graph, "in0_b_nop", "nop", {}, {in0_b}); // 1x1x512x256
+        auto matmul0 = add_node<graphlib::PyOpNode>(*graph, "matmul0", "matmul", {}, {in0_a_nop, in0_b_nop}); // 1x1x512x160
 
         auto in1_a = create_input(*graph, "in1_a", graphlib::Shape::create({1, 1, shape[3], 128}));    // 1x1x160x128
         auto in1_b = create_input(*graph, "in1_b", graphlib::Shape::create({1, 1, 128, shape[2]}));    // 1x1x128x512
@@ -44,6 +46,28 @@ struct TestNocBandwidthEstimator : testing::Test
         graph->set_microbatch(64);
     }
 };
+
+
+struct TestDramBandiwdthEstimator : testing::Test
+{
+    std::unique_ptr<Graph> graph;
+
+    void SetUp() override
+    {
+        graph = std::make_unique<Graph>(graphlib::IRLevel::IR_PYBUDA);
+
+        graphlib::Shape shape = graphlib::Shape::create({1, 1, 512, 160});
+
+        auto input_queue = create_input(*graph, "input_queue", graphlib::Shape::create({1, 1, shape[2], 256}));
+        auto consumer_op = add_node<graphlib::PyOpNode>(*graph, "consumer_op", "nop", {}, {input_queue});
+
+        create_output(*graph, "out0", consumer_op);
+
+        graph = prepare_graph_for_legalizer(graph.get());
+        graph->set_microbatch(64);
+    }
+};
+
 
 TEST_F(TestNocBandwidthEstimator, get_bandwidth)
 {
@@ -96,5 +120,49 @@ TEST_F(TestNocBandwidthEstimator, get_bandwidth)
     balancer::legalizer::GraphSolverSolution solution = graph_solver.finish();
     EXPECT_EQ(solution.selected_op_models.size(), 3);
 }
+
+TEST_F(TestDramBandiwdthEstimator, get_bandwidth_queue_producer)
+{
+   balancer::BalancerConfig balancer_config = create_balancer_config();
+    std::shared_ptr<balancer::BalancerCacheCollection> cache_collection = create_balancer_cache_collection();
+    balancer_config.enable_t_streaming = true;
+    balancer::LegalOpModels valid_op_models =
+        balancer::legalizer::get_legal_op_models(graph.get(), balancer_config, cache_collection);
+
+    legalizer::GraphSolver graph_solver =
+        get_graph_solver(balancer_config, cache_collection, graph.get(), valid_op_models);
+    auto input_queue = graph->get_node_by_name("input_queue");
+    auto consumer_op = graph->get_node_by_name("consumer_op");
+
+    auto topo_sort = tt::graphlib::topological_sort(*graph);
+
+    auto legal_op_models_on_consumer = graph_solver.at(consumer_op);
+
+    double best_bw_sum = 0.;
+    OpModel best_model;
+
+    for (auto& consumer_op_model : legal_op_models_on_consumer)
+    {
+        // We assume queue will have the same shape as the consumer op.
+        const OpModel& queue_op_model = consumer_op_model;
+
+        BandwidthBucket input_bw = get_bandwidth_estimation(
+            graph.get(), graph->get_edges(input_queue, consumer_op)[0], queue_op_model, consumer_op_model, true);
+
+        if (input_bw.get_bandwidth() > best_bw_sum)
+        {
+            best_bw_sum = input_bw.get_bandwidth();
+            best_model = consumer_op_model;
+        }
+    }
+
+    EXPECT_GT(best_bw_sum, 0.);
+
+    graph_solver.set(consumer_op, best_model);
+
+    balancer::legalizer::GraphSolverSolution solution = graph_solver.finish();
+    EXPECT_EQ(solution.selected_op_models.size(), 1);
+}
+
 
 }  // namespace tt::test

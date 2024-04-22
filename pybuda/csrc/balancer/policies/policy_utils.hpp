@@ -268,6 +268,16 @@ int get_limiter_cycles(
     bool invalidate_cached = false,
     const OpModels* selected_op_models = nullptr);
 
+float get_dram_read_bw_estimation_for_edge(
+    const Graph *graph,
+    const Edge &queue_to_op_edge,
+    const OpModels *selected_op_models,
+    const OpModel &consumer_op_model,
+    Node *queue_node,
+    const DeviceConfig &device_config,
+    float default_dram_bw,
+    float dram_fork_divider);
+
 bool is_output_write_to_dram_over_target(
     const OpModel& op_model, const DeviceConfig& device_config, const int target_exec_cycles);
 

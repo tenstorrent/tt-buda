@@ -28,11 +28,11 @@ class BandwidthBucket
         k28to32
     };
 
-    BandwidthBucket(int bucket_index) : bucket_index_(bucket_index) {}
+    explicit BandwidthBucket(int bucket_index) : bucket_index_(bucket_index) {}
 
-    BandwidthBucket(double bandwidth) : bucket_index_(static_cast<int>(bandwidth / BUCKET_WIDTH)) {}
+    explicit BandwidthBucket(double bandwidth) : bucket_index_(static_cast<int>(bandwidth / BUCKET_WIDTH)) {}
 
-    BandwidthBucket(BucketIndex bucket_index) : bucket_index_(static_cast<int>(bucket_index)) {}
+    explicit BandwidthBucket(BucketIndex bucket_index) : bucket_index_(static_cast<int>(bucket_index)) {}
 
     void set_bucket(int bucket_index) { bucket_index_ = bucket_index; }
 

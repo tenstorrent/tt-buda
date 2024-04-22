@@ -10,6 +10,7 @@
 #include "balancer/balancer_utils.hpp"
 #include "balancer/bandwidth_bucket.hpp"
 #include "balancer/bandwidth_estimator_impl.hpp"
+#include "balancer/dram_read_estimator_internal.hpp"
 #include "balancer/python_interface.hpp"
 #include "balancer/types.hpp"
 #include "passes/t_stream.hpp"
@@ -35,8 +36,18 @@ TileLayout get_producer_tile_layout(const Graph* graph, const Edge& edge, const 
     return TileLayout(producer_grid_shape, producer_block_shape, get_output_ublock_order(graph, producer_node));
 }
 
-TileLayout get_consumer_tile_layout(
-    const Graph* graph, const Edge& edge, const OpModel& consumer_op_model, InputType input_type)
+int get_producer_out_buf_mb(bool is_queue, const BufferModel& buffer_model)
+{
+    if (is_queue)
+    {
+        return buffer_model.block_shape.t;
+    }
+
+    return buffer_model.buffer_factor > 1 ? buffer_model.buffer_factor / 2 : buffer_model.buffer_factor;
+};
+
+TileLayout get_consumer_tile_layout(const Graph* graph, const Edge& edge, const OpModel& consumer_op_model,
+                                    InputType input_type)
 {
     GridShape consumer_grid_shape = consumer_op_model.grid_shape;
     BlockShape consumer_block_shape =
@@ -96,7 +107,7 @@ three_d_array_tile_src_map prepare_tile_map(const TileLayout& producer_layout, c
         producer_layout.block_shape.mblock_n,
         producer_layout.grid_shape.r,
         producer_layout.grid_shape.c,
-        producer_out_buf_mb / 2,
+        producer_out_buf_mb,
         producer_layout.ublock_order == graphlib::UBlockOrder::R);
 }
 
@@ -156,7 +167,7 @@ int get_consumer_fanin_from_tile_maps(
     return consumer_fanin;
 }
 
-bool is_producer_scatter(TileLayout producer_layout, int scatter_granularity, int producer_effective_buf_size_mb)
+bool is_scatter_producer(TileLayout producer_layout, int scatter_granularity, int producer_effective_buf_size_mb)
 {
     const int mblock_tiles = producer_layout.volume(false /* include_t */);
     const int buffered_tiles = mblock_tiles * producer_effective_buf_size_mb;
@@ -249,9 +260,9 @@ int calculate_unpacker_buffer_size_bytes(const int kernel_clear_granularity, con
     return min_double_buffer_size + num_increments * min_kernel_buffer_size;
 }
 
-int calculate_buf_space_available_ack_thr(const int unpacker_buf_size_tiles, const int tiles_per_input)
+int calculate_buf_space_available_ack_thr(const int unpacker_buf_size_tiles, const int scatter_gather_num_tiles)
 {
-    switch (unpacker_buf_size_tiles / tiles_per_input)
+    switch (unpacker_buf_size_tiles / scatter_gather_num_tiles)
     {
         case 0: return 0;
         case 1:
@@ -269,7 +280,8 @@ OpToOpConnectionModel OpToOpConnectionModel::create_op_to_op_connection_model(
     const int producer_out_buf_mb,
     const int kernel_broadcast_tiles,
     const std::vector<graphlib::OpType>& tms,
-    const InputType input_type)
+    const InputType input_type,
+    const bool is_producer_queue)
 {
     three_d_array_tile_src_map tile_map = prepare_tile_map(producer, producer_out_buf_mb);
 
@@ -318,145 +330,34 @@ OpToOpConnectionModel OpToOpConnectionModel::create_op_to_op_connection_model(
     }
 
     OpToOpConnectionModel result;
-    result.set_scatter_granularity(consumer_tile_map.scatter_granularity);
-    result.set_tiles_per_input(consumer.block_shape.volume());
     result.set_consumer_multicast(false);
-    result.set_producer_fanout(consumer_tile_map.max_producer_core_fan_out());
+    result.set_consumer_tiles_per_input(consumer.block_shape.volume());
     result.set_consumer_fanin(get_consumer_fanin_from_tile_maps(producer.grid_shape, consumer_tile_map));
 
-    const int producer_effective_buf_size_mb = producer_out_buf_mb > 1 ? producer_out_buf_mb / 2 : 1;
-    const bool producer_scatter_packer =
-        consumer_tile_map.producer_tiles_out_of_order ||
-        is_producer_scatter(producer, consumer_tile_map.scatter_granularity, producer_effective_buf_size_mb);
-    result.set_scatter_pack(producer_scatter_packer);
+    result.set_scatter_granularity(consumer_tile_map.scatter_granularity);
+    result.set_producer_tiles_per_input(producer.block_shape.volume());
+    result.set_is_producer_scatter(
+        consumer_tile_map.producer_tiles_out_of_order || 
+        is_producer_queue ||
+        is_scatter_producer(producer, consumer_tile_map.scatter_granularity, producer_out_buf_mb));
+    result.set_is_producer_queue(is_producer_queue);
+    result.set_producer_fanout(consumer_tile_map.max_producer_core_fan_out());
 
-    // Approximate number of phases for the packer side. This is number of phases in a single firmware loop. This number
-    // could be lower in reality if some phases are merged together.
-    const int packer_num_phases =
-        producer_scatter_packer
-            ? approximate_scatter_packer_num_phases(
-                  result.get_scatter_granularity(), producer.block_shape.volume_no_t(), producer_effective_buf_size_mb)
-            : 1 /* legacy pack doesn't care much about phases */;
-    result.set_packer_num_phases(packer_num_phases);
+    result.producer_num_phases_ = result.is_producer_scatter() && !is_producer_queue ?
+        approximate_scatter_packer_num_phases(result.get_scatter_granularity(), producer.block_shape.volume_no_t(),
+                                              producer_out_buf_mb)
+        : 1 /* legacy pack doesn't care much about phases */;
 
     return result;
 }
 
-OpToOpConnectionModel OpToOpConnectionModel::create_op_to_op_connection_model(
-    const TileLayout& producer_layout,
-    const TileLayout& consumer_layout,
-    const int producer_out_buf_mb,
-    const vector<graphlib::OpType>& tms)
-{
-    TensorShape consumer_shape = consumer_layout.shape();
-    LinCoord prev_producer_linear = LinCoord(0, 0, 0);
-
-    map<int, set<int>> producer_core_to_consumer_cores;
-    map<int, set<int>> consumer_core_to_producer_cores;
-
-    GridShape consumer_grid = consumer_layout.grid_shape;
-    const int block_volume = consumer_layout.block_shape.volume();
-
-    auto ordered = [](GridCoord coord, GridShape shape) { return shape.c * coord.r + coord.c; };
-
-    // Initialize to max possible value.
-    int scatter_granularity = block_volume;
-    bool scatter_pack = false;
-
-    int producer_effective_buf_size_mb = producer_out_buf_mb > 1 ? producer_out_buf_mb / 2 : 1;
-    int producer_tmblock_multiplier = 1;
-
-    // Number of tiles buffered for a single output (excluding double buffering).
-    int producer_buffered_tiles_single_out =
-        producer_layout.volume(false /* include_t */) / producer_layout.grid_shape.volume();
-
-    if (producer_effective_buf_size_mb > producer_layout.t())
-    {
-        assert(producer_effective_buf_size_mb % producer_layout.t() == 0);
-        producer_tmblock_multiplier = producer_effective_buf_size_mb / producer_layout.t();
-        producer_buffered_tiles_single_out *= producer_tmblock_multiplier;
-    }
-
-    for (int grid_r = 0; grid_r < consumer_grid.r; ++grid_r)
-    {
-        for (int grid_c = 0; grid_c < consumer_grid.c; ++grid_c)
-        {
-            GridCoord consumer_grid_coord(grid_r, grid_c);
-
-            // How many contiguous tiles are coming to the current consumer core.
-            int cur_core_contiguous_tiles = 0;
-
-            for (int block_offset = 0; block_offset < block_volume; ++block_offset)
-            {
-                // Walk the consumer tile order linearly
-                LinCoord consumer_linear(grid_r, grid_c, block_offset);
-                CanCoord consumer_coord = consumer_layout.map(consumer_linear);
-                // Map consumer tile position to producer tile origin
-                auto [producer_coord, p_shape] = map_inverse_tms(consumer_coord, consumer_shape, tms);
-                LinCoord producer_linear = producer_layout.map(producer_coord);
-
-                int producer_grid_idx = ordered(producer_linear.grid_coord(), producer_layout.grid_shape);
-                int consumer_grid_idx = ordered(consumer_grid_coord, consumer_layout.grid_shape);
-
-                producer_core_to_consumer_cores[producer_grid_idx].insert(consumer_grid_idx);
-                consumer_core_to_producer_cores[consumer_grid_idx].insert(producer_grid_idx);
-
-                // If the first block offset, we'll skip contiguous check.
-                bool producer_tiles_contiguous = prev_producer_linear.next() == producer_linear;
-                if (block_offset > 0 && cur_core_contiguous_tiles > 0 && !producer_tiles_contiguous)
-                {
-                    scatter_granularity = std::gcd(scatter_granularity, cur_core_contiguous_tiles);
-                    scatter_granularity = std::gcd(scatter_granularity, producer_linear.address());
-                    cur_core_contiguous_tiles = 0;
-                }
-
-                cur_core_contiguous_tiles++;
-                prev_producer_linear = producer_linear;
-            }
-
-            scatter_granularity = std::gcd(scatter_granularity, cur_core_contiguous_tiles);
-
-            if (scatter_granularity == block_volume)
-            {
-                // Full block can be sent in one go. We can extend the scatter granularity to the producer buffer size.
-                scatter_granularity *= producer_tmblock_multiplier;
-            }
-
-            if (scatter_granularity < producer_buffered_tiles_single_out)
-            {
-                // This is not 100% accuracte, as in some cases we can have pipe-scattering where the scatter
-                // granularity is equal to the mblock size. But then, scatter_pack should be true.
-                scatter_pack = true;
-            }
-        }
-    }
-
-    int producer_fanout = 0;
-    for (const auto& [_, cores] : producer_core_to_consumer_cores)
-    {
-        producer_fanout = std::max(producer_fanout, (int)cores.size());
-    }
-
-    int consumer_fanin = 0;
-    for (const auto& [_, cores] : consumer_core_to_producer_cores)
-    {
-        consumer_fanin = std::max(consumer_fanin, (int)cores.size());
-    }
-
-    return OpToOpConnectionModel(
-        scatter_granularity,
-        block_volume,
-        scatter_pack,
-        approximate_scatter_packer_num_phases(
-            scatter_granularity, producer_layout.block_shape.volume_no_t(), producer_effective_buf_size_mb),
-        false, /* consumer_multicast */
-        producer_fanout,
-        consumer_fanin);
-}
-
 OpToOpConnectionModel::ConnectionType OpToOpConnectionModel::get_connection_type() const
 {
-    if (producer_fanout_ == 1 && consumer_fanin_ == 1)
+    if (is_producer_queue_)
+    {
+       return ConnectionType::DramRead; 
+    }
+    else if (producer_fanout_ == 1 && consumer_fanin_ == 1)
     {
         return ConnectionType::DirectConnection;
     }
@@ -491,9 +392,12 @@ std::unique_ptr<Estimator> EstimatorFactory::get_estimator(
             return std::make_unique<GatheredConsumerEstimator>(features);
         case OpToOpConnectionModel::ConnectionType::ForkAndGatherCombo:
             return std::make_unique<ForkAndGatherComboEstimator>(features);
-        case OpToOpConnectionModel::ConnectionType::DramDirect: return std::make_unique<DramDirectEstimator>(features);
-        case OpToOpConnectionModel::ConnectionType::Unknown: return std::make_unique<Estimator>(features);
-        default: TT_ASSERT(false, "Unexpected connection type");
+        case OpToOpConnectionModel::ConnectionType::DramRead:
+            return std::make_unique<DramReadEstimator>(features);
+        case OpToOpConnectionModel::ConnectionType::Unknown:
+            return std::make_unique<Estimator>(features);
+        default:
+            TT_ASSERT(false, "Unknown connection type");
     }
     return nullptr;
 }
@@ -506,30 +410,30 @@ BandwidthBucket DirectConnectionEstimator::estimate_bandwidth_impl() const
         features_.get_unpacker_buffer_size_bytes(),
         features_.get_kernel_clear_granularity(),
         features_.get_buf_space_available_ack_thr(),
-        features_.get_epoch_tiles(),
+        features_.get_consumer_epoch_tiles(),
         features_.get_tile_size(),
-        features_.get_packer_buffer_size_bytes(),
-        features_.get_packer_scatter_gather_num_tiles(),
-        features_.get_packer_num_phases(),
-        features_.get_scatter_pack());
+        features_.get_producer_buffer_size_bytes(),
+        features_.get_scatter_gather_num_tiles(),
+        features_.get_producer_num_phases(),
+        features_.is_producer_scatter());
 }
 
 BandwidthBucket ForkedProducerEstimator::estimate_bandwidth_impl() const
 {
     return estimate_forked_connection(
-        features_.get_epoch_tiles(),
+        features_.get_consumer_epoch_tiles(),
         features_.get_tile_size(),
-        features_.get_packer_buffer_size_bytes(),
-        features_.get_packer_scatter_gather_num_tiles(),
-        features_.get_producer_fanout());
+        features_.get_producer_buffer_size_bytes(),
+        features_.get_scatter_gather_num_tiles(),
+        features_.get_producer_fan_out());
 }
 
 BandwidthBucket GatheredConsumerEstimator::estimate_bandwidth_impl() const
 {
     return estimate_gather_connection(
-        features_.get_epoch_tiles(),
+        features_.get_consumer_epoch_tiles(),
         features_.get_tile_size(),
-        features_.get_packer_scatter_gather_num_tiles(),
+        features_.get_scatter_gather_num_tiles(),
         features_.get_consumer_fanin());
 }
 
@@ -561,7 +465,7 @@ BandwidthBucket ForkAndGatherComboEstimator::estimate_bandwidth_impl() const
     }
 
     const double gather_bandwidth = gather_bandwidth_bucket.get_bandwidth();
-    const int fork_factor = features_.get_producer_fanout();
+    const int fork_factor = features_.get_producer_fan_out();
 
     // implement formula from the above comment
     double bandwidth = 0;
@@ -579,9 +483,67 @@ BandwidthBucket ForkAndGatherComboEstimator::estimate_bandwidth_impl() const
     return BandwidthBucket(bandwidth);
 }
 
-BandwidthBucket DramDirectEstimator::estimate_bandwidth_impl() const
+BandwidthBucket DramReadEstimator::estimate_bandwidth_impl() const
 {
-    return BandwidthBucket(BandwidthBucket::BucketIndex::k12to16);
+    const int dram_scatter_chunk_size_tiles = dram_read_estimator_internal::compute_dram_pipe_scatter_chunk_size_tiles(
+        features_.get_scatter_gather_num_tiles(), 
+        features_.get_unpacker_buffer_size_bytes(), 
+        features_.get_tile_size());
+
+    const int max_num_tiles_per_phase = dram_read_estimator_internal::compute_max_num_tiles_per_phase(
+        1 /* start_divisor */, 
+        features_.get_producer_tiles_per_input());
+
+    const int dram_read_chunk_size_tiles = dram_read_estimator_internal::compute_dram_buf_read_chunk_size_tiles(
+        dram_scatter_chunk_size_tiles, 
+        features_.get_kernel_clear_granularity(), 
+        features_.get_consumer_tiles_per_input(), 
+        features_.get_tile_size());
+
+    const int unpacker_buffer_size_bytes = dram_read_estimator_internal::compute_unpacker_stream_buffer_size_bytes(
+        max_num_tiles_per_phase, 
+        dram_read_chunk_size_tiles,
+        features_.get_unpacker_buffer_size_bytes(),
+        features_.get_consumer_tiles_per_input(),
+        features_.get_producer_tiles_per_input(),
+        features_.get_tile_size());
+
+    return make_bandwidth_prediction(
+        unpacker_buffer_size_bytes, dram_read_chunk_size_tiles, dram_scatter_chunk_size_tiles);
+}
+
+BandwidthBucket DramReadEstimator::make_bandwidth_prediction(const int unpacker_buffer_size_bytes,
+                                                             const int dram_buf_read_chunk_size_tiles,
+                                                             const int dram_scatter_chunk_size_tiles) const
+{
+    const BandwidthBucket bw_bucket_without_fork = estimate_dram_read_connection(
+        features_.get_consumer_epoch_tiles(), 
+        features_.get_tile_size(), 
+        features_.get_kernel_clear_granularity(), 
+        unpacker_buffer_size_bytes,
+        dram_buf_read_chunk_size_tiles,
+        dram_scatter_chunk_size_tiles);
+
+    return scale_bandwidth_wrt_fork_factor(bw_bucket_without_fork.get_bandwidth(), features_.get_producer_fan_out());
+}
+
+BandwidthBucket DramReadEstimator::scale_bandwidth_wrt_fork_factor(const double bw_without_fork,
+                                                                   const int fork_factor) const
+{
+    const double linear_cap = 1.0 * c_linear_noc_threshold / fork_factor;
+    const double theoretical_cap = 1.0 * c_theoretical_noc_threshold / fork_factor;
+
+    if (bw_without_fork <= linear_cap || fork_factor == 1)
+    {
+        return BandwidthBucket(bw_without_fork);
+    }
+
+    const double dx = c_theoretical_noc_threshold - bw_without_fork;
+    const double dy = (bw_without_fork - linear_cap) * (theoretical_cap - linear_cap);
+
+    const double fork_bw = dy / dx + linear_cap;
+
+    return BandwidthBucket(fork_bw);
 }
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -607,7 +569,7 @@ BandwidthBucket get_bandwidth_estimation(
 
     const int tile_size_in_bytes = tile_size_bytes(data_format);
 
-    const int producer_out_buf_mb = producer_op_model.output_buffers[0].buffer_factor;
+    const int producer_out_buf_mb = get_producer_out_buf_mb(is_queue, producer_op_model.output_buffers[0]);
 
     const int kernel_broadcast_tiles =
         consumer_op_model.input_buffers[edge.consumer_input_port_id].kernel_broadcast_tiles;
@@ -629,29 +591,31 @@ BandwidthBucket get_bandwidth_estimation(
     try
     {
         op_to_op_connection_model = OpToOpConnectionModel::create_op_to_op_connection_model(
-            producer_layout, consumer_layout, producer_out_buf_mb, kernel_broadcast_tiles, tms, input_type);
+            producer_layout, consumer_layout, producer_out_buf_mb, kernel_broadcast_tiles, tms, input_type, is_queue);
     }
     catch (const std::runtime_error& e)
     {
+        log_debug(LogBalancer, "Failed to create Op to Op connection model because of: '{}'.", e.what());
         return BandwidthBucket(BandwidthBucket::BucketIndex::k0to4);
     }
 
     EstimatorFactory factory;
-    Estimator::Features features;
-
-    // TODO move multicast feature to OpToOpConnectionModel.
-    features.set_features(op_to_op_connection_model);
-    features.set_consumer_multicast(is_multicast);
+    Estimator::Features features = Estimator::Features::from_connection_model(op_to_op_connection_model);
+    
+    features.set_producer_epoch_tiles(features.get_producer_tiles_per_input() * graph->get_microbatch());
+    features.set_producer_buffer_size_bytes(
+        producer_layout.block_shape.buffer_tiles(producer_op_model.output_buffers[0].buffer_factor) * tile_size_in_bytes);
 
     features.set_unpacker_buffer_size_bytes(unpacker_buffer_size_bytes);
     features.set_kernel_clear_granularity(kernel_clear_granularity);
     features.set_buf_space_available_ack_thr(calculate_buf_space_available_ack_thr(
-        unpacker_buffer_size_bytes / tile_size_in_bytes, features.get_tiles_per_input()));
+        unpacker_buffer_size_bytes / tile_size_in_bytes, features.get_consumer_tiles_per_input()));
 
-    features.set_epoch_tiles(features.get_tiles_per_input() * graph->get_microbatch());
+    // TODO move multicast feature to OpToOpConnectionModel.
+    features.set_consumer_multicast(is_multicast);
+    features.set_consumer_epoch_tiles(features.get_consumer_tiles_per_input() * graph->get_microbatch());
+
     features.set_tile_size(tile_size_in_bytes);
-    features.set_packer_buffer_size_bytes(
-        producer_layout.block_shape.buffer_tiles(producer_out_buf_mb) * tile_size_in_bytes);
 
     std::unique_ptr<Estimator> estimator =
         factory.get_estimator(op_to_op_connection_model.get_connection_type(), features);

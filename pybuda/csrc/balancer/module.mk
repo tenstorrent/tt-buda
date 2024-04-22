@@ -6,6 +6,7 @@ PYBUDA_CSRC_BALANCER_SRCS += \
 	pybuda/csrc/balancer/balancer_utils.cpp \
 	pybuda/csrc/balancer/bandwidth_estimator_impl.cpp \
 	pybuda/csrc/balancer/data_movement_bw_estimation.cpp \
+	pybuda/csrc/balancer/dram_read_estimator_internal.cpp \
 	pybuda/csrc/balancer/legalizer/constraints.cpp \
 	pybuda/csrc/balancer/legalizer/graph_solver.cpp \
 	pybuda/csrc/balancer/legalizer/legalizer.cpp \

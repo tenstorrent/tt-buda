@@ -1734,5 +1734,282 @@ BandwidthBucket estimate_forked_connection(const int epoch_tiles,
     }
 }
 
+BandwidthBucket estimate_dram_read_connection(const int epoch_tiles,
+                                              const int tile_size,
+                                              const int kernel_clear_granularity,
+                                              const int unpacker_buffer_size_bytes,
+                                              const int dram_buf_read_chunk_size_tiles,
+                                              const int dram_scatter_chunk_size_tiles)
+{
+    if (dram_buf_read_chunk_size_tiles <= 6.50) 
+    {
+        if (dram_buf_read_chunk_size_tiles <= 2.50) 
+        {
+            return BandwidthBucket(0);
+        }
+        else  // if dram_buf_read_chunk_size_tiles > 2.50
+        {
+            if (tile_size <= 1600.00) 
+            {
+                if (dram_scatter_chunk_size_tiles <= 1.50) 
+                {
+                    if (epoch_tiles <= 127488.00) 
+                    {
+                        return BandwidthBucket(0);
+                    }
+                    else  // if epoch_tiles > 127488.00
+                    {
+                        return BandwidthBucket(0);
+                    }
+                }
+                else  // if dram_scatter_chunk_size_tiles > 1.50
+                {
+                    if (dram_buf_read_chunk_size_tiles <= 4.50) 
+                    {
+                        return BandwidthBucket(0);
+                    }
+                    else  // if dram_buf_read_chunk_size_tiles > 4.50
+                    {
+                        if (epoch_tiles <= 896.00) 
+                        {
+                            return BandwidthBucket(0);
+                        }
+                        else  // if epoch_tiles > 896.00
+                        {
+                            return BandwidthBucket(1);
+                        }
+                    }
+                }
+            }
+            else  // if tile_size > 1600.00
+            {
+                if (dram_scatter_chunk_size_tiles <= 1.50) 
+                {
+                    return BandwidthBucket(1);
+                }
+                else  // if dram_scatter_chunk_size_tiles > 1.50
+                {
+                    if (kernel_clear_granularity <= 3.50) 
+                    {
+                        if (epoch_tiles <= 5376.00) 
+                        {
+                            return BandwidthBucket(1);
+                        }
+                        else  // if epoch_tiles > 5376.00
+                        {
+                            return BandwidthBucket(2);
+                        }
+                    }
+                    else  // if kernel_clear_granularity > 3.50
+                    {
+                        if (epoch_tiles <= 62208.00) 
+                        {
+                            return BandwidthBucket(1);
+                        }
+                        else  // if epoch_tiles > 62208.00
+                        {
+                            return BandwidthBucket(2);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    else  // if dram_buf_read_chunk_size_tiles > 6.50
+    {
+        if (dram_buf_read_chunk_size_tiles <= 12.50) 
+        {
+            if (tile_size <= 1600.00) 
+            {
+                if (dram_buf_read_chunk_size_tiles <= 11.00) 
+                {
+                    if (epoch_tiles <= 576.00) 
+                    {
+                        return BandwidthBucket(0);
+                    }
+                    else  // if epoch_tiles > 576.00
+                    {
+                        if (dram_scatter_chunk_size_tiles <= 9.50) 
+                        {
+                            return BandwidthBucket(1);
+                        }
+                        else  // if dram_scatter_chunk_size_tiles > 9.50
+                        {
+                            return BandwidthBucket(1);
+                        }
+                    }
+                }
+                else  // if dram_buf_read_chunk_size_tiles > 11.00
+                {
+                    if (epoch_tiles <= 5376.00) 
+                    {
+                        return BandwidthBucket(1);
+                    }
+                    else  // if epoch_tiles > 5376.00
+                    {
+                        if (epoch_tiles <= 25728.00) 
+                        {
+                            return BandwidthBucket(2);
+                        }
+                        else  // if epoch_tiles > 25728.00
+                        {
+                            return BandwidthBucket(2);
+                        }
+                    }
+                }
+            }
+            else  // if tile_size > 1600.00
+            {
+                if (dram_scatter_chunk_size_tiles <= 4.50) 
+                {
+                    if (dram_buf_read_chunk_size_tiles <= 11.00) 
+                    {
+                        return BandwidthBucket(2);
+                    }
+                    else  // if dram_buf_read_chunk_size_tiles > 11.00
+                    {
+                        return BandwidthBucket(3);
+                    }
+                }
+                else  // if dram_scatter_chunk_size_tiles > 4.50
+                {
+                    if (epoch_tiles <= 66048.00) 
+                    {
+                        if (epoch_tiles <= 544.00) 
+                        {
+                            return BandwidthBucket(1);
+                        }
+                        else  // if epoch_tiles > 544.00
+                        {
+                            return BandwidthBucket(2);
+                        }
+                    }
+                    else  // if epoch_tiles > 66048.00
+                    {
+                        if (dram_scatter_chunk_size_tiles <= 11.00) 
+                        {
+                            return BandwidthBucket(3);
+                        }
+                        else  // if dram_scatter_chunk_size_tiles > 11.00
+                        {
+                            return BandwidthBucket(3);
+                        }
+                    }
+                }
+            }
+        }
+        else  // if dram_buf_read_chunk_size_tiles > 12.50
+        {
+            if (unpacker_buffer_size_bytes <= 64640.00) 
+            {
+                if (unpacker_buffer_size_bytes <= 52080.00) 
+                {
+                    if (dram_scatter_chunk_size_tiles <= 1.50) 
+                    {
+                        if (dram_buf_read_chunk_size_tiles <= 26.50) 
+                        {
+                            return BandwidthBucket(1);
+                        }
+                        else  // if dram_buf_read_chunk_size_tiles > 26.50
+                        {
+                            return BandwidthBucket(2);
+                        }
+                    }
+                    else  // if dram_scatter_chunk_size_tiles > 1.50
+                    {
+                        if (epoch_tiles <= 19392.00) 
+                        {
+                            return BandwidthBucket(2);
+                        }
+                        else  // if epoch_tiles > 19392.00
+                        {
+                            return BandwidthBucket(2);
+                        }
+                    }
+                }
+                else  // if unpacker_buffer_size_bytes > 52080.00
+                {
+                    if (dram_scatter_chunk_size_tiles <= 19.50) 
+                    {
+                        if (kernel_clear_granularity <= 6.50) 
+                        {
+                            return BandwidthBucket(3);
+                        }
+                        else  // if kernel_clear_granularity > 6.50
+                        {
+                            return BandwidthBucket(2);
+                        }
+                    }
+                    else  // if dram_scatter_chunk_size_tiles > 19.50
+                    {
+                        if (epoch_tiles <= 8064.00) 
+                        {
+                            return BandwidthBucket(2);
+                        }
+                        else  // if epoch_tiles > 8064.00
+                        {
+                            return BandwidthBucket(2);
+                        }
+                    }
+                }
+            }
+            else  // if unpacker_buffer_size_bytes > 64640.00
+            {
+                if (unpacker_buffer_size_bytes <= 76640.00) 
+                {
+                    if (dram_scatter_chunk_size_tiles <= 1.50) 
+                    {
+                        if (tile_size <= 1600.00) 
+                        {
+                            return BandwidthBucket(2);
+                        }
+                        else  // if tile_size > 1600.00
+                        {
+                            return BandwidthBucket(3);
+                        }
+                    }
+                    else  // if dram_scatter_chunk_size_tiles > 1.50
+                    {
+                        if (epoch_tiles <= 1536.00) 
+                        {
+                            return BandwidthBucket(1);
+                        }
+                        else  // if epoch_tiles > 1536.00
+                        {
+                            return BandwidthBucket(4);
+                        }
+                    }
+                }
+                else  // if unpacker_buffer_size_bytes > 76640.00
+                {
+                    if (dram_scatter_chunk_size_tiles <= 16.00) 
+                    {
+                        if (kernel_clear_granularity <= 4.50) 
+                        {
+                            return BandwidthBucket(5);
+                        }
+                        else  // if kernel_clear_granularity > 4.50
+                        {
+                            return BandwidthBucket(2);
+                        }
+                    }
+                    else  // if dram_scatter_chunk_size_tiles > 16.00
+                    {
+                        if (epoch_tiles <= 10304.00) 
+                        {
+                            return BandwidthBucket(3);
+                        }
+                        else  // if epoch_tiles > 10304.00
+                        {
+                            return BandwidthBucket(3);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
 } // namespace balancer
 } // namespace tt

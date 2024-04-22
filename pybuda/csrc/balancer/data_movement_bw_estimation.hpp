@@ -59,25 +59,28 @@ TileLayout get_producer_tile_layout(const Graph* graph, const Edge& edge, const 
 TileLayout get_consumer_tile_layout(
     const Graph* graph, const Edge& edge, const OpModel& consumer_op_model, InputType input_type);
 
+// Returns how many macroblocks a producer node buffers at output (not taking double-buffering into account).
+int get_producer_out_buf_mb(bool is_queue, const BufferModel& buffer_model);
+
 // Returns whether the producer's buffer is scatter or not.
-bool is_producer_scatter(TileLayout producer_layout, int scatter_granularity, int producer_effective_buf_size_mb);
+bool is_scatter_producer(TileLayout producer_layout, int scatter_granularity, int producer_effective_buf_size_mb);
 
 // Returns the expected number of phases for the scatter packer.
-int approximate_scatter_packer_num_phases(
-    const int scatter_granularity, const int tiles_per_input, const int producer_effective_buf_size_mb);
+int approximate_scatter_packer_num_phases(const int scatter_granularity,
+                                          const int tiles_per_input,
+                                          const int producer_effective_buf_size_mb);
 
 // Returns the number of tiles consumer kernel will clear at the time.
-int get_unpacker_kernel_clear_granularity(
-    const graphlib::OpNode* consumer_op_node,
-    const BlockShape& consumer_block_shape,
-    const int input_ordinal,
-    const int kernel_broadcast_tiles);
+int get_unpacker_kernel_clear_granularity(const graphlib::OpNode* consumer_op_node,
+                                          const BlockShape& consumer_block_shape,
+                                          const int input_ordinal,
+                                          const int kernel_broadcast_tiles);
 
 // Returns consumer's unpacker buffer size given the kernel clear granularity and tile size.
 int calculate_unpacker_buffer_size_bytes(const int kernel_clear_granularity, const int tile_size_bytes);
 
 // Returns ack threshold for the consumer side streams. This is a HW parameter, but is needed for bandwidth estimation.
-int calculate_buf_space_available_ack_thr(const int unpacker_buf_size_tiles, const int tiles_per_input);
+int calculate_buf_space_available_ack_thr(const int unpacker_buf_size_tiles, const int scatter_gather_num_tiles);
 
 // Returns number of producer cores that send data to the consumer.
 int get_consumer_fanin_from_tile_maps(
@@ -101,8 +104,7 @@ class OpToOpConnectionModel
         ForkedProducer,
         GatheredConsumer,
         ForkAndGatherCombo,
-        DramDirect,
-        DramGather,
+        DramRead,
         Unknown
     };
 
@@ -115,59 +117,43 @@ class OpToOpConnectionModel
         const int producer_out_buf_mb,
         const int kernel_broadcast_tiles,
         const std::vector<OpType>& tms,
-        const InputType input_type);
-
-    // Implementation using tile layouts only.
-    static OpToOpConnectionModel create_op_to_op_connection_model(
-        const TileLayout& producer_layout,
-        const TileLayout& consumer_layout,
-        const int producer_out_buf_mb,
-        const vector<OpType>& tms);
-
-    OpToOpConnectionModel(
-        int scatter_granularity,
-        int tiles_per_input,
-        int scatter_pack,
-        int packer_num_phases,
-        bool consumer_multicast,
-        int producer_fanout,
-        int consumer_fanin) :
-        scatter_granularity_(scatter_granularity),
-        tiles_per_input_(tiles_per_input),
-        scatter_pack_(scatter_pack),
-        packer_num_phases_(packer_num_phases),
-        consumer_multicast_(consumer_multicast),
-        producer_fanout_(producer_fanout),
-        consumer_fanin_(consumer_fanin)
-    {
-    }
+        const InputType input_type,
+        const bool is_producer_queue);
 
     ConnectionType get_connection_type() const;
 
     int get_scatter_granularity() const { return scatter_granularity_; }
-    int get_tiles_per_input() const { return tiles_per_input_; }
-    int get_scatter_pack() const { return scatter_pack_; }
-    int get_packer_num_phases() const { return packer_num_phases_; }
-    bool get_consumer_multicast() const { return consumer_multicast_; }
+    int get_producer_tiles_per_input() const { return producer_tiles_per_input_; }
+    bool is_producer_scatter() const { return is_producer_scatter_; }
+    int get_producer_num_phases() const { return producer_num_phases_; }
     int get_producer_fanout() const { return producer_fanout_; }
+    bool is_producer_queue() const { return is_producer_queue_; }
+    bool is_consumer_multicast() const { return consumer_multicast_; }
+    int get_consumer_tiles_per_input() const { return consumer_tiles_per_input_; }
     int get_consumer_fanin() const { return consumer_fanin_; }
 
-    void set_scatter_granularity(int scatter_granularity) { scatter_granularity_ = scatter_granularity; }
-    void set_tiles_per_input(int tiles_per_input) { tiles_per_input_ = tiles_per_input; }
-    void set_scatter_pack(int scatter_pack) { scatter_pack_ = scatter_pack; }
-    void set_packer_num_phases(int packer_num_phases) { packer_num_phases_ = packer_num_phases; }
-    void set_consumer_multicast(bool consumer_multicast) { consumer_multicast_ = consumer_multicast; }
-    void set_producer_fanout(int producer_fanout) { producer_fanout_ = producer_fanout; }
-    void set_consumer_fanin(int consumer_fanin) { consumer_fanin_ = consumer_fanin; }
+    void set_scatter_granularity(int val) { scatter_granularity_ = val; }
+    void set_producer_tiles_per_input(int val) { producer_tiles_per_input_ = val; }
+    void set_is_producer_scatter(bool val) { is_producer_scatter_ = val; }
+    void set_producer_num_phases(int val) { producer_num_phases_ = val; }
+    void set_producer_fanout(int val) { producer_fanout_ = val; }
+    void set_is_producer_queue(bool val) { is_producer_queue_ = val; }
+    void set_consumer_multicast(bool val) { consumer_multicast_ = val; }
+    void set_consumer_tiles_per_input(int val) { consumer_tiles_per_input_ = val; }
+    void set_consumer_fanin(int val) { consumer_fanin_ = val; }
 
-   private:
+private:
+    // Producer side fields.
     int scatter_granularity_;
-    int tiles_per_input_;
-    int scatter_pack_;
-    int packer_num_phases_;
-    bool consumer_multicast_;
-
+    int producer_tiles_per_input_;
+    int is_producer_scatter_;
+    int producer_num_phases_;
     int producer_fanout_;
+    bool is_producer_queue_;
+
+    // Consumer side fields.
+    bool consumer_multicast_;    
+    int consumer_tiles_per_input_;
     int consumer_fanin_;
 };
 
@@ -179,135 +165,83 @@ class Estimator
    public:
     class Features
     {
-       public:
-        void set_unpacker_buffer_size_bytes(int unpacker_buffer_size_bytes)
-        {
-            unpacker_buffer_size_bytes_ = unpacker_buffer_size_bytes;
-        }
-        void set_kernel_clear_granularity(int kernel_clear_granularity)
-        {
-            kernel_clear_granularity_ = kernel_clear_granularity;
-        }
-        void set_buf_space_available_ack_thr(int buf_space_available_ack_thr)
-        {
-            buf_space_available_ack_thr_ = buf_space_available_ack_thr;
-        }
-        void set_epoch_tiles(int epoch_tiles) { epoch_tiles_ = epoch_tiles; }
-        void set_tiles_per_input(int tiles_per_input) { tiles_per_input_ = tiles_per_input; }
-        void set_tile_size(int tile_size) { tile_size_ = tile_size; }
-        void set_packer_buffer_size_bytes(int packer_buffer_size_bytes)
-        {
-            packer_buffer_size_bytes_ = packer_buffer_size_bytes;
-        }
-        void set_packer_scatter_gather_num_tiles(int packer_scatter_gather_num_tiles)
-        {
-            packer_scatter_gather_num_tiles_ = packer_scatter_gather_num_tiles;
-        }
-        void set_packer_num_phases(int packer_num_phases) { packer_num_phases_ = packer_num_phases; }
-        void set_scatter_pack(bool scatter_pack) { scatter_pack_ = scatter_pack; }
-        void set_producer_fanout(int producer_fanout) { producer_fanout_ = producer_fanout; }
-        void set_consumer_fanin(int consumer_fanin) { consumer_fanin_ = consumer_fanin; }
-        void set_consumer_multicast(bool consumer_multicast) { consumer_multicast_ = consumer_multicast; }
+    public:
+        Features() {}
 
-        int get_unpacker_buffer_size_bytes() const { return unpacker_buffer_size_bytes_; }
-        int get_kernel_clear_granularity() const { return kernel_clear_granularity_; }
-        int get_buf_space_available_ack_thr() const { return buf_space_available_ack_thr_; }
-        int get_epoch_tiles() const { return epoch_tiles_; }
-        int get_tiles_per_input() const { return tiles_per_input_; }
-        int get_tile_size() const { return tile_size_; }
-        int get_packer_buffer_size_bytes() const { return packer_buffer_size_bytes_; }
-        int get_packer_scatter_gather_num_tiles() const { return packer_scatter_gather_num_tiles_; }
-        int get_packer_num_phases() const { return packer_num_phases_; }
-        bool get_scatter_pack() const { return scatter_pack_; }
-        int get_producer_fanout() const { return producer_fanout_; }
-        int get_consumer_fanin() const { return consumer_fanin_; }
-        bool get_consumer_multicast() const { return consumer_multicast_; }
-
-        Features() :
-            unpacker_buffer_size_bytes_(0),
-            kernel_clear_granularity_(0),
-            buf_space_available_ack_thr_(0),
-            epoch_tiles_(0),
-            tiles_per_input_(0),
-            tile_size_(0),
-            packer_buffer_size_bytes_(0),
-            packer_scatter_gather_num_tiles_(0),
-            packer_num_phases_(0),
-            scatter_pack_(false),
-            producer_fanout_(0),
-            consumer_fanin_(0),
-            consumer_multicast_(false)
+        static Features from_connection_model(const OpToOpConnectionModel& op_to_op_connection_model)
         {
-        }
+            Features features;
+            features.set_features(op_to_op_connection_model);
 
-        Features(
-            int unpacker_buffer_size_bytes,
-            int kernel_clear_granularity,
-            int buf_space_available_ack_thr,
-            int epoch_tiles,
-            int tiles_per_input,
-            int tile_size,
-            int packer_buffer_size_bytes,
-            int packer_scatter_gather_num_tiles,
-            int packer_num_phases,
-            bool scatter_pack,
-            int producer_fanout,
-            int consumer_fanin,
-            bool consumer_multicast) :
-            unpacker_buffer_size_bytes_(unpacker_buffer_size_bytes),
-            kernel_clear_granularity_(kernel_clear_granularity),
-            buf_space_available_ack_thr_(buf_space_available_ack_thr),
-            epoch_tiles_(epoch_tiles),
-            tiles_per_input_(tiles_per_input),
-            tile_size_(tile_size),
-            packer_buffer_size_bytes_(packer_buffer_size_bytes),
-            packer_scatter_gather_num_tiles_(packer_scatter_gather_num_tiles),
-            packer_num_phases_(packer_num_phases),
-            scatter_pack_(scatter_pack),
-            producer_fanout_(producer_fanout),
-            consumer_fanin_(consumer_fanin),
-            consumer_multicast_(consumer_multicast)
-        {
+            return features;
         }
 
         void set_features(const OpToOpConnectionModel& op_to_op_connection_model)
         {
-            packer_scatter_gather_num_tiles_ = op_to_op_connection_model.get_scatter_granularity();
-            scatter_pack_ = op_to_op_connection_model.get_scatter_pack();
-            producer_fanout_ = op_to_op_connection_model.get_producer_fanout();
+            scatter_gather_num_tiles_ = op_to_op_connection_model.get_scatter_granularity();
+            producer_tiles_per_input_ = op_to_op_connection_model.get_producer_tiles_per_input();
+            producer_num_phases_ = op_to_op_connection_model.get_producer_num_phases();
+            producer_fan_out_ = op_to_op_connection_model.get_producer_fanout();
+            is_producer_scatter_ = op_to_op_connection_model.is_producer_scatter();
+
+            consumer_tiles_per_input_ = op_to_op_connection_model.get_consumer_tiles_per_input();
             consumer_fanin_ = op_to_op_connection_model.get_consumer_fanin();
-            consumer_multicast_ = op_to_op_connection_model.get_consumer_multicast();
-            tiles_per_input_ = op_to_op_connection_model.get_tiles_per_input();
-            packer_num_phases_ = op_to_op_connection_model.get_packer_num_phases();
+            consumer_multicast_ = op_to_op_connection_model.is_consumer_multicast();
         }
 
-        void set_features()
-        {
-            // not set yet
-            // unpacker_buffer_size_bytes_ = 0; << unpacker buf size, derived from kernel clear granularity
-            // kernel_clear_granularity_ = 0;   << derived from op model and op type
-            // buf_space_available_ack_thr_ = 0; << derived from tiles per input and buf size
-            // epoch_tiles_ = 0;                << derived from microbatch size and tiles per input
-            // tile_size_ = 0;                  << derived from op model data format
-            // packer_buffer_size_bytes_ = 0;   << derived from producer tile layout and buf out mb
-            // packer_num_phases_ = 0;          << derived from packer scatter gather num tiles and tile map, tile_map
-            // has a function to return this but complexity is high potentially
-        }
+        int get_scatter_gather_num_tiles() const { return scatter_gather_num_tiles_; }
+        int get_producer_epoch_tiles() const { return producer_epoch_tiles_; }
+        int get_producer_tiles_per_input() const { return producer_tiles_per_input_; }
+        int get_producer_buffer_size_bytes() const { return producer_buffer_size_bytes_; }
+        int get_producer_num_phases() const { return producer_num_phases_; }
+        int get_producer_fan_out() const { return producer_fan_out_; }
+        bool is_producer_scatter() const { return is_producer_scatter_; }
+        int get_unpacker_buffer_size_bytes() const { return unpacker_buffer_size_bytes_; }
+        int get_kernel_clear_granularity() const { return kernel_clear_granularity_; }
+        int get_buf_space_available_ack_thr() const { return buf_space_available_ack_thr_; }
+        int get_consumer_epoch_tiles() const { return consumer_epoch_tiles_; }
+        int get_consumer_tiles_per_input() const { return consumer_tiles_per_input_; }
+        int get_consumer_fanin() const { return consumer_fanin_; }
+        bool is_consumer_multicast() const { return consumer_multicast_; }
+        int get_tile_size() const { return tile_size_; }
 
-       private:
-        int unpacker_buffer_size_bytes_;
-        int kernel_clear_granularity_;
-        int buf_space_available_ack_thr_;
-        int epoch_tiles_;
-        int tiles_per_input_;
-        int tile_size_;
-        int packer_buffer_size_bytes_;
-        int packer_scatter_gather_num_tiles_;
-        int packer_num_phases_;
-        bool scatter_pack_;
-        int producer_fanout_;
-        int consumer_fanin_;
-        bool consumer_multicast_;
+        void set_scatter_gather_num_tiles(int val) { scatter_gather_num_tiles_ = val; }
+        void set_producer_epoch_tiles(int val) { producer_epoch_tiles_ = val; }
+        void set_producer_tiles_per_input(int val) { producer_tiles_per_input_ = val; }
+        void set_producer_buffer_size_bytes(int val) { producer_buffer_size_bytes_ = val; }
+        void set_producer_num_phases(int val) { producer_num_phases_ = val; }
+        void set_producer_fan_out(int val) { producer_fan_out_ = val; }
+        void set_producer_scatter(bool val) { is_producer_scatter_ = val; }
+        void set_unpacker_buffer_size_bytes(int val) { unpacker_buffer_size_bytes_ = val; }
+        void set_kernel_clear_granularity(int val) { kernel_clear_granularity_ = val; }
+        void set_buf_space_available_ack_thr(int val) { buf_space_available_ack_thr_ = val; }
+        void set_consumer_epoch_tiles(int val) { consumer_epoch_tiles_ = val; }
+        void set_consumer_tiles_per_input(int val) { consumer_tiles_per_input_ = val; }
+        void set_consumer_fanin(int val) { consumer_fanin_ = val; }
+        void set_consumer_multicast(bool val) { consumer_multicast_ = val; }
+        void set_tile_size(int val) { tile_size_ = val; }
+        
+    private:
+        // Producer side features.
+        int scatter_gather_num_tiles_ = 0;
+        int producer_epoch_tiles_ = 0;
+        int producer_tiles_per_input_ = 0;
+        int producer_buffer_size_bytes_ = 0;
+        int producer_num_phases_ = 0;
+        int producer_fan_out_ = 0;
+        bool is_producer_scatter_ = false;
+
+        // Consumer side features.
+        int unpacker_buffer_size_bytes_ = 0;
+        int kernel_clear_granularity_ = 0;
+        int buf_space_available_ack_thr_ = 0;
+        int consumer_epoch_tiles_ = 0;
+        int consumer_tiles_per_input_ = 0;
+        int consumer_fanin_ = 0;
+        bool consumer_multicast_ = false;
+
+        // Common features.
+        int tile_size_ = 0;
     };
 
     Estimator(const Features& features) : features_(features) {}
@@ -361,13 +295,23 @@ class ForkAndGatherComboEstimator : public Estimator
     BandwidthBucket estimate_bandwidth_impl() const override;
 };
 
-class DramDirectEstimator : public Estimator
+class DramReadEstimator : public Estimator
 {
-   public:
-    DramDirectEstimator(const Features& features) : Estimator(features) {}
+public:
+    DramReadEstimator(const Features& features) : Estimator(features) { }
 
    private:
     BandwidthBucket estimate_bandwidth_impl() const override;
+
+    BandwidthBucket make_bandwidth_prediction(const int unpacker_buffer_size_bytes,
+                                              const int dram_buf_read_chunk_size_tiles,
+                                              const int dram_scatter_chunk_size_tiles) const;
+
+    BandwidthBucket scale_bandwidth_wrt_fork_factor(const double bw_without_fork,
+                                                    const int fork_factor) const;
+
+    constexpr static int c_linear_noc_threshold = 20;
+    constexpr static int c_theoretical_noc_threshold = 24;
 };
 
 //----------------------------------------------------------------------------------------------------------------------
