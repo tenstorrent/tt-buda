@@ -1831,7 +1831,7 @@ void EpochSolution::evaluate() const
         {
             utilization += cores *
                            (op_model.get_execution_cycles(
-                                balancer_config->device_config.get_arch_name_for_perf_estimates(), true) /
+                                balancer_config->device_config.arch_name, true) /
                             pipeline_cycles) /
                            util_penalty;
         }

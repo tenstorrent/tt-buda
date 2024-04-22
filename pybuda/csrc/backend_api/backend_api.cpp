@@ -179,8 +179,6 @@ template std::unordered_map<uint32_t, EthCoord> DeviceConfig::get<std::unordered
     std::string const &, const bool) const;
 template std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::tuple<uint32_t, uint32_t>>> DeviceConfig::get<std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::tuple<uint32_t, uint32_t>>>>(std::string const &, const bool) const;
 
-const std::string DeviceConfig::wormhole_b0_string = "wormhole_b0";
-
 // temporarily added, until FE consumes a commit that includes equivalent parsing in BBE
 std::unordered_map<std::string, std::string> load_cached_sys_param(std::string yaml_file)
 {

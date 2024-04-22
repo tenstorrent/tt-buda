@@ -70,7 +70,7 @@ BalancerPolicySolution run_policy_nlp_v2(
                 topo_sort,
                 policy_manager,
                 min_param_grid_volume,
-                config.device_config.get_arch_name_for_perf_estimates());
+                config.device_config.arch_name);
         }
 
         // In case of recompile, we can offset the target cycles to get a different solution.
@@ -177,7 +177,7 @@ BalancerPolicySolution run_policy_nlp_v2(
         for (auto op_model : op_models)
         {
             std::uint32_t execution_cycles =
-                op_model.get_execution_cycles(config.device_config.get_arch_name_for_perf_estimates());
+                op_model.get_execution_cycles(config.device_config.arch_name);
 
             if ((op_type == "matmul") && skip_small_ukt && available_not_small_ukt)
             {

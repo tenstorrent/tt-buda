@@ -2712,7 +2712,7 @@ LegalOpModels get_legal_op_models(
                             log_trace(
                                 LogBalancer,
                                 "      Cycles: {:<16}",
-                                op_model.get_execution_cycles(config.device_config.get_arch_name_for_perf_estimates()));
+                                op_model.get_execution_cycles(config.device_config.arch_name));
                             log_trace(LogBalancer, "{}", op_model);
                         }
                         else

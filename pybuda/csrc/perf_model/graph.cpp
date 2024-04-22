@@ -30,7 +30,7 @@ SystemSpec SystemSpec::get_for_device(const DeviceConfig &device_config)
         .dram_bw = {60, 60, 60, 60, 60, 60},  // bytes/s
         .grid_size_r = 10,
         .grid_size_c = 8,
-        .arch_name = device_config.get_arch_name_for_perf_estimates(),
+        .arch_name = device_config.arch_name,
     };
 }
 
