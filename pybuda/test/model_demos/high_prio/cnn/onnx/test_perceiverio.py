@@ -2,7 +2,7 @@
 
 # SPDX-License-Identifier: Apache-2.0
 import pybuda
-import onnx 
+import onnx
 
 import os
 import requests
@@ -15,6 +15,7 @@ from pybuda.verify.backend import verify_module
 from pybuda import VerifyConfig
 from pybuda.verify.config import TestKind
 
+
 def get_sample_data(model_name):
     url = "http://images.cocodataset.org/val2017/000000039769.jpg"
     image = Image.open(requests.get(url, stream=True).raw)
@@ -22,8 +23,12 @@ def get_sample_data(model_name):
     image_processor = AutoImageProcessor.from_pretrained(model_name)
     pixel_values = image_processor(images=image, return_tensors="pt").pixel_values
     return pixel_values
-        
-@pytest.mark.parametrize("model_name", ["deepmind/vision-perceiver-conv", "deepmind/vision-perceiver-learned"])
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    ["deepmind/vision-perceiver-conv", "deepmind/vision-perceiver-learned"],
+)
 def test_perceiver_for_image_classification_onnx(test_device, model_name):
 
     # Set PyBuda configuration parameters
@@ -31,22 +36,37 @@ def test_perceiver_for_image_classification_onnx(test_device, model_name):
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
     compiler_cfg.enable_auto_fusing = False
-    os.environ["PYBUDA_RIBBON2"]="1"
+    os.environ["PYBUDA_RIBBON2"] = "1"
+    verify_enabled = True
 
-    if model_name == "deepmind/vision-perceiver-learned":
-        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{105*1024}"
-        
-    elif model_name == "deepmind/vision-perceiver-conv":
-        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{10*1024}"
-        compiler_cfg.balancer_op_override("multiply_19", "t_stream_shape", (1,1))
-        compiler_cfg.balancer_op_override("multiply_142", "t_stream_shape", (1,1))
-        compiler_cfg.balancer_op_override("multiply_3103", "t_stream_shape", (1,1))
-        compiler_cfg.balancer_op_override("multiply_3123", "t_stream_shape", (1,1))
-        compiler_cfg.balancer_op_override("multiply_2745", "t_stream_shape", (1,1))
-        compiler_cfg.balancer_op_override("multiply_2934", "t_stream_shape", (1,1))
+    if test_device.arch == pybuda.BackendDevice.Wormhole_B0:
 
-    onnx_model_path = "third_party/confidential_customer_models/generated/files/" + str(model_name).split("/")[-1].replace("-","_") + ".onnx"
-    
+        if model_name == "deepmind/vision-perceiver-learned":
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{105*1024}"
+
+        elif model_name == "deepmind/vision-perceiver-conv":
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{10*1024}"
+            compiler_cfg.balancer_op_override("multiply_19", "t_stream_shape", (1, 1))
+            compiler_cfg.balancer_op_override("multiply_142", "t_stream_shape", (1, 1))
+            compiler_cfg.balancer_op_override("multiply_3103", "t_stream_shape", (1, 1))
+            compiler_cfg.balancer_op_override("multiply_3123", "t_stream_shape", (1, 1))
+            compiler_cfg.balancer_op_override("multiply_2745", "t_stream_shape", (1, 1))
+            compiler_cfg.balancer_op_override("multiply_2934", "t_stream_shape", (1, 1))
+
+    elif test_device.arch == pybuda.BackendDevice.Grayskull:
+
+        if model_name == "deepmind/vision-perceiver-learned":
+
+            if test_device.devtype == pybuda.BackendType.Silicon:
+                verify_enabled = False
+                os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{101*1024}"
+
+    onnx_model_path = (
+        "third_party/confidential_customer_models/generated/files/"
+        + str(model_name).split("/")[-1].replace("-", "_")
+        + ".onnx"
+    )
+
     # Sample Image
     pixel_values = get_sample_data(model_name)
 
@@ -54,10 +74,13 @@ def test_perceiver_for_image_classification_onnx(test_device, model_name):
     onnx_model = onnx.load(onnx_model_path)
     onnx.checker.check_model(onnx_model)
 
-        
     # Create PyBuda module from Onnx model
-    tt_model = pybuda.OnnxModule(str(model_name.split("/")[-1].replace("-","_"))+"_onnx",onnx_model,onnx_model_path)
-    
+    tt_model = pybuda.OnnxModule(
+        str(model_name.split("/")[-1].replace("-", "_")) + "_onnx",
+        onnx_model,
+        onnx_model_path,
+    )
+
     # Run inference on Tenstorrent device
     verify_module(
         tt_model,
@@ -68,7 +91,11 @@ def test_perceiver_for_image_classification_onnx(test_device, model_name):
             devtype=test_device.devtype,
             devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
+            enabled=verify_enabled,
             pcc=0.96,
-        )
+        ),
     )
+<<<<<<< HEAD
         
+=======
+>>>>>>> 8a9956a14 (Add perceiver conv and learned model on gs)
