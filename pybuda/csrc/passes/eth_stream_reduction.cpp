@@ -541,20 +541,15 @@ std::tuple<Edge, graphlib::Node*, Edge> insert_serialized_dram_queue_between_ops
     name_ss << producer_name << "_to_" << consumer_name << "_" << consumer_input_port_id << "_serialized_dram_queue";
 
     auto producer_node = graph->get_node_by_name(producer_name);
-    std::unique_ptr<graphlib::BufferingQueueNode> queue_node_uniq = graphlib::create_node<graphlib::BufferingQueueNode>(name_ss.str(), 1);
-    log_debug("\tCreating dram buffering queue node {} between {} and {}", name_ss.str(), producer_name, consumer_name);
-    queue_node_uniq->set_node_type(graphlib::NodeType::kQueue);
-    queue_node_uniq->set_output_df(producer_node->output_df());
-    auto queue_node = graph->add_node(std::move(queue_node_uniq), graph->get_subgraph_id_for_node(producer_node->id()));
-    queue_node->set_shape(producer_node->shape());
+
     if (num_entries < 0)
     {
         // num_entries < 0 means that num_entries wasn't set in the call of the method. Therefore we set it to
         // microbatch_size.
         num_entries = graph->get_microbatch();
     }
-    queue_node->as<graphlib::QueueNode>()->set_num_entries(num_entries);
-    queue_node->set_epoch_type(producer_node->get_epoch_type());  // take epoch type from producer
+    graphlib::QueueNode *queue_node = graphlib::create_buffering_queue(graph, producer_node, name_ss.str(), num_entries);
+    log_debug("\tCreating dram buffering queue node {} between {} and {}", name_ss.str(), producer_name, consumer_name);
 
     // Check port id, i.e. operand index if there is multiple edges between producer and consumer nodes
     std::uint32_t edge_index = 0;

@@ -66,16 +66,8 @@ void insert_queue_instead_of_nop(
     std::stringstream name_ss;
         name_ss << "queue_replacement_for_" << nop_node->name();
 
-    std::unique_ptr<graphlib::BufferingQueueNode> queue_node_uniq = graphlib::create_node<graphlib::BufferingQueueNode>(name_ss.str(), 1);
+    graphlib::QueueNode *queue_node = graphlib::create_buffering_queue(graph, producer_node, name_ss.str(), graph->get_microbatch());
     log_debug(LogPadding, "\tCreating dram buffering queue node {} to replace nop {} ", name_ss.str(), nop_node->name());
-    queue_node_uniq->set_node_type(graphlib::NodeType::kQueue);
-    queue_node_uniq->set_output_df(producer_node->output_df());
-    Node* queue_node = graph->add_node(std::move(queue_node_uniq), graph->get_subgraph_id_for_node(producer_node->id()));
-    queue_node->set_shape(producer_node->shape());
-    // Set the number of entries in the queue to the microbatch size.
-    queue_node->as<graphlib::QueueNode>()->set_num_entries(graph->get_microbatch());
-    // Inherit the epoch type from producer node.
-    queue_node->set_epoch_type(producer_node->get_epoch_type());
     // After we have made queue_node, we now replace nop with it.
     replace_node(graph, /*original_node*/ nop_node, /*new_node*/ queue_node, /*skip_operands*/ false);
 }

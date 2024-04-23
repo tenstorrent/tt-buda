@@ -17,7 +17,7 @@ void lower_to_buffering_queues(Graph* graph) {
     for (Node* node : nodes) {
         if (node->node_type() == NodeType::kBudaOp and node->as<graphlib::BudaOpNode>()->op_name() == "dram_queue") {
             int entries = std::get<int>(node->as<graphlib::BudaOpNode>()->op_attrs().at(0));
-            auto buffering_queue = graph->add_node(
+            graphlib::QueueNode *buffering_queue = graph->add_node(
                 graphlib::create_node<graphlib::BufferingQueueNode>("lowered_" + node->name(), entries),
                 graph->get_subgraph_id_for_node(node->id()));
             graphlib::replace_node(graph, node, buffering_queue, false);
@@ -1757,17 +1757,12 @@ void insert_user_defined_queues(
             consumer_name,
             input_port_id);
 
-        auto name = "insert_queue" + std::to_string(id++);
         // adding queue that has num_entries equal to microbatch size. This is enough to guarantee that queue will never
         // be full. microbatch size is the highest num_entires one buffering queue will ever need, since it is inside
         // one epoch
-        auto *q = graph->add_node(
-            graphlib::create_node<graphlib::BufferingQueueNode>(name, graph->get_microbatch() * 2),
-            graph->get_subgraph_id_for_node(producer->id()));
-        q->as<graphlib::TaggedNode>()->tag("inserted_queue");
-        q->set_shape(producer->shape());
-        q->set_output_df(producer->output_df());
-        q->set_epoch_type(consumer->get_epoch_type());
+        std::string name = "insert_queue" + std::to_string(id++);
+        graphlib::QueueNode *queue_node = graphlib::create_buffering_queue(graph, producer, name, graph->get_microbatch());
+        queue_node->as<graphlib::TaggedNode>()->tag("inserted_queue");
 
         auto ublock_order = graph->get_edge_attributes(*match)->get_ublock_order();
         bool inherit_consumer_attrs = true;
@@ -1775,7 +1770,7 @@ void insert_user_defined_queues(
         std::uint32_t consumer_index = 0;
         bool place_tms_on_outgoing = true;
         auto [producer_edge, consumer_edge] = insert_node_on_edge(
-            graph, *match, q, inherit_consumer_attrs, remove_edge, consumer_index, place_tms_on_outgoing);
+            graph, *match, queue_node, inherit_consumer_attrs, remove_edge, consumer_index, place_tms_on_outgoing);
         graph->get_edge_attributes(producer_edge)->set_ublock_order(ublock_order);
     }
 }

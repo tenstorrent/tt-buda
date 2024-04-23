@@ -9,6 +9,8 @@
 namespace tt
 {
 
+graphlib::QueueNode* create_buffering_queue(Graph* graph, graphlib::Node* producer_node,std::string name, int num_entries);
+
 void set_prologue_queues(Graph *graph, balancer::OpModelMap const &op_model_map)
 {
     for (Node *node : graph->nodes())
@@ -230,20 +232,14 @@ graphlib::QueueNode *insert_buffering_queue(
     const std::string &name,
     graphlib::Edge edge,
     graphlib::UBlockOrder op_ublock_order,
-    graphlib::NodeEpochType user_epoch_type,
     graphlib::QueueNode *q = nullptr)
 {
     TT_ASSERT(edge.edge_type == graphlib::EdgeType::kData, "Only data edge can be broken up with this queue!");
 
     if (q == nullptr)
     {
-        // Create new queue
-        q = graph->add_node(
-            graphlib::create_node<graphlib::BufferingQueueNode>(name, graph->get_microbatch()),
-            graph->get_subgraph_id_for_node(edge.producer_node_id));
-        q->set_shape(graph->node_by_id(edge.producer_node_id)->shape());
-        q->set_output_df(graph->node_by_id(edge.producer_node_id)->output_df());
-        q->set_epoch_type(user_epoch_type);
+        Node* producer_node = graph->node_by_id(edge.producer_node_id);
+        q = graphlib::create_buffering_queue(graph, producer_node, name, graph->get_microbatch());
 
         Edge node_to_q_edge(edge.producer_node_id, edge.producer_output_port_id, q->id(), 0, graphlib::EdgeType::kData);
         graph->add_edge(node_to_q_edge);
@@ -658,7 +654,6 @@ void insert_epoch_to_epoch_queues(
                             "buf_" + node->name() + "_" + std::to_string(added_q_count++),
                             e,
                             op_ublock_order,
-                            dest_node->get_epoch_type(),
                             buf_q);
                         if (!firmware_looping_enabled)
                         {

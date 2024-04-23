@@ -925,6 +925,29 @@ void handle_control_edges_when_removing_node(Graph *graph, Node *node_being_remo
     }
 }
 
+// Creates buffering queue and adds it to the graph. Returns pointer to created queue node.
+// Queue inherits shape output_df, and epoch_type from producer node.
+graphlib::QueueNode *create_buffering_queue(
+    Graph *graph, const graphlib::Node *producer_node, const std::string name, int num_entries)
+{
+    TT_ASSERT(num_entries > 0, "Number of entries in queue has to be greater than 0");
+    if (num_entries > graph->get_microbatch())
+    {
+        log_warning(
+            "Wasting DRAM. Number of entries in queue is greater than microbatch size. For buffering queue the "
+            "theoretical maximum number of entries is equal to microbatch size.");
+    }
+
+    // Create new queue
+    std::unique_ptr<graphlib::BufferingQueueNode> queue_node_unique = graphlib::create_node<graphlib::BufferingQueueNode>(name, num_entries);
+    queue_node_unique->set_shape(producer_node->shape());
+    queue_node_unique->set_output_df(producer_node->output_df());
+    queue_node_unique->set_epoch_type(producer_node->get_epoch_type());
+
+    graphlib::QueueNode *queue = graph->add_node(std::move(queue_node_unique), graph->get_subgraph_id_for_node(producer_node->id()));
+    return queue;
+}
+
 // Bypass queue, connecting its source to its destination. There has to be only one source for queue, and user is
 // defined by user_edge.
 std::unique_ptr<Node> connect_queue_src_to_queue_user(Graph *graph, Node *queue, Edge &user_edge, bool remove_queue)

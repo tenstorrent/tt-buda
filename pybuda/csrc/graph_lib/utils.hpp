@@ -33,6 +33,7 @@ namespace tt {
 
 namespace graphlib {
 struct OpType;
+class QueueNode;
 
 // pass through
 bool default_node_filter(Node*);
@@ -78,6 +79,9 @@ std::pair<Edge, Edge> insert_node_on_edge(
     std::uint32_t consumer_index = 0,
     bool place_tms_on_outgoing = false
 );
+
+QueueNode *create_buffering_queue(
+    Graph *graph, const graphlib::Node *producer_node, const std::string name, int num_entries);
 
 // Bypass queue, connecting its source to its destination. There has to be only one source for queue, and user is
 // defined by user_edge. Diference from bypassing node (bypass_node) is that here we can bypass some users of queue and
