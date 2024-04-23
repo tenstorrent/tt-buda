@@ -200,6 +200,7 @@ def test_t5_past_cache_enc_dec(variant, test_device):
 
     if test_device.arch == BackendDevice.Grayskull:
         os.environ["PYBUDA_TEMP_ELT_UNARY_ESTIMATES_LEGACY"] = "1"
+        compiler_cfg.balancer_op_override("matmul_5865", "t_stream_shape", (1, 1))
 
     if test_device.arch == BackendDevice.Wormhole_B0:
         if variant == "google/flan-t5-large":
