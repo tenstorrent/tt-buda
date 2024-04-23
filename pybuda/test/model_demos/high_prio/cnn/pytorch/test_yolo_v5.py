@@ -219,11 +219,13 @@ def generate_model_yoloV5I480_imgcls_torchhub_pytorch(test_device, variant, size
 
     elif test_device.arch == BackendDevice.Wormhole_B0:
         # Add required env vars as per: https://yyz-gitlab.local.tenstorrent.com/tenstorrent/model-demos/-/issues/46
-        os.environ["PYBUDA_RIBBON2"] = "1"
-        os.environ["PYBUDA_PAD_SPARSE_MM"] = "{13:16, 3:4}"
-        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"]  = f"{64*1024}"
         compiler_cfg.default_df_override = DataFormat.Float16_b
-        
+
+        os.environ["PYBUDA_RIBBON2"] = "1"
+        if size != "x":
+            os.environ["PYBUDA_PAD_SPARSE_MM"] = "{13:16, 3:4}"
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"]  = f"{64*1024}"
+
         if size == "s":
             compiler_cfg.default_dram_parameters = False
         else:
@@ -237,10 +239,13 @@ def generate_model_yoloV5I480_imgcls_torchhub_pytorch(test_device, variant, size
             compiler_cfg.enable_auto_fusing = False
             compiler_cfg.place_on_new_epoch("concatenate_208.dc.concatenate.0")
         elif size == "x":
-            compiler_cfg.enable_auto_fusing = False
-            os.environ["PYBUDA_INSERT_SLICE_FOR_CONCAT"] = "1"
-            os.environ["PYBUDA_CONCAT_SLICE_Y"] = "10"
             os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
+
+            # These are planned to be on by default
+            os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
+            os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
+            os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
+            os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
 
     name = "yolov5" + size
     model = download_model(torch.hub.load, variant, name, pretrained=True)
@@ -257,7 +262,7 @@ def generate_model_yoloV5I480_imgcls_torchhub_pytorch(test_device, variant, size
 def test_yolov5_480x480(test_device, size):
     if test_device.arch == BackendDevice.Grayskull:
         os.environ["PYBUDA_FORK_JOIN_SKIP_EXPANDING_BUFFERS"] = "1"
-    if size in ["x", "l", "m"] and test_device.arch == BackendDevice.Wormhole_B0:
+    if size in ["m", "l"] and test_device.arch == BackendDevice.Wormhole_B0:
         os.environ["PYBUDA_LEGACY_KERNEL_BROADCAST"] = "1"
     if size in ["s"] and test_device.arch == BackendDevice.Wormhole_B0:
         os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
