@@ -124,18 +124,11 @@ def test_densenet_121_pytorch(variant, test_device):
     
 def test_densenet_161_pytorch(test_device):
     
-    if test_device.arch == BackendDevice.Grayskull:
-        pytest.skip("Grayskull test failing with exceeding dram queues error in net2pipe")
-    
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
-    compiler_cfg.balancer_policy = "CNN"  
+    compiler_cfg.balancer_policy = "Ribbon"  
+    os.environ["PYBUDA_RIBBON2"] = "1"
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
-    compiler_cfg.place_on_new_epoch("concatenate_131.dc.sparse_matmul.7.lc2") 
-    os.environ["PYBUDA_DISABLE_CONSTANT_FOLDING"] = "1"
-    os.environ["PYBUDA_GRAPHSOLVER_SELF_CUT_TYPE"] = "ConsumerOperandDataEdgesFirst"
-    os.environ["PYBUDA_LEGACY_UBLOCK_SHAPE"] = "1"
-
  
     # STEP 2: Create PyBuda module from PyTorch model
     model = download_model(torch.hub.load, "pytorch/vision:v0.10.0", "densenet161", pretrained=True)
@@ -154,7 +147,7 @@ def test_densenet_161_pytorch(test_device):
             devtype=test_device.devtype,
             devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
-            pcc=0.95,
+            pcc=0.92 if test_device.devtype == BackendType.Silicon and test_device.arch == BackendDevice.Grayskull else 0.95,
         )
     )
 

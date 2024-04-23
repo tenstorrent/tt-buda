@@ -141,7 +141,7 @@ def test_vovnet_v1_39_stigma_pytorch(test_device, enable_default_dram_parameters
         )
     )
     
-from src_vovnet_stigma import vovnet57   
+from src_vovnet_stigma import vovnet57
 
 
 def generate_model_vovnet57_imgcls_stigma_pytorch(test_device, variant):
