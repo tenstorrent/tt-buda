@@ -113,13 +113,13 @@ void remove_buda_pad(tt::graphlib::Graph *, tt::graphlib::Node *);
 
 void remove_buda_unpad(tt::graphlib::Graph *, tt::graphlib::Node *);
 
-bool pad_node(tt::graphlib::Graph *, tt::graphlib::Node *, Padding &);
+bool pad_node(tt::graphlib::Graph *, tt::graphlib::Node *, Padding &, bool add_nop_on_input_edge = false);
 
-bool pad_eltwise(tt::graphlib::Graph *, tt::graphlib::Node *, Padding &);
+bool pad_eltwise(tt::graphlib::Graph *, tt::graphlib::Node *, Padding &, bool add_nop_on_input_edge = false);
 
-bool pad_matmul(tt::graphlib::Graph *, tt::graphlib::Node *, Padding &);
+bool pad_matmul(tt::graphlib::Graph *, tt::graphlib::Node *, Padding &, bool add_nop_on_input_edge = false);
 
-bool pad_smm(tt::graphlib::Graph *, tt::graphlib::Node *, Padding &);
+bool pad_smm(tt::graphlib::Graph *, tt::graphlib::Node *, Padding &, bool add_nop_on_input_edge = false);
 
 // TODO: In Progress.
 // bool pad_splice(tt::graphlib::Graph *, tt::graphlib::Node *);
@@ -138,7 +138,7 @@ bool pad_smm(tt::graphlib::Graph *, tt::graphlib::Node *, Padding &);
 
 void insert_pad_smm(tt::graphlib::Node *, std::uint32_t, std::uint32_t);
 
-void insert_pad_buda(tt::graphlib::Graph *, tt::graphlib::Edge, std::uint32_t, std::uint32_t, float);
+void insert_pad_buda(tt::graphlib::Graph *, tt::graphlib::Edge, std::uint32_t, std::uint32_t, float, bool insert_nop = false);
 
 void insert_unpad_buda(
     tt::graphlib::Graph *,

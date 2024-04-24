@@ -326,7 +326,7 @@ void insert_queues(
         auto* op_node = dynamic_cast<graphlib::BudaOpNode*>(node);
         TT_ASSERT(op_node);
 
-        if (not info.getOpModelFailureCountByType(balancer::OpModelFailureReason::UserAccessPreventsStreaming))
+        if (not (info.getOpModelFailureCountByType(balancer::OpModelFailureReason::UserAccessPreventsStreaming) || info.getOpModelFailureCountByType(balancer::OpModelFailureReason::OperandAndUserAccessPreventsStreaming)))
             continue;
 
         bool users_already_fixed = false;

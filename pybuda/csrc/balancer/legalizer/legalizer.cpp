@@ -696,7 +696,7 @@ static std::pair<UBlockShape, std::unordered_map<std::string, balancer::UBlockSh
     return std::make_pair(ublock, fused_op_ublock_shape);
 }
 
-static std::tuple<int, bool, bool> calculate_user_buffer_factor(
+static std::tuple<int, bool, bool, bool> calculate_user_buffer_factor(
     Graph const* graph, graphlib::BudaOpNode const* op_node, UBlockOrder ublock_order, OpModel op_model)
 {
     //
@@ -705,7 +705,8 @@ static std::tuple<int, bool, bool> calculate_user_buffer_factor(
     //   if (can_stream == true) then we are allowed to slice the mblock into t
     //
 
-    bool can_stream = true;
+    bool can_stream_due_to_operands = true;
+    bool can_stream_due_to_users = true;
     bool is_legal_stack_for_grid = true;
     TStreamFactor t_stream_factor = op_model.t_stream_factor;
     std::vector<Edge> operands = graph->operand_data_edges(op_node);
@@ -746,7 +747,7 @@ static std::tuple<int, bool, bool> calculate_user_buffer_factor(
         int stack_factor = total_stack_factor / total_slice_factor;
         if (stack_factor > 1)
         {
-            can_stream &=
+            can_stream_due_to_operands &=
                 t_stream_factor.dir.z_major() or
                 (divisible_either_direction(vstack_factor, vslice_factor * t_stream_factor.r) and
                  divisible_either_direction(hstack_factor, hslice_factor * t_stream_factor.c) and
@@ -770,7 +771,7 @@ static std::tuple<int, bool, bool> calculate_user_buffer_factor(
         // on gradient queues or some other solution.
         if (user_node->node_type() == graphlib::NodeType::kInput)
         {
-            can_stream = false;
+            can_stream_due_to_users = false;
         }
 
         // Only applies to users on the same epoch
@@ -802,7 +803,7 @@ static std::tuple<int, bool, bool> calculate_user_buffer_factor(
                       shape.rt() > 1) or
                      (tm.op == "vslice" and (ublock_order == UBlockOrder::C or t_stream_factor.dir.c()) and
                       shape.ct() > 1));
-                can_stream &=
+                can_stream_due_to_users &=
                     t_stream_factor.dir.z_major() or
                     (not needs_slice_factor and divisible_either_direction(slice_factor, t_stream_factor.t()));
                 total_slice_factor *= slice_factor;
@@ -815,14 +816,14 @@ static std::tuple<int, bool, bool> calculate_user_buffer_factor(
                       shape.rt() > 1) or
                      (tm.op == "vstack" and (ublock_order == UBlockOrder::C or t_stream_factor.dir.c()) and
                       shape.ct() > 1));
-                can_stream &=
+                can_stream_due_to_users &=
                     t_stream_factor.dir.z_major() or
                     (not needs_stack_factor and divisible_either_direction(stack_factor, t_stream_factor.t()));
                 total_stack_factor *= stack_factor;
             }
             else if (tm.op == "transpose")
             {
-                can_stream &= (t_stream_factor.r == 1 or t_stream_factor.c == 1);
+                can_stream_due_to_users &= (t_stream_factor.r == 1 or t_stream_factor.c == 1);
                 auto producer_ublock_order = ublock_order;
                 auto consumer_ublock_order = edge_attrs->get_ublock_order();
 
@@ -834,7 +835,7 @@ static std::tuple<int, bool, bool> calculate_user_buffer_factor(
 
                 // Ublock order needs to swap through transpose except for directly feeding graph output queue or matmul
                 // (matmul requires ublock order)
-                can_stream &= (producer_ublock_order != consumer_ublock_order) or producer_is_one_tile_wide_or_tall or
+                can_stream_due_to_users &= (producer_ublock_order != consumer_ublock_order) or producer_is_one_tile_wide_or_tall or
                               feeds_graph_output_queue;
             }
             else if (tm.op == "broadcast")
@@ -842,16 +843,16 @@ static std::tuple<int, bool, bool> calculate_user_buffer_factor(
                 int dim = std::get<int>(tm.attr[0]);
                 if (dim == 3 and ublock_order == UBlockOrder::C)
                 {
-                    can_stream = false;
+                    can_stream_due_to_users = false;
                 }
                 else if (dim == 2 and ublock_order == UBlockOrder::R)
                 {
-                    can_stream = false;
+                    can_stream_due_to_users = false;
                 }
                 else
                 {
                     // Cannot stream period if bcast on z
-                    can_stream = false;
+                    can_stream_due_to_users = false;
                 }
             }
             else if (tm.op == "buda_unpad")
@@ -860,7 +861,7 @@ static std::tuple<int, bool, bool> calculate_user_buffer_factor(
                 int c_pad = std::get<int>(tm.attr[1]);
                 if ((r_pad and t_stream_factor.dir.c()) or (c_pad and t_stream_factor.dir.r()))
                 {
-                    can_stream = false;
+                    can_stream_due_to_users = false;
                 }
             }
 
@@ -869,7 +870,7 @@ static std::tuple<int, bool, bool> calculate_user_buffer_factor(
 
         if (user_node->as<graphlib::TaggedNode>()->has_tag("padding_nop"))
         {
-            can_stream = false;
+            can_stream_due_to_users = false;
         }
 
         auto is_partial_datacopy_edge = [](Edge e) { return (e.edge_type == graphlib::EdgeType::kPartialDataCopy); };
@@ -877,18 +878,18 @@ static std::tuple<int, bool, bool> calculate_user_buffer_factor(
         if (user_node->node_type() == graphlib::NodeType::kOutput and partial_datacopy_edges.empty())
         {
             // Host runtime outputs cannot support undoing z major order
-            can_stream &= not t_stream_factor.dir.z_major() and not env_as<bool>("PYBUDA_DISABLE_STREAM_OUTPUT");
+            can_stream_due_to_users &= not t_stream_factor.dir.z_major() and not env_as<bool>("PYBUDA_DISABLE_STREAM_OUTPUT");
         }
 
         int stack_factor = (total_stack_factor / total_slice_factor) * needs_stack_factor;
         int slice_factor = (total_slice_factor / total_stack_factor) * needs_slice_factor;
         if (stack_factor > 1 or slice_factor > 1)
-            can_stream = false;
+            can_stream_due_to_users = false;
 
         buffer_factor = std::max(buffer_factor, stack_factor);
     }
 
-    return std::make_tuple(buffer_factor, can_stream, is_legal_stack_for_grid);
+    return std::make_tuple(buffer_factor, can_stream_due_to_operands, can_stream_due_to_users, is_legal_stack_for_grid);
 }
 
 static bool legal_t_streaming(BlockShape block_shape, TStreamFactor t_stream_factor, UBlockOrder ublock_order)
@@ -2362,7 +2363,7 @@ static std::pair<OpModel, OpModelFailureReason> calculate_op_model_impl(
         calculate_ublock_shape(op_model.op_shape, total_par, dst_size_tiles, ublock_order, op_node);
 
     // Calculate output_buffer_factor (buf_size_mb)
-    auto [calculated_user_buffer_factor, user_access_allows_streaming, is_legal_stack_for_grid] =
+    auto [calculated_user_buffer_factor, operand_access_allows_streaming, user_access_allows_streaming, is_legal_stack_for_grid] =
         calculate_user_buffer_factor(graph, op_node, ublock_order, op_model);
 
     if (not is_legal_stack_for_grid)
@@ -2371,9 +2372,22 @@ static std::pair<OpModel, OpModelFailureReason> calculate_op_model_impl(
     int output_buffer_factor =
         get_output_buffer_factor(op_node, calculated_user_buffer_factor, output_buffer_factor_override);
 
-    if (not op_model.t_stream_factor.none() and not user_access_allows_streaming)
+    if (not op_model.t_stream_factor.none())
     {
-        return std::make_pair(op_model, UserAccessPreventsStreaming);
+        if (not operand_access_allows_streaming && not user_access_allows_streaming)
+        {
+            // if both operand_access_allows_streaming and user_access_allows_streaming are
+            // false, then we use OperandrAndUserAccessPreventsStreaming
+            return std::make_pair(op_model, OperandAndUserAccessPreventsStreaming);
+        }
+        else if (not operand_access_allows_streaming)
+        {
+            return std::make_pair(op_model, OperandAccessPreventsStreaming);
+        }
+        else if (not user_access_allows_streaming)
+        {
+            return std::make_pair(op_model, UserAccessPreventsStreaming);
+        }
     }
 
     op_model.effective_input_buffer_shape_for_user =
@@ -2884,10 +2898,25 @@ LegalOpModels get_legal_op_models(
         if (valid_grids.empty())
         {
             nodes_without_legal_op_model.emplace(node, failure_info);
-            std::uint32_t buffer_alloc_cnt = nodes_without_legal_op_model[node].getOpModelFailureCountByType(OpModelFailureReason::InputBufferAllocationFailure);
-            std::uint32_t user_access_cnt = nodes_without_legal_op_model[node].getOpModelFailureCountByType(OpModelFailureReason::UserAccessPreventsStreaming);
+            std::uint32_t buffer_alloc_cnt = nodes_without_legal_op_model[node].getOpModelFailureCountByType(
+                OpModelFailureReason::InputBufferAllocationFailure);
+            std::uint32_t user_access_cnt = nodes_without_legal_op_model[node].getOpModelFailureCountByType(
+                OpModelFailureReason::UserAccessPreventsStreaming);
+            std::uint32_t operand_access_cnt = nodes_without_legal_op_model[node].getOpModelFailureCountByType(
+                OpModelFailureReason::OperandAccessPreventsStreaming);
+            std::uint32_t operand_and_user_access_cnt = nodes_without_legal_op_model[node].getOpModelFailureCountByType(
+                OpModelFailureReason::OperandAndUserAccessPreventsStreaming);
             log_warning(
-                LogBalancer, "No valid grids found for node: {} {} {}, buffer_alloc_cnt {},  user_access_cnt {}  ", node->name(), node->get_type(), node->shape(), buffer_alloc_cnt, user_access_cnt);
+                LogBalancer,
+                "No valid grids found for node: {} {} {}, buffer_alloc_cnt {},  user_access_cnt {} , "
+                "operand_access_cnt {}, operand_and_user_access_cnt {}",
+                node->name(),
+                node->get_type(),
+                node->shape(),
+                buffer_alloc_cnt,
+                user_access_cnt,
+                operand_access_cnt,
+                operand_and_user_access_cnt);
         }
         valid_op_models.emplace(node, valid_grids);
     }

@@ -14,16 +14,18 @@ namespace tt::balancer
 
 // New failure reason can be defined after initial NoFailure value but prior to MaxFailureReason.
 //
-#define OpModelFailureReasons                                              \
-    X(NoFailure, "No Failure - Valid OpModel")                             \
-    X(IllegalStackForGrid, "Illegal stack for grid dimension")             \
-    X(UserAccessPreventsStreaming, "User access prevents streaming")       \
-    X(IllegalStreaming, "Illegal streaming")                               \
-    X(L1UsageOverMaxLimit, "L1 usage > L1 Max")                            \
-    X(ExceededDramChannelCapacity, "Exceeded DRAM channel capacity")       \
-    X(InputBufferAllocationFailure, "Failed to allocate input buffers")    \
-    X(PaddingConstraintsNotSatisfied, "Padding constraints not satisfied") \
-    X(IllegalSparseMatmul, "Illegal sparse matmul")                        \
+#define OpModelFailureReasons                                                               \
+    X(NoFailure, "No Failure - Valid OpModel")                                              \
+    X(IllegalStackForGrid, "Illegal stack for grid dimension")                              \
+    X(UserAccessPreventsStreaming, "User access prevents streaming")                        \
+    X(OperandAccessPreventsStreaming, "Producer access prevents streaming")                 \
+    X(OperandAndUserAccessPreventsStreaming, "Producer and User access prevents streaming") \
+    X(IllegalStreaming, "Illegal streaming")                                                \
+    X(L1UsageOverMaxLimit, "L1 usage > L1 Max")                                             \
+    X(ExceededDramChannelCapacity, "Exceeded DRAM channel capacity")                        \
+    X(InputBufferAllocationFailure, "Failed to allocate input buffers")                     \
+    X(PaddingConstraintsNotSatisfied, "Padding constraints not satisfied")                  \
+    X(IllegalSparseMatmul, "Illegal sparse matmul")                                         \
     X(MaxFailureReason, "")
 
 #define X(a, b) a,

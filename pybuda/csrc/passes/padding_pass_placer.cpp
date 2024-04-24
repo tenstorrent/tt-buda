@@ -118,6 +118,7 @@ bool pad_pass_placer(
             std::vector<Node *> oprands = graph->data_operands(node);
             TT_ASSERT(oprands.size() == 1, "number of operands of padding_nop should be 1");
             Node *producer_node = oprands[0];
+            log_trace(LogPadding, "Inserting queue instead of nop for node {}", node->name());
             insert_queue_instead_of_nop(graph, producer_node, /*nop_node*/ node);
             padded = true;
             continue;
@@ -125,9 +126,18 @@ bool pad_pass_placer(
 
         if (node->as<graphlib::TaggedNode>()->has_tag("padding"))
             continue;
+        std::uint32_t operand_access_cnt =
+            failure_info.getOpModelFailureCountByType(OpModelFailureReason::OperandAccessPreventsStreaming);
+        std::uint32_t operand_and_user_access_cnt =
+            failure_info.getOpModelFailureCountByType(OpModelFailureReason::OperandAndUserAccessPreventsStreaming);
+        std::uint32_t operand_and_user_access_cnt_begin = operand_and_user_access_cnt;
 
-        std::uint32_t user_access_cnt = failure_info.getOpModelFailureCountByType(OpModelFailureReason::UserAccessPreventsStreaming);
-        std::uint32_t buffer_alloc_cnt = failure_info.getOpModelFailureCountByType(OpModelFailureReason::InputBufferAllocationFailure);
+        std::uint32_t user_access_cnt =
+            failure_info.getOpModelFailureCountByType(OpModelFailureReason::UserAccessPreventsStreaming);
+        std::uint32_t user_access_cnt_begin = user_access_cnt;
+
+        std::uint32_t buffer_alloc_cnt =
+            failure_info.getOpModelFailureCountByType(OpModelFailureReason::InputBufferAllocationFailure);
 
         int padding_try_it = 0;
         bool padded_loop = false;
@@ -136,6 +146,7 @@ bool pad_pass_placer(
         // Preserve the original shape
         padding.orig_shape = node->shape();
         bool no_failures = false;
+        bool add_nop_on_input_edge = false;
 
         // Check if adding queue after the node fixes failures. After padding loop is done, we will decide whether it is
         // better to pad the node or just to add queue.
@@ -151,14 +162,22 @@ bool pad_pass_placer(
                 remove_padding(graph, node, padding);
             }
 
-            padded_loop = pad_node(graph, node, padding);
+            if (operand_access_cnt)
+            {
+                // add nop on input edge of padded node to fix operand access prevents streaming failures
+                add_nop_on_input_edge = true;
+            }
+            padded_loop = pad_node(graph, node, padding, add_nop_on_input_edge);
             
             if (padded_loop) 
             {
 
                 std::unordered_map<Node*, const BudaOpNodeLegalizerFailureInfo> failures = check_node_legality(graph, node, balancer_config, balancer_cache_collection);
                 // user_access_cnt shouldn't be updated in padding loop because it is only used after the loop if there are still failures and graph is unpadded.
+                user_access_cnt = (failures.size() > 0) ? failures[node].getOpModelFailureCountByType(OpModelFailureReason::UserAccessPreventsStreaming) : 0;
                 buffer_alloc_cnt = (failures.size() > 0) ? failures[node].getOpModelFailureCountByType(OpModelFailureReason::InputBufferAllocationFailure) : 0;
+                operand_access_cnt = (failures.size() > 0) ? failures[node].getOpModelFailureCountByType(OpModelFailureReason::OperandAccessPreventsStreaming): 0;
+                operand_and_user_access_cnt = (failures.size() > 0) ? failures[node].getOpModelFailureCountByType(OpModelFailureReason::OperandAndUserAccessPreventsStreaming): 0;
                 if (failures.size() > 0)
                 {
                     if (padded_loop)
@@ -190,13 +209,18 @@ bool pad_pass_placer(
 
         if (!no_failures)
         {
+            std::uint32_t user_access_cnt_final = (buffer_alloc_cnt > 0) ? user_access_cnt_begin : user_access_cnt;
+            std::uint32_t operand_and_user_access_cnt_final = (buffer_alloc_cnt > 0) ? operand_and_user_access_cnt_begin : operand_and_user_access_cnt;
+
             if (buffer_alloc_cnt > 0)
             {
                 // After padding loop we still have input buffer allocation count issues.
                 log_warning(LogPadding, "Couldn't find padding for node: {} after {} iterations.", node->name(), padding_try_it);
+                // we remove padding only if it didn't solve input buffer allocation issues.
+                remove_padding(graph, node, padding);
             }
 
-            if (user_access_cnt > 0)
+            if (user_access_cnt_final > 0 || operand_and_user_access_cnt_final > 0)
             {
                 // Inserting queue helps with user access failures but can also solve input buffer allocation issues.
                 insert_queue(graph, node);
@@ -321,6 +345,23 @@ void remove_buda_pad(Graph *graph, Node *node)
     std::vector<Edge> incoming_edges = graph->operand_data_edges(node);
     for (Edge incoming_edge : incoming_edges)
     {
+        NodeId incoming_node_id = incoming_edge.producer_node_id;
+        Node *operand_node = graph->node_by_id(incoming_node_id);
+        if (operand_node->node_type() == NodeType::kBudaOp)
+        {
+            // Get type of the operation
+            std::string op_type = operand_node->as<BudaOpNode>()->op_type().op;
+            if (op_type == "nop" && operand_node->as<graphlib::TaggedNode>()->has_tag("input_padding_nop"))
+            {
+                log_trace(
+                    LogPadding,
+                    "Remove nop on input_port_id {} of padded node {}",
+                    incoming_edge.consumer_input_port_id,
+                    node->name());
+                // Remove padding nop on input edge of padded node.
+                bypass_node(graph, operand_node, /* remove node */ true);
+            }
+        }
         std::vector<OpType> tms = graph->get_edge_attributes(incoming_edge)->get_tms();
         // Buda Pad operation is always the last TM on the edge in this phase.
         if (tms.size() > 0 && tms.back().op == "buda_pad")
@@ -430,7 +471,8 @@ void remove_buda_unpad(Graph *graph, Node *node)
 bool pad_node(
     Graph *graph, 
     Node *node,
-    Padding &padding
+    Padding &padding,
+    bool add_nop_on_input_edge
 )
 {
 
@@ -467,7 +509,7 @@ bool pad_node(
         if (element_wise_flag && op_type != "splice")
         {
             compute_pad_eltwise(node, padding, criterion);
-            return pad_eltwise(graph, node, padding);
+            return pad_eltwise(graph, node, padding, add_nop_on_input_edge);
         }
 
         /* TODO: Should be enabled.
@@ -483,14 +525,14 @@ bool pad_node(
         if (buda_op_node->is_sparse_matmul() && sparse_matmul_flag)
         {
             compute_pad_smm(graph, node, padding, criterion);
-            return pad_smm(graph, node, padding);
+            return pad_smm(graph, node, padding, add_nop_on_input_edge);
         }
 
         // Pad matmul
         if (buda_op_node->is_matmul() && matmul_flag)
         {
             compute_pad_matmul(graph, node, padding, criterion);
-            return pad_matmul(graph, node, padding);
+            return pad_matmul(graph, node, padding, add_nop_on_input_edge);
         }
 
     }  // end if, matmul
@@ -517,7 +559,8 @@ void set_padded_node_out_shape(Node* padded_node, Padding &padding)
 bool pad_eltwise(
     Graph *graph, 
     Node *node,
-    Padding &padding
+    Padding &padding,
+    bool add_nop_on_input_edge
 )
 {
 
@@ -553,7 +596,8 @@ bool pad_eltwise(
                 padding.pad_lhs_ct,
                 // Padding value, used only in case
                 // when we use buda implmentation for padding
-                0.0
+                0.0,
+                add_nop_on_input_edge
             );
 
     }  // end for, incoming edges
@@ -581,7 +625,8 @@ bool pad_eltwise(
 bool pad_matmul(
     Graph *graph, 
     Node *node,
-    Padding &padding
+    Padding &padding,
+    bool add_nop_on_input_edge
 )
 {
 
@@ -619,7 +664,8 @@ bool pad_matmul(
             padding.pad_lhs_ct,
             // Padding value, used only in case
             // when we use buda implmentation for padding
-            0.0);
+            0.0,
+            add_nop_on_input_edge);
     }
 
     // Insert pad for the right operand
@@ -633,7 +679,8 @@ bool pad_matmul(
             padding.pad_rhs_ct,
             // Padding value, used only in case
             // when we use buda implmentation for padding
-            0.0);
+            0.0,
+            add_nop_on_input_edge);
     }
 
     // If matmul has bias with broadcast, align with proper padding.
@@ -664,7 +711,8 @@ bool pad_matmul(
 bool pad_smm(
     Graph *graph, 
     Node *node, 
-    Padding &padding
+    Padding &padding,
+    bool add_nop_on_input_edge
 )
 {
     bool padded = false;
@@ -727,7 +775,8 @@ bool pad_smm(
                     padding.pad_rhs_ct,
                     // Padding value, used only in case
                     // when we use buda implmentation for padding
-                    0.0
+                    0.0,
+                    add_nop_on_input_edge
                 );
 
                 padded = true;
@@ -957,7 +1006,7 @@ void insert_pad_smm(Node *incoming_node, std::uint32_t pad_r, std::uint32_t pad_
     pad_node->set_sparse_buda(sparse_pad_node);
 }
 
-void insert_pad_buda(Graph *graph, Edge incoming_edge, std::uint32_t pad_r, std::uint32_t pad_c, float value)
+void insert_pad_buda(Graph *graph, Edge incoming_edge, std::uint32_t pad_r, std::uint32_t pad_c, float value, bool insert_nop)
 {
     log_trace(LogPadding, "Padding node with pad_r {} pad_c {} value {}.", pad_r, pad_c, value);
     std::vector<OpType::Attr> buda_pad_attrs(3, 0);
@@ -970,7 +1019,26 @@ void insert_pad_buda(Graph *graph, Edge incoming_edge, std::uint32_t pad_r, std:
     buda_attrs["pad_value"] = buda_pad_attrs[2];
 
     graphlib::OpType tm_op_type = graphlib::OpType("buda_pad", buda_pad_attrs, buda_attrs);
-    graph->get_edge_attributes(incoming_edge)->append_tm(tm_op_type);
+
+    if (insert_nop)
+    {
+        // Add nop before padded operation
+        Node *producer_node = graph->nodes_map().at(incoming_edge.producer_node_id);
+        BudaOpNode *nop_node = create_nop(graph, producer_node, "before_padded_node");
+        nop_node->as<TaggedNode>()->add_tags({ { "input_padding_nop", true } });
+        insert_node_on_edge(graph, incoming_edge, nop_node, true, true, 0, /*place_tms_on_outgoing*/ false);
+        Node *consumer_node = graph->nodes_map().at(incoming_edge.consumer_node_id);
+        Edge nop_edge = retrieve_between_edge(graph, nop_node, consumer_node);
+
+        graph->get_edge_attributes(nop_edge)->append_tm(tm_op_type);
+        // Since tms are on input edge of nop, nop shape is different from the producer. We need to recalculate shapes.
+        graphlib::calculate_and_set_node_shape(graph, nop_node);
+    }
+    else
+    {
+        graph->get_edge_attributes(incoming_edge)->append_tm(tm_op_type);
+    }
+
 }
 
 void insert_unpad_buda(
