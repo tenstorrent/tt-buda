@@ -169,7 +169,7 @@ int get_consumer_fanin_from_tile_maps(
 
 bool is_scatter_producer(TileLayout producer_layout, int scatter_granularity, int producer_effective_buf_size_mb)
 {
-    const int mblock_tiles = producer_layout.volume(false /* include_t */);
+    const int mblock_tiles = producer_layout.block_shape.volume_no_t();
     const int buffered_tiles = mblock_tiles * producer_effective_buf_size_mb;
 
     return scatter_granularity != buffered_tiles;
@@ -337,7 +337,7 @@ OpToOpConnectionModel OpToOpConnectionModel::create_op_to_op_connection_model(
     result.set_scatter_granularity(consumer_tile_map.scatter_granularity);
     result.set_producer_tiles_per_input(producer.block_shape.volume());
     result.set_is_producer_scatter(
-        consumer_tile_map.producer_tiles_out_of_order || 
+        consumer_tile_map.producer_tiles_out_of_order ||
         is_producer_queue ||
         is_scatter_producer(producer, consumer_tile_map.scatter_granularity, producer_out_buf_mb));
     result.set_is_producer_queue(is_producer_queue);
@@ -355,7 +355,7 @@ OpToOpConnectionModel::ConnectionType OpToOpConnectionModel::get_connection_type
 {
     if (is_producer_queue_)
     {
-       return ConnectionType::DramRead; 
+       return ConnectionType::DramRead;
     }
     else if (producer_fanout_ == 1 && consumer_fanin_ == 1)
     {
@@ -486,22 +486,22 @@ BandwidthBucket ForkAndGatherComboEstimator::estimate_bandwidth_impl() const
 BandwidthBucket DramReadEstimator::estimate_bandwidth_impl() const
 {
     const int dram_scatter_chunk_size_tiles = dram_read_estimator_internal::compute_dram_pipe_scatter_chunk_size_tiles(
-        features_.get_scatter_gather_num_tiles(), 
-        features_.get_unpacker_buffer_size_bytes(), 
+        features_.get_scatter_gather_num_tiles(),
+        features_.get_unpacker_buffer_size_bytes(),
         features_.get_tile_size());
 
     const int max_num_tiles_per_phase = dram_read_estimator_internal::compute_max_num_tiles_per_phase(
-        1 /* start_divisor */, 
+        1 /* start_divisor */,
         features_.get_producer_tiles_per_input());
 
     const int dram_read_chunk_size_tiles = dram_read_estimator_internal::compute_dram_buf_read_chunk_size_tiles(
-        dram_scatter_chunk_size_tiles, 
-        features_.get_kernel_clear_granularity(), 
-        features_.get_consumer_tiles_per_input(), 
+        dram_scatter_chunk_size_tiles,
+        features_.get_kernel_clear_granularity(),
+        features_.get_consumer_tiles_per_input(),
         features_.get_tile_size());
 
     const int unpacker_buffer_size_bytes = dram_read_estimator_internal::compute_unpacker_stream_buffer_size_bytes(
-        max_num_tiles_per_phase, 
+        max_num_tiles_per_phase,
         dram_read_chunk_size_tiles,
         features_.get_unpacker_buffer_size_bytes(),
         features_.get_consumer_tiles_per_input(),
@@ -517,9 +517,9 @@ BandwidthBucket DramReadEstimator::make_bandwidth_prediction(const int unpacker_
                                                              const int dram_scatter_chunk_size_tiles) const
 {
     const BandwidthBucket bw_bucket_without_fork = estimate_dram_read_connection(
-        features_.get_consumer_epoch_tiles(), 
-        features_.get_tile_size(), 
-        features_.get_kernel_clear_granularity(), 
+        features_.get_consumer_epoch_tiles(),
+        features_.get_tile_size(),
+        features_.get_kernel_clear_granularity(),
         unpacker_buffer_size_bytes,
         dram_buf_read_chunk_size_tiles,
         dram_scatter_chunk_size_tiles);
@@ -601,7 +601,7 @@ BandwidthBucket get_bandwidth_estimation(
 
     EstimatorFactory factory;
     Estimator::Features features = Estimator::Features::from_connection_model(op_to_op_connection_model);
-    
+
     features.set_producer_epoch_tiles(features.get_producer_tiles_per_input() * graph->get_microbatch());
     features.set_producer_buffer_size_bytes(
         producer_layout.block_shape.buffer_tiles(producer_op_model.output_buffers[0].buffer_factor) * tile_size_in_bytes);
