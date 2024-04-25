@@ -64,24 +64,28 @@ TileLayout get_consumer_tile_layout(const Graph* graph, const Edge& edge, const 
     return TileLayout(consumer_grid_shape, consumer_block_shape, graph->get_edge_attributes(edge)->get_ublock_order());
 }
 
-vector<OpType> insert_t_stream_tms_wrapper(
+vector<OpType> get_tms_on_graph_edge(
     const Graph* graph,
     const Edge& edge,
     const OpModel& producer_op_model,
     const OpModel& consumer_op_model,
-    bool is_queue)
+    bool is_queue,
+    bool decompose_t_stream)
 {
     graphlib::OpNode const* consumer_node = dynamic_cast<OpNode const*>(graph->node_by_id(edge.consumer_node_id));
     auto edge_attr = graph->get_edge_attributes(edge);
     vector<OpType> tms = edge_attr->get_tms();
-
-    insert_t_stream_tms(
-        consumer_node,
-        tms,
-        consumer_op_model.t_stream_factor,
-        producer_op_model.t_stream_factor,
-        edge.consumer_input_port_id,
-        is_queue);
+    
+    if (decompose_t_stream)
+    {
+        insert_t_stream_tms(
+            consumer_node,
+            tms,
+            consumer_op_model.t_stream_factor,
+            producer_op_model.t_stream_factor,
+            edge.consumer_input_port_id,
+            is_queue);
+    }
     return tms;
 }
 
@@ -553,9 +557,11 @@ BandwidthBucket get_bandwidth_estimation(
     const Edge& edge,
     const OpModel& producer_op_model,
     const OpModel& consumer_op_model,
-    bool is_queue)
+    bool is_queue,
+    bool decompose_t_stream)
 {
-    vector<OpType> tms = insert_t_stream_tms_wrapper(graph, edge, producer_op_model, consumer_op_model, is_queue);
+    vector<OpType> tms = get_tms_on_graph_edge(
+        graph, edge, producer_op_model, consumer_op_model, is_queue, decompose_t_stream);
     InputType input_type = get_input_type(graph, edge);
 
     // Check multicast on the original grid shape.

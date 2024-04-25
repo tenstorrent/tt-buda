@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "perf_model/graph.hpp"
+
 #include "balancer/policies/policy_utils.hpp"
 
 namespace tt::perf_model
@@ -164,16 +165,17 @@ void OpPerfData::_get_op_cycle_estimates(
         return;
 
     _op_cycle_estimates = get_op_cycles_estimates(
-        op_model, 
-        graph, 
-        device_config, 
-        input_queues_on_host, 
-        output_queues_on_host, 
+        op_model,
+        graph,
+        device_config,
+        input_queues_on_host,
+        output_queues_on_host,
         0 /* dram_access_core_count */,
         0 /* pcie_access_core_count */,
         nullptr /* current_epoch_nodes */,
         false /* invalidate_cached */,
-        &selected_op_models);
+        &selected_op_models,
+        false /* decompose_t_stream */);
     _has_op_cycle_estimates = true;
 }
 

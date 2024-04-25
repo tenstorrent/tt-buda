@@ -150,7 +150,8 @@ OpCycleEstimates get_op_cycles_estimates(
     const int pcie_access_core_count = 0,
     const std::unordered_set<const tt::graphlib::Node*>* current_epoch_nodes = nullptr,
     bool invalidate_cached = false,
-    const OpModels* selected_op_models = nullptr);
+    const OpModels* selected_op_models = nullptr,
+    bool decompose_t_stream = true);
 
 OpModelMap to_op_model_map(OpModels const& selected_op_models);
 
@@ -269,14 +270,15 @@ int get_limiter_cycles(
     const OpModels* selected_op_models = nullptr);
 
 float get_dram_read_bw_estimation_for_edge(
-    const Graph *graph,
-    const Edge &queue_to_op_edge,
-    const OpModels *selected_op_models,
-    const OpModel &consumer_op_model,
-    Node *queue_node,
-    const DeviceConfig &device_config,
+    const Graph* graph,
+    const Edge& queue_to_op_edge,
+    const OpModels* selected_op_models,
+    const OpModel& consumer_op_model,
+    Node* queue_node,
+    const DeviceConfig& device_config,
     float default_dram_bw,
-    float dram_fork_divider);
+    float dram_fork_divider,
+    bool decompose_t_stream);
 
 bool is_output_write_to_dram_over_target(
     const OpModel& op_model, const DeviceConfig& device_config, const int target_exec_cycles);

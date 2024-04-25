@@ -1859,7 +1859,8 @@ float get_dram_read_bw_estimation_for_edge(
     Node *queue_node,
     const DeviceConfig &device_config,
     float default_dram_bw,
-    float dram_fork_divider)
+    float dram_fork_divider,
+    bool decompose_t_stream)
 {
     float edge_dram_bw = default_dram_bw;
     std::vector<Node *> queue_data_inputs = graph->data_operands(queue_node);
@@ -1870,10 +1871,14 @@ float get_dram_read_bw_estimation_for_edge(
             get_op_model_for_input_queue(graph, selected_op_models, consumer_op_model, device_config, queue_node);
         if (queue_op_model.has_value())
         {
-            edge_dram_bw = static_cast<float>(
-                get_bandwidth_estimation(
-                    graph, queue_to_op_edge, queue_op_model.value(), consumer_op_model, true /* is_queue */)
-                    .get_bandwidth());
+            edge_dram_bw = static_cast<float>(get_bandwidth_estimation(
+                                                  graph,
+                                                  queue_to_op_edge,
+                                                  queue_op_model.value(),
+                                                  consumer_op_model,
+                                                  true /* is_queue */,
+                                                  decompose_t_stream)
+                                                  .get_bandwidth());
 
             edge_dram_bw = std::ceil(edge_dram_bw / dram_fork_divider);
         }
@@ -1889,10 +1894,14 @@ float get_dram_read_bw_estimation_for_edge(
         {
             const OpModel &op_feeding_queue_op_model = selected_op_models->at(op_feeding_queue);
 
-            edge_dram_bw = static_cast<float>(
-                get_bandwidth_estimation(
-                    graph, queue_to_op_edge, op_feeding_queue_op_model, consumer_op_model, true /* is_queue */)
-                    .get_bandwidth());
+            edge_dram_bw = static_cast<float>(get_bandwidth_estimation(
+                                                  graph,
+                                                  queue_to_op_edge,
+                                                  op_feeding_queue_op_model,
+                                                  consumer_op_model,
+                                                  true /* is_queue */,
+                                                  decompose_t_stream)
+                                                  .get_bandwidth());
 
             edge_dram_bw = std::ceil(edge_dram_bw / dram_fork_divider);
         }
@@ -1924,7 +1933,8 @@ OpCycleEstimates get_op_cycles_estimates(
     const int pcie_access_core_count,
     const std::unordered_set<const tt::graphlib::Node *> *current_epoch_nodes,
     bool invalidate_cached,
-    const OpModels *selected_op_models)
+    const OpModels *selected_op_models,
+    bool decompose_t_stream)
 {
     static const bool model_pcie_bw = env_as<bool>("PYBUDA_TEMP_BALANCER_MODEL_PCIE_BW", true);
     static const bool disable_model_kb_prologue_bw = env_as<bool>("PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW", false);
@@ -1997,9 +2007,10 @@ OpCycleEstimates get_op_cycles_estimates(
         if (use_noc_bw_estimates && !producer_is_queue && selected_op_models)
         {
             TT_ASSERT(selected_op_models->count(producer_node) > 0);
+            OpModel const &producer_op_model = selected_op_models->at(producer_node);
             noc_bw = static_cast<float>(
                 get_bandwidth_estimation(
-                    graph, edge, selected_op_models->at(producer_node), op_model, false /* is_queue */)
+                    graph, edge, producer_op_model, op_model, false /* is_queue */, decompose_t_stream)
                     .get_bandwidth());
         }
 
@@ -2012,7 +2023,15 @@ OpCycleEstimates get_op_cycles_estimates(
         if (use_dram_bw_estimates && can_run_dram_bw_estimations)
         {
             edge_dram_bw = get_dram_read_bw_estimation_for_edge(
-                graph, edge, selected_op_models, op_model, producer_node, device_config, dram_bw, dram_fork_divider);
+                graph,
+                edge,
+                selected_op_models,
+                op_model,
+                producer_node,
+                device_config,
+                dram_bw,
+                dram_fork_divider,
+                decompose_t_stream);
         }
 
         // Legacy path for modelling BW
@@ -2074,7 +2093,7 @@ OpCycleEstimates get_op_cycles_estimates(
                     //
                     TT_ASSERT(!input_is_prologue);
 
-                    input_bw_estimates[input_idx] = edge_dram_bw;
+                    input_bw_estimates[input_idx] = edge_dram_bw / graph->get_microbatch();
                     memory_read_cycles[input_idx] = static_cast<int>(
                         (op_model.input_buffers[edge.consumer_input_port_id].kernel_broadcast_tiles *
                          tile_size_bytes(op_model.input_buffers[edge.consumer_input_port_id].data_format)) /
@@ -2086,7 +2105,7 @@ OpCycleEstimates get_op_cycles_estimates(
                     //
                     TT_ASSERT(!input_is_kb);
 
-                    input_bw_estimates[input_idx] = edge_dram_bw;
+                    input_bw_estimates[input_idx] = edge_dram_bw / graph->get_microbatch();
                     memory_read_cycles[input_idx] = static_cast<int>(
                         input_tensor_size_bytes / edge_dram_bw /
                         graph->get_microbatch());  // divide by microbatch as we only transfer data once per input

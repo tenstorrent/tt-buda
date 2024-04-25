@@ -27,11 +27,12 @@ struct TestNocBandwidthEstimator : testing::Test
 
         graphlib::Shape shape = graphlib::Shape::create({1, 1, 512, 160});
 
-        auto in0_a = create_input(*graph, "in0_a", graphlib::Shape::create({1, 1, shape[2], 256})); // 1x1x512x256
-        auto in0_b = create_input(*graph, "in0_b", graphlib::Shape::create({1, 1, 256, shape[3]})); // 1x1x256x160
-        auto in0_a_nop = add_node<graphlib::PyOpNode>(*graph, "in0_a_nop", "nop", {}, {in0_a}); // 1x1x512x256
-        auto in0_b_nop = add_node<graphlib::PyOpNode>(*graph, "in0_b_nop", "nop", {}, {in0_b}); // 1x1x512x256
-        auto matmul0 = add_node<graphlib::PyOpNode>(*graph, "matmul0", "matmul", {}, {in0_a_nop, in0_b_nop}); // 1x1x512x160
+        auto in0_a = create_input(*graph, "in0_a", graphlib::Shape::create({1, 1, shape[2], 256}));  // 1x1x512x256
+        auto in0_b = create_input(*graph, "in0_b", graphlib::Shape::create({1, 1, 256, shape[3]}));  // 1x1x256x160
+        auto in0_a_nop = add_node<graphlib::PyOpNode>(*graph, "in0_a_nop", "nop", {}, {in0_a});      // 1x1x512x256
+        auto in0_b_nop = add_node<graphlib::PyOpNode>(*graph, "in0_b_nop", "nop", {}, {in0_b});      // 1x1x512x256
+        auto matmul0 =
+            add_node<graphlib::PyOpNode>(*graph, "matmul0", "matmul", {}, {in0_a_nop, in0_b_nop});  // 1x1x512x160
 
         auto in1_a = create_input(*graph, "in1_a", graphlib::Shape::create({1, 1, shape[3], 128}));    // 1x1x160x128
         auto in1_b = create_input(*graph, "in1_b", graphlib::Shape::create({1, 1, 128, shape[2]}));    // 1x1x128x512
@@ -46,7 +47,6 @@ struct TestNocBandwidthEstimator : testing::Test
         graph->set_microbatch(64);
     }
 };
-
 
 struct TestDramBandiwdthEstimator : testing::Test
 {
@@ -67,7 +67,6 @@ struct TestDramBandiwdthEstimator : testing::Test
         graph->set_microbatch(64);
     }
 };
-
 
 TEST_F(TestNocBandwidthEstimator, get_bandwidth)
 {
@@ -102,9 +101,9 @@ TEST_F(TestNocBandwidthEstimator, get_bandwidth)
     for (auto& consumer_op_model : legal_op_models_on_consumer)
     {
         BandwidthBucket bb0 = get_bandwidth_estimation(
-            graph.get(), graph->get_edges(matmul0, matmul2)[0], mm_0_model, consumer_op_model, false);
+            graph.get(), graph->get_edges(matmul0, matmul2)[0], mm_0_model, consumer_op_model, false, true);
         BandwidthBucket bb1 = get_bandwidth_estimation(
-            graph.get(), graph->get_edges(matmul1, matmul2)[0], mm_1_model, consumer_op_model, false);
+            graph.get(), graph->get_edges(matmul1, matmul2)[0], mm_1_model, consumer_op_model, false, true);
 
         if (bb0.get_bandwidth() + bb1.get_bandwidth() > best_bw_sum)
         {
@@ -123,7 +122,7 @@ TEST_F(TestNocBandwidthEstimator, get_bandwidth)
 
 TEST_F(TestDramBandiwdthEstimator, get_bandwidth_queue_producer)
 {
-   balancer::BalancerConfig balancer_config = create_balancer_config();
+    balancer::BalancerConfig balancer_config = create_balancer_config();
     std::shared_ptr<balancer::BalancerCacheCollection> cache_collection = create_balancer_cache_collection();
     balancer_config.enable_t_streaming = true;
     balancer::LegalOpModels valid_op_models =
@@ -147,7 +146,7 @@ TEST_F(TestDramBandiwdthEstimator, get_bandwidth_queue_producer)
         const OpModel& queue_op_model = consumer_op_model;
 
         BandwidthBucket input_bw = get_bandwidth_estimation(
-            graph.get(), graph->get_edges(input_queue, consumer_op)[0], queue_op_model, consumer_op_model, true);
+            graph.get(), graph->get_edges(input_queue, consumer_op)[0], queue_op_model, consumer_op_model, true, true);
 
         if (input_bw.get_bandwidth() > best_bw_sum)
         {
@@ -163,6 +162,5 @@ TEST_F(TestDramBandiwdthEstimator, get_bandwidth_queue_producer)
     balancer::legalizer::GraphSolverSolution solution = graph_solver.finish();
     EXPECT_EQ(solution.selected_op_models.size(), 1);
 }
-
 
 }  // namespace tt::test

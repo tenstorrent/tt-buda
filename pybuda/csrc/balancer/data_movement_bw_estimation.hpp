@@ -31,7 +31,8 @@ BandwidthBucket get_bandwidth_estimation(
     const Edge& edge,
     const OpModel& producer_op_model,
     const OpModel& consumer_op_model,
-    bool is_queue);
+    bool is_queue,
+    bool decompose_t_stream);
 
 //----------------------------------------------------------------------------------------------------------------------
 
@@ -47,12 +48,13 @@ InputType get_input_type(const Graph* graph, const Edge& edge);
 // Helper functions to carve out necessary information from the graph and op models.
 
 // Returns tms to be inserted for a given edge.
-vector<OpType> insert_t_stream_tms_wrapper(
+vector<OpType> get_tms_on_graph_edge(
     const Graph* graph,
     const Edge& edge,
     const OpModel& producer_op_model,
     const OpModel& consumer_op_model,
-    bool is_queue);
+    bool is_queue,
+    bool decompose_t_stream);
 
 // Returns the tile layout for the producer and consumer ops.
 TileLayout get_producer_tile_layout(const Graph* graph, const Edge& edge, const OpModel& producer_op_model);

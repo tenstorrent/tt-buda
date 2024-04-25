@@ -287,6 +287,12 @@ def verify_data(netlist_data, perf_data, estimated_data):
 
     print("Verified!")
 
+def round_parse_float(float_str: str, default_value: float = 0.0, decimal_places: int = 2) -> float:
+    """
+    Try to parse given string to a float and round it to the given number of decimal places.
+    """
+    return round(try_parse_float(float_str, default_value), decimal_places)
+
 def merge_data(netlist_data, perf_data, estimated_data, config):
     """
     Merge data into one, per-epoch, table of ops with all data
@@ -308,8 +314,10 @@ def merge_data(netlist_data, perf_data, estimated_data, config):
                 data_table[op['op_name']]['tiles'] = estimated_data[op['op_name']][' tiles']
                 for i in range(__MAX_NUM_INPUTS):
                     if has_input_on_idx(i):
-                        data_table[op['op_name']][f'estimated_input_bw_{i}'] = estimated_data[op['op_name']][f' estimated_input_bw_{i}']
-                data_table[op['op_name']]['estimated_output_bw_0'] = estimated_data[op['op_name']][' estimated_output_bw_0']
+                        data_table[op['op_name']][f'estimated_input_bw_{i}'] = round_parse_float(
+                            estimated_data[op['op_name']][f' estimated_input_bw_{i}'])
+                data_table[op['op_name']]['estimated_output_bw_0'] = round_parse_float(
+                    estimated_data[op['op_name']][' estimated_output_bw_0'])
             else:
                 data_table[op['op_name']]['estimated_cycles'] = 0
                 data_table[op['op_name']]['estimated_lim_cycles'] = 0
