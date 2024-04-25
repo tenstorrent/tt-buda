@@ -18,6 +18,7 @@ from pybuda import (
 from test.utils import download_model
 from pybuda.pybudaglobal import TILE_DIM
 from pybuda.verify.config import TestKind
+from pybuda._C import DataFormat, MathFidelity
 from pybuda.verify.backend import verify_module
 from pybuda.transformers.pipeline import pipeline as pybuda_pipeline
 
@@ -415,6 +416,21 @@ def test_gemma_2b_gen(test_device, variant):
     compiler_cfg.balancer_policy = "Ribbon"
     os.environ["PYBUDA_RIBBON2"] = "1"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
+
+    # Configure all matmul ops to operate on HiFi4 with Bfp8_b inputs/params and Float16 accumulation
+    pybuda.config.configure_mixed_precision(
+        op_type='matmul',
+        math_fidelity=MathFidelity.HiFi4,
+        input_df={0:[DataFormat.Bfp8_b, False], 1:[DataFormat.Bfp8_b, False]},
+        accumulate_df=DataFormat.Float16_b
+    )
+
+    # Configure all other ops to run on HiFi4 with Float16 accumulation
+    pybuda.config.configure_mixed_precision(
+        op_type='^((?!matmul).)*$',
+        math_fidelity=MathFidelity.HiFi4,
+        accumulate_df=DataFormat.Float16_b
+    )
 
     config = download_model(GemmaConfig.from_pretrained, variant)
     config_dict = config.to_dict()
