@@ -24,12 +24,16 @@ def unet(training: bool, config: str, microbatch: int, devtype: str, arch: str, 
         compiler_cfg.enable_amp_light()
 
     os.environ["PYBUDA_ENABLE_HOST_INPUT_NOP_BUFFERING"] = "1"
+    os.environ["PYBUDA_ALLOW_MULTICOLUMN_SPARSE_MATMUL"] = "1"
+    os.environ["PYBUDA_SUPRESS_T_FACTOR_MM"] = "60"
 
     # These are about to be enabled by default.
     #
     os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
     os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
     os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
+    os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
+    os.environ["PYBUDA_RIBBON2_CONSERVATIVE_OPTIMIZATION_ITERATIONS"] = "10"
 
     # Set model parameters based on chosen task and model configuration
     if config == "256":
