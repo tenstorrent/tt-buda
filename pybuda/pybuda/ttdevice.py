@@ -1561,6 +1561,7 @@ def get_backend_string(backend_type: BackendType) -> str:
             BackendType.Golden: "golden",
             BackendType.Model: "model",
             BackendType.Versim: "versim",
+            BackendType.Emulation: "emulation",
             BackendType.NoBackend: "nobackend",
             BackendType.Silicon: "silicon",
     }

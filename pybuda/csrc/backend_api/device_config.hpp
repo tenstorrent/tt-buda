@@ -309,7 +309,8 @@ struct DeviceConfig
     }
     CoreCoord get_dram_core_coord(std::uint32_t channel, std::uint32_t subchannel) const
     {
-        if (is_grayskull())
+        // Emulation device has only one dram channel
+        if (is_grayskull() || this->backend_type == "emulation")
         {
             return get<CoreCoord>("dram-core_xy_chan" + std::to_string(channel), false);
         }

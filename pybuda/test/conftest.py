@@ -11,8 +11,20 @@ import torch.multiprocessing as mp
 import torch
 import tensorflow as tf
 
-import pybuda
+# This is a workaround to set RTLD_GLOBAL flag to load emulation ZeBu library.
+# Essentially symbol names have to be unique in global scope to work with ZeBu,
+# hence need to be set as GLOBAL. This is a requirement for ZeBu.
+import sys
+original_flags = sys.getdlopenflags()
+if (os.environ.get("PYBUDA_ENABLE_EMULATION_DEVICE") == "1"):
+    sys.setdlopenflags(os.RTLD_LAZY | os.RTLD_GLOBAL)
+# Import code that requires os.RTLD_GLOBAL goes here
 from pybuda._C.backend_api import BackendType, BackendDevice, DeviceMode
+# Reset the flags to their original value
+if (os.environ.get("PYBUDA_ENABLE_EMULATION_DEVICE") == "1"):
+    sys.setdlopenflags(original_flags)
+
+import pybuda
 from pybuda.verify.config import TestKind
 import pybuda.compile as COMPILE_INFO
 from pybuda.run.api import detect_available_devices
@@ -189,6 +201,14 @@ class TestDevice:
             if versim_arch_name != None:
                 versim_backend_device = BackendDevice.from_string(versim_arch_name)
             return TestDevice(devtype=BackendType.Versim, arch=versim_backend_device, devmode=devmode, tti_path=tti_path)
+        if name == "Emulation":
+            # Set default emulation device arch to Grayskull
+            emulation_backend_device = BackendDevice.Grayskull
+            # If PYBUDA_EMULATION_DEVICE_ARCH is set, use that arch for Emulation device
+            emulation_arch_name = os.environ.get("PYBUDA_EMULATION_DEVICE_ARCH", None)
+            if emulation_arch_name != None:
+                emulation_backend_device = BackendDevice.from_string(emulation_arch_name)
+            return TestDevice(devtype=BackendType.Emulation, arch=emulation_backend_device, devmode=devmode, tti_path=tti_path)
         if name == "Grayskull":
             return TestDevice(devtype=BackendType.Silicon, arch=BackendDevice.Grayskull, devmode=devmode, tti_path=tti_path)
         if name == "Wormhole_B0":
@@ -213,6 +233,9 @@ class TestDevice:
         
         if self.devtype == BackendType.Versim:
             return bool(int(os.environ.get("PYBUDA_ENABLE_VERSIM_DEVICE", "0")))
+
+        if self.devtype == BackendType.Emulation:
+            return bool(int(os.environ.get("PYBUDA_ENABLE_EMULATION_DEVICE", "0")))
 
         if self.devtype == BackendType.Silicon:
             compiled_arch_name = os.environ.get("BACKEND_ARCH_NAME", None) or os.environ.get("ARCH_NAME", None)
@@ -251,7 +274,7 @@ def pytest_generate_tests(metafunc):
         metafunc.parametrize("training", (False, True), ids=["inference", "training"])
 
     if "test_device" in metafunc.fixturenames:
-        names = ["Golden", "Model", "Versim", "Grayskull", "Wormhole_B0", "Blackhole"]
+        names = ["Golden", "Model", "Versim", "Emulation", "Grayskull", "Wormhole_B0", "Blackhole"]
 
         # Set device-mode for the test
         compile_only = metafunc.config.getoption("--compile-only")

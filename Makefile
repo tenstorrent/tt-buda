@@ -74,6 +74,11 @@ SUBMODULES_UPDATED=$(addprefix $(SUBMODULESDIR)/, $(SUBMODULES:%=%.checkout))
 SKIP_BBE_UPDATE ?= 0
 SKIP_SUBMODULE_UPDATE ?= $(SKIP_BBE_UPDATE)
 
+ifeq ($(EMULATION_DEVICE_EN), 1)
+    TENSIX_EMULATION_ZEBU = $(TENSIX_EMULATION_ROOT)/zebu
+    TENSIX_EMULATION_ZCUI_WORK = $(TENSIX_EMULATION_ROOT)/targets/tensix_2x2_1dram_BH/zcui.work
+endif
+
 all: update_submodules build ;
 
 # These must be in dependency order (enforces no circular deps)
@@ -81,7 +86,7 @@ include python_env/module.mk
 include pybuda/module.mk
 include docs/public/module.mk
 
-update_submodules: $(SUBMODULES_UPDATED) ;
+update_submodules: $(SUBMODULES_UPDATED) emulation_device_links ;
 
 $(SUBMODULESDIR)/%.checkout:
 	@mkdir -p $(dir $@)
@@ -92,6 +97,14 @@ ifeq ($(SKIP_SUBMODULE_UPDATE), 0)
 	git -C $(@:$(SUBMODULESDIR)/%.checkout=%) submodule foreach --recursive git lfs checkout HEAD
 endif
 	touch $@
+
+emulation_device_links:
+ifeq ($(EMULATION_DEVICE_EN), 1)
+	@echo "Linking and copying emulation device files..."
+	ln -sf $(TENSIX_EMULATION_ZCUI_WORK) $(OUT)/.
+	ln -sf $(TENSIX_EMULATION_ZCUI_WORK) ../
+	cp -f $(TENSIX_EMULATION_ZEBU)/scripts/designFeatures ./
+endif
 
 build: pybuda third_party/tvm torchvision ;
 

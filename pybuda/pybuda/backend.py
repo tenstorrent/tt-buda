@@ -326,10 +326,13 @@ class BackendAPI:
             out_desc = PytorchTensorDesc()
             retry_count = 10 # TODO: add control
             timeout = 1
-            # Increase timeout for Versim device
+            # Increase timeout for Versim and Emulation device
             if bool(int(os.environ.get("PYBUDA_ENABLE_VERSIM_DEVICE", "0"))):
                 retry_count = 100
                 timeout = 300
+            elif bool(int(os.environ.get("PYBUDA_ENABLE_EMULATION_DEVICE", "0"))):
+                retry_count = 100
+                timeout = 100
             resp = BackendStatusCode.RuntimeError
             for _ in range(retry_count):
                 resp = get_output(outq, out_desc, single_output, timeout, rd_ptr)

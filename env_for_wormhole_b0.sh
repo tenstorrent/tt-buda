@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export LD_LIBRARY_PATH=versim/wormhole_b0/lib:versim/wormhole_b0/lib/ext
+export LD_LIBRARY_PATH=versim/wormhole_b0/lib:versim/wormhole_b0/lib/ext:$LD_LIBRARY_PATH
 export BACKEND_ARCH_NAME=wormhole_b0
 export ARCH_NAME=wormhole_b0
 

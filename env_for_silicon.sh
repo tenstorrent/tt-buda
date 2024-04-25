@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export LD_LIBRARY_PATH=versim/grayskull/lib:versim/grayskull/lib/ext
+export LD_LIBRARY_PATH=versim/grayskull/lib:versim/grayskull/lib/ext:$LD_LIBRARY_PATH
 export BACKEND_ARCH_NAME=grayskull
 export ARCH_NAME=grayskull
 
