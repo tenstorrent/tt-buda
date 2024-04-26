@@ -2093,7 +2093,7 @@ OpCycleEstimates get_op_cycles_estimates(
                     //
                     TT_ASSERT(!input_is_prologue);
 
-                    input_bw_estimates[input_idx] = edge_dram_bw / graph->get_microbatch();
+                    input_bw_estimates[input_idx] = edge_dram_bw * graph->get_microbatch();
                     memory_read_cycles[input_idx] = static_cast<int>(
                         (op_model.input_buffers[edge.consumer_input_port_id].kernel_broadcast_tiles *
                          tile_size_bytes(op_model.input_buffers[edge.consumer_input_port_id].data_format)) /
@@ -2105,7 +2105,7 @@ OpCycleEstimates get_op_cycles_estimates(
                     //
                     TT_ASSERT(!input_is_kb);
 
-                    input_bw_estimates[input_idx] = edge_dram_bw / graph->get_microbatch();
+                    input_bw_estimates[input_idx] = edge_dram_bw * graph->get_microbatch();
                     memory_read_cycles[input_idx] = static_cast<int>(
                         input_tensor_size_bytes / edge_dram_bw /
                         graph->get_microbatch());  // divide by microbatch as we only transfer data once per input
