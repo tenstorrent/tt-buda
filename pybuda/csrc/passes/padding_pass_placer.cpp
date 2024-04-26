@@ -144,6 +144,13 @@ bool pad_pass_placer(
 
         while (padding_try_it++ < PADDING_TRY_MAX && buffer_alloc_cnt > 0)
         {
+            if (padding_try_it > 0)
+            {
+                // If we have tried to pad the node, but it failed, we remove padding and try again.
+                // Note, padding structure stays intact, and we resume padding in next iteration from where we have stopped.
+                remove_padding(graph, node, padding);
+            }
+
             padded_loop = pad_node(graph, node, padding);
             
             if (padded_loop) 
@@ -154,9 +161,6 @@ bool pad_pass_placer(
                 buffer_alloc_cnt = (failures.size() > 0) ? failures[node].getOpModelFailureCountByType(OpModelFailureReason::InputBufferAllocationFailure) : 0;
                 if (failures.size() > 0)
                 {
-                    // If we have tried to pad the node, but it failed, we remove padding and try again.
-                    // Note, padding structure stays intact, and we resume padding in next iteration from where we have stopped.
-                    remove_padding(graph, node, padding);
                     if (padded_loop)
                         padded_loop = false;
                     log_debug(LogPadding, "Node {} is illegal after padding: lhs_rt {} lhs_ct {} rhs_ct {}", node->name(), padding.pad_lhs_rt, padding.pad_lhs_ct, padding.pad_rhs_ct);
