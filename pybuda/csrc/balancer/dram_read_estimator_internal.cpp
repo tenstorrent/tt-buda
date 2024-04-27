@@ -8,7 +8,7 @@
 #include <numeric>
 
 namespace tt
-{   
+{
 namespace balancer
 {
 namespace dram_read_estimator_internal
@@ -17,9 +17,8 @@ namespace dram_read_estimator_internal
 constexpr static int c_sequential_dram_io_threshold = 64 * 1024;
 constexpr static int c_general_max_num_tiles_per_phase = 2048;
 
-int compute_dram_pipe_scatter_chunk_size_tiles(const int scatter_gather_num_tiles, 
-                                               const int unpacker_buffer_size_bytes,
-                                               const int tile_size)
+int compute_dram_pipe_scatter_chunk_size_tiles(
+    const int scatter_gather_num_tiles, const int unpacker_buffer_size_bytes, const int tile_size)
 {
     int dram_scatter_chunk_size = scatter_gather_num_tiles;
     const int unpacker_buffer_size_tiles = unpacker_buffer_size_bytes / tile_size;
@@ -27,16 +26,19 @@ int compute_dram_pipe_scatter_chunk_size_tiles(const int scatter_gather_num_tile
     if (unpacker_buffer_size_tiles < dram_scatter_chunk_size)
     {
         dram_scatter_chunk_size = std::gcd(unpacker_buffer_size_tiles, scatter_gather_num_tiles);
+    }
 
-        int max_size_tiles = c_sequential_dram_io_threshold / tile_size;
-        if (dram_scatter_chunk_size > max_size_tiles) {
-            while (true) {
-                if (dram_scatter_chunk_size % max_size_tiles == 0) {
-                    dram_scatter_chunk_size = max_size_tiles;
-                    break;
-                }
-                max_size_tiles--;
+    int max_size_tiles = c_sequential_dram_io_threshold / tile_size;
+    if (dram_scatter_chunk_size > max_size_tiles)
+    {
+        while (true)
+        {
+            if (dram_scatter_chunk_size % max_size_tiles == 0)
+            {
+                dram_scatter_chunk_size = max_size_tiles;
+                break;
             }
+            max_size_tiles--;
         }
     }
 
@@ -58,13 +60,10 @@ int compute_max_num_tiles_per_phase(const int start_divisor, const int root_tile
     return (c_general_max_num_tiles_per_phase / common_divisor) * common_divisor;
 }
 
-int compute_dram_buf_read_chunk_size_tiles(const int scatter_chunk_size, 
-                                           const int kernel_clear_granularity,
-                                           const int tiles_to_transfer,
-                                           const int tile_size)
+int compute_dram_buf_read_chunk_size_tiles(
+    const int scatter_chunk_size, const int kernel_clear_granularity, const int tiles_to_transfer, const int tile_size)
 {
-    const int phase_tiles = (c_general_max_num_tiles_per_phase / kernel_clear_granularity) *
-                            kernel_clear_granularity;
+    const int phase_tiles = (c_general_max_num_tiles_per_phase / kernel_clear_granularity) * kernel_clear_granularity;
 
     int chunk_size = std::gcd(phase_tiles, tiles_to_transfer);
     chunk_size = std::lcm(chunk_size, scatter_chunk_size);
@@ -72,11 +71,12 @@ int compute_dram_buf_read_chunk_size_tiles(const int scatter_chunk_size,
     return get_transfer_chunk_size_tiles(chunk_size, scatter_chunk_size, tile_size, 64 * 1024 - 1, 52 * 1024);
 }
 
-int get_transfer_chunk_size_tiles(int transfer_chunk_size_tiles,
-                                  const int min_transfer_chunk_size_tiles,
-                                  const int tile_size_bytes,
-                                  const int max_transfer_size_tiles,
-                                  const int max_transfer_size_bytes)
+int get_transfer_chunk_size_tiles(
+    int transfer_chunk_size_tiles,
+    const int min_transfer_chunk_size_tiles,
+    const int tile_size_bytes,
+    const int max_transfer_size_tiles,
+    const int max_transfer_size_bytes)
 {
     if (!is_transfer_chunk_size_within_limits(
             transfer_chunk_size_tiles, tile_size_bytes, max_transfer_size_tiles, max_transfer_size_bytes))
@@ -106,21 +106,23 @@ int get_transfer_chunk_size_tiles(int transfer_chunk_size_tiles,
     return transfer_chunk_size_tiles;
 }
 
-bool is_transfer_chunk_size_within_limits(const int transfer_chunk_size_tiles,
-                                          const int tile_size_bytes,
-                                          const int max_transfer_size_tiles,
-                                          const int max_transfer_size_bytes)
+bool is_transfer_chunk_size_within_limits(
+    const int transfer_chunk_size_tiles,
+    const int tile_size_bytes,
+    const int max_transfer_size_tiles,
+    const int max_transfer_size_bytes)
 {
     return transfer_chunk_size_tiles <= max_transfer_size_tiles &&
            transfer_chunk_size_tiles * tile_size_bytes <= max_transfer_size_bytes;
 }
 
-int compute_unpacker_stream_buffer_size_bytes(int max_num_tiles_per_phase,
-                                              const int dram_read_chunk_size_tiles,
-                                              const int unpacker_buffer_size_bytes,
-                                              const int tiles_to_transfer,
-                                              const int root_tiles_per_input,
-                                              const int tile_size)
+int compute_unpacker_stream_buffer_size_bytes(
+    int max_num_tiles_per_phase,
+    const int dram_read_chunk_size_tiles,
+    const int unpacker_buffer_size_bytes,
+    const int tiles_to_transfer,
+    const int root_tiles_per_input,
+    const int tile_size)
 {
     const int merged_stream_buffer_size_bytes = compute_merged_dram_unpacker_stream_buffer_size_bytes(
         dram_read_chunk_size_tiles, unpacker_buffer_size_bytes, tile_size);
@@ -132,28 +134,26 @@ int compute_unpacker_stream_buffer_size_bytes(int max_num_tiles_per_phase,
     {
         if (tiles_to_transfer > c_general_max_num_tiles_per_phase)
         {
-            max_num_tiles_per_phase = compute_max_num_tiles_per_phase(unpacker_buffer_size_bytes / tile_size, 
-                                                                      root_tiles_per_input);
+            max_num_tiles_per_phase =
+                compute_max_num_tiles_per_phase(unpacker_buffer_size_bytes / tile_size, root_tiles_per_input);
         }
 
         return scale_up_dram_receiving_stream(merged_stream_buffer_size_bytes, max_num_tiles_per_phase, tile_size);
     }
-    
+
     return result;
 }
 
-int compute_merged_dram_unpacker_stream_buffer_size_bytes(const int dram_read_chunk_size_tiles,
-                                                          const int unpacker_buffer_size_bytes,
-                                                          const int tile_size)
+int compute_merged_dram_unpacker_stream_buffer_size_bytes(
+    const int dram_read_chunk_size_tiles, const int unpacker_buffer_size_bytes, const int tile_size)
 {
     const int dram_read_chunk_size_bytes = dram_read_chunk_size_tiles * tile_size;
-   
+
     return std::lcm(dram_read_chunk_size_bytes, unpacker_buffer_size_bytes);
 }
 
-int scale_up_dram_receiving_stream(const int base_buffer_size_bytes,
-                                   const int max_num_tiles_per_phase,
-                                   const int tile_size)
+int scale_up_dram_receiving_stream(
+    const int base_buffer_size_bytes, const int max_num_tiles_per_phase, const int tile_size)
 {
     const int max_num_tiles_per_phase_bytes = max_num_tiles_per_phase * tile_size;
     int scale_factor = 1;
@@ -177,7 +177,7 @@ int scale_up_dram_receiving_stream(const int base_buffer_size_bytes,
 
     return scale_factor * base_buffer_size_bytes;
 }
-    
-} // namespace dram_read_estimator_internal
-} // namespace balancer
-} // namespace tt
+
+}  // namespace dram_read_estimator_internal
+}  // namespace balancer
+}  // namespace tt
