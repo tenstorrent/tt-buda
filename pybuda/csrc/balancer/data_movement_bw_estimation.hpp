@@ -68,15 +68,15 @@ int get_producer_out_buf_mb(bool is_queue, const BufferModel& buffer_model);
 bool is_scatter_producer(TileLayout producer_layout, int scatter_granularity, int producer_effective_buf_size_mb);
 
 // Returns the expected number of phases for the scatter packer.
-int approximate_scatter_packer_num_phases(const int scatter_granularity,
-                                          const int tiles_per_input,
-                                          const int producer_effective_buf_size_mb);
+int approximate_scatter_packer_num_phases(
+    const int scatter_granularity, const int tiles_per_input, const int producer_effective_buf_size_mb);
 
 // Returns the number of tiles consumer kernel will clear at the time.
-int get_unpacker_kernel_clear_granularity(const graphlib::OpNode* consumer_op_node,
-                                          const BlockShape& consumer_block_shape,
-                                          const int input_ordinal,
-                                          const int kernel_broadcast_tiles);
+int get_unpacker_kernel_clear_granularity(
+    const graphlib::OpNode* consumer_op_node,
+    const BlockShape& consumer_block_shape,
+    const int input_ordinal,
+    const int kernel_broadcast_tiles);
 
 // Returns consumer's unpacker buffer size given the kernel clear granularity and tile size.
 int calculate_unpacker_buffer_size_bytes(const int kernel_clear_granularity, const int tile_size_bytes);
@@ -144,7 +144,7 @@ class OpToOpConnectionModel
     void set_consumer_tiles_per_input(int val) { consumer_tiles_per_input_ = val; }
     void set_consumer_fanin(int val) { consumer_fanin_ = val; }
 
-private:
+   private:
     // Producer side fields.
     int scatter_granularity_;
     int producer_tiles_per_input_;
@@ -154,7 +154,7 @@ private:
     bool is_producer_queue_;
 
     // Consumer side fields.
-    bool consumer_multicast_;    
+    bool consumer_multicast_;
     int consumer_tiles_per_input_;
     int consumer_fanin_;
 };
@@ -167,7 +167,7 @@ class Estimator
    public:
     class Features
     {
-    public:
+       public:
         Features() {}
 
         static Features from_connection_model(const OpToOpConnectionModel& op_to_op_connection_model)
@@ -222,8 +222,8 @@ class Estimator
         void set_consumer_fanin(int val) { consumer_fanin_ = val; }
         void set_consumer_multicast(bool val) { consumer_multicast_ = val; }
         void set_tile_size(int val) { tile_size_ = val; }
-        
-    private:
+
+       private:
         // Producer side features.
         int scatter_gather_num_tiles_ = 0;
         int producer_epoch_tiles_ = 0;
@@ -299,18 +299,18 @@ class ForkAndGatherComboEstimator : public Estimator
 
 class DramReadEstimator : public Estimator
 {
-public:
-    DramReadEstimator(const Features& features) : Estimator(features) { }
+   public:
+    DramReadEstimator(const Features& features) : Estimator(features) {}
 
    private:
     BandwidthBucket estimate_bandwidth_impl() const override;
 
-    BandwidthBucket make_bandwidth_prediction(const int unpacker_buffer_size_bytes,
-                                              const int dram_buf_read_chunk_size_tiles,
-                                              const int dram_scatter_chunk_size_tiles) const;
+    BandwidthBucket make_bandwidth_prediction(
+        const int unpacker_buffer_size_bytes,
+        const int dram_buf_read_chunk_size_tiles,
+        const int dram_scatter_chunk_size_tiles) const;
 
-    BandwidthBucket scale_bandwidth_wrt_fork_factor(const double bw_without_fork,
-                                                    const int fork_factor) const;
+    BandwidthBucket scale_bandwidth_wrt_fork_factor(const double bw_without_fork, const int fork_factor) const;
 
     constexpr static int c_linear_noc_threshold = 20;
     constexpr static int c_theoretical_noc_threshold = 24;
