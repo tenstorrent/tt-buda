@@ -46,9 +46,9 @@ def test_perceiverio_for_image_classification_pytorch(test_device):
         os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{10*1024}"
 
     elif test_device.arch == pybuda.BackendDevice.Grayskull:
+        compiler_cfg.enable_auto_fusing = False
 
         if test_device.devtype == pybuda.BackendType.Silicon:
-            compiler_cfg.enable_auto_fusing = False
             verify_enabled = False
 
     model_name = "deepmind/vision-perceiver-conv"
@@ -74,6 +74,6 @@ def test_perceiverio_for_image_classification_pytorch(test_device):
             devtype=test_device.devtype,
             devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
-            enabled=verify_enabled,
+            enabled=verify_enabled, # pcc drops in silicon devicetype
         ),
     )
