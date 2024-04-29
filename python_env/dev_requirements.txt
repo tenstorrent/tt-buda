@@ -1,0 +1,23 @@
+pyzmq==26.0.2
+tabulate==0.9.0
+tqdm==4.66.2
+pytest==6.2.4
+elasticsearch==8.10.0
+junitparser==3.1.0
+z3-solver==4.8.15
+Pillow==10.0.1
+
+# Debuda
+coverage==7.4.4
+deprecation==2.1.0
+docopt==0.6.2
+fastnumbers==5.1.0
+fuzzywuzzy==0.18.0
+pyelftools==0.31
+python-levenshtein==0.25.1
+rapidyaml==0.5.0
+sortedcontainers==2.4.0
+tornado==6.4
+python-dateutil==2.9.0
+cloudpickle==3.0.0
+wheel==0.37.1
