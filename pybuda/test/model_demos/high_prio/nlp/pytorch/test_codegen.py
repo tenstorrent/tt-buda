@@ -82,8 +82,7 @@ def test_codegen(test_device, variant):
         inputs=[(input_ids, attn_mask,)],
         verify_cfg=VerifyConfig(
             arch=test_device.arch,
-            # tenstorrent/pybuda#1031
-            devtype=BackendType.NoBackend if test_device.devtype == BackendType.Golden else test_device.devtype,
+            devtype=test_device.devtype,
             devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
             chip_ids=NebulaGalaxy.chip_ids if "PYBUDA_NEB_GALAXY_CI" in os.environ and int(os.environ.get("PYBUDA_NEB_GALAXY_CI"))==1 else [0],
