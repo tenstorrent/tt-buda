@@ -498,6 +498,21 @@ def test_gemma_2b_1x1_gen(test_device, variant):
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
     os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "wormhole_b0_1x1.yaml"
 
+    # Configure all matmul ops to operate on HiFi4 with Bfp8_b inputs/params and Float16 accumulation
+    pybuda.config.configure_mixed_precision(
+        op_type='matmul',
+        math_fidelity=MathFidelity.HiFi4,
+        input_df={0:[DataFormat.Bfp8_b, False], 1:[DataFormat.Bfp8_b, False]},
+        accumulate_df=DataFormat.Float16_b
+    )
+
+    # Configure all other ops to run on HiFi4 with Float16 accumulation
+    pybuda.config.configure_mixed_precision(
+        op_type='^((?!matmul).)*$',
+        math_fidelity=MathFidelity.HiFi4,
+        accumulate_df=DataFormat.Float16_b
+    )
+
     config = download_model(GemmaConfig.from_pretrained, variant)
     config_dict = config.to_dict()
     config_dict["return_dict"] = False
