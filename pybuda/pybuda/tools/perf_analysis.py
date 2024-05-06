@@ -19,7 +19,85 @@ from loguru import logger
 
 
 __MAX_NUM_INPUTS = 8
+__DEFAULT_SCREEN_DUMP_DIRECTORY = "perf_analysis_screens"
 
+def get_epoch_details_mapping(data, config):
+    """
+    Return table header mapping for epoch detials screen
+    """
+    epoch_detials_mapping =  {
+        'name': 'op_name' if config['full_op_names'] else 'op_name_short',
+        'grid': 'grid_size_str',
+        'mb': 'mblock_str',
+        'ub': 'ublock_str',
+        't' : 't_value',
+        'm/u_kt': 'm_k/u_kt',
+        'est': 'estimated_cycles',
+        'kernel': 'kernel_single_runtime',
+        'util': 'kernel_math_utilization',
+        'est_lim': 'estimated_lim_cycles',
+        'bw_kernel': 'bw_bound_single_runtime',
+        'bw_util': 'bw_bound_math_utilization',
+        'bw problem': 'bw_problem',
+        'out_req': 'required_output_pipe_bw_0',
+        'out_est': 'estimated_output_bw_0',
+        'out_bw': 'output_pipe_bw_0',
+        'in0_req': 'required_input_bw_0',
+        'in0_est': 'estimated_input_bw_0',
+        'in0_bw': 'input_pipe_bw_0',
+        'in1_req': 'required_input_bw_1',
+        'in1_est': 'estimated_input_bw_1',
+        'in1_bw': 'input_pipe_bw_1',
+        'in2_req': 'required_input_bw_2',
+        'in2_est': 'estimated_input_bw_2',
+        'in2_bw': 'input_pipe_bw_2',
+        'in3_req': 'required_input_bw_3',
+        'in3_est': 'estimated_input_bw_3',
+        'in3_bw': 'input_pipe_bw_3',
+        'in4_req': 'required_input_bw_4',
+        'in4_est': 'estimated_input_bw_4',
+        'in4_bw': 'input_pipe_bw_4',
+        'in5_req': 'required_input_bw_5',
+        'in5_est': 'estimated_input_bw_5',
+        'in5_bw': 'input_pipe_bw_5',
+        'in6_req': 'required_input_bw_6',
+        'in6_est': 'estimated_input_bw_6',
+        'in6_bw': 'input_pipe_bw_6',
+        'in7_req': 'required_input_bw_7',
+        'in7_est': 'estimated_input_bw_7',
+        'in7_bw': 'input_pipe_bw_7',
+    }
+
+    if all(d["balancer_util"] == 0 for d in data['epoch_summary']): # we had no balancer util numbers loaded
+        del epoch_detials_mapping["est"]
+        del epoch_detials_mapping["est_lim"]
+        for i in range(__MAX_NUM_INPUTS):
+            del epoch_detials_mapping[f"in{i}_est"]
+        del epoch_detials_mapping["out_est"]
+
+    return epoch_detials_mapping
+
+def get_epoch_summary_mapping(data, config):
+    """
+    Return table header mapping for epoch summary screen
+    """
+    epoch_summary_mapping = {
+        'epoch': 'epoch',
+        'slowest op': 'slowest_op' if config['full_op_names'] else 'slowest_op_short',
+        'cycles': 'pipeline_cycles',
+        'speed': 'inputs_per_second',
+        'util': 'real_utilization',
+        'mm cores': 'matmul_cores',
+        'balancer util': 'balancer_util',
+        'req noc bw GB/s': 'required_noc_bw',
+        'act noc bw GB/s': 'actual_noc_bw',
+        'req dram bw GB/s': 'required_dram_bw',
+        'act dram bw GB/s': 'actual_dram_bw',
+    }
+    if all(d["balancer_util"] == 0 for d in data['epoch_summary']): # we had no balancer util numbers loaded
+        del epoch_summary_mapping["balancer util"]
+
+    return epoch_summary_mapping
 
 def arch_clk(arch):
     """
@@ -768,7 +846,21 @@ For any problems with this tool, contact @ssokorac. If estimated op values are f
 status_prompt = "[E] epoch [P] previous [N] next [S] summary [F] op names [R] reload [H] help [Q] quit [ARROWS] scroll"
 epoch_prompt = " Epoch #: "
 
-def display_screen(table_data, mapping, stdscr, config):
+def serialize_screen(stdscr, output_file_name):
+    """
+    Serializes curses lib console screen to output txt file
+    """
+    max_y, max_x = stdscr.getmaxyx()
+    with open(output_file_name, "w") as output_file:
+        for y in range(max_y):
+            for x in range(max_x):
+                # more details here: https://stackoverflow.com/a/43584573
+                decoded_char = stdscr.inch(y, x) & 0xFF
+                output_file.write(chr(decoded_char))
+            output_file.write("\n")
+
+
+def display_screen(table_data, mapping, stdscr, config, save_screen=False, base_dir=None):
     """
     Main drawing function, repeatedly called on every key press
     """
@@ -810,7 +902,62 @@ def display_screen(table_data, mapping, stdscr, config):
     max_y, max_x = stdscr.getmaxyx()
     stdscr.addnstr(max_y - 1, 0, key_map, max_x-1)
 
-def main(stdscr, data):
+    if save_screen:
+        assert base_dir is not None, "Expecting base_dir argument to be passed in"
+
+        screen_name = config.get('screen_name', 'screen_output')
+        output_file_name = f"{screen_name}.txt"
+        file_dir = os.path.join(base_dir, config.get("netlist", "netlist.yaml").strip(".yaml"))
+        os.makedirs(file_dir, exist_ok=True)
+
+        serialize_screen(stdscr, os.path.join(file_dir, output_file_name))
+
+
+def get_screen_description(data, config):
+    """
+    Return data required for drawing the screen described by the config and data maps
+    """
+    # Figure out which data to display
+    if config['epoch'] is not None:
+        # Epoch data
+        table_data = data['epochs'][config['epoch']].values()
+
+        # Order and names of columns to show on the epoch screen
+        mapping = get_epoch_details_mapping(data, config)
+        max_rows = len(data['epochs'][config['epoch']]) - 2
+    else:
+        # Summary columns
+        mapping = get_epoch_summary_mapping(data, config)
+
+        table_data = data['epoch_summary']
+        max_rows = len(data['epoch_summary']) - 2
+
+    max_columns = len(mapping) - 2
+
+    return mapping, table_data, max_rows, max_columns
+
+
+def save_epoch_screens_to_files(stdscr, data, config, epoch_sreens_save_dir):
+    """
+    Save epoch summary and details screens to txt files in a given folder
+    """
+    num_epochs = len(data['epochs'])
+
+    # Save epochs summary screen
+    config["epoch"] = None
+    config["screen_name"] = "epoch_summary"
+    mapping, table_data, _, _ = get_screen_description(data, config)
+    display_screen(table_data, mapping, stdscr, config, save_screen=True, base_dir=epoch_sreens_save_dir)
+
+    # Save details screens per epoch
+    for epoch in range(num_epochs):
+        config["epoch"] = epoch
+        config["screen_name"] = f"epoch_{epoch}_details"
+        mapping, table_data, _, _ = get_screen_description(data, config)
+        display_screen(table_data, mapping, stdscr, config, save_screen=True, base_dir=epoch_sreens_save_dir)
+
+
+def main(stdscr, data, save_epoch_screens=False, epoch_sreens_save_dir=None):
 
     # Curses config
     curses.init_pair(1, curses.COLOR_RED, curses.COLOR_BLACK)
@@ -824,90 +971,18 @@ def main(stdscr, data):
         'full_op_names': False, # show full op names (vs. shortened)
         'row_offset': 0, # row scrolling offset in tables
         'col_offset': 0, # column scrolling offset in tables
-        'epoch': None, # current epoch, or None if we're on the summary screen
+        'epoch': None, # current epoch, or None if we're on the summary screen,
+        "netlist": data['model_summary']['netlist'] # netlist for which perf data is displayed
     }
+
+    if save_epoch_screens:
+        save_epoch_screens_to_files(stdscr, data, config, epoch_sreens_save_dir)
+        return False
+
     while key != ord('q') and key != ord('Q'):
-        
-        # Figure out which data to display
-        if config['epoch'] is not None:
-            # Epoch data
-            table_data = data['epochs'][config['epoch']].values()
+        mapping, table_data, max_rows, max_columns = get_screen_description(data, config)
 
-            # Order and names of columns to show on the epoch screen
-            mapping = {
-                    'name': 'op_name' if config['full_op_names'] else 'op_name_short',
-                    'grid': 'grid_size_str',
-                    'mb': 'mblock_str',
-                    'ub': 'ublock_str',
-                    't' : 't_value',
-                    'm/u_kt': 'm_k/u_kt',
-                    'est': 'estimated_cycles',
-                    'kernel': 'kernel_single_runtime',
-                    'util': 'kernel_math_utilization',
-                    'est_lim': 'estimated_lim_cycles',
-                    'bw_kernel': 'bw_bound_single_runtime',
-                    'bw_util': 'bw_bound_math_utilization',
-                    'bw problem': 'bw_problem',
-                    'out_req': 'required_output_pipe_bw_0',
-                    'out_est': 'estimated_output_bw_0',
-                    'out_bw': 'output_pipe_bw_0',
-                    'in0_req': 'required_input_bw_0',
-                    'in0_est': 'estimated_input_bw_0',
-                    'in0_bw': 'input_pipe_bw_0',
-                    'in1_req': 'required_input_bw_1',
-                    'in1_est': 'estimated_input_bw_1',
-                    'in1_bw': 'input_pipe_bw_1',
-                    'in2_req': 'required_input_bw_2',
-                    'in2_est': 'estimated_input_bw_2',
-                    'in2_bw': 'input_pipe_bw_2',
-                    'in3_req': 'required_input_bw_3',
-                    'in3_est': 'estimated_input_bw_3',
-                    'in3_bw': 'input_pipe_bw_3',
-                    'in4_req': 'required_input_bw_4',
-                    'in4_est': 'estimated_input_bw_4',
-                    'in4_bw': 'input_pipe_bw_4',
-                    'in5_req': 'required_input_bw_5',
-                    'in5_est': 'estimated_input_bw_5',
-                    'in5_bw': 'input_pipe_bw_5',
-                    'in6_req': 'required_input_bw_6',
-                    'in6_est': 'estimated_input_bw_6',
-                    'in6_bw': 'input_pipe_bw_6',
-                    'in7_req': 'required_input_bw_7',
-                    'in7_est': 'estimated_input_bw_7',
-                    'in7_bw': 'input_pipe_bw_7',
-                    }
-            max_rows = len(data['epochs'][config['epoch']]) - 2
-            if all(d["balancer_util"] == 0 for d in data['epoch_summary']): # we had no balancer util numbers loaded
-                del mapping["est"]
-                del mapping["est_lim"]
-                for i in range(__MAX_NUM_INPUTS):
-                    del mapping[f"in{i}_est"]
-                del mapping["out_est"]
-
-        else:
-            # Summary columns
-            mapping = {
-                    'epoch': 'epoch',
-                    'slowest op': 'slowest_op' if config['full_op_names'] else 'slowest_op_short',
-                    'cycles': 'pipeline_cycles',
-                    'speed': 'inputs_per_second',
-                    'util': 'real_utilization',
-                    'mm cores': 'matmul_cores',
-                    'balancer util': 'balancer_util',
-                    'req noc bw GB/s': 'required_noc_bw',
-                    'act noc bw GB/s': 'actual_noc_bw',
-                    'req dram bw GB/s': 'required_dram_bw',
-                    'act dram bw GB/s': 'actual_dram_bw',
-                    }
-            if all(d["balancer_util"] == 0 for d in data['epoch_summary']): # we had no balancer util numbers loaded
-                del mapping["balancer util"]
-
-            table_data = data['epoch_summary']
-            max_rows = len(data['epoch_summary']) - 2
-        
-        max_columns = len(mapping) - 2
-
-        display_screen(table_data, mapping, stdscr, config)
+        display_screen(table_data, mapping, stdscr, config, save_screen=False)
         key = stdscr.getch()
         
         if key == ord('R') or key == ord('r'):
@@ -938,7 +1013,7 @@ def main(stdscr, data):
 
         elif key == ord('E') or key == ord('e'):
             config['prompt_epoch'] = True
-            display_screen(table_data, mapping, stdscr, config)
+            display_screen(table_data, mapping, stdscr, config, save_screen=False)
             curses.echo()  # Enable echo to display input
             epoch_num = stdscr.getstr(curses.LINES - 1, len(status_prompt + epoch_prompt))
             curses.noecho()  # Disable echo
@@ -984,6 +1059,7 @@ if __name__ == '__main__':
     parser.add_argument(      '--save', help='Save collected data into provided file')
     parser.add_argument(      '--load', help='Load data from a previously saved file, instead of from current workspace')
     parser.add_argument('-c', '--cache', help='Cache performance results in a file, to aid future compiles')
+    parser.add_argument(      '--save_epoch_screens', help='Save epoch summary and detail screen states to txt files in the given folder for easier offline comparison', nargs='?', const=__DEFAULT_SCREEN_DUMP_DIRECTORY)
     args = parser.parse_args()
 
     logger.add("perf_analysis_debug.log")
@@ -1030,6 +1106,9 @@ if __name__ == '__main__':
 
     if ui:
         print("Done loading data. Let's analyze!")
+        should_save_epoch_screens = args.save_epoch_screens is not None
+        if should_save_epoch_screens is not None:
+            print(f"Saving epoch screens to folder: '{args.save_epoch_screens}'")
         reload = True
         while reload:
-            reload = curses.wrapper(main, data)
+            reload = curses.wrapper(main, data, should_save_epoch_screens, args.save_epoch_screens)
