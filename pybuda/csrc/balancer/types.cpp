@@ -229,15 +229,18 @@ int OpModel::get_execution_cycles_uncached(std::string const &arch_name, bool th
 {
     std::shared_ptr<FusedOp> fused_op = this->fused_op();
 
-    // Calculate sparse matmul metadata and write into OpModel's SparseMetadata struct
+    // Calculate sparse-matmul metadata and cache the result
     if (env_as<bool>("PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES", false) and this->is_sparse_matmul and
-        this->sparse_metadata == nullptr)
+        this->nz_ublocks == -1)
     {
         auto mf = this->math_fidelity();
         if (mf == tt::MathFidelity::HiFi2 or mf == tt::MathFidelity::LoFi)
         {
+            auto [nz_tiles, nz_ublocks, nz_strips] = get_sparse_matmul_metadata(*this);
             auto *p_this = const_cast<OpModel *>(this);
-            p_this->sparse_metadata = get_sparse_matmul_metadata(*this);
+            p_this->nz_tiles = nz_tiles;
+            p_this->nz_ublocks = nz_ublocks;
+            p_this->nz_strips = nz_strips;
         }
     }
 

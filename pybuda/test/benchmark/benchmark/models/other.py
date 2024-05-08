@@ -5,7 +5,7 @@
 Catch-all for random perf testing
 """
 
-import os
+import numpy as np
 import pybuda
 import torch
 
@@ -84,21 +84,21 @@ class SimpleAddModule(pybuda.PyBudaModule):
 
 
 @benchmark_model(configs=["224"])
-def big_conv(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str):
+def big_conv(training: bool, config: str, microbatch: int, devtype: str, arch: str):
     if config == "224":
         input_size = (224, 224)
         cin = 3
         cout = 64
         kH = 7
         kW = 7
-        stride = 1
-        padding = "same"
+        stride = 2
+        padding = 3
         dilation = 1
     else:
         raise RuntimeError(f"Invalid config: {config}")
 
     if microbatch == 0:
-        microbatch = 64
+        microbatch = 1
 
     mod = ConvTModule(
         name="big_conv_benchmark",
@@ -113,8 +113,7 @@ def big_conv(training: bool, config: str, microbatch: int, devtype: str, arch: s
         bias=False)
 
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.balancer_policy = "Ribbon"
-    os.environ["PYBUDA_RIBBON2"] = "1"
+    compiler_cfg.balancer_policy = "CNN"
 
     models = {"tt": mod}
     inputs = [torch.rand(microbatch, cin, input_size[0], input_size[1])]

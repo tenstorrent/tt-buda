@@ -388,54 +388,15 @@ def input_ublock_order(type, attr, num_operands):
 
 
 def execution_cycles(type, arch_name, op_model, theoretical) -> int:
-    # Special handling for sparse matmul as the backend API assumes 1x1 grid, but each sparse matmul core can do
-    # different amount of work, depending on what the encodings (sparse tensor) look like. Call for each core to find
-    # the slowest one.
-    #
-    if op_model.is_sparse_matmul:
-        # Calculate cycles per core
-        #
-        if (
-            os.environ.get("PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS", False)
-            and os.environ.get("PYBUDA_TEMP_SPARSE_ESTIMATE_ARGS_PER_CORE", False)
-        ):
-            cycles_to_return = 0
-            for r in range(op_model.grid_shape.r):
-                # Generate op model desc for current core
-                #
-                op_model_desc = op_model_to_desc(type, arch_name, op_model, sparse_r=r)
-
-                # Get execution cycles, try from cache first, if miss, then calculate
-                #
-                curr_cycles = 0
-                compiler_cache_cycles = get_compiler_cached_cycles(op_model_desc)
-                if compiler_cache_cycles is not None:
-                    curr_cycles = compiler_cache_cycles
-                else:
-                    curr_cycles = get_op_model_execution_cycles(op_model_desc)
-
-                # Save max cycles
-                #
-                cycles_to_return = max(cycles_to_return, curr_cycles)
-        else:
-            # Otherwise fallback to default behavior (create single op_model_desc, and let it decide whether to average
-            # parameters, or to sum and pretend everything is on a single core)
-            #
-            op_model_desc = op_model_to_desc(type, arch_name, op_model)
-            compiler_cache_cycles = get_compiler_cached_cycles(op_model_desc)
-            if compiler_cache_cycles is not None:
-                cycles_to_return = compiler_cache_cycles
-            else:
-                cycles_to_return = get_op_model_execution_cycles(op_model_desc)
-
-        return cycles_to_return
-    # End sparse matmul exec cycles calculation
-
     op_model_desc = op_model_to_desc(type, arch_name, op_model)
 
     compiler_cache_cycles = get_compiler_cached_cycles(op_model_desc)
     if compiler_cache_cycles is not None:
         return compiler_cache_cycles
+
+    is_sparse = op_model.is_sparse_matmul
+    if is_sparse:
+        return get_op_model_execution_cycles(op_model_desc)
 
     # Math fidelity and data format are just estimated guesses for now
     math_fid = math_fidelity_to_multiplier(op_model.math_fidelity())

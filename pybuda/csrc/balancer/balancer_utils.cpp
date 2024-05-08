@@ -4,13 +4,9 @@
 #include "balancer_utils.hpp"
 
 #include <cstdint>
-#include <memory>
 #include <unordered_map>
 
-#include "balancer/types.hpp"
 #include "passes/t_stream.hpp"
-#include "shared_utils/sparse_matmul_utils.hpp"
-#include "utils/assert.hpp"
 #include "utils/hash_combine.hpp"
 #include "utils/logger.hpp"
 #include "utils/profile.hpp"
@@ -587,116 +583,124 @@ ResourceUsage get_edge_resource_usage_simple(
     return usage;
 }
 
-// Calculates sparse matmul metadata that is used for kernel execution cycle estimatation. These are:
-// - number of non-zero tiles per core
-// - number of non-zero ublocks per core
-// - number of non-zero strips per core
-//
-std::shared_ptr<const OpModel::SparseMetadata> get_sparse_matmul_metadata(balancer::OpModel const& op_model)
+std::tuple<uint32_t, uint32_t, uint32_t> get_sparse_matmul_metadata(balancer::OpModel const& op_model)
 {
-    OpModel::SparseMetadata sparse_metadata(op_model.grid_shape.r);
-
+    int grid_r = op_model.grid_shape.r;
+    int u_rt = op_model.output_buffers[0].block_shape.ublock.rt;
+    int u_kt = op_model.input_buffers[1].block_shape.ublock.rt;
+    int t_factor_c = op_model.t_stream_factor.c;
+    int t_factor_r = op_model.t_stream_factor.r;
     const sparse::SparseBUDA& sparse_buda = *(op_model.sparse_buda);
-    const int grid_r = op_model.grid_shape.r;
-    const int u_rt = op_model.output_buffers[0].block_shape.ublock.rt;
-    const int u_kt = op_model.input_buffers[1].block_shape.ublock.rt;
-    const int m_k = sparse_buda.sparse_shape[1] / sparse::TILE_DIM / u_kt;
-    const int t_factor_c = op_model.t_stream_factor.c;
-    const int t_factor_r = op_model.t_stream_factor.r;
-    const int bcast_factor = sparse_buda.bcast_factor;  // broadcast factor
-    const std::vector<sparse::SparseIndex>& sparse_indices = sparse_buda.sparse_indices;
     auto layout = sparse::SparseBUDA::create_layout(
         op_model.has_sparse_buffer() or env_as<bool>("PYBUDA_FORCE_SPARSE_BUFFER_LAYOUT"),
         op_model.t_stream_factor.dir.z_major(),
         op_model.fracture_factor);
+    int bcast_factor = sparse_buda.bcast_factor;
+    int zdim = sparse_buda.sparse_zs.size();
 
-    const int sparse_rt =
-        sparse_buda.sparse_shape[0] / sparse::TILE_DIM;           // number of tiles in row dim of sparse tensor
-    const int bcast_slice_size = sparse_rt / bcast_factor;        // size of each slice after bcast slicing
-    const int r_tiles_in_core = sparse_rt / grid_r / t_factor_r;  // rows of tiles in a single core
-    const int dflow_factor =
-        (layout == sparse::SparseBUDA::Layout::ZMajorDataflow) ? sparse_rt / grid_r / t_factor_r / bcast_factor : 1;
+    // Initialize tiles/ublocks/strips counter
+    int sum_nz_tiles = 0;
+    int sum_nz_ublocks = 0;
+    int sum_nz_strips = 0;
+    constexpr int TILE_DIM = tt::sparse::TILE_DIM;
 
-    // Helper struct - accounting for metadata per core
-    //
-    struct MetadataPerCore
+    struct CounterEntry
     {
-        unsigned int nz_tiles = 0;
-        std::unordered_set<uint64_t> nz_ublocks;
-        std::unordered_set<uint64_t> nz_strips;
+        std::unordered_set<uint64_t> rt_ct_cmb;
+        std::unordered_set<uint64_t> ubc_ubr_cmb;
+        std::unordered_set<int> ubc_idxs;
+        int smallest_rt;
+        CounterEntry() : smallest_rt(INT_MAX){};
     };
 
-    std::vector<MetadataPerCore> metadata_per_core(grid_r);
+    std::vector<CounterEntry> counters;
+    int slice_count = grid_r * t_factor_r;
 
-    // Calculate metadata below
-    // Go through all the sparse indices (coordinates of non-zero tiles in the canonical sparse tensor), and map them to
-    // coords (core, t-dim, ublock, ...) based on the layout provided
-    //
-    // The math below, which is different for each layout, is not obvious. Need to add some documentation to explain.
-    // Tracking issue:
-    // # tenstorrent/pybuda#2601
-    //
-    int r, t, target_rt;
-    for (const sparse::SparseIndex& index : sparse_indices)
+    // Iterate throufh all sparse tensors
+    for (int z = 0; z < zdim; z++)
     {
-        if (layout == sparse::SparseBUDA::Layout::Default)
+        auto sparse = sparse_buda.sparse_zs[z];
+
+        // Take stat of the sparseCOO
+        int dflow_factor = (layout == sparse::SparseBUDA::Layout::ZMajorDataflow)
+                               ? (sparse.rt() / grid_r / t_factor_r / bcast_factor)
+                               : 1;
+        int num_slices = (layout == tt::sparse::SparseBUDA::Layout::Default)
+                             ? grid_r * t_factor_r
+                             : grid_r * t_factor_r * bcast_factor * dflow_factor;
+        std::int64_t slice_height = sparse.shape[0] / num_slices;
+
+        std::vector<CounterEntry> ret(num_slices);
+        for (size_t idx = 0; idx < sparse.rows.size(); idx++)
         {
-            r = (index.rt % (sparse_rt / t_factor_r)) / r_tiles_in_core;
-            t = index.rt / (sparse_rt / t_factor_r);
-            target_rt = index.rt % r_tiles_in_core;
-        }
-        else if (layout == sparse::SparseBUDA::Layout::ZMajor)
-        {
-            int core_factor = std::max(1, grid_r % bcast_factor);
-            r = index.rt / bcast_slice_size * (grid_r / bcast_factor) + (index.rt / r_tiles_in_core) % core_factor;
-            t = (index.rt % (sparse_rt / bcast_factor)) / (sparse_rt / t_factor_r / bcast_factor);
-            target_rt = index.rt % r_tiles_in_core;
-        }
-        else
-        {
-            TT_ASSERT(
-                layout == sparse::SparseBUDA::Layout::ZMajorDataflow || layout == sparse::SparseBUDA::Layout::BufferOp);
-            const int t_slice_size = bcast_slice_size / t_factor_r;  // size of each slice after vslice(t_factor_r)
-            r = (index.rt / dflow_factor) % grid_r;
-            t = index.rt / t_slice_size % t_factor_r;
-            target_rt = (index.rt % bcast_slice_size * bcast_factor + index.rt / bcast_slice_size) %
-                        (bcast_factor * dflow_factor);
+            // Count nonzero tiles/ublocks/strips in the SparseCOO
+            int ret_slice_idx = -1, rt = -1;
+            if (layout == tt::sparse::SparseBUDA::Layout::Default)
+            {
+                ret_slice_idx = sparse.rows[idx] / slice_height;
+                rt = (sparse.rows[idx] % slice_height) / TILE_DIM;
+            }
+            else if (layout == tt::sparse::SparseBUDA::Layout::ZMajor)
+            {
+                int slice_idx = sparse.rows[idx] / slice_height;
+                int inner_idx = (slice_idx / slice_count) * grid_r + (slice_idx % grid_r);
+                int slice_inner_idx = inner_idx % bcast_factor;
+                ret_slice_idx = (slice_idx % (grid_r * t_factor_r)) / grid_r * grid_r + (inner_idx / bcast_factor);
+                int new_rows = (sparse.rows[idx] % slice_height) + slice_height * slice_inner_idx;
+                rt = new_rows / TILE_DIM;
+            }
+            else
+            {
+                TT_ASSERT(
+                    layout == sparse::SparseBUDA::Layout::BufferOp or
+                    layout == sparse::SparseBUDA::Layout::ZMajorDataflow);
+                if (layout == sparse::SparseBUDA::Layout::ZMajorDataflow and
+                    ((sparse.rt() / grid_r / t_factor_r) % bcast_factor != 0))
+                    continue;
+
+                int slice_idx = sparse.rows[idx] / slice_height;
+                int inner_idx = (slice_idx % (dflow_factor * grid_r)) * bcast_factor +
+                                (slice_idx / (dflow_factor * grid_r * t_factor_r));
+                int slice_inner_idx = inner_idx % (bcast_factor * dflow_factor);
+                ret_slice_idx = (slice_idx / (dflow_factor * grid_r)) % t_factor_r * grid_r +
+                                (inner_idx / (bcast_factor * dflow_factor));
+                int new_rows = (sparse.rows[idx] % slice_height) + slice_height * slice_inner_idx;
+                rt = new_rows / TILE_DIM;
+            }
+            int ct = sparse.cols[idx] / TILE_DIM;
+            int ubr_idx = rt / u_rt;
+            int ubc_idx = ct / u_kt;
+            uint64_t rt_ct_key = (uint64_t(rt) << 32) | (ct & 0x0FFFF);
+            uint64_t ubc_ubr_key = (uint64_t(ubc_idx) << 32) | (ubr_idx & 0x0FFFF);
+
+            // Add the metadata to counting struct
+            CounterEntry& e = ret[ret_slice_idx];
+            e.rt_ct_cmb.insert(rt_ct_key);
+            e.ubc_ubr_cmb.insert(ubc_ubr_key);
+            e.ubc_idxs.insert(ubc_idx);
+            if (rt < ret[ret_slice_idx].smallest_rt)
+                ret[ret_slice_idx].smallest_rt = rt;
         }
 
-        const int ublock_r_idx = target_rt / u_rt;
-        const int ublock_c_idx = index.ct / u_kt;
-        const int strip_idx = t * m_k + ublock_c_idx;
-
-        // Insert metadata per core
-        //
-        // - non-zero tiles
-        // - non-zero ublocks
-        // - non-zero strips
-        //
-        metadata_per_core.at(r).nz_tiles++;
-        std::uint64_t ublock_key =
-            static_cast<std::uint64_t>(t) << 48 |                            // 16 bits for t
-            ((static_cast<std::uint64_t>(ublock_r_idx) & 0xFFFFFF) << 24) |  // 24 bits for ublock_r
-            (static_cast<std::uint64_t>(ublock_c_idx) & 0xFFFFFF);           // 24 bits for ublock_c
-        metadata_per_core.at(r).nz_ublocks.insert(ublock_key);
-        metadata_per_core.at(r).nz_strips.insert(strip_idx);
+        // Count tiles, ublocks, strips
+        for (int idx = 0; idx < slice_count; idx++)
+        {
+            const CounterEntry& e = ret[idx];
+            sum_nz_tiles += e.rt_ct_cmb.size();
+            sum_nz_ublocks += e.ubc_ubr_cmb.size();
+            sum_nz_strips += e.ubc_idxs.size();
+            if (e.smallest_rt >= 1 and e.smallest_rt < INT_MAX)
+            {
+                sum_nz_tiles++;
+                sum_nz_ublocks++;
+            }
+        }
     }
 
-    // Copy over the results to return object
-    //
-    for (int r = 0; r < grid_r; ++r)
-    {
-
-        // Previous solution multiplied with t_factor_c - copying that behaviour here... However, it's not obvious
-        // whether this is correct
-        // # tenstorrent/pybuda#2598
-        //
-        sparse_metadata.nz_tiles.at(r) = metadata_per_core.at(r).nz_tiles * t_factor_c;
-        sparse_metadata.nz_ublocks.at(r) = metadata_per_core.at(r).nz_ublocks.size() * t_factor_c;
-        sparse_metadata.nz_strips.at(r) = metadata_per_core.at(r).nz_strips.size() * t_factor_c;
-    }
-
-    return std::make_shared<const OpModel::SparseMetadata>(sparse_metadata);
+    sum_nz_tiles *= t_factor_c;
+    sum_nz_ublocks *= t_factor_c;
+    sum_nz_strips *= t_factor_c;
+    return std::make_tuple<>(sum_nz_tiles, sum_nz_ublocks, sum_nz_strips);
 }
 
 }  // namespace tt::balancer

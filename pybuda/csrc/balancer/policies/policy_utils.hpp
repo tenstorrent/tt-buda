@@ -392,7 +392,6 @@ const OpModel* pick_preferred_op_model(
 {
     auto op_models = current_graph_solver.at(op);
     const OpModel* prefered_op_model = nullptr;
-
     for (const auto& op_model : op_models)
     {
         log_trace(

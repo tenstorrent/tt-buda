@@ -179,7 +179,7 @@ def lower(type, attr, buda_attr, lc, ops, outputs):
         picker = lc.get_pytorch_tensor(in0)
         zdim = 1 if len(picker.shape) < 3 else picker.shape[-3]
 
-        z_bcast_factor = 1 if len(attr) < 2 else attr[1]  # set in sparse matmul's decompose
+        z_bcast_factor = 1 if len(attr) < 2 else attr[1]
 
         # We can fully fracture kH * kW
         max_fracture_factor = z_bcast_factor if is_kernel_fracturing_candidate(ops, z_bcast_factor) else 1
@@ -254,8 +254,6 @@ def decompose(type, attr, dc, inputs):
 
         accumulate = (len(attr) >= 1) and bool(attr[0])
         z_bcast_factor = zdim if (zdim > 1 and in1.shape[-3] == 1) else 1
-
-        # In case of convolutions, z_bcast_factor is the volume of the conv's kernel (kernel_height * kernel_width)
 
         if z_bcast_factor > 1:
             picker = torch.cat([picker[0][z] for z in range(z_bcast_factor)])

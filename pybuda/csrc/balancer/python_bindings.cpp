@@ -10,7 +10,6 @@
 #include "balancer/policies/policy_utils.hpp"
 #include "balancer/python_interface.hpp"
 #include "balancer/balancer_utils.hpp"
-#include "balancer/types.hpp"
 #include "graph_lib/utils.hpp"
 #include "placer/placer.hpp"
 #include "passes/fuse_ops.hpp"
@@ -361,19 +360,11 @@ void BalancerModule(py::module &m_balancer) {
         .def_readonly("output_buffers", &OpModel::output_buffers)
         .def_readonly("parameter_buffers", &OpModel::parameter_buffers)
         .def_readonly("is_sparse_matmul", &OpModel::is_sparse_matmul)
-        .def("get_sparse_metadata", &OpModel::get_sparse_metadata)
+        .def_readonly("nz_tiles", &OpModel::nz_tiles)
+        .def_readonly("nz_ublocks", &OpModel::nz_ublocks)
+        .def_readonly("nz_strips", &OpModel::nz_strips)
         .def("block_shape", &OpModel::block_shape)
         .def("__repr__", [](OpModel const& a) {
-            std::stringstream ss;
-            ss << a;
-            return ss.str();
-        });
-
-    py::class_<OpModel::SparseMetadata>(m_balancer, "SparseMetadata")
-        .def_readonly("nz_tiles", &OpModel::SparseMetadata::nz_tiles)
-        .def_readonly("nz_ublocks", &OpModel::SparseMetadata::nz_ublocks)
-        .def_readonly("nz_strips", &OpModel::SparseMetadata::nz_strips)
-        .def("__repr__", [](OpModel::SparseMetadata const& a) {
             std::stringstream ss;
             ss << a;
             return ss.str();

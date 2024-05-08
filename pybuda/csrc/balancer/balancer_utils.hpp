@@ -134,7 +134,7 @@ ResourceUsage get_edge_resource_usage_simple(
     OpModel const &consumer_op_model,
     bool is_queue = false);
 
-std::shared_ptr<const OpModel::SparseMetadata> get_sparse_matmul_metadata(balancer::OpModel const &grid);
+std::tuple<uint32_t, uint32_t, uint32_t> get_sparse_matmul_metadata(balancer::OpModel const &grid);
 
 }  // namespace tt::balancer
 
