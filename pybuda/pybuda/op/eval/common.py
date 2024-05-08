@@ -331,13 +331,27 @@ def data_format_to_int(df: DataFormat) -> int:
         return 11
     raise RuntimeError(f"Unknown data format {df}")
 
-def op_model_to_desc(type: str, arch_name: str, op_model: OpModel, sub_op_model: FusedSubOpModel = None) -> OpModelDesc:
+def op_model_to_desc(
+    type: str,
+    arch_name: str,
+    op_model: OpModel,
+    sub_op_model: FusedSubOpModel = None,
+    sparse_grid_row=-1,
+) -> OpModelDesc:
+
     desc = OpModelDesc()
     desc.arch = arch_name
     desc.data_format = op_model.data_format
     desc.math_fidelity = op_model.math_fidelity()
     desc.t = op_model.output_buffers[0].block_shape.t
     desc.approx_mode = False
+
+    # tenstorrent/pybuda#2565
+    # Example overrides (DataFormat or MathFidelity) to target sparse estimates v2 when op is originally Bfp8_b+HiFi2
+    # if type == "matmul" and op_model.is_sparse_matmul:
+    #     if desc.data_format == DataFormat.Bfp8_b and desc.math_fidelity == MathFidelity.HiFi2:
+    #         # desc.data_format = DataFormat.Float16_b  # Override DataFormat
+    #         desc.math_fidelity = MathFidelity.LoFi   # Override MathFidelity
 
     if op_model.op_type() == "fused_op":
         desc.type = sub_op_model.type
@@ -366,22 +380,49 @@ def op_model_to_desc(type: str, arch_name: str, op_model: OpModel, sub_op_model:
                 desc.mblock_k = op_model.op_shape.inputs[1].rt // desc.ublock_kt
                 desc.sparse_indices = op_model.sparse_indices
                 if os.environ.get("PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES", False):
-                    desc.sparse_nz_ublocks = op_model.nz_ublocks
-                    desc.sparse_nz_strips = op_model.nz_strips
+                    sparse_metadata = op_model.get_sparse_metadata()
+                    desc.sparse_indices = sum(sparse_metadata.nz_tiles)
+                    desc.sparse_nz_ublocks = sum(sparse_metadata.nz_ublocks)
+                    desc.sparse_nz_strips = sum(sparse_metadata.nz_strips)
 
-                    # op model descriptor assumes grid_size [1, 1], so we need to scale down the number of
-                    # sparse tiles, ublocks and strips to what is expected to end up on a single core
-                    if os.environ.get("PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS", False):
-                        if op_model.nz_tiles > 1:
-                            desc.sparse_indices = max(op_model.nz_tiles // op_model.grid_shape.r, 1)
+                    # Op model descriptor assumes grid_size [1, 1], so we need to scale down the parameters to what is
+                    # expected to end up on a single core. Initially, we did this by averaging the parameters with the
+                    # number of cores. However, not all the cores perform the same amount of work, so we need to
+                    # calculate parameters per core. We keep both of these modes in this transition period.
+                    #
+                    # PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS must be set to true to enable any of the mentioned modes.
+                    #
+                    # Mode 1:
+                    #   Average the parameters (by default)
+                    # Mode 2:
+                    #   Scale the parameters by the number of cores (needs the env var
+                    #   "PYBUDA_TEMP_SPARSE_ESTIMATE_ARGS_PER_CORE" to be set to true)
+                    #
+                    per_core_mode = os.environ.get("PYBUDA_TEMP_SPARSE_ESTIMATE_ARGS_PER_CORE", False)
+                    if not per_core_mode:
+                        # Average mode
+                        #
+                        nz_tiles = sum(sparse_metadata.nz_tiles)
+                        nz_ublocks = sum(sparse_metadata.nz_ublocks)
+                        nz_strips = sum(sparse_metadata.nz_strips)
+
+                        if nz_tiles > 1:
+                            desc.sparse_indices = max(nz_tiles // op_model.grid_shape.r, 1)
                         else:
-                            desc.sparse_indices = op_model.nz_tiles
+                            desc.sparse_indices = nz_tiles
 
-                        if op_model.nz_ublocks > 1:
-                            desc.sparse_nz_ublocks = max(op_model.nz_ublocks // op_model.grid_shape.r, 1)
+                        if nz_ublocks > 1:
+                            desc.sparse_nz_ublocks = max(nz_ublocks // op_model.grid_shape.r, 1)
 
-                        if op_model.nz_strips > 1:
-                            desc.sparse_nz_strips = max(op_model.nz_strips // op_model.grid_shape.r, 1) 
+                        if nz_strips > 1:
+                            desc.sparse_nz_strips = max(nz_strips // op_model.grid_shape.r, 1) 
+                    else:
+                        # Per core mode
+                        #
+                        assert sparse_grid_row != -1  # Must provide which row of cores we're fetching the estimates for
+                        desc.sparse_indices = sparse_metadata.nz_tiles[sparse_grid_row]
+                        desc.sparse_nz_ublocks = sparse_metadata.nz_ublocks[sparse_grid_row]
+                        desc.sparse_nz_strips = sparse_metadata.nz_strips[sparse_grid_row]
                 else:
                     # old sparse estimates
                     if os.environ.get("PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS", False):

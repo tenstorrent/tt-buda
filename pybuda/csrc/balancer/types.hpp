@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <initializer_list>
 #include <map>
+#include <memory>
 #include <ostream>
 #include <set>
 #include <vector>
@@ -263,6 +264,24 @@ struct Padding
 //
 struct OpModel
 {
+    struct SparseMetadata {
+        std::vector<int> nz_tiles;
+        std::vector<int> nz_ublocks;
+        std::vector<int> nz_strips;
+
+        bool operator==(SparseMetadata const &other) const
+        {
+            return nz_tiles == other.nz_tiles and nz_ublocks == other.nz_ublocks and nz_strips == other.nz_strips;
+        }
+
+        SparseMetadata(int grid_r)
+        {
+            nz_tiles.resize(grid_r, 0);
+            nz_ublocks.resize(grid_r, 0);
+            nz_strips.resize(grid_r, 0);
+        }
+    };
+
     UniqueId id;
     GridShape grid_shape;
     OpShape op_shape;
@@ -272,10 +291,9 @@ struct OpModel
     bool sparse_buffer = false;
     bool is_sparse_matmul = false;
     bool consumes_rz_major = false;
-    int nz_tiles = 0;                                 // sparse-matmul specific
-    int nz_ublocks = -1;                              // sparse-matmul specific
-    int nz_strips = -1;                               // sparse-matmul specific
-    const sparse::SparseBUDA *sparse_buda = nullptr;  // sparse-matmul specific
+    const sparse::SparseBUDA *sparse_buda = nullptr;            // sparse-matmul specific
+    std::shared_ptr<const SparseMetadata> sparse_metadata = nullptr;  // sparse-matmul specific
+    // ^ using shared_ptr (vs unique_ptr) to allow for implicit copy construction of OpModel
     TStreamFactor t_stream_factor;
     int fracture_factor;
     int sparse_indices;
@@ -372,8 +390,14 @@ struct OpModel
         return static_cast<float>(get_output_bytes()) / get_execution_cycles(arch_name);
     }
 
+    // PyBind is acting strange with std::shared_ptr, and there seem to be some bugs reported on this, doing this for
+    // now...
+    const SparseMetadata get_sparse_metadata() { return *sparse_metadata.get(); }
+
     bool operator==(OpModel const &other) const { return id == other.id; }
 
+    // This function is used to compare two OpModels for similarity. It is used for caching mechanisms.
+    //
     bool is_similar(OpModel const &other) const
     {
         return buda_op_node == other.buda_op_node
@@ -382,12 +406,10 @@ struct OpModel
         and fracture_factor == other.fracture_factor
         and input_prologue == other.input_prologue
         and sparse_buffer == other.sparse_buffer
-        and nz_tiles == other.nz_tiles
-        and nz_ublocks == other.nz_ublocks
-        and nz_strips == other.nz_strips
         and padding == other.padding
         and input_buffers == other.input_buffers
-        and output_buffers == other.output_buffers;
+        and output_buffers == other.output_buffers
+        and is_similar_sparse_metadata(other);
     }
 
     TensorShape get_out_shape(bool post_t_stream = true) const
@@ -409,6 +431,20 @@ struct OpModel
 
    private:
     int get_execution_cycles_uncached(std::string const &arch_name, bool theoretical = false) const;
+    bool is_similar_sparse_metadata(OpModel const &other) const
+    {
+        if (sparse_metadata == nullptr and other.sparse_metadata == nullptr)
+        {
+            return true;
+        }
+
+        if (sparse_metadata == nullptr or other.sparse_metadata == nullptr)
+        {
+            return false;
+        }
+
+        return *sparse_metadata == *other.sparse_metadata;
+    }
 };
 
 using LegalOpModels = std::unordered_map<graphlib::Node const *, std::vector<OpModel>>;
@@ -860,6 +896,18 @@ inline std::ostream &ostream_with_indent(std::ostream &os, OpModel const &op_mod
 }
 
 inline std::ostream &operator<<(std::ostream &os, OpModel const &op_model) { return ostream_with_indent(os, op_model); }
+
+inline std::ostream &operator<<(std::ostream &os, OpModel::SparseMetadata const &sparse_metadata)
+{
+    os << "SparseMetadata{.nz_tiles = {";
+    for (int nz_tile : sparse_metadata.nz_tiles) os << nz_tile << ", ";
+    os << "}, .nz_ublocks = {";
+    for (int nz_ublock : sparse_metadata.nz_ublocks) os << nz_ublock << ", ";
+    os << "}, .nz_strips = {";
+    for (int nz_strip : sparse_metadata.nz_strips) os << nz_strip << ", ";
+    os << "}}";
+    return os;
+}
 
 inline std::ostream &operator<<(std::ostream &os, FusedSubOpModel const &sub_op_model)
 {
