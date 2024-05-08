@@ -95,7 +95,3 @@ def test_perceiver_for_image_classification_onnx(test_device, model_name):
             pcc=0.96,
         ),
     )
-<<<<<<< HEAD
-        
-=======
->>>>>>> 8a9956a14 (Add perceiver conv and learned model on gs)
