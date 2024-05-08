@@ -14,8 +14,8 @@
 #include "lower_to_buda/graph.hpp"
 #include "lower_to_buda/program.hpp"
 #include "lower_to_buda/queue.hpp"
-#include "passes/fuse_ops.hpp"
 #include "passes/forked_dram_inputs.hpp"
+#include "passes/fuse_ops.hpp"
 #include "placer/utils.hpp"
 #include "utils/assert.hpp"
 #include "utils/logger.hpp"
@@ -33,9 +33,7 @@ void dump_group_of_queues(
 {
     if (qs.size() > 0)
     {
-        ss << std::endl
-           << "  "
-           << "# " << type << std::endl;
+        ss << std::endl << "  " << "# " << type << std::endl;
         for (const BudaQueue &q : qs)
         {
             ss << "  " << q.as_string(longest_name) << std::endl;
@@ -124,53 +122,6 @@ std::string get_buda_queue_type(graphlib::QueueNode *node)
     return node->queue_type_string();
 }
 
-
-static graphlib::Node *get_input_queue_producer(Graph *graph, graphlib::InputNode *node)
-{
-    auto is_partial_datacopy_edge = [](Edge e) { return (e.edge_type == graphlib::EdgeType::kPartialDataCopy); };
-    std::vector<graphlib::Edge> partial_datacopy_edges = graph->operand_edges(node, is_partial_datacopy_edge);
-    auto producers = graph->data_operands(node);
-
-    if (not producers.empty() and not partial_datacopy_edges.empty()) {
-        throw std::runtime_error("Input queue " +  node->name() + " has both producer and partial datacopy edge!");
-    }
-    else if (not producers.empty())
-    {
-        TT_ASSERT(producers.size() == 1);
-        return producers[0];
-    }
-    else if (not partial_datacopy_edges.empty())
-    {
-        std::vector<graphlib::Edge> producer_edges;
-        for (auto edge : partial_datacopy_edges) {
-            auto output_node = graph->node_by_id(edge.producer_node_id);
-            TT_ASSERT(graph->operand_edges(output_node).size() == 1, "Output node should only have 1 producer");
-            producer_edges.push_back(
-                graph->operand_edges(output_node).front()
-            );
-        }
-
-        // Assert all partial datacopy producer edges have the same ublock order
-        TT_ASSERT(
-            std::all_of(
-                producer_edges.begin(),
-                producer_edges.end(),
-                [graph, producer_edges](Edge e)
-                { return graph->get_edge_attributes(e)->get_ublock_order() == graph->get_edge_attributes(producer_edges[0])->get_ublock_order(); }
-            )
-        );
-
-        graphlib::OutputNode *output =
-            graph->node_by_id(partial_datacopy_edges[0].producer_node_id)->as<graphlib::OutputNode>();
-        auto output_producer = graph->data_operands(output);
-        TT_ASSERT(output_producer.size() == 1);
-        TT_ASSERT(output_producer[0]->node_type() == graphlib::NodeType::kBudaOp);
-        return output_producer[0];
-    }
-
-    return nullptr;
-}
-
 // Common code for all queues
 BudaQueue create_queue(
     Graph *graph,
@@ -222,34 +173,12 @@ BudaQueue create_queue(
         q.blocks = block_shape_map.at(producer->name()).as_buda_blocks();
     }
 
-
     switch (node->node_type())
     {
         case NodeType::kInput:
         {
             q.layout = node->as<graphlib::InputNode>()->get_layout();
-
-            if (auto producer = get_input_queue_producer(graph, node->as<graphlib::InputNode>()); producer)
-            {
-                q.ublock_order = get_output_ublock_order(graph, producer);
-            }
-            else
-            {
-                auto consumers = graph->user_data_edges(node);
-                bool all_users_transpose = std::all_of(
-                    consumers.begin(),
-                    consumers.end(),
-                    [graph](graphlib::Edge e) { return graph->get_edge_attributes(e)->has_tm("transpose"); });
-                auto user_ublock_order = graph->get_edge_attributes(consumers.front())->get_ublock_order();
-                bool all_users_same_order = std::all_of(
-                    consumers.begin(),
-                    consumers.end(),
-                    [graph, user_ublock_order](graphlib::Edge e)
-                    { return user_ublock_order == graph->get_edge_attributes(e)->get_ublock_order(); });
-
-                auto q_ublock_order = all_users_same_order ? user_ublock_order : graphlib::UBlockOrder::R;
-                q.ublock_order = all_users_transpose ? flip_ublock_order(q_ublock_order) : q_ublock_order;
-            }
+            q.ublock_order = graphlib::get_input_queue_ublock_order(graph, node);
             break;
         }
         case NodeType::kOutput:  // fallthrough
@@ -291,8 +220,7 @@ static BudaOp create_op(
     std::string const &arch_name,
     std::vector<std::size_t> const &input_dram_io_buf_size_tiles,
     const std::vector<graphlib::Edge> &forked_dram_edges,
-    bool ignore_tms = false
-    )
+    bool ignore_tms = false)
 {
     BudaOp op;
 
@@ -360,7 +288,8 @@ static BudaOp create_op(
         placer::Coord s = placement.placed_cores.start;
         placer::Coord e = placement.placed_cores.end;
         placer::Coord op_grid_size = {.row = e.row - s.row, .col = e.col - s.col};
-        op.grid = (placement.grid_transpose) ? BudaOpGrid{s.row, s.col, op_grid_size.col, op_grid_size.row} :  BudaOpGrid{s.row, s.col, op_grid_size.row, op_grid_size.col};
+        op.grid = (placement.grid_transpose) ? BudaOpGrid{s.row, s.col, op_grid_size.col, op_grid_size.row}
+                                             : BudaOpGrid{s.row, s.col, op_grid_size.row, op_grid_size.col};
         op.grid_transpose = placement.grid_transpose;
 
         validate_op_grid_size(op);
@@ -377,11 +306,16 @@ static BudaOp create_op(
             {
                 // Tile broadcasts are fused into the fused ops themselves
                 std::vector<graphlib::OpType> filtered_tms;
-                std::copy_if(begin(tms), end(tms), std::back_inserter(filtered_tms),
-                        [](auto op_type) { return op_type.op != "tile_broadcast"; });
+                std::copy_if(
+                    begin(tms),
+                    end(tms),
+                    std::back_inserter(filtered_tms),
+                    [](auto op_type) { return op_type.op != "tile_broadcast"; });
                 if (filtered_tms.size() < tms.size())
-                    TT_ASSERT(node->op_type().op == "fused_op", 
-                            "Only fused ops should have tile broadcast TMs: {}", node->name());
+                    TT_ASSERT(
+                        node->op_type().op == "fused_op",
+                        "Only fused ops should have tile broadcast TMs: {}",
+                        node->name());
                 op.tms.insert(std::make_pair(operand.consumer_input_port_id, filtered_tms));
             }
 
@@ -397,7 +331,7 @@ static BudaOp create_op(
                 input_buf_min_size_tiles.push_back(0);
             }
 
-            for (std::size_t i=0; i < op_model.input_buffers.size(); i++)
+            for (std::size_t i = 0; i < op_model.input_buffers.size(); i++)
                 if (op_model.input_buffers[i].minimize_input_buffer)
                 {
                     op.attrs["min_buffer_input"] = (int)i;
@@ -521,7 +455,7 @@ BudaFusedOp create_fused_op(graphlib::BudaOpNode *op, const balancer::OpModel &o
     // This should be a straight data transfer from op attributes to netlist attributes.
     for (auto sch : op->get_fused_op()->get_schedules())
     {
-        std::vector<BudaFusedSubOp> schedule;  
+        std::vector<BudaFusedSubOp> schedule;
         for (FusedSubOp f : sch.ops)
         {
             std::vector<std::string> inputs;
@@ -548,15 +482,15 @@ BudaFusedOp create_fused_op(graphlib::BudaOpNode *op, const balancer::OpModel &o
                     inputs.push_back("intermed" + std::to_string(i.index));
                     if (i.broadcast.second > 0)
                     {
-                        graphlib::OpType brcst("broadcast",std::vector<BudaOpAttr>{(int)i.broadcast.first, (int)i.broadcast.second});
+                        graphlib::OpType brcst(
+                            "broadcast", std::vector<BudaOpAttr>{(int)i.broadcast.first, (int)i.broadcast.second});
                         tms[sub_op_input_count].push_back(brcst);
                     }
                     input_block_shapes.push_back(intermed_ublock_shape.at(i.index));
                 }
                 if (i.tile_broadcast.first)
                 {
-                    tms[sub_op_input_count].push_back(
-                        graphlib::OpType("tile_broadcast", {2}, {}));
+                    tms[sub_op_input_count].push_back(graphlib::OpType("tile_broadcast", {2}, {}));
                 }
                 else if (i.tile_broadcast.second)
                 {
@@ -678,7 +612,7 @@ std::vector<program::Program> create_programs(
     for (unsigned int subgraph_index = 0; subgraph_index < graph->num_subgraphs(); subgraph_index++)
     {
         for (graphlib::NodeEpochType epoch_type :
-            {graphlib::NodeEpochType::Forward, graphlib::NodeEpochType::Backward, graphlib::NodeEpochType::Optimizer})
+             {graphlib::NodeEpochType::Forward, graphlib::NodeEpochType::Backward, graphlib::NodeEpochType::Optimizer})
         {
             // Get fwd epochs
             std::vector<std::uint32_t> epochs = buda_graph.get_matching_epoch(epoch_type);
@@ -703,7 +637,7 @@ std::vector<program::Program> create_programs(
                         if ((node->node_type() == graphlib::NodeType::kInput) ||
                             (node->node_type() == graphlib::NodeType::kQueue))
                             edges = graph->user_data_edges(node);
-                        else if (node->node_type() == graphlib::NodeType::kOutput) 
+                        else if (node->node_type() == graphlib::NodeType::kOutput)
                         {
                             edges = graph->operand_data_edges(node);
                             check_producer = true;
@@ -711,7 +645,8 @@ std::vector<program::Program> create_programs(
                         // If there's any edge matching, we should record the connection between queue and epoch
                         for (Edge edge : edges)
                         {
-                            Node *neighbour = graph->node_by_id(check_producer ? edge.producer_node_id : edge.consumer_node_id);
+                            Node *neighbour =
+                                graph->node_by_id(check_producer ? edge.producer_node_id : edge.consumer_node_id);
                             try
                             {
                                 if (
@@ -721,9 +656,9 @@ std::vector<program::Program> create_programs(
                                     (
                                         // Input
                                         ((node->node_type() == graphlib::NodeType::kInput) &&
-                                        (node->as<graphlib::InputNode>()->is_activation() ||
-                                        node->as<graphlib::InputNode>()->is_loss() ||
-                                        node->as<graphlib::InputNode>()->is_target()))
+                                         (node->as<graphlib::InputNode>()->is_activation() ||
+                                          node->as<graphlib::InputNode>()->is_loss() ||
+                                          node->as<graphlib::InputNode>()->is_target()))
 
                                         // Or e2e
                                         || ((node->node_type() == graphlib::NodeType::kQueue) &&
@@ -731,7 +666,12 @@ std::vector<program::Program> create_programs(
 
                                         // Or output with loopback edge
                                         || ((node->node_type() == graphlib::NodeType::kOutput) &&
-                                            not graph->user_edges(node, [](Edge e) { return e.edge_type == graphlib::EdgeType::kPartialDataCopy; }).empty())
+                                            not graph
+                                                    ->user_edges(
+                                                        node,
+                                                        [](Edge e)
+                                                        { return e.edge_type == graphlib::EdgeType::kPartialDataCopy; })
+                                                    .empty())
 
                                         // Or buffering queue
                                         || ((node->node_type() == graphlib::NodeType::kQueue) &&
@@ -741,7 +681,8 @@ std::vector<program::Program> create_programs(
                             catch (std::out_of_range &e)
                             {
                                 throw std::runtime_error(
-                                    "Op missing in placement results for " + neighbour->name() + ", something went wrong.");
+                                    "Op missing in placement results for " + neighbour->name() +
+                                    ", something went wrong.");
                             }
                         }
 
@@ -769,7 +710,7 @@ std::vector<program::Program> create_programs(
                                     // Our epoch
                                     (placer_solution.name_to_op_placement.at(user->name()).epoch_id() == epoch) &&
                                     ((node->as<graphlib::InputNode>()->is_parameter()) ||
-                                    (node->as<graphlib::InputNode>()->is_constant())))
+                                     (node->as<graphlib::InputNode>()->is_constant())))
                                     return true;
                             }
                             catch (std::out_of_range &e)
@@ -813,11 +754,11 @@ std::vector<program::Program> create_programs(
                             return
                                 // Bwd
                                 ((placer_solution.name_to_op_placement.at(producer->name()).epoch_id() == epoch) &&
-                                producer->as<graphlib::BudaOpNode>()->is_gradient_op()) ||
+                                 producer->as<graphlib::BudaOpNode>()->is_gradient_op()) ||
 
                                 // Optimizer
                                 ((consumer != nullptr) &&
-                                (placer_solution.name_to_op_placement.at(consumer->name()).epoch_id() == epoch));
+                                 (placer_solution.name_to_op_placement.at(consumer->name()).epoch_id() == epoch));
                         }
                         catch (std::out_of_range &e)
                         {
@@ -848,7 +789,7 @@ std::vector<program::Program> create_programs(
                             std::pair<program::VariableP, program::VariableP>>>>>
                 qvars_map;
             auto qvars = [&qvars_map, &qvar_index](
-                            graphlib::Node *node, int epoch, program::Variable::ShadowType shadow_type, bool is_static)
+                             graphlib::Node *node, int epoch, program::Variable::ShadowType shadow_type, bool is_static)
             {
                 std::string type = "";
                 std::uint32_t size = node->as<graphlib::QueueNode>()->get_num_entries();
@@ -905,21 +846,29 @@ std::vector<program::Program> create_programs(
                         // If queue is static
                         if (queue_static)
                         {
-                            // If (buffering) queue is statically allocated, its num_entries has to be at least microbatch_size, because
+                            // If (buffering) queue is statically allocated, its num_entries has to be at least
+                            // microbatch_size, because
                             //  global_rdptr_autoinc is false.
                             uint32_t num_entries = q->as<graphlib::QueueNode>()->get_num_entries();
-                            TT_ASSERT(num_entries >= microbatch_size, "Buffering queue {} has num_entries: {}, but microbatch_size is: {}. Since queue is static it needs to have num_entries at least microbatch size.", q->name(), num_entries, microbatch_size);
+                            TT_ASSERT(
+                                num_entries >= microbatch_size,
+                                "Buffering queue {} has num_entries: {}, but microbatch_size is: {}. Since queue is "
+                                "static it needs to have num_entries at least microbatch size.",
+                                q->name(),
+                                num_entries,
+                                microbatch_size);
                             // Need to increment static queue rd/wtr ptrs as queue is persistant
                             uint32_t temporal_epoch_id = placer_solution.temporal_epoch_id(epoch);
-                            const auto &[lptr, gptr] = qvars(q, temporal_epoch_id, program::Variable::ShadowType::NONE, true);
+                            const auto &[lptr, gptr] =
+                                qvars(q, temporal_epoch_id, program::Variable::ShadowType::NONE, true);
 
                             auto qs = program::QueueSettings(
-                            q->name(),
-                            program::QueueAttributes{
-                                .read_ptr_global_ = gptr,
-                                .read_ptr_local_ = lptr,
-                                .epoch_allocate = -1,
-                                .epoch_deallocate = -1});
+                                q->name(),
+                                program::QueueAttributes{
+                                    .read_ptr_global_ = gptr,
+                                    .read_ptr_local_ = lptr,
+                                    .epoch_allocate = -1,
+                                    .epoch_deallocate = -1});
 
                             std::uint32_t wrap_value = q->as<graphlib::QueueNode>()->get_num_entries();
                             increment_list[epoch_index].insert(std::make_tuple(lptr->name(), lptr, wrap_value, true));
@@ -937,7 +886,8 @@ std::vector<program::Program> create_programs(
                                     .read_ptr_local_ = nullptr,
                                     .epoch_allocate = (int)epoch,
                                     .epoch_deallocate = (int)epoch});
-                            // since buffering queue is produced and consumed within the same epoch, we alway enable global autoincrement
+                            // since buffering queue is produced and consumed within the same epoch, we alway enable
+                            // global autoincrement
                             qs.global_rdptr_autoinc = true;
                             queue_settings[epoch_index].push_back(qs);
                         }
@@ -953,7 +903,6 @@ std::vector<program::Program> create_programs(
                     else
                     {
                         read_global = (temporal_epoch_id == get_last_epoch_use(graph, q, placer_solution));
-
                     }
                     auto [epoch_allocate, epoch_deallocate] = get_epoch_allocate_deallocate(q, placer_solution);
 
@@ -964,10 +913,17 @@ std::vector<program::Program> create_programs(
                     program::Variable::ShadowType shadow_pointer_type = program::Variable::ShadowType::NONE;
                     if (needs_shadow_global_read_pointer)
                     {
-                        if (epoch_type == graphlib::NodeEpochType::Forward) {
-                            shadow_pointer_type = any_consumers_cross_epoch(graph, q) ? program::Variable::ShadowType::CROSS_PROGRAM : program::Variable::ShadowType::CROSS_EPOCH;
-                        } else {
-                            shadow_pointer_type = program::Variable::ShadowType::CROSS_EPOCH;  // backward & opt are always the last consumer program
+                        if (epoch_type == graphlib::NodeEpochType::Forward)
+                        {
+                            shadow_pointer_type = any_consumers_cross_epoch(graph, q)
+                                                      ? program::Variable::ShadowType::CROSS_PROGRAM
+                                                      : program::Variable::ShadowType::CROSS_EPOCH;
+                        }
+                        else
+                        {
+                            shadow_pointer_type =
+                                program::Variable::ShadowType::CROSS_EPOCH;  // backward & opt are always the last
+                                                                             // consumer program
                         }
                     }
                     bool is_write_only = placer_solution.name_to_queue_placement[q->name()].write_only;
@@ -977,7 +933,9 @@ std::vector<program::Program> create_programs(
                         int write_stride = placer_solution.name_to_queue_placement[q->name()].write_stride;
                         auto write_ptr = std::make_shared<program::Variable>("v_cache_write_index", true);
                         auto qs = program::QueueSettings(
-                            q->name(), program::RamAttributes{.read_ptr_ = nullptr, .write_ptr_ = write_stride != 1 ? write_ptr : nullptr});
+                            q->name(),
+                            program::RamAttributes{
+                                .read_ptr_ = nullptr, .write_ptr_ = write_stride != 1 ? write_ptr : nullptr});
                         if (write_stride != 1)
                         {
                             qs.global_wrptr_autoinc =
@@ -993,9 +951,9 @@ std::vector<program::Program> create_programs(
                         // auto read_ptr = std::make_shared<program::Variable>("v_cache_write_index", true);
                         auto qs = program::QueueSettings(
                             q->name(), program::RamAttributes{.read_ptr_ = nullptr, .write_ptr_ = nullptr});
-                            
+
                         qs.read_only = true;
-                        qs.global_rdptr_autoinc = 1; // RAM needs global_rdptr_autoinc
+                        qs.global_rdptr_autoinc = 1;  // RAM needs global_rdptr_autoinc
                         queue_settings[epoch_index].push_back(qs);
                         has_cache_buffers = true;
                     }
@@ -1016,7 +974,8 @@ std::vector<program::Program> create_programs(
                             });
 
                         bool rd_ptr_autoinc_enabled = (read_global && firmware_looping_enabled);
-                        if (rd_ptr_autoinc_enabled) {
+                        if (rd_ptr_autoinc_enabled)
+                        {
                             qs.global_rdptr_autoinc = true;
                         }
                         queue_settings[epoch_index].push_back(qs);
@@ -1029,7 +988,8 @@ std::vector<program::Program> create_programs(
                     }
                 }
 
-                if ((epoch_type == graphlib::NodeEpochType::Forward) || (epoch_type == graphlib::NodeEpochType::Backward))
+                if ((epoch_type == graphlib::NodeEpochType::Forward) ||
+                    (epoch_type == graphlib::NodeEpochType::Backward))
                 {
                     // In forward and backward, all parameter and constant queues should be read in during prologue
                     for (graphlib::Node *q : parameter_queues[epoch_index])
@@ -1042,9 +1002,9 @@ std::vector<program::Program> create_programs(
                                 auto read_ptr = std::make_shared<program::Variable>("v_cache_read", true);
                                 auto qs = program::QueueSettings(
                                     q->name(), program::RamAttributes{.read_ptr_ = read_ptr, .write_ptr_ = nullptr});
-                                    
+
                                 qs.read_only = true;
-                                qs.global_rdptr_autoinc = 1; // RAM needs global_rdptr_autoinc
+                                qs.global_rdptr_autoinc = 1;  // RAM needs global_rdptr_autoinc
                                 queue_settings[epoch_index].push_back(qs);
                                 if (not has_cache_read_buffer)
                                 {
@@ -1134,10 +1094,10 @@ std::vector<program::Program> create_programs(
                 }
             }
 
-            std::string program_name = (epoch_type == graphlib::NodeEpochType::Forward)           ? "run_fwd_"
-                                            : (epoch_type == graphlib::NodeEpochType::Backward)  ? "run_bwd_"
-                                            : (epoch_type == graphlib::NodeEpochType::Optimizer) ? "run_opt_"
-                                                                                                : "error";
+            std::string program_name = (epoch_type == graphlib::NodeEpochType::Forward)     ? "run_fwd_"
+                                       : (epoch_type == graphlib::NodeEpochType::Backward)  ? "run_bwd_"
+                                       : (epoch_type == graphlib::NodeEpochType::Optimizer) ? "run_opt_"
+                                                                                            : "error";
             program_name += std::to_string(subgraph_index);
 
             for (const auto &[epoch, qvars] : qvars_map)
@@ -1207,24 +1167,24 @@ std::vector<program::Program> create_programs(
                 is_optimizer_loop,
                 has_cache_buffers,
                 [&queue_settings,
-                &temporal_to_spatial_epochs,
-                epoch_type,
-                &increment_list,
-                has_zero_grad,
-                &epoch_to_epoch_index,
-                &arch_string,
-                &last_bwd_epoch,
-                &alloc_queue_cmds,
-                &dealloc_queue_cmds,
-                &buda_graph,
-                is_optimizer_loop,
-                &firmware_looping_enabled,
-                subgraph_index,
-                placer_solution](program::Program &p)
+                 &temporal_to_spatial_epochs,
+                 epoch_type,
+                 &increment_list,
+                 has_zero_grad,
+                 &epoch_to_epoch_index,
+                 &arch_string,
+                 &last_bwd_epoch,
+                 &alloc_queue_cmds,
+                 &dealloc_queue_cmds,
+                 &buda_graph,
+                 is_optimizer_loop,
+                 &firmware_looping_enabled,
+                 subgraph_index,
+                 placer_solution](program::Program &p)
                 {
                     // Loop body
                     for (std::uint32_t temporal_epoch_id = 0; temporal_epoch_id < temporal_to_spatial_epochs.size();
-                        temporal_epoch_id++)
+                         temporal_epoch_id++)
                     {
                         // Add queue allocate command for the temporal epoch
                         if (alloc_queue_cmds.count(temporal_epoch_id) > 0)
@@ -1234,16 +1194,16 @@ std::vector<program::Program> create_programs(
 
                         bool empty_temporal_epoch = true;
                         for (std::uint32_t spatial_epoch_index = 0;
-                            spatial_epoch_index < temporal_to_spatial_epochs[temporal_epoch_id].size();
-                            spatial_epoch_index++)
+                             spatial_epoch_index < temporal_to_spatial_epochs[temporal_epoch_id].size();
+                             spatial_epoch_index++)
                         {
                             std::uint32_t epoch = temporal_to_spatial_epochs[temporal_epoch_id][spatial_epoch_index];
                             empty_temporal_epoch &= buda_graph.ops[epoch].empty();
                         }
 
                         for (std::uint32_t spatial_epoch_index = 0;
-                            spatial_epoch_index < temporal_to_spatial_epochs[temporal_epoch_id].size();
-                            spatial_epoch_index++)
+                             spatial_epoch_index < temporal_to_spatial_epochs[temporal_epoch_id].size();
+                             spatial_epoch_index++)
                         {
                             if (empty_temporal_epoch)
                             {
@@ -1272,8 +1232,8 @@ std::vector<program::Program> create_programs(
                         std::unordered_set<std::string> q_ptr_variables_incremented_this_temporal_epoch = {};
 
                         for (std::uint32_t spatial_epoch_index = 0;
-                            spatial_epoch_index < temporal_to_spatial_epochs[temporal_epoch_id].size();
-                            spatial_epoch_index++)
+                             spatial_epoch_index < temporal_to_spatial_epochs[temporal_epoch_id].size();
+                             spatial_epoch_index++)
                         {
                             std::uint32_t epoch = temporal_to_spatial_epochs[temporal_epoch_id][spatial_epoch_index];
                             if (placer_solution.epoch_id_to_subgraph_index.at(epoch) != subgraph_index)
@@ -1282,18 +1242,25 @@ std::vector<program::Program> create_programs(
 
                             for (auto [var_name, var, wrap_value, double_wrap] : increment_list[epoch_index])
                             {
-                                if (firmware_looping_enabled) {
+                                if (firmware_looping_enabled)
+                                {
                                     continue;
                                 }
                                 if (var->needs_shadow_global_read_pointer())
                                 {
                                     var = var->get_shadow_global_read_pointer();
                                 }
-                                if (q_ptr_variables_incremented_this_temporal_epoch.find(var->name()) == q_ptr_variables_incremented_this_temporal_epoch.end()) {
+                                if (q_ptr_variables_incremented_this_temporal_epoch.find(var->name()) ==
+                                    q_ptr_variables_incremented_this_temporal_epoch.end())
+                                {
                                     int wrap =
-                                        double_wrap ? wrap_value * 2 : wrap_value;  // hack for backend to set wrap to wrap x2 to match hardware wrap
+                                        double_wrap ? wrap_value * 2 : wrap_value;  // hack for backend to set wrap to
+                                                                                    // wrap x2 to match hardware wrap
                                     p.instruction_incwrap(
-                                        var, is_optimizer_loop or not double_wrap ? p.get_var("c_one") : p.get_var("c_microbatch_size"), wrap);
+                                        var,
+                                        is_optimizer_loop or not double_wrap ? p.get_var("c_one")
+                                                                             : p.get_var("c_microbatch_size"),
+                                        wrap);
                                     q_ptr_variables_incremented_this_temporal_epoch.insert(var->name());
                                 }
                             }
@@ -1320,7 +1287,7 @@ static std::vector<std::size_t> get_input_dram_io_buf_size_tiles(
     Node const *node,
     balancer::OpModel const &op_model)
 {
-    placer::OpPlacement const& op_placement = placer_solution.name_to_op_placement.at(node->name());
+    placer::OpPlacement const &op_placement = placer_solution.name_to_op_placement.at(node->name());
     auto dram_io_queue_node = [&placer_solution, &op_placement](graphlib::Node *operand)
     {
         auto *queue = dynamic_cast<graphlib::QueueNode *>(operand);
@@ -1415,8 +1382,8 @@ BudaNetlist lower_to_buda_netlist(
     }
 
     // Returns a mapping of keys that are input edges that can reuse the DRAM reads of the mapped values
-    std::unordered_map<graphlib::Edge, graphlib::Edge> forked_dram_inputs =
-    tt::passes::get_forked_dram_inputs(enable_forked_dram_inputs, graph, &placer_solution.name_to_op_placement, &balancer_solution->op_models);
+    std::unordered_map<graphlib::Edge, graphlib::Edge> forked_dram_inputs = tt::passes::get_forked_dram_inputs(
+        enable_forked_dram_inputs, graph, &placer_solution.name_to_op_placement, &balancer_solution->op_models);
 
     for (Node *node : graphlib::topological_sort(*graph))
     {
@@ -1499,8 +1466,7 @@ BudaNetlist lower_to_buda_netlist(
 
                 if (node->as<graphlib::BudaOpNode>()->is_fused_op())
                 {
-                    BudaFusedOp fused_op = create_fused_op(
-                        node->as<graphlib::BudaOpNode>(), op_model);
+                    BudaFusedOp fused_op = create_fused_op(node->as<graphlib::BudaOpNode>(), op_model);
                     bool reused = false;
                     for (const BudaFusedOp &prev : net.fused_ops)
                     {

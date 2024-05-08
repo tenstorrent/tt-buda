@@ -3,24 +3,26 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
+
+#include <functional>
 #include <string_view>
 #include <typeindex>
 #include <typeinfo>
-#include <functional>
 
-#include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
+#include "graph_lib/defines.hpp"
 namespace py = pybind11;
 
+#include "graph_lib/edge.hpp"
 #include "graph_lib/graph.hpp"
 #include "graph_lib/node.hpp"
-#include "graph_lib/edge.hpp"
+#include "python_bindings_common.hpp"
 #include "third_party/json/json.hpp"
 
-#include "python_bindings_common.hpp"
-
 template <typename T>
-constexpr auto type_name(const T&) noexcept {
+constexpr auto type_name(const T &) noexcept
+{
     std::string_view name = __PRETTY_FUNCTION__;
     std::string_view prefix = "auto type_name(const T &) [T = ";
     std::string_view suffix = "]";
@@ -29,18 +31,21 @@ constexpr auto type_name(const T&) noexcept {
     return name;
 }
 
-namespace tt {
+namespace tt
+{
 
-namespace graphlib {
+namespace graphlib
+{
 struct OpType;
 class QueueNode;
+class InputNode;
 
 // pass through
-bool default_node_filter(Node*);
+bool default_node_filter(Node *);
 
 // Checks if given opnode is element-wise
 class OpNode;
-bool is_eltwise(const OpNode* op);
+bool is_eltwise(const OpNode *op);
 bool is_eltwise_nary(const OpNode *op);
 bool is_eltwise_unary(const OpNode *op);
 bool is_eltwise_binary(const OpNode *op);
@@ -55,7 +60,7 @@ TileDim get_tile_dim_from_height_width(int tile_height, int tile_width);
 std::vector<Node *> topological_sort(
     Graph const &graph, std::function<bool(Node *)> node_filter = default_node_filter, bool unroll_loops = false);
 
-std::vector<std::vector<Node*>> topological_generations(const Graph& graph);
+std::vector<std::vector<Node *>> topological_generations(const Graph &graph);
 
 // Returns vector of all visible nodes in the graph.
 //
@@ -64,21 +69,20 @@ std::vector<Node *> visible_nodes(Graph const &graph, std::function<bool(Node *)
 // Find the longest path from the graph. Optionally look for paths that don't start from ordered inputs.
 std::vector<Node *> get_longest_path(const Graph *graph, bool from_inputs_only = true);
 
-std::vector<Node*> get_nodes_with_indegree_zero(Graph* graph);
-std::vector<Node*> get_nodes_with_outdegree_zero(Graph* graph);
-std::vector<Node*> get_nodes_with_data_outdegree_zero(Graph* graph);
+std::vector<Node *> get_nodes_with_indegree_zero(Graph *graph);
+std::vector<Node *> get_nodes_with_outdegree_zero(Graph *graph);
+std::vector<Node *> get_nodes_with_data_outdegree_zero(Graph *graph);
 
 // Insert new node on the given edge. Node attributes will be picked up from consumer node.
 // Returns new edges to and from the new node.
 std::pair<Edge, Edge> insert_node_on_edge(
-    Graph *graph, 
-    Edge &edge, 
-    Node *node, 
-    bool inherit_consumer_attrs = true, 
+    Graph *graph,
+    Edge &edge,
+    Node *node,
+    bool inherit_consumer_attrs = true,
     bool remove_edge = true,
     std::uint32_t consumer_index = 0,
-    bool place_tms_on_outgoing = false
-);
+    bool place_tms_on_outgoing = false);
 
 QueueNode *create_buffering_queue(
     Graph *graph, const graphlib::Node *producer_node, const std::string name, int num_entries);
@@ -115,16 +119,19 @@ Edge swap(
 std::vector<Node *> subgraph(const Graph *graph, Node *producer, Node *consumer);
 
 // Return nodes reachable from a given start node, using only data edges
-std::vector<Node *> reachable_nodes(const Graph *graph, Node *start, std::function<bool(Node *)> node_filter = default_node_filter, bool ancenstors_only = false);
+std::vector<Node *> reachable_nodes(
+    const Graph *graph,
+    Node *start,
+    std::function<bool(Node *)> node_filter = default_node_filter,
+    bool ancenstors_only = false);
 
-std::vector<Node *> top_row(
-    Graph const *graph, std::vector<Node *> const &nodes);
+std::vector<Node *> top_row(Graph const *graph, std::vector<Node *> const &nodes);
 
-std::vector<Node *> bot_row(
-    Graph const *graph, std::vector<Node *> const &nodes);
+std::vector<Node *> bot_row(Graph const *graph, std::vector<Node *> const &nodes);
 
 // Check if there is a data dependency between two nodes(producer, consumer), return true if it exists
-bool check_producer_consumer(Graph* graph, Node* producer, Node* consumer, std::function<bool(Node*)> node_filter = default_node_filter);
+bool check_producer_consumer(
+    Graph *graph, Node *producer, Node *consumer, std::function<bool(Node *)> node_filter = default_node_filter);
 
 // Return a subset of graph nodes in their respective topological order
 // There are two ways to filter:
@@ -179,7 +186,7 @@ graphlib::Node *cascade_nary_to_binary_op(graphlib::Graph *graph, graphlib::Node
 void convert_implicit_to_explicit_bcasts(Graph *graph, Edge edge);
 
 // Swap dimensions of any broadcast tms, return true if change made
-bool swap_broadcast_dims(graphlib::Graph *graph, graphlib::Edge edge, int old_dim, int new_dim); 
+bool swap_broadcast_dims(graphlib::Graph *graph, graphlib::Edge edge, int old_dim, int new_dim);
 
 // Insert squeezes / unsqueezes to satisfy change in rank
 void handle_change_rank(graphlib::Graph *graph, graphlib::Edge edge);
@@ -187,7 +194,8 @@ void handle_change_rank(graphlib::Graph *graph, graphlib::Node *node);
 
 // This function clones the input producer node and creates a new edge connection replacing
 // the old edge. user_edge must come from an input node, returns new edge.
-graphlib::Edge clone_input_forking_edge(graphlib::Graph *graph, graphlib::Edge user_edge, bool allow_single_user = false);
+graphlib::Edge clone_input_forking_edge(
+    graphlib::Graph *graph, graphlib::Edge user_edge, bool allow_single_user = false);
 
 graphlib::Shape default_tm_evaluator(graphlib::OpType const &tm, graphlib::Shape shape, graphlib::IRLevel ir_level);
 graphlib::Shape ignore_broadcast_tm_evaluator(
@@ -214,7 +222,9 @@ bool tms_support_kernel_broadcast(
 // Calculate node shape from operand shapes, using python callback
 void calculate_and_set_node_shape(Graph *graph, Node *node);
 
+tt::graphlib::Node *get_input_queue_producer(Graph const *graph, tt::graphlib::InputNode const *node);
 std::vector<tt::graphlib::UBlockOrder> get_input_ublock_order(Graph const *graph, Node const *node);
+tt::graphlib::UBlockOrder get_input_queue_ublock_order(Graph const *graph, Node const *node);
 tt::graphlib::UBlockOrder get_output_ublock_order(Graph const *graph, Node const *node);
 
 // Insert NOP on an edge with transpose TM, then flip ublock order for better streaming
@@ -223,11 +233,12 @@ bool try_insert_nop_on_transpose_edge(Graph *graph, Edge &edge);
 
 // Return a vector of pairs of optimizer parameter input nodes and optimizer key names for a given model parameter node
 class InputNode;
-std::vector<std::pair<InputNode *, std::string>> get_optimizer_param_info(const Graph *graph, const Node *model_parameter);
+std::vector<std::pair<InputNode *, std::string>> get_optimizer_param_info(
+    const Graph *graph, const Node *model_parameter);
 
 bool is_constant_input(const Node *node);
 bool is_recompute(const Graph *graph, const Node *node);
-Node* get_fwd_from_recompute(const Graph *graph, const Node *node);
+Node *get_fwd_from_recompute(const Graph *graph, const Node *node);
 
 bool can_swap_operands(Graph *graph, Node *node);
 void swap_operands(Graph *graph, Node *node);
@@ -247,7 +258,8 @@ std::unique_ptr<Node> try_consteval_op(Graph *graph, Node *node, bool dump_graph
 
 bool try_consteval_input_no_operand_forks(Graph *graph, InputNode *input, bool dump_graph = false);
 
-class ConstEvalGraph {
+class ConstEvalGraph
+{
    public:
     explicit ConstEvalGraph(
         std::string const &name, Node *runtime_input, bool promote_input, unsigned int subgraph_id, int unique_id = -1);
@@ -292,15 +304,17 @@ enum class RuntimeTensorTransformType
     Concatenate,
 };
 
-NLOHMANN_JSON_SERIALIZE_ENUM(tt::graphlib::RuntimeTensorTransformType, {
-    {tt::graphlib::RuntimeTensorTransformType::NoTransform, "NoTransform"},
-    {tt::graphlib::RuntimeTensorTransformType::ReinterpretShape, "ReinterpretShape"},
-    {tt::graphlib::RuntimeTensorTransformType::Prestride, "Prestride"},
-    {tt::graphlib::RuntimeTensorTransformType::EmbeddingIndex, "EmbeddingIndex"},
-    {tt::graphlib::RuntimeTensorTransformType::ConstantInput, "ConstantInput"},
-    {tt::graphlib::RuntimeTensorTransformType::Unpad, "Unpad"},
-    {tt::graphlib::RuntimeTensorTransformType::Concatenate, "Concatenate"},
-});
+NLOHMANN_JSON_SERIALIZE_ENUM(
+    tt::graphlib::RuntimeTensorTransformType,
+    {
+        {tt::graphlib::RuntimeTensorTransformType::NoTransform, "NoTransform"},
+        {tt::graphlib::RuntimeTensorTransformType::ReinterpretShape, "ReinterpretShape"},
+        {tt::graphlib::RuntimeTensorTransformType::Prestride, "Prestride"},
+        {tt::graphlib::RuntimeTensorTransformType::EmbeddingIndex, "EmbeddingIndex"},
+        {tt::graphlib::RuntimeTensorTransformType::ConstantInput, "ConstantInput"},
+        {tt::graphlib::RuntimeTensorTransformType::Unpad, "Unpad"},
+        {tt::graphlib::RuntimeTensorTransformType::Concatenate, "Concatenate"},
+    });
 
 class RuntimeTensorTransform
 {
@@ -338,11 +352,20 @@ class RuntimeTensorTransform
         int kernel_width,
         int concat_group,
         int concat_index,
-        int concat_dim)
-        : type(type), original_shape(original_shape), reinterpreted_shape(reinterpreted_shape),
-          unpadded_shape(unpadded_shape), stride_height(stride_height), stride_width(stride_width),
-          kernel_height(kernel_height), kernel_width(kernel_width), concat_group(concat_group),
-          concat_index(concat_index), concat_dim(concat_dim) {}
+        int concat_dim) :
+        type(type),
+        original_shape(original_shape),
+        reinterpreted_shape(reinterpreted_shape),
+        unpadded_shape(unpadded_shape),
+        stride_height(stride_height),
+        stride_width(stride_width),
+        kernel_height(kernel_height),
+        kernel_width(kernel_width),
+        concat_group(concat_group),
+        concat_index(concat_index),
+        concat_dim(concat_dim)
+    {
+    }
 
     RuntimeTensorTransform(Shape original_shape, Shape reinterpreted_shape)
     {
@@ -390,10 +413,7 @@ class RuntimeTensorTransform
         this->constant_tensor = make_shared_py_object(tensor);
     }
 
-    py::object get_constant_input_tensor()
-    {
-        return borrow_shared_py_object(this->constant_tensor);
-    }
+    py::object get_constant_input_tensor() { return borrow_shared_py_object(this->constant_tensor); }
 
     NLOHMANN_DEFINE_TYPE_INTRUSIVE(
         RuntimeTensorTransform,
@@ -410,10 +430,8 @@ class RuntimeTensorTransform
         concat_dim);
 
    private:
-
     // Constant Input
     std::shared_ptr<void> constant_tensor;
-
 };
 bool are_different_ranked_shapes_equivalent(Shape a, Shape b);
 
