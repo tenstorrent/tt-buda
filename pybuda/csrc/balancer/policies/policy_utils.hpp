@@ -279,6 +279,8 @@ int get_limiter_cycles(
     bool invalidate_cached = false,
     const OpModels* selected_op_models = nullptr);
 
+float scale_bandwidth_wrt_fork_factor(const float bw_without_fork, const float fork_factor);
+
 float get_dram_read_bw_estimation_for_edge(
     const Graph* graph,
     const Edge& queue_to_op_edge,

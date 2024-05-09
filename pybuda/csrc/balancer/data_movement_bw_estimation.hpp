@@ -304,16 +304,6 @@ class DramReadEstimator : public Estimator
 
    private:
     BandwidthBucket estimate_bandwidth_impl() const override;
-
-    BandwidthBucket make_bandwidth_prediction(
-        const int unpacker_buffer_size_bytes,
-        const int dram_buf_read_chunk_size_tiles,
-        const int dram_scatter_chunk_size_tiles) const;
-
-    BandwidthBucket scale_bandwidth_wrt_fork_factor(const double bw_without_fork, const int fork_factor) const;
-
-    constexpr static int c_linear_noc_threshold = 20;
-    constexpr static int c_theoretical_noc_threshold = 24;
 };
 
 //----------------------------------------------------------------------------------------------------------------------

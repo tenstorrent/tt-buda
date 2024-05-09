@@ -1856,6 +1856,29 @@ std::optional<OpModel> get_op_model_for_input_queue(
     }
 }
 
+float scale_bandwidth_wrt_fork_factor(const float bw_without_fork, const float fork_factor)
+{
+    constexpr static float c_linear_noc_threshold = 20.0f;
+    constexpr static float c_theoretical_noc_threshold = 24.0f;
+
+    const float linear_cap = c_linear_noc_threshold / fork_factor;
+    const float theoretical_cap = c_theoretical_noc_threshold / fork_factor;
+
+    if (bw_without_fork <= linear_cap || fork_factor <= 1.0f)
+    {
+        return bw_without_fork;
+    }
+
+    const float dx = c_theoretical_noc_threshold - bw_without_fork;
+    const float dy = (bw_without_fork - linear_cap) * (theoretical_cap - linear_cap);
+
+    const float fork_bw = dy / dx + linear_cap;
+
+    TT_ASSERT(fork_bw > 0, "Scaled bandwidth must be a positive value");
+
+    return fork_bw;
+}
+
 float get_dram_read_bw_estimation_for_edge(
     const Graph *graph,
     const Edge &queue_to_op_edge,
@@ -1885,7 +1908,7 @@ float get_dram_read_bw_estimation_for_edge(
                                                   decompose_t_stream)
                                                   .get_bandwidth());
 
-            edge_dram_bw = std::ceil(edge_dram_bw / dram_fork_divider);
+            edge_dram_bw = scale_bandwidth_wrt_fork_factor(edge_dram_bw, dram_fork_divider);
         }
     }
     else if (queue_data_inputs.size() > 0)
@@ -1908,7 +1931,7 @@ float get_dram_read_bw_estimation_for_edge(
                                                   decompose_t_stream)
                                                   .get_bandwidth());
 
-            edge_dram_bw = std::ceil(edge_dram_bw / dram_fork_divider);
+            edge_dram_bw = scale_bandwidth_wrt_fork_factor(edge_dram_bw, dram_fork_divider);
         }
     }
 

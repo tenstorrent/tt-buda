@@ -527,43 +527,13 @@ BandwidthBucket DramReadEstimator::estimate_bandwidth_impl() const
             features_.get_tile_size());
     }
 
-    return make_bandwidth_prediction(
-        dram_receiving_stream_buffer_size, dram_buf_read_chunk_size_tiles, dram_scatter_chunk_size_tiles);
-}
-
-BandwidthBucket DramReadEstimator::make_bandwidth_prediction(
-    const int unpacker_buffer_size_bytes,
-    const int dram_buf_read_chunk_size_tiles,
-    const int dram_scatter_chunk_size_tiles) const
-{
-    const BandwidthBucket bw_bucket_without_fork = estimate_dram_read_connection(
+    return estimate_dram_read_connection(
         features_.get_consumer_epoch_tiles(),
         features_.get_tile_size(),
         features_.get_kernel_clear_granularity(),
-        unpacker_buffer_size_bytes,
+        dram_receiving_stream_buffer_size,
         dram_buf_read_chunk_size_tiles,
         dram_scatter_chunk_size_tiles);
-
-    return scale_bandwidth_wrt_fork_factor(bw_bucket_without_fork.get_bandwidth(), features_.get_producer_fan_out());
-}
-
-BandwidthBucket DramReadEstimator::scale_bandwidth_wrt_fork_factor(
-    const double bw_without_fork, const int fork_factor) const
-{
-    const double linear_cap = 1.0 * c_linear_noc_threshold / fork_factor;
-    const double theoretical_cap = 1.0 * c_theoretical_noc_threshold / fork_factor;
-
-    if (bw_without_fork <= linear_cap || fork_factor == 1)
-    {
-        return BandwidthBucket(bw_without_fork);
-    }
-
-    const double dx = c_theoretical_noc_threshold - bw_without_fork;
-    const double dy = (bw_without_fork - linear_cap) * (theoretical_cap - linear_cap);
-
-    const double fork_bw = dy / dx + linear_cap;
-
-    return BandwidthBucket(fork_bw);
 }
 
 //----------------------------------------------------------------------------------------------------------------------
