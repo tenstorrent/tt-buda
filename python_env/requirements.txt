@@ -3,7 +3,7 @@
 
 bitarray==2.5.1
 clang-format==14.0.3
-diffusers==0.14.0
+diffusers==0.27.2
 hydra-core
 IPython==8.8.0
 nvidia-ml-py3==7.352.0
