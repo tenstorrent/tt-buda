@@ -101,15 +101,14 @@ struct OpPerfData
         _get_execution_cycles(arch_name);
         return _theoretical_cycles;
     }
-    const balancer::OpCycleEstimates& get_op_cycle_estimates(
+    const balancer::OpCycleEstimates &get_op_cycle_estimates(
         const DeviceConfig &device_config,
         const graphlib::Graph *graph,
         bool input_queues_on_host,
         bool output_queues_on_host,
         const std::unordered_map<graphlib::Node const *, balancer::OpModel> &selected_op_models)
     {
-        _get_op_cycle_estimates(
-            device_config, graph, input_queues_on_host, output_queues_on_host, selected_op_models);
+        _get_op_cycle_estimates(device_config, graph, input_queues_on_host, output_queues_on_host, selected_op_models);
         return _op_cycle_estimates;
     }
 };
@@ -118,12 +117,13 @@ struct OpPerfCalculatedData
 {
     // BWs - ideal/actual
     std::vector<float> input_bw_needed, input_bw_got;
-    float output_bw_perc;  // the percentage of required bw we got (for worst case operand), which is also output bw%
-    float output_bw_ideal, output_bw_produced;
+    float output_bw_perc =
+        0;  // the percentage of required bw we got (for worst case operand), which is also output bw%
+    float output_bw_ideal = 0, output_bw_produced = 0;
 
     // Cycle counts, utilization
-    float utilization;
-    std::uint32_t cycle_count_actual;
+    float utilization = 0;
+    std::uint32_t cycle_count_actual = 0;
 };
 
 struct QueuePerfData
@@ -135,12 +135,12 @@ struct QueuePerfData
 
 struct QueuePerfCalculatedData
 {
-    float total_read_bw_ideal;  // ideal total BW requested by all consumers
-    float write_bw_ideal;       // ideal write BW from the producer
+    float total_read_bw_ideal = 0;  // ideal total BW requested by all consumers
+    float write_bw_ideal = 0;       // ideal write BW from the producer
 
-    float total_bw_perc;           // the percentage of requested bw that we can get from dram
-    float total_read_bw_produced;  // actual BW that can be given to the op
-    float write_bw_received;       // actual write BW from the producer
+    float total_bw_perc = 0;           // the percentage of requested bw that we can get from dram
+    float total_read_bw_produced = 0;  // actual BW that can be given to the op
+    float write_bw_received = 0;       // actual write BW from the producer
 };
 
 struct Attr

@@ -281,7 +281,8 @@ void PerfModel::create_graphs(
         op_perf << "name, type, epoch, grid, tiles, cycles, limiter_cycles";
         for (unsigned int input_idx = 0; input_idx < c_op_max_num_inputs; ++input_idx)
         {
-            op_perf << ", " << "estimated_input_bw_" << input_idx;
+            op_perf << ", "
+                    << "estimated_input_bw_" << input_idx;
         }
         op_perf << ", estimated_output_bw_0" << std::endl;
 
@@ -306,7 +307,7 @@ void PerfModel::create_graphs(
             NodeP op = node_map.at(node);
             if (dump_op_perf)
             {
-                const balancer::OpCycleEstimates& op_cycle_estimates = 
+                const balancer::OpCycleEstimates &op_cycle_estimates =
                     op->get_perf_data()->op_perf_data.get_op_cycle_estimates(
                         device_config,
                         g,
@@ -324,8 +325,9 @@ void PerfModel::create_graphs(
 
                 for (unsigned int input_idx = 0; input_idx < c_op_max_num_inputs; ++input_idx)
                 {
-                    float input_bw = input_idx < op_cycle_estimates.input_bw_estimates.size() ?
-                                     op_cycle_estimates.input_bw_estimates[input_idx] : 0.0f;
+                    float input_bw = input_idx < op_cycle_estimates.input_bw_estimates.size()
+                                         ? op_cycle_estimates.input_bw_estimates[input_idx]
+                                         : 0.0f;
 
                     op_perf << std::to_string(input_bw) << ", ";
                 }
@@ -604,18 +606,18 @@ PerfModel::PerfModel(
     create_graphs(g, balancer_solution, input_queues_on_host, output_queues_on_host);
     SystemSpec system = SystemSpec::get_for_device(device_config);
 
-    // calculate ideal bandwidths for queues and ops
-    calculate_ideal_bws(system);
-
-    // calculate utilization
-    if (env_as<bool>("PYBUDA_PERF_UTIL"))
-        calculate_utilization(system);
-
-    // Propagate BWs
-    for (auto &epoch_graph : temporal_epoch_graphs) propagate_bws(epoch_graph.get(), system);
-
     if (env_as<bool>("PYBUDA_PERF_SIMULATOR"))
     {
+        // calculate ideal bandwidths for queues and ops
+        calculate_ideal_bws(system);
+
+        // calculate utilization
+        if (env_as<bool>("PYBUDA_PERF_UTIL"))
+            calculate_utilization(system);
+
+        // Propagate BWs
+        for (auto &epoch_graph : temporal_epoch_graphs) propagate_bws(epoch_graph.get(), system);
+
         std::uint32_t original_microbatch = g->get_microbatch();
         if (auto sim_mb = env_as_optional<int>("PYBUDA_PERF_SIMULATOR_MICROBATCH"))
             g->set_microbatch(*sim_mb);
