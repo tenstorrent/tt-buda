@@ -196,20 +196,27 @@ void DeviceConfig::load_system_level_params()
         this->cached_system_level_params = load_cached_sys_param(this->runtime_params_yaml);
 }
 
-std::vector<std::uint32_t> DeviceConfig::get_harvested_cfg() const
+std::unordered_map<std::uint32_t, std::uint32_t> DeviceConfig::get_harvested_cfg() const
 {
     auto silicon_devices = tt::backend::detect_available_devices();
+    std::unordered_map<std::uint32_t, std::uint32_t> ret;
     if (silicon_devices.size() == 0 and this->runtime_params_yaml.empty())
-        return std::vector<std::uint32_t>(chip_ids.size(), 0);  // assume same harvesting-config among all chips for non-silicon backend
-
-    std::vector<std::uint32_t> ret;
-    for (auto i : chip_ids)
     {
-        std::string cmd = "device";
-        cmd += std::to_string(i);
-        cmd += "-harvesting_mask";
-        uint32_t num = get<std::uint32_t>(cmd, true);
-        ret.push_back(num);
+        for (std::uint32_t chip_id : chip_ids) 
+        {
+            ret.insert({chip_id, 0}); // assume same harvesting-config among all chips for non-silicon backend
+        }
+    }
+    else 
+    {
+        for (std::uint32_t chip_id : chip_ids) 
+        {
+            std::string cmd = "device";
+            cmd += std::to_string(chip_id);
+            cmd += "-harvesting_mask";
+            uint32_t num = get<std::uint32_t>(cmd, true);
+            ret.insert({chip_id, num});
+        }
     }
     return ret;
 }

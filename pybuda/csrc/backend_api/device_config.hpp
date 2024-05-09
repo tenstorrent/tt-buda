@@ -227,7 +227,7 @@ struct DeviceConfig
     template <typename T>
     T get(std::string const &param, const bool system_level_command) const;
     void load_system_level_params();
-    std::vector<std::uint32_t> get_harvested_cfg() const;
+    std::unordered_map<std::uint32_t, std::uint32_t> get_harvested_cfg() const;
 
     std::size_t get_dst_size() const { return get<std::size_t>("t6-dst_size", false); }
     std::size_t get_clock_freq() const
