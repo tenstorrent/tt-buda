@@ -358,7 +358,8 @@ bool PolicyManager::finish_current_epoch()
 
     TT_ASSERT(
         current_epoch_ops.size() == current_epoch_selected_models.size(), "Epoch ops and selected op models mismatch!");
-    epoch_solutions.emplace_back(current_ribbon_size, &config, current_epoch_selected_models, graph);
+    const int epoch_id = epoch_solutions.size();
+    epoch_solutions.emplace_back(epoch_id, current_ribbon_size, &config, current_epoch_selected_models, graph);
 
     if (!balancing_complete)
     {
@@ -710,7 +711,8 @@ BalancerPolicySolution PolicyManager::commit_solution()
 
     validate_solution(scheduled_ops, placer_solution);
 
-    return BalancerPolicySolution(placer_solution, graph_solver_main->finish(), score_solution(epoch_solutions, config.device_config));
+    return BalancerPolicySolution(
+        placer_solution, graph_solver_main->finish(), score_solution(epoch_solutions, config.device_config));
 }
 
 }  // namespace tt::balancer

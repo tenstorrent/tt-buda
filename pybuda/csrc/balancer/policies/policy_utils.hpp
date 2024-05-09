@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
+#include <ostream>
 #include <random>
+#include <string_view>
 #include <tuple>
 #include <unordered_map>
 #include <unordered_set>
@@ -14,6 +16,7 @@
 #include "balancer/balancer_utils.hpp"
 #include "balancer/policies/policy_types.hpp"
 #include "balancer/types.hpp"
+#include "graph_lib/defines.hpp"
 #include "graph_lib/graph.hpp"
 #include "utils/logger.hpp"
 
@@ -44,6 +47,7 @@ class EpochSolution
     OpModels current_epoch_op_models;
 
    private:
+    int epoch_id;
     std::uint32_t ribbon_size;
     std::vector<OpModel> selected_op_models;
     const BalancerConfig* balancer_config;
@@ -57,17 +61,23 @@ class EpochSolution
     mutable float utilization;
     mutable int pipeline_cycles;
     mutable int used_cores;
+    mutable graphlib::NodeId pipeline_cycles_op_node_id;
 
     void evaluate() const;
     void recalc_nodes(bool update_current_epoch_collections = true);
+    void log_epoch_estimates() const;
+    void log_global_epoch_info(std::ostream& epoch_log_file) const;
+    void log_epoch_op_estimates_info(std::ostream& epoch_log_file, const OpModel& op_model) const;
 
    public:
     EpochSolution(
+        int epoch_id,
         std::uint32_t ribbon_size,
         const BalancerConfig* balancer_config,
         std::vector<OpModel>& selected_op_models,
         const Graph* graph,
         int epoch_target_cycles = -1) :
+        epoch_id(epoch_id),
         ribbon_size(ribbon_size),
         selected_op_models(selected_op_models),
         balancer_config(balancer_config),

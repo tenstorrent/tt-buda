@@ -3,14 +3,17 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "balancer/policies/policy_utils.hpp"
 
-#include <experimental/filesystem>
+#include <filesystem>
 #include <fstream>
+#include <ostream>
+#include <string>
 #include <unordered_set>
 
 #include "balancer/balancer.hpp"
 #include "balancer/data_movement_bw_estimation.hpp"
 #include "balancer/legalizer/legalizer.hpp"
 #include "balancer/types.hpp"
+#include "graph_lib/defines.hpp"
 #include "graph_lib/graph.hpp"
 #include "passes/fork_join.hpp"
 #include "placer/dram.hpp"
@@ -20,6 +23,8 @@
 #include "shared_utils/placement_printer.hpp"
 #include "shared_utils/pretty_table.hpp"
 #include "utils/assert.hpp"
+#include "utils/env.hpp"
+#include "utils/yaml_utils.hpp"
 
 using Graph = tt::graphlib::Graph;
 using Node = tt::graphlib::Node;
@@ -118,7 +123,7 @@ placer::PlacerSolution run_placer(
     if (env_as<bool>("PYBUDA_BALANCER_PLACER_DATA"))
     {
         const std::string placement_dir_path = "bp_data";
-        std::experimental::filesystem::create_directory(placement_dir_path);
+        std::filesystem::create_directory(placement_dir_path);
         std::string file_name = placement_dir_path + "/" + (graph->name().empty() ? "noname" : graph->name()) + "_" +
                                 policy_to_string(config.policy_type) + ".txt";
         std::ofstream of(file_name);
@@ -2303,6 +2308,7 @@ bool buffer_graph(
 void EpochSolution::evaluate() const
 {
     static const bool use_legacy_util_eval = env_as<bool>("PYBUDA_TEMP_RIBBON2_LEGACY_UTIL_EVAL", false);
+    static const bool log_epoch_evaluation_estimates = env_as<bool>("PYBUDA_LOG_EPOCH_EVALUATION_ESTIMATES", false);
     // Treat non-matmul ops as 8x less efficient than matmul ops.
     // Treat sparse matmuls as least efficient, we want to assign them least amount of cores while at the same time not
     // making them epoch bottleneck.
@@ -2315,8 +2321,9 @@ void EpochSolution::evaluate() const
     uint64_t epoch_util_score = 0;
     used_cores = 0;
     pipeline_cycles = 0;
+    pipeline_cycles_op_node_id = graphlib::NodeId{};
 
-    for (const auto &op_model : selected_op_models)
+    for (const OpModel &op_model : selected_op_models)
     {
         std::uint32_t cores = op_model.grid_shape.volume();
         used_cores += cores;
@@ -2354,6 +2361,7 @@ void EpochSolution::evaluate() const
         if (cycles > pipeline_cycles)
         {
             pipeline_cycles = cycles;
+            pipeline_cycles_op_node_id = op_model.buda_op_node->id();
         }
     }
 
@@ -2362,12 +2370,114 @@ void EpochSolution::evaluate() const
 
     log_trace(
         LogBalancer,
-        "RIBBON2: pipeline_cycles = {}, epoch_target_cycles = {}, used_cores = {}, "
+        "RIBBON2: pipeline_cycles = {}, pipeline_cycles_op_name = {}, epoch_target_cycles = {}, used_cores = {}, "
         "utilization = {}",
         pipeline_cycles,
+        graph->node_by_id(pipeline_cycles_op_node_id)->name(),
         epoch_target_cycles,
         used_cores,
         utilization);
+
+    if (log_epoch_evaluation_estimates)
+    {
+        log_epoch_estimates();
+    }
+}
+
+void EpochSolution::log_epoch_estimates() const
+{
+    // Build epoch log dir path
+    static const std::filesystem::path epoch_evaluation_estimates_path =
+        env_as<std::string>("PYBUDA_EPOCH_EVALUATION_ESTIMATES_DIR", "epoch_evaluation_estimates");
+    const std::filesystem::path epoch_log_dir_path =
+        epoch_evaluation_estimates_path / std::filesystem::path("epoch_" + std::to_string(epoch_id));
+
+    // Ensure that the epoch log directory tree exists
+    std::filesystem::create_directories(epoch_log_dir_path);
+
+    const std::filesystem::path epoch_log_file_path =
+        epoch_log_dir_path /
+        std::filesystem::path("epoch_" + std::to_string(epoch_id) + "_ribbon_" + std::to_string(ribbon_size) + ".yaml");
+    std::ofstream epoch_log_file(epoch_log_file_path);
+
+    // Log global epoch estimates / information
+    WRITE_YAML_LINE(epoch_log_file, 0, "epoch_global_details:");
+    log_global_epoch_info(epoch_log_file);
+
+    // Log per epoch estimates
+    WRITE_YAML_LINE(epoch_log_file, 0, "per_op_estimates:");
+    for (const OpModel &op_model : selected_op_models)
+    {
+        log_epoch_op_estimates_info(epoch_log_file, op_model);
+    }
+}
+
+void EpochSolution::log_global_epoch_info(std::ostream &epoch_log_file) const
+{
+    WRITE_YAML_LINE(epoch_log_file, 4, YAML_KV_PAIR("epoch_id", std::to_string(epoch_id)));
+    WRITE_YAML_LINE(epoch_log_file, 4, YAML_KV_PAIR("ribbon_size", std::to_string(ribbon_size)));
+
+    WRITE_YAML_LINE(epoch_log_file, 4, YAML_KV_PAIR("utilization", std::to_string(utilization)));
+    WRITE_YAML_LINE(epoch_log_file, 4, YAML_KV_PAIR("pipeline_cycles", std::to_string(pipeline_cycles)));
+    WRITE_YAML_LINE(
+        epoch_log_file,
+        4,
+        YAML_KV_PAIR("pipeline_cycles_op_name", graph->node_by_id(pipeline_cycles_op_node_id)->name()));
+    WRITE_YAML_LINE(epoch_log_file, 4, YAML_KV_PAIR("used_cores", used_cores));
+    WRITE_YAML_LINE(epoch_log_file, 4, YAML_KV_PAIR("dram_readers_core_count", dram_readers_core_count));
+    WRITE_YAML_LINE(epoch_log_file, 4, YAML_KV_PAIR("dram_writers_core_count", dram_writers_core_count));
+    WRITE_YAML_LINE(epoch_log_file, 4, YAML_KV_PAIR("pcie_readers_core_count", pcie_readers_core_count));
+    WRITE_YAML_LINE(epoch_log_file, 4, YAML_KV_PAIR("pcie_writers_core_count", pcie_writers_core_count));
+}
+
+void EpochSolution::log_epoch_op_estimates_info(std::ostream &epoch_log_file, const OpModel &op_model) const
+{
+    const OpCycleEstimates op_cycle_estimates = get_op_cycles_estimates(
+        op_model,
+        graph,
+        balancer_config->device_config,
+        balancer_config->input_queues_on_host,
+        balancer_config->output_queues_on_host,
+        dram_readers_core_count + dram_writers_core_count,
+        pcie_readers_core_count + pcie_writers_core_count,
+        &current_epoch_nodes,
+        false, /* invalidate_cache */
+        &current_epoch_op_models,
+        true /* decompose_t_stream */);
+    const int limiter_cycles = op_cycle_estimates.calculate_op_limiter_cycles();
+
+    WRITE_YAML_LINE(epoch_log_file, 4, op_model.buda_op_node->name() + ":");
+
+    // Limiter cycles
+    WRITE_YAML_LINE(epoch_log_file, 8, YAML_KV_PAIR("limiter_cycles", std::to_string(limiter_cycles)));
+
+    // Kernel execution cycles
+    WRITE_YAML_LINE(
+        epoch_log_file, 8, YAML_KV_PAIR("kernel_cycles_estimate", std::to_string(op_cycle_estimates.kernel_cycles)));
+
+    // Input bandwidth estimates
+    WRITE_YAML_LINE(epoch_log_file, 8, "input_bandwidth_estimates:");
+    for (unsigned int i = 0; i < op_cycle_estimates.input_bw_estimates.size(); ++i)
+    {
+        WRITE_YAML_LINE(
+            epoch_log_file,
+            12,
+            YAML_KV_PAIR(
+                "input_" << std::to_string(i) << "_bandwidth_estimate",
+                std::to_string(op_cycle_estimates.input_bw_estimates[i])));
+    }
+
+    // Output bandwidth estimates
+    WRITE_YAML_LINE(epoch_log_file, 8, "output_bandwidth_estimates:");
+    for (unsigned int i = 0; i < op_cycle_estimates.output_bw_estimates.size(); ++i)
+    {
+        WRITE_YAML_LINE(
+            epoch_log_file,
+            12,
+            YAML_KV_PAIR(
+                "output_" << std::to_string(i) << "_bandwidth_estimate",
+                std::to_string(op_cycle_estimates.output_bw_estimates[i])));
+    }
 }
 
 void EpochSolution::print() const

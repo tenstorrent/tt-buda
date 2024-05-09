@@ -1274,7 +1274,7 @@ BalancerPolicySolution run_policy_ribbon2(
                     {
                         TT_ASSERT(!new_epoch || selected_models.size() > 0);
                         // Record the solution
-                        EpochSolution new_solution(ribbon_size, &config, selected_models, graph, epoch_target_cycles);
+                        EpochSolution new_solution(epoch, ribbon_size, &config, selected_models, graph, epoch_target_cycles);
 
                         // Check if the same solution was provided by another ribbon
                         bool found_same_solution = false;
