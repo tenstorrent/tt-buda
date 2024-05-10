@@ -491,25 +491,44 @@ BandwidthBucket DramReadEstimator::estimate_bandwidth_impl() const
         features_.get_unpacker_buffer_size_bytes(),
         features_.get_tile_size());
 
-    const int max_num_tiles_per_phase = dram_read_estimator_internal::compute_max_num_tiles_per_phase(
-        1 /* start_divisor */, features_.get_producer_tiles_per_input());
-
-    const int dram_read_chunk_size_tiles = dram_read_estimator_internal::compute_dram_buf_read_chunk_size_tiles(
+    const int dram_buf_read_chunk_size_tiles = dram_read_estimator_internal::compute_dram_buf_read_chunk_size_tiles(
         dram_scatter_chunk_size_tiles,
         features_.get_kernel_clear_granularity(),
         features_.get_consumer_tiles_per_input(),
         features_.get_tile_size());
 
-    const int unpacker_buffer_size_bytes = dram_read_estimator_internal::compute_unpacker_stream_buffer_size_bytes(
-        max_num_tiles_per_phase,
-        dram_read_chunk_size_tiles,
-        features_.get_unpacker_buffer_size_bytes(),
-        features_.get_consumer_tiles_per_input(),
-        features_.get_producer_tiles_per_input(),
-        features_.get_tile_size());
+    int dram_receiving_stream_buffer_size;
+
+    if (features_.is_consumer_multicast())
+    {
+        const int unpacker_max_num_tiles_per_phase = dram_read_estimator_internal::compute_max_num_tiles_per_phase(
+            1 /* start_divisor */,
+            features_.get_producer_tiles_per_input(),
+            features_.get_consumer_tiles_per_input(),
+            features_.get_kernel_clear_granularity());
+
+        dram_receiving_stream_buffer_size = dram_read_estimator_internal::compute_unpacker_stream_buffer_size_bytes(
+            unpacker_max_num_tiles_per_phase, dram_buf_read_chunk_size_tiles, features_.get_tile_size());
+    }
+    else
+    {
+        const int dram_max_num_tiles_per_phase = dram_read_estimator_internal::compute_max_num_tiles_per_phase(
+            1 /* start_divisor */,
+            features_.get_producer_tiles_per_input(),
+            dram_scatter_chunk_size_tiles,
+            features_.get_kernel_clear_granularity());
+
+        dram_receiving_stream_buffer_size = dram_read_estimator_internal::compute_unpacker_stream_buffer_size_bytes(
+            dram_max_num_tiles_per_phase,
+            dram_buf_read_chunk_size_tiles,
+            features_.get_unpacker_buffer_size_bytes(),
+            features_.get_consumer_tiles_per_input(),
+            features_.get_producer_tiles_per_input(),
+            features_.get_tile_size());
+    }
 
     return make_bandwidth_prediction(
-        unpacker_buffer_size_bytes, dram_read_chunk_size_tiles, dram_scatter_chunk_size_tiles);
+        dram_receiving_stream_buffer_size, dram_buf_read_chunk_size_tiles, dram_scatter_chunk_size_tiles);
 }
 
 BandwidthBucket DramReadEstimator::make_bandwidth_prediction(

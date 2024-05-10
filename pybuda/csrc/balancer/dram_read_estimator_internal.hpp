@@ -15,6 +15,9 @@ int compute_dram_pipe_scatter_chunk_size_tiles(
 
 int compute_max_num_tiles_per_phase(const int start_divisor, const int root_tiles_per_input);
 
+int compute_max_num_tiles_per_phase(
+    const int start_divisor, const int root_tiles_per_input, const int tiles_to_send, const int subtree_common_divisor);
+
 int compute_dram_buf_read_chunk_size_tiles(
     const int scatter_chunk_size, const int kernel_clear_granularity, const int tiles_to_transfer, const int tile_size);
 
@@ -38,6 +41,9 @@ int compute_unpacker_stream_buffer_size_bytes(
     const int tiles_to_transfer,
     const int root_tiles_per_input,
     const int tile_size);
+
+int compute_unpacker_stream_buffer_size_bytes(
+    int max_num_tiles_per_phase, const int dram_read_chunk_size_tiles, const int tile_size);
 
 int compute_merged_dram_unpacker_stream_buffer_size_bytes(
     const int dram_read_chunk_size_tiles, const int unpacker_buffer_size_bytes, const int tile_size);

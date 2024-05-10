@@ -45,9 +45,15 @@ int compute_dram_pipe_scatter_chunk_size_tiles(
     return dram_scatter_chunk_size;
 }
 
-int compute_max_num_tiles_per_phase(const int start_divisor, const int root_tiles_per_input)
+int compute_max_num_tiles_per_phase(
+    const int start_divisor, const int root_tiles_per_input, const int tiles_to_send, const int subtree_common_divisor)
 {
     int common_divisor = start_divisor;
+    if (tiles_to_send > c_general_max_num_tiles_per_phase)
+    {
+        common_divisor = std::lcm(common_divisor, subtree_common_divisor);
+    }
+
     if (root_tiles_per_input <= c_general_max_num_tiles_per_phase)
     {
         const int lcm_with_tiles_per_input = std::lcm(common_divisor, root_tiles_per_input);
@@ -58,6 +64,12 @@ int compute_max_num_tiles_per_phase(const int start_divisor, const int root_tile
     }
 
     return (c_general_max_num_tiles_per_phase / common_divisor) * common_divisor;
+}
+
+int compute_max_num_tiles_per_phase(const int start_divisor, const int root_tiles_per_input)
+{
+    return compute_max_num_tiles_per_phase(
+        start_divisor, root_tiles_per_input, 1 /* tiles_to_send */, 1 /* subtree_common_divisor */);
 }
 
 int compute_dram_buf_read_chunk_size_tiles(
@@ -134,14 +146,25 @@ int compute_unpacker_stream_buffer_size_bytes(
     {
         if (tiles_to_transfer > c_general_max_num_tiles_per_phase)
         {
-            max_num_tiles_per_phase =
-                compute_max_num_tiles_per_phase(unpacker_buffer_size_bytes / tile_size, root_tiles_per_input);
+            max_num_tiles_per_phase = compute_max_num_tiles_per_phase(
+                unpacker_buffer_size_bytes / tile_size,
+                root_tiles_per_input,
+                1 /* tiles_to_send */,
+                1 /* subtree_common_divisor */);
         }
 
         return scale_up_dram_receiving_stream(merged_stream_buffer_size_bytes, max_num_tiles_per_phase, tile_size);
     }
 
     return result;
+}
+
+int compute_unpacker_stream_buffer_size_bytes(
+    int max_num_tiles_per_phase, const int dram_read_chunk_size_tiles, const int tile_size)
+{
+    const int base_buffer_size = dram_read_chunk_size_tiles * tile_size;
+
+    return scale_up_dram_receiving_stream(base_buffer_size, max_num_tiles_per_phase, tile_size);
 }
 
 int compute_merged_dram_unpacker_stream_buffer_size_bytes(
