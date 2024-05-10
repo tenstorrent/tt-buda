@@ -326,7 +326,10 @@ static std::pair<FactorizedShape, LegalSparseUKts> calculate_streaming_pars(
             graph->data_operands(op_node)[0]->as<graphlib::ConstantInputNode>()->get_sparse_buda();
         std::vector<tt::sparse::SparseCOO>& sparse_zs = sparse_buda.sparse_zs;
         auto layout = sparse::SparseBUDA::create_layout(sparse_buffer_enable, dir.z_major(), fracture_factor);
-        int bcast_factor = (layout == sparse::SparseBUDA::Layout::ZMajor) ? sparse_buda.bcast_factor : 1;
+        int bcast_factor =
+            (layout == sparse::SparseBUDA::Layout::ZMajor || layout == sparse::SparseBUDA::Layout::ZMajorDataflow)
+                ? sparse_buda.bcast_factor
+                : 1;
 
         // Each potential t needs to evenly divide output's r-dim but also in1's r-dim (in0's c-dim)
         std::vector<graphlib::Edge> operands = graph->operand_data_edges(op_node);
@@ -940,9 +943,8 @@ static std::vector<BufferModel> calculate_output_buffer_models_for_grid(
 static bool is_input_node_parameter_or_constant(const graphlib::Node* node)
 {
     return node->node_type() == graphlib::NodeType::kInput and
-           (node->as<graphlib::InputNode>()->is_parameter()
-            or node->as<graphlib::InputNode>()->is_constant()
-            or node->as<graphlib::InputNode>()->is_optimizer_parameter());
+           (node->as<graphlib::InputNode>()->is_parameter() or node->as<graphlib::InputNode>()->is_constant() or
+            node->as<graphlib::InputNode>()->is_optimizer_parameter());
 }
 
 // Calculates the required parameter buffer size for parameters depending on two prefetch scenarios:
