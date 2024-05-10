@@ -73,7 +73,6 @@ std::ostream& operator<<(std::ostream& out, SparseBUDA::Layout layout)
         case SparseBUDA::Layout::Default: out << "SparseBUDA::Layout::Default"; break;
         case SparseBUDA::Layout::ZMajor: out << "SparseBUDA::Layout::ZMajor"; break;
         case SparseBUDA::Layout::ZMajorDataflow: out << "SparseBUDA::Layout::ZMajorDataflow"; break;
-        case SparseBUDA::Layout::BufferOp: out << "SparseBUDA::Layout::BufferOp"; break;
         default: out << "SparseBUDA::Layout::Unknown"; break;
     }
     return out;
@@ -703,12 +702,10 @@ int SparseBUDA::get_max_u_kt(int grid_r, int t_factor_r, int u_rt, int sparse_ti
     return (1 << ublock_bits);
 }
 
-SparseBUDA::Layout SparseBUDA::create_layout(bool buffer_op, bool z_major, int fracture_factor)
+SparseBUDA::Layout SparseBUDA::create_layout(bool z_major, int fracture_factor)
 {
     Layout layout = Layout::Default;
-    if (buffer_op)
-        layout = Layout::BufferOp;
-    else if (z_major and (fracture_factor == 1) and not env_as<bool>("PYBUDA_SPARSE_DISABLE_LAYOUT_DATAFLOW"))
+    if (z_major and (fracture_factor == 1) and not env_as<bool>("PYBUDA_SPARSE_DISABLE_LAYOUT_DATAFLOW"))
         layout = Layout::ZMajorDataflow;
     else if (z_major)
         layout = Layout::ZMajor;
@@ -735,7 +732,7 @@ static std::vector<SparseCOO> vslice_layout(
         std::vector<SparseCOO> b_slices;
         b_slices.reserve(grid_r * dflow_factor * bcast_factor);
 
-        if (layout == SparseBUDA::Layout::BufferOp or layout == SparseBUDA::Layout::ZMajorDataflow)
+        if (layout == SparseBUDA::Layout::ZMajorDataflow)
         {
             for (int r = 0; r < grid_r; r++)
             {
@@ -951,8 +948,6 @@ SparseBUDA::get_sparse_tiles_and_encodings(
     int zdim = this->sparse_zs.size();
     // Fracture factor is like having multiple grid_r's in flight
     int virtual_grid_r = grid_r * fracture_factor;
-
-    TT_ASSERT(!((layout == Layout::BufferOp) and fracture_factor > 1));
 
     SparseTiles sparse_tiles;
     EncodingTiles buda_indices;

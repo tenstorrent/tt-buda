@@ -169,63 +169,6 @@ static void insert_sparse_fracturing_tms(
     in1_edge_attrs->set_tms(in1_edge_tms);
 }
 
-static void insert_sparse_buffer_op_tms(
-    Graph const* graph, graphlib::OpNode* op, balancer::OpModel const& op_model, int fracture_factor)
-{
-    TT_ASSERT(op_model.has_sparse_buffer());
-    TT_ASSERT(fracture_factor == 1);
-
-    if (op_model.grid_shape.r == 1)
-        return;
-
-    auto users = graph->user_data_edges(op);
-    graphlib::BudaOpNode* user = dynamic_cast<graphlib::BudaOpNode*>(graph->node_by_id(users[0].consumer_node_id));
-    bool is_reduce_z = user->op_name() == "reduce" and std::get<std::string>(user->buda_attrs().at("dim")) == "z";
-    bool is_matmul = user->is_matmul() and not user->is_sparse_matmul();
-
-    if (not is_reduce_z and not is_matmul)
-        return;
-
-    TT_ASSERT(users.size() == 1, "Unsupported, multiple users with different views");
-
-    auto edge_attrs = graph->get_edge_attributes(users[0]);
-    auto& tms = edge_attrs->get_tms();
-    if (tms.empty())
-        return;
-
-    TT_ASSERT(not is_matmul or tms.size() == 2, op->name(), user->name(), tms.size());
-    TT_ASSERT(not is_reduce_z or tms.size() == 1, op->name(), user->name(), tms.size());
-    if (is_matmul)
-    {
-        TT_ASSERT(tms[0].op == "vslice");
-        TT_ASSERT(tms[1].op == "hstack");
-        int vslice_factor = std::get<int>(tms[0].attr[0]);
-        int hstack_factor = std::get<int>(tms[1].attr[0]);
-        TT_ASSERT(vslice_factor == hstack_factor);
-        TT_ASSERT(vslice_factor > 1);
-        int factor = vslice_factor;
-        int grid_r = op_model.grid_shape.r;
-        tms.clear();
-        tms.push_back(graphlib::OpType("vslice", {grid_r * factor}, {}));
-        tms.push_back(graphlib::OpType("hstack", {factor}, {}));
-        tms.push_back(graphlib::OpType("vstack", {grid_r}, {}));
-    }
-    else if (is_reduce_z)
-    {
-        TT_ASSERT(false, "This path results in illegal tms, cannot have slice after stack");
-        TT_ASSERT(tms[0].op == "vslice");
-        int vslice_factor = std::get<int>(tms[0].attr[0]);
-        TT_ASSERT(vslice_factor > 1);
-        int factor = vslice_factor;
-        int grid_r = op_model.grid_shape.r;
-        tms.clear();
-        tms.push_back(graphlib::OpType("vslice", {grid_r * factor}, {}));
-        tms.push_back(graphlib::OpType("hstack", {factor}, {}));
-        tms.push_back(graphlib::OpType("vstack", {grid_r}, {}));
-        tms.push_back(graphlib::OpType("hslice", {factor}, {}));
-    }
-}
-
 // Layout dataflow reorders the output buffer of sparse matmul in a way
 // such that each row of cores between a sparse/consumer pair has a 1to1
 // mapping of tiles and avoids inefficient gathers.  This function erases
@@ -382,13 +325,10 @@ void update_ops_on_selected_op_models(graphlib::Graph const* graph, OpModels con
                 int u_rt = op_model.output_buffers[0].block_shape.ublock.rt;
                 int u_kt = op_model.input_buffers[1].block_shape.ublock.rt;
                 int u_ct = op_model.output_buffers[0].block_shape.ublock.ct;
-                bool has_buffer_op = op_model.has_sparse_buffer();
-                bool force_buffer_op_layout = env_as<bool>("PYBUDA_FORCE_SPARSE_BUFFER_LAYOUT");
-                bool buffer_op_layout = has_buffer_op or force_buffer_op_layout;
                 const sparse::SparseBUDA& sparse_buda =
                     graph->data_operands(node)[0]->as<graphlib::ConstantInputNode>()->get_sparse_buda();
-                auto layout = sparse::SparseBUDA::create_layout(
-                    buffer_op_layout, op_model.t_stream_factor.dir.z_major(), op_model.fracture_factor);
+                auto layout =
+                    sparse::SparseBUDA::create_layout(op_model.t_stream_factor.dir.z_major(), op_model.fracture_factor);
 
                 std::string visualize_sparse_path =
                     env_as<bool>("PYBUDA_VISUALIZE_SPARSE") ? "sparse_" + op->name() + ".png" : "";
@@ -454,17 +394,6 @@ void update_ops_on_selected_op_models(graphlib::Graph const* graph, OpModels con
                 buda_attrs["sparse_tile_ptr_bits"] = sparse_tile_ptr_bits;
                 buda_attrs["sparse_ublock_idx_bits"] = sparse_ublock_idx_bits;
                 buda_attrs["fracture_factor"] = op_model.fracture_factor;
-                if (has_buffer_op)
-                {
-                    TT_ASSERT((op_model.grid_shape.c % 2) == 0);
-                    std::vector<int> num_nz_strips;
-                    int grid_c = op_model.grid_shape.c / 2;
-                    int grid_volume = op_model.grid_shape.r * grid_c;
-                    num_nz_strips.resize(grid_volume);
-                    for (int i = 0; i < grid_volume; ++i) num_nz_strips[i] = num_strips_per_row[i / grid_c];
-                    buda_attrs["num_nz_strips"] = num_nz_strips;
-                    buda_attrs["act_buffered"] = true;
-                }
                 op->overwrite_buda_attrs(buda_attrs);
 
                 // Overwrite op attributes
@@ -499,23 +428,9 @@ void update_ops_on_selected_op_models(graphlib::Graph const* graph, OpModels con
                 }
 
                 log_trace(LogBalancer, "Sparse layout {}: {}", op->name(), layout);
-                switch (layout)
+                if (layout == sparse::SparseBUDA::Layout::ZMajorDataflow)
                 {
-                    case sparse::SparseBUDA::Layout::BufferOp:
-                    {
-                        insert_sparse_buffer_op_tms(graph, op, op_model, op_model.fracture_factor);
-                        break;
-                    }
-                    case sparse::SparseBUDA::Layout::ZMajorDataflow:
-                    {
-                        TT_ASSERT(op_model.fracture_factor == 1);
-                        insert_sparse_dataflow_tms(graph, op, op_model);
-                        break;
-                    }
-                    default:
-                    {
-                        break;
-                    }
+                    insert_sparse_dataflow_tms(graph, node, op_model);
                 }
             }
             else if (type.op == "embedding")

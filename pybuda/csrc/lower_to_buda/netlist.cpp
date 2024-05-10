@@ -375,78 +375,6 @@ static BudaOp create_op(
     return op;
 }
 
-static std::tuple<BudaOp, std::vector<BudaOperand>, std::vector<tt::DataFormat>, BudaOpAttrs, placer::OpPlacement>
-create_sparse_buffer_op(
-    Graph *graph,
-    graphlib::BudaOpNode *node,
-    std::vector<BudaOperand> operands,
-    std::vector<tt::DataFormat> const &input_df,
-    BudaOpAttrs const &buda_attrs,
-    placer::OpPlacement const &placement,
-    std::unordered_map<std::string, placer::QueuePlacement> const &name_to_queue_placement,
-    balancer::OpModel const &op_model,
-    balancer::BlockShape const &block_shape,
-    std::string const &arch_name,
-    std::vector<std::size_t> const &input_dram_io_buf_size_tiles)
-{
-    TT_ASSERT(operands.size() == 3);
-    TT_ASSERT(input_df.size() == 3);
-    std::vector<BudaOperand> buffer_operands = {operands[1], operands[2]};
-    std::vector<tt::DataFormat> buffer_input_df = {input_df[1], input_df[2]};
-    // Fixup op attributes
-    BudaOpAttrs sparse_mm_buda_attrs = buda_attrs;
-    BudaOpAttrs buffer_buda_attrs = buda_attrs;
-    buffer_buda_attrs.erase("num_sparse_tiles");
-    buffer_buda_attrs.erase("identity");
-    buffer_buda_attrs.erase("act_buffered");
-    if (buda_attrs.find("kernel_broadcast") != buda_attrs.end())
-    {
-        TT_ASSERT(std::get<std::vector<int>>(buda_attrs.at("kernel_broadcast"))[0] == 1);
-        buffer_buda_attrs["kernel_broadcast"] = std::vector<int>({0});
-        sparse_mm_buda_attrs.erase("kernel_broadcast");
-    }
-    // Fixup block shape
-    balancer::BlockShape buffer_block_shape = block_shape;
-    buffer_block_shape.mblock_m = 1;
-    buffer_block_shape.ublock.rt = op_model.input_buffers[1].block_shape.ublock.rt;
-    std::vector<tt::DataFormat> sparse_mm_input_df = input_df;
-    sparse_mm_input_df[1] = node->output_df();
-    // Fixup placement
-    placer::OpPlacement buffer_placement = placement;
-    placer::OpPlacement sparse_mm_placement = placement;
-    TT_ASSERT((buffer_placement.placed_cores.size_c() % 2) == 0);
-    std::uint32_t split_grid_c = buffer_placement.placed_cores.size_c() / 2;
-    buffer_placement.placed_cores.end.col = buffer_placement.placed_cores.start.col + split_grid_c;
-    sparse_mm_placement.placed_cores.start.col = buffer_placement.placed_cores.end.col;
-    std::vector<graphlib::Edge> forked_dram_edges;
-    BudaOp op = create_op(
-        graph,
-        node,
-        buffer_operands,
-        buffer_input_df,
-        buffer_buda_attrs,
-        buffer_placement,
-        name_to_queue_placement,
-        op_model,
-        buffer_block_shape,
-        arch_name,
-        input_dram_io_buf_size_tiles,
-        forked_dram_edges,
-        false);
-
-    op.name = node->name() + "_buffer";
-    op.type = "buffer";
-    operands[1] = op.name;
-    // Remap index 1 tms to index 0
-    if (op.tms.find(1) != op.tms.end())
-    {
-        op.tms[0] = op.tms[1];
-        op.tms.erase(1);
-    }
-
-    return std::make_tuple(op, operands, sparse_mm_input_df, sparse_mm_buda_attrs, sparse_mm_placement);
-}
-
 BudaFusedOp create_fused_op(graphlib::BudaOpNode *op, const balancer::OpModel &op_model)
 {
     TT_ASSERT(op->is_fused_op());
@@ -1433,27 +1361,6 @@ BudaNetlist lower_to_buda_netlist(
                 bool ignore_tms = false;
                 std::vector<std::size_t> input_dram_io_buf_size_tiles =
                     get_input_dram_io_buf_size_tiles(graph, device_config, placer_solution, node, op_model);
-
-                if (op_model.has_sparse_buffer())
-                {
-                    BudaOp sparse_buffer_op;
-                    std::tie(sparse_buffer_op, operands, input_df, buda_attrs, placement) = create_sparse_buffer_op(
-                        graph,
-                        node->as<graphlib::BudaOpNode>(),
-                        operands,
-                        input_df,
-                        buda_attrs,
-                        placement,
-                        placer_solution.name_to_queue_placement,
-                        op_model,
-                        block_shape,
-                        arch_string,
-                        input_dram_io_buf_size_tiles);
-
-                    // Sparse buffer handled the incoming tms
-                    ignore_tms = true;
-                    buda_graph.ops[placement.epoch_id()].push_back(sparse_buffer_op);
-                }
 
                 BudaOp op = create_op(
                     graph,

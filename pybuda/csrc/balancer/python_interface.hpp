@@ -20,7 +20,7 @@ using OpNode = tt::graphlib::OpNode;
 namespace tt::balancer {
 
 // Defined by buda_bindings_balancer.cpp and tbd by test harness
-std::pair<int, int> get_parallelization(Graph const* graph, OpNode const* node, int fracture_factor, bool sparse_buffer_enable);
+std::pair<int, int> get_parallelization(Graph const* graph, OpNode const* node, int fracture_factor);
 int get_execution_cycles(std::string const& arch_name, OpModel const& op_model, bool theoretical = false, std::vector<FusedSubOpModel> const& sub_op_models = {});
 
 }  // namespace tt::balancer

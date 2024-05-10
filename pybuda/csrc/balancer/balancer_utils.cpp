@@ -607,7 +607,6 @@ std::shared_ptr<const OpModel::SparseMetadata> get_sparse_matmul_metadata(balanc
     const int bcast_factor = sparse_buda.bcast_factor;  // broadcast factor
     const std::vector<sparse::SparseIndex>& sparse_indices = sparse_buda.sparse_indices;
     auto layout = sparse::SparseBUDA::create_layout(
-        op_model.has_sparse_buffer() or env_as<bool>("PYBUDA_FORCE_SPARSE_BUFFER_LAYOUT"),
         op_model.t_stream_factor.dir.z_major(),
         op_model.fracture_factor);
 
@@ -654,7 +653,7 @@ std::shared_ptr<const OpModel::SparseMetadata> get_sparse_matmul_metadata(balanc
         else
         {
             TT_ASSERT(
-                layout == sparse::SparseBUDA::Layout::ZMajorDataflow || layout == sparse::SparseBUDA::Layout::BufferOp);
+                layout == sparse::SparseBUDA::Layout::ZMajorDataflow);
             const int t_slice_size = bcast_slice_size / t_factor_r;  // size of each slice after vslice(t_factor_r)
             r = (index.rt / dflow_factor) % grid_r;
             t = index.rt / t_slice_size % t_factor_r;

@@ -457,12 +457,6 @@ void place_dram_queues(
             }
             block_shape = balancer_solution.block_shapes.at(
                 (node->node_type() == graphlib::NodeType::kQueue) ? ref_node->name() : node->name());
-            if (node->node_type() == graphlib::NodeType::kQueue and
-                balancer_solution.op_models.at(ref_node->name()).has_sparse_buffer())
-            {
-                TT_ASSERT((queue_coord_range.size_c() % 2) == 0);
-                queue_coord_range.end.col = queue_coord_range.start.col + (queue_coord_range.size_c() / 2);
-            }
         }
         catch (std::out_of_range &e)
         {

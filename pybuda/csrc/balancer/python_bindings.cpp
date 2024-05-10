@@ -485,7 +485,7 @@ namespace tt::balancer
 {
 
 std::pair<int, int> get_parallelization(
-    Graph const* graph, OpNode const* node, int fracture_factor, bool sparse_buffer_enable)
+    Graph const* graph, OpNode const* node, int fracture_factor)
 {
     auto eval_module = py::module_::import("pybuda.op.eval.buda");
     py::function pybuda_parallelization = eval_module.attr("get_f_pybuda_parallelization")(node->op_type_ptr());
@@ -527,14 +527,6 @@ std::pair<int, int> get_parallelization(
                 gcd_shape.rt,
                 gcd_shape.ct);
         op_shape.outputs[0] = gcd_shape;
-    }
-    else if (node->as<graphlib::BudaOpNode>()->is_sparse_matmul() and sparse_buffer_enable)
-    {
-        int bcast_factor =
-            graph->data_operands(node)[0]->as<graphlib::ConstantInputNode>()->get_sparse_buda().bcast_factor;
-        auto [r, c] = pybuda_parallelization(op_shape, fracture_factor).cast<std::pair<int, int>>();
-        TT_ASSERT((r % bcast_factor) == 0);
-        return std::make_pair(r / bcast_factor, c);
     }
     return pybuda_parallelization(op_shape, fracture_factor).cast<std::pair<int, int>>();
 }

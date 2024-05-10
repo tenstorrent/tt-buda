@@ -118,20 +118,6 @@ std::optional<int> OpOverride::get_u_kt()
 
 namespace tt::balancer::legalizer
 {
-static bool sparse_buffer_legal(Graph const* graph, graphlib::BudaOpNode const* op_node)
-{
-    if (not op_node->is_sparse_matmul())
-        return false;
-
-    auto users = graph->data_users(op_node);
-    if (users.size() > 1)
-        return false;
-
-    auto user = dynamic_cast<graphlib::BudaOpNode const*>(users.front());
-    bool user_is_reduce_z =
-        user and (user->op_name() == "reduce" and std::get<std::string>(user->buda_attrs().at("dim")) == "z");
-    return not user_is_reduce_z;
-}
 
 bool validate_sparse_matmul_model(const graphlib::Graph* graph, const graphlib::BudaOpNode* op, const OpModel& op_model)
 {
@@ -307,8 +293,7 @@ static std::pair<FactorizedShape, LegalSparseUKts> calculate_streaming_pars(
     Parallelization grid_par,
     FactorizedShape all_pars,
     TStreamDir dir,
-    int fracture_factor,
-    bool sparse_buffer_enable)
+    int fracture_factor)
 {
     bool is_reduce_z = graphlib::is_reduce_z(op_node);
     int operand_z_dim = graph->operands(op_node)[0]->shape().z();
@@ -325,7 +310,7 @@ static std::pair<FactorizedShape, LegalSparseUKts> calculate_streaming_pars(
         sparse::SparseBUDA& sparse_buda =
             graph->data_operands(op_node)[0]->as<graphlib::ConstantInputNode>()->get_sparse_buda();
         std::vector<tt::sparse::SparseCOO>& sparse_zs = sparse_buda.sparse_zs;
-        auto layout = sparse::SparseBUDA::create_layout(sparse_buffer_enable, dir.z_major(), fracture_factor);
+        auto layout = sparse::SparseBUDA::create_layout(dir.z_major(), fracture_factor);
         int bcast_factor =
             (layout == sparse::SparseBUDA::Layout::ZMajor || layout == sparse::SparseBUDA::Layout::ZMajorDataflow)
                 ? sparse_buda.bcast_factor
@@ -422,8 +407,7 @@ static std::pair<FactorizedShape, LegalSparseUKts> calculate_streaming_pars(
     TStreamDir dir,
     FactorizedShape overridden_pars,
     bool enable_t_streaming,
-    int fracture_factor,
-    bool sparse_buffer_enable)
+    int fracture_factor)
 {
     if (not enable_t_streaming or streaming_unsupported_op(op_node->op_type().op))
     {
@@ -431,7 +415,7 @@ static std::pair<FactorizedShape, LegalSparseUKts> calculate_streaming_pars(
     }
 
     auto [streaming_pars, legal_sparse_u_kts] =
-        calculate_streaming_pars(graph, op_node, grid_par, all_pars, dir, fracture_factor, sparse_buffer_enable);
+        calculate_streaming_pars(graph, op_node, grid_par, all_pars, dir, fracture_factor);
 
     if (not overridden_pars.empty())
         streaming_pars = streaming_pars & overridden_pars;
@@ -1440,13 +1424,6 @@ static std::vector<BufferModel> calculate_sparse_matmul_input_buffer_models_for_
     const sparse::SparseBUDA& sparse_buda =
         graph->data_operands(op_node)[0]->as<graphlib::ConstantInputNode>()->get_sparse_buda();
     int max_u_kt_memorywise = (int)(leftover_l1_space / min_buffer_mem);  // sparse op
-    if (env_as<bool>("PYBUDA_SPARSE_BUFFER_ENABLE"))
-    {
-        max_u_kt_memorywise = std::min(
-            max_u_kt_memorywise,
-            (int)((input_l1_buffer_space + BufferModel(output_block_shape, 2, op_node->output_df()).size_bytes()) / (min_buffer_mem * 2))  // buffer op, where both input and output grow with u_kt
-        );
-    }
     int max_u_kt_encodingwise = sparse_buda.get_max_u_kt(grid_shape.r, t_stream_factor.r, output_block_shape.ublock.rt);
     std::size_t k_factor = std::max(1, max_u_kt_memorywise);
     TT_ASSERT(k_factor <= INT_MAX);
@@ -2320,7 +2297,6 @@ static std::pair<OpModel, OpModelFailureReason> calculate_op_model_impl(
     std::size_t dram_channel_capacity,
     std::string& customFailureMessage,
     int fracture_factor,
-    bool sparse_buffer_enable,
     LegalSparseUKts const& legal_sparse_u_kts,
     int u_kt_override,
     std::map<std::uint32_t, std::uint32_t> const& min_input_buffer_factor_overrides,
@@ -2544,20 +2520,11 @@ static std::pair<OpModel, OpModelFailureReason> calculate_op_model_impl(
     auto operand_edges = graph->operand_data_edges(op_node);
     bool is_reduce_z = graphlib::is_reduce_z(op_node);
     op_model.is_sparse_matmul = op_node->is_sparse_matmul();
-    op_model.sparse_buffer = op_node->is_sparse_matmul() and sparse_buffer_enable;
     op_model.consumes_rz_major = std::any_of(
                                      operand_edges.begin(),
                                      operand_edges.end(),
                                      [graph](Edge edge) { return edge_tms_consume_rz_major(graph, edge); }) or
                                  is_reduce_z;
-
-    if (op_model.sparse_buffer)
-    {
-        // When sparse buffer is enabled we use 2x columns and divide the op into 2
-        // The first half of the grid is used for the buffer op, the second half for
-        // the sparse mm itself
-        op_model.grid_shape.c *= 2;
-    }
 
     if (op_model.is_sparse_matmul)
     {
@@ -2596,7 +2563,6 @@ std::pair<OpModel, OpModelFailureReason> calculate_op_model(
     std::size_t dram_channel_capacity,
     std::string& customFailureMessage,
     int fracture_factor,
-    bool sparse_buffer_enable,
     LegalSparseUKts const& legal_sparse_u_kts,
     int u_kt_override,
     std::map<std::uint32_t, std::uint32_t> const& min_input_buffer_factor_overrides,
@@ -2618,7 +2584,6 @@ std::pair<OpModel, OpModelFailureReason> calculate_op_model(
             dram_channel_capacity,
             customFailureMessage,
             fracture_factor,
-            sparse_buffer_enable,
             legal_sparse_u_kts,
             u_kt_override,
             min_input_buffer_factor_overrides,
@@ -2658,10 +2623,6 @@ LegalOpModels get_legal_op_models(
     FactorizedShape device_grid(
         FactorizedInt::Factorial(config.device_config.grid_size.r),
         FactorizedInt::Factorial(config.device_config.grid_size.c));
-    // Sparse buffer op takes 2x columns, so cut device core grid c in half
-    FactorizedShape sparse_buffer_device_grid(
-        FactorizedInt::Factorial(config.device_config.grid_size.r),
-        FactorizedInt::Factorial(config.device_config.grid_size.c / 2));
 
     // Nebula is harvested in Nebula+Galaxy setup, but the device_grid is for
     // unharvested galaxy
@@ -2701,7 +2662,6 @@ LegalOpModels get_legal_op_models(
             get_min_input_buffer_multiplier_overrides(op_override);
         int user_overriden_u_kt = get_u_kt(op_override);
         UBlockOrder ublock_order = get_output_ublock_order(graph, op_node);
-        bool sparse_buffer_enable = env_as<bool>("PYBUDA_SPARSE_BUFFER_ENABLE") and sparse_buffer_legal(graph, op_node);
         bool fallback_single_buffer = config.enable_single_buffer_fallback;
         // Support for full dst mode was removed by backend:
         //   tenstorrent/budabackend#1543
@@ -2718,7 +2678,7 @@ LegalOpModels get_legal_op_models(
         for (int fracture_factor : fracture_factorization.get_factors())
         {
             // all_pars can extend beyond the device grid, used to express t-streaming
-            auto all_pars = FactorizedShape(get_parallelization(graph, op_node, fracture_factor, sparse_buffer_enable));
+            auto all_pars = FactorizedShape(get_parallelization(graph, op_node, fracture_factor));
             all_pars.c = all_pars.c.keep_factors_divisible_by(
                 FactorizedInt::Constant(fracture_factor));  // remove invalid factors
             // TODO: each op's parallelization() should define FactorizedShape, instead of returning a 2-tuple, in order
@@ -2726,11 +2686,6 @@ LegalOpModels get_legal_op_models(
             auto grid_pars = all_pars & device_grid;
             bool force_dram_parameters = config.default_dram_parameters;
             FactorizedShape overridden_streaming_pars;
-
-            if (op_node->is_sparse_matmul() and sparse_buffer_enable)
-            {
-                grid_pars = grid_pars & sparse_buffer_device_grid;
-            }
 
             // output ops will be placed on Nebula hence they should fit a harvested grid
             if (env_as<bool>("PYBUDA_NEBULA_GALAXY_PLACER"))
@@ -2777,8 +2732,7 @@ LegalOpModels get_legal_op_models(
                         streaming_dir,
                         overridden_streaming_pars,
                         enable_t_streaming,
-                        fracture_factor,
-                        sparse_buffer_enable);
+                        fracture_factor);
 
                     for (auto streaming_par : streaming_pars)
                     {
@@ -2801,7 +2755,6 @@ LegalOpModels get_legal_op_models(
                             config.device_config.get_dram_channel_capacity(),
                             customFailureMessage,
                             fracture_factor,
-                            sparse_buffer_enable,
                             legal_sparse_u_kts,
                             user_overriden_u_kt,
                             input_buffer_multipliers,
@@ -2828,7 +2781,6 @@ LegalOpModels get_legal_op_models(
                                     config.device_config.get_dram_channel_capacity(),
                                     customFailureMessage,
                                     fracture_factor,
-                                    sparse_buffer_enable,
                                     legal_sparse_u_kts,
                                     u_kt_override,
                                     input_buffer_multipliers,

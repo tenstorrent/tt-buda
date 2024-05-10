@@ -351,7 +351,6 @@ struct SparseBUDA
         ZMajor,          // Z-major layout, e.g. RZ streaming - go thru all Zs first, for a given R slice
         ZMajorDataflow,  // Z-major layout, special cased for sparse->dense dataflow (same as ZMajor, but slice
                          // vertically down to single tile)
-        BufferOp,        // Used for sparse buffer matmuls
     };
 
     // A little more on layouts...
@@ -488,7 +487,7 @@ struct SparseBUDA
     //   This set of TM ops might look complicated, but when worked out, it just makes it so that each sparse matmul
     //   core sends data only to its corresponding dense matmul core, which is right next to it.
 
-    static Layout create_layout(bool buffer_op, bool z_major, int fracture_factor);
+    static Layout create_layout(bool z_major, int fracture_factor);
 
     std::vector<SparseCOO> sparse_zs;
     std::vector<SparseIndex> sparse_indices;

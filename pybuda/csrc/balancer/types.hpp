@@ -289,7 +289,6 @@ struct OpModel
     const graphlib::BudaOpNode *buda_op_node = nullptr;
     DataFormat data_format;
     bool input_prologue = false;
-    bool sparse_buffer = false;
     bool is_sparse_matmul = false;
     bool consumes_rz_major = false;
     const sparse::SparseBUDA *sparse_buda = nullptr;            // sparse-matmul specific
@@ -328,7 +327,6 @@ struct OpModel
     int get_execution_cycles(
         std::string const &arch_name, bool theoretical = false, bool invalidate_cached = false) const;
     int get_output_buffer_factor() const { return output_buffers.at(0).buffer_factor; }
-    bool has_sparse_buffer() const { return sparse_buffer; }
     bool has_parameter_buffers() const
     {
         return std::any_of(parameter_buffers.begin(), parameter_buffers.end(), [](auto b) { return bool(b); });
@@ -409,7 +407,6 @@ struct OpModel
         and t_stream_factor == other.t_stream_factor
         and fracture_factor == other.fracture_factor
         and input_prologue == other.input_prologue
-        and sparse_buffer == other.sparse_buffer
         and padding == other.padding
         and input_buffers == other.input_buffers
         and output_buffers == other.output_buffers
