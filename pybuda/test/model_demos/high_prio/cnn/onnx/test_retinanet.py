@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: © 2024 Tenstorrent AI ULC
 
 # SPDX-License-Identifier: Apache-2.0
+
 # STEP 0: import PyBuda library
 import pytest
 
@@ -17,6 +18,9 @@ import tensorflow as tf
 
 from PIL import Image
 import numpy as np
+
+import requests
+from torchvision import transforms
 
 ## https://github.com/onnx/models/tree/main/vision/object_detection_segmentation/retinanet
 
@@ -79,4 +83,103 @@ def test_retinanet_r101_640x480_onnx(test_device):
             devmode=test_device.devmode,
             pcc=pcc,
         )
+    )
+
+def img_preprocessing():
+
+    url = "https://i.ytimg.com/vi/q71MCWAEfL8/maxresdefault.jpg"
+    pil_img = Image.open(requests.get(url, stream=True).raw)
+    new_size = (640, 480)
+    pil_img = pil_img.resize(new_size, resample=Image.BICUBIC)
+    preprocess = transforms.Compose(
+        [
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ]
+    )
+    img = preprocess(pil_img)
+    img = img.unsqueeze(0)
+    return img
+
+variants = [
+    "retinanet_rn18fpn",
+    "retinanet_rn34fpn",
+    "retinanet_rn50fpn",
+    "retinanet_rn152fpn",
+]
+
+@pytest.mark.parametrize("variant", variants)
+def test_retinanet_onnx(variant, test_device):
+
+    # Set PyBuda configuration parameters
+    compiler_cfg = pybuda.config._get_global_compiler_config()
+    compiler_cfg.balancer_policy = "Ribbon"
+    compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
+    os.environ["PYBUDA_DECOMPOSE_SIGMOID"] = "1"
+    os.environ["PYBUDA_RIBBON2"] = "1"
+
+    if test_device.arch == BackendDevice.Wormhole_B0:
+        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "73728"
+
+        if variant == "retinanet_rn18fpn":
+            compiler_cfg.place_on_new_epoch("conv2d_117.dc.matmul.11")
+            compiler_cfg.balancer_op_override("conv2d_82.dc.matmul.11", "t_stream_shape", (1,1))
+            compiler_cfg.balancer_op_override("conv2d_60.dc.matmul.11", "grid_shape", (1,1))
+
+        elif variant == "retinanet_rn34fpn":
+            compiler_cfg.place_on_new_epoch("conv2d_157.dc.matmul.11")
+            compiler_cfg.balancer_op_override("conv2d_122.dc.matmul.11", "t_stream_shape", (1,1))
+            compiler_cfg.balancer_op_override("conv2d_100.dc.matmul.11", "grid_shape", (1,1))
+        
+        elif variant == "retinanet_rn50fpn":
+            compiler_cfg.place_on_new_epoch("conv2d_190.dc.matmul.11")
+            compiler_cfg.balancer_op_override("conv2d_155.dc.matmul.11", "t_stream_shape", (1,1))
+            compiler_cfg.balancer_op_override("conv2d_133.dc.matmul.11", "grid_shape", (1,1))
+
+        elif variant == "retinanet_rn152fpn":
+            compiler_cfg.place_on_new_epoch("conv2d_428.dc.matmul.11")
+            compiler_cfg.balancer_op_override("conv2d_393.dc.matmul.11", "t_stream_shape", (1,1))
+            compiler_cfg.balancer_op_override("conv2d_371.dc.matmul.11", "grid_shape", (1,1))
+    
+    if test_device.arch == BackendDevice.Grayskull:
+        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "69632"
+
+        if variant == "retinanet_rn18fpn":
+            compiler_cfg.balancer_op_override("conv2d_82.dc.matmul.11", "t_stream_shape", (1,1))
+            compiler_cfg.balancer_op_override("conv2d_60.dc.matmul.11", "t_stream_shape", (1,1))
+
+        elif variant == "retinanet_rn34fpn":
+            compiler_cfg.balancer_op_override("conv2d_122.dc.matmul.11", "t_stream_shape", (1,1))
+            compiler_cfg.balancer_op_override("conv2d_100.dc.matmul.11", "t_stream_shape", (1,1))
+
+        elif variant == "retinanet_rn50fpn":
+            compiler_cfg.balancer_op_override("conv2d_155.dc.matmul.11", "t_stream_shape", (1,1))
+            compiler_cfg.balancer_op_override("conv2d_133.dc.matmul.11", "t_stream_shape", (1,1))
+
+        elif variant == "retinanet_rn152fpn":
+            compiler_cfg.balancer_op_override("conv2d_393.dc.matmul.11", "t_stream_shape", (1,1))
+            compiler_cfg.balancer_op_override("conv2d_371.dc.matmul.11", "t_stream_shape", (1,1))
+ 
+    # Prepare model
+    load_path = (
+        f"third_party/confidential_customer_models/generated/files/{variant}.onnx"
+    )
+    model_name = f"onnx_{variant}"
+    model = onnx.load(load_path)
+    tt_model = pybuda.OnnxModule(model_name, model, load_path)
+
+    # Prepare input
+    input_batch = img_preprocessing()
+
+    # Inference
+    verify_module(
+        tt_model,
+        input_shapes=([input_batch.shape]),
+        inputs=([input_batch]),
+        verify_cfg=VerifyConfig(
+            arch=test_device.arch,
+            devtype=test_device.devtype,
+            devmode=test_device.devmode,
+            test_kind=TestKind.INFERENCE,
+        ),
     )

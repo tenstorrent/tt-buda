@@ -1,149 +1,155 @@
 # SPDX-FileCopyrightText: © 2024 Tenstorrent AI ULC
 
 # SPDX-License-Identifier: Apache-2.0
-import pytest
-from test.utils import download_model
-from pybuda.verify.backend import verify_module
-from pybuda import VerifyConfig, PyTorchModule
-from pybuda._C.backend_api import BackendType, BackendDevice
-from pybuda.verify.config import TestKind
 
 import pybuda
-import os
-from loguru import logger
-
-import torch
-import torchvision
-
 from PIL import Image
+import requests
 from torchvision import transforms
-torch.multiprocessing.set_sharing_strategy("file_system") 
- 
-def get_image():
-    try:
-        torch.hub.download_url_to_file(
-            "https://github.com/pytorch/hub/raw/master/images/dog.jpg", "dog.jpg"
-        )
-        input_image = Image.open("dog.jpg")
-        preprocess = transforms.Compose(
-            [
-                transforms.Resize(800),
-                transforms.CenterCrop(800),
-                transforms.ToTensor(),
-                transforms.Normalize(
-                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-                ),
-            ]
-        )
-        img_tensor = preprocess(input_image)
-        img_tensor = img_tensor.unsqueeze(0)
-    except:
-        logger.warning("Failed to download the image file, replacing input with random tensor. Please check if the URL is up to date")
-        img_tensor = torch.rand(1, 3, 800, 800)
+import os
+import pytest
+from pybuda.verify.backend import verify_module
+from pybuda.verify.config import TestKind
+from pybuda import VerifyConfig
+import sys
 
-    return img_tensor
+sys.path.append("third_party/confidential_customer_models/cv_demos/retinanet/model/")
+from model_implementation import Model
+from pybuda._C.backend_api import BackendDevice
 
-   
-   
-class RetinaNetModelWrapper(torch.nn.Module):
-    def __init__(self, model):
-        super().__init__()
-        self.model = model
 
-    def forward(self, image_tensors):
-        
-        images, targets = self.model.transform(image_tensors, None)
-        features = self.model.backbone(images.tensors)
-        if isinstance(features, torch.Tensor):
-            features = OrderedDict([('0', features)])
-            
-        features = list(features.values())
-        head_outputs = self.model.head(features)
-        # import pdb; pdb.set_trace()
-        return image_tensors, features[0], features[1], features[2], features[3], features[4], head_outputs['cls_logits'], head_outputs['bbox_regression']
+def img_preprocess():
 
-from torchvision.models.detection.image_list import ImageList  
-class RetinaNetModelPostProcessing(torch.nn.Module):
-    def __init__(self, model):
-        super().__init__()
-        self.model = model
+    url = "https://i.ytimg.com/vi/q71MCWAEfL8/maxresdefault.jpg"
+    pil_img = Image.open(requests.get(url, stream=True).raw)
+    new_size = (640, 480)
+    pil_img = pil_img.resize(new_size, resample=Image.BICUBIC)
+    preprocess = transforms.Compose(
+        [
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ]
+    )
+    img = preprocess(pil_img)
+    img = img.unsqueeze(0)
+    return img
 
-    def forward(self, image_tensors, feat0, feat1, feat2, feat3, feat4, cls_logits, bbox_regression):        
-        # get the original image sizes
-        original_image_sizes: List[Tuple[int, int]] = []
-        for img in image_tensors:
-            val = img.shape[-2:]
-            assert len(val) == 2
-            original_image_sizes.append((val[0], val[1]))
-        
-        features = [feat0, feat1, feat2, feat3, feat4]
-        head_outputs = {'cls_logits': cls_logits, 'bbox_regression': bbox_regression}
-        image_sizes = [tuple(img.shape[-2:]) for img in image_tensors]
-        images = ImageList(image_tensors, image_sizes)
-        anchors = self.model.anchor_generator(images, features)
-        
-        detections: List[Dict[str, Tensor]] = []
-        # recover level sizes
-        num_anchors_per_level = [x.size(2) * x.size(3) for x in features]
-        HW = 0
-        for v in num_anchors_per_level:
-            HW += v
-        HWA = head_outputs['cls_logits'].size(1)
-        A = HWA // HW
-        num_anchors_per_level = [hw * A for hw in num_anchors_per_level]
 
-        # split outputs per level
-        split_head_outputs: Dict[str, List[Tensor]] = {}
-        for k in head_outputs:
-            split_head_outputs[k] = list(head_outputs[k].split(num_anchors_per_level, dim=1))
-        split_anchors = [list(a.split(num_anchors_per_level)) for a in anchors]
+variants = [
+    "retinanet_rn18fpn",
+    "retinanet_rn34fpn",
+    "retinanet_rn50fpn",
+    "retinanet_rn101fpn",
+    "retinanet_rn152fpn",
+]
 
-        # compute the detections
-        detections = self.model.postprocess_detections(split_head_outputs, split_anchors, images.image_sizes)
-        detections = self.model.transform.postprocess(detections, images.image_sizes, original_image_sizes)
-        
-        return detections
 
-@pytest.mark.skip(reason="Not supported")
-def test_retinanet_r50_fpn_v1_torchvision_pytorch(test_device):
-    # STEP 1: Set PyBuda configuration parameters
-    compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
-    compiler_cfg.balancer_policy = "CNN"
-    compiler_cfg.default_df_override = pybuda._C.DataFormat.Bfp8_b
-    compiler_cfg.amp_level = 2
-    compiler_cfg.enable_auto_fusing = False
-    compiler_cfg.conv_multi_op_fracture_factor_override["conv2d_8"] = 7
-    compiler_cfg.conv_multi_op_fracture_factor_override["conv2d_167"] = 3
-    compiler_cfg.conv_multi_op_fracture_factor_override["conv2d_219"] = 3
-    compiler_cfg.conv_multi_op_fracture_factor_override["conv2d_259"] = 3
-    compiler_cfg.conv_multi_op_fracture_factor_override["conv2d_299"] = 3
-    compiler_cfg.conv_multi_op_fracture_factor_override["conv2d_717"] = 3
-    compiler_cfg.conv_multi_op_fracture_factor_override["conv2d_723"] = 3
-    compiler_cfg.conv_multi_op_fracture_factor_override["conv2d_725"] = 3
-    compiler_cfg.conv_multi_op_fracture_factor_override["conv2d_727"] = 3
-    compiler_cfg.conv_multi_op_fracture_factor_override["conv2d_729"] = 3
-    compiler_cfg.conv_multi_op_fracture_factor_override["conv2d_789"] = 3
-    compiler_cfg.conv_multi_op_fracture_factor_override["conv2d_791"] = 3
-    compiler_cfg.conv_multi_op_fracture_factor_override["conv2d_793"] = 3
-    compiler_cfg.conv_multi_op_fracture_factor_override["conv2d_795"] = 3
-    compiler_cfg.conv_multi_op_fracture_factor_override["conv2d_797"] = 3
-    os.environ["PYBUDA_GRAPHSOLVER_SELF_CUT_TYPE"] = "ConsumerOperandDataEdgesFirst"
+@pytest.mark.parametrize("variant", variants)
+def test_retinanet(variant, test_device):
 
-    # STEP 2: Create PyBuda module from PyTorch model 
-    model = download_model(torchvision.models.detection.retinanet_resnet50_fpn, pretrained=True)
+    # Set PyBuda configuration parameters
+    compiler_cfg = pybuda.config._get_global_compiler_config()
+    compiler_cfg.balancer_policy = "Ribbon"
+    compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
+    os.environ["PYBUDA_DECOMPOSE_SIGMOID"] = "1"
+    os.environ["PYBUDA_RIBBON2"] = "1"
+    os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "73728"
+
+    if test_device.arch == BackendDevice.Wormhole_B0:
+
+        if variant == "retinanet_rn18fpn":
+            compiler_cfg.place_on_new_epoch("conv2d_357.dc.matmul.11")
+            compiler_cfg.balancer_op_override(
+                "conv2d_322.dc.matmul.11", "t_stream_shape", (1, 1)
+            )
+            compiler_cfg.balancer_op_override(
+                "conv2d_300.dc.matmul.11", "grid_shape", (1, 1)
+            )
+
+        elif variant == "retinanet_rn34fpn":
+            compiler_cfg.place_on_new_epoch("conv2d_589.dc.matmul.11")
+            compiler_cfg.balancer_op_override(
+                "conv2d_554.dc.matmul.11", "t_stream_shape", (1, 1)
+            )
+            compiler_cfg.balancer_op_override(
+                "conv2d_532.dc.matmul.11", "grid_shape", (1, 1)
+            )
+
+        elif variant == "retinanet_rn50fpn":
+            compiler_cfg.place_on_new_epoch("conv2d_826.dc.matmul.11")
+            compiler_cfg.balancer_op_override(
+                "conv2d_791.dc.matmul.11", "t_stream_shape", (1, 1)
+            )
+            compiler_cfg.balancer_op_override(
+                "conv2d_769.dc.matmul.11", "grid_shape", (1, 1)
+            )
+
+        elif variant == "retinanet_rn101fpn":
+            compiler_cfg.place_on_new_epoch("conv2d_1557.dc.matmul.11")
+            compiler_cfg.balancer_op_override(
+                "conv2d_1522.dc.matmul.11", "t_stream_shape", (1, 1)
+            )
+            compiler_cfg.balancer_op_override(
+                "conv2d_1500.dc.matmul.11", "grid_shape", (1, 1)
+            )
+
+        elif variant == "retinanet_rn152fpn":
+            compiler_cfg.place_on_new_epoch("conv2d_2288.dc.matmul.11")
+            compiler_cfg.balancer_op_override(
+                "conv2d_2253.dc.matmul.11", "t_stream_shape", (1, 1)
+            )
+            compiler_cfg.balancer_op_override(
+                "conv2d_2231.dc.matmul.11", "grid_shape", (1, 1)
+            )
+
+    if test_device.arch == BackendDevice.Grayskull:
+
+        if variant == "retinanet_rn18fpn":
+            compiler_cfg.balancer_op_override(
+                "conv2d_322.dc.matmul.11", "t_stream_shape", (1, 1)
+            )
+
+        elif variant == "retinanet_rn34fpn":
+            compiler_cfg.balancer_op_override(
+                "conv2d_554.dc.matmul.11", "t_stream_shape", (1, 1)
+            )
+
+        elif variant == "retinanet_rn50fpn":
+            compiler_cfg.balancer_op_override(
+                "conv2d_791.dc.matmul.11", "t_stream_shape", (1, 1)
+            )
+
+        elif variant == "retinanet_rn101fpn":
+            compiler_cfg.balancer_op_override(
+                "conv2d_1522.dc.matmul.11", "t_stream_shape", (1, 1)
+            )
+
+        elif variant == "retinanet_rn152fpn":
+            compiler_cfg.balancer_op_override(
+                "conv2d_2253.dc.matmul.11", "t_stream_shape", (1, 1)
+            )
+
+    # Prepare model
+
+    checkpoint_path = (
+        f"third_party/confidential_customer_models/cv_demos/retinanet/weights/{variant}.pth"
+    )
+    model = Model.load(checkpoint_path)
     model.eval()
-    tt_model = pybuda.PyTorchModule("retinanet_v1_pt", RetinaNetModelWrapper(model))
-    # import pdb; pdb.set_trace()
-    # STEP 3: Run inference on Tenstorrent device 
-    img_tensor = get_image()
-    output = model(img_tensor)
+    tt_model = pybuda.PyTorchModule(f"pt_{variant}", model)
 
-    tt_model = RetinaNetModelWrapper(model)
-    cpu_model = RetinaNetModelPostProcessing(model)
-    tt_output = cpu_model(*tt_model(img_tensor))
-    tt0 = pybuda.TTDevice("tt0", devtype=test_device.devtype, arch=test_device.arch, module=PyTorchModule("retinanet_pt", tt_model))
-    cpu1 = pybuda.CPUDevice("cpu1", module=PyTorchModule("retinanet_pt", cpu_model))
-    
-    tt0.push_to_inputs(img_tensor)
-    output_q = pybuda.run_inference(_verify_cfg=VerifyConfig(relative_atol=0.3), _sequential=True)
-    
+    # Prepare input
+    input_batch = img_preprocess()
+
+    # Inference
+    verify_module(
+        tt_model,
+        input_shapes=([input_batch.shape]),
+        inputs=([input_batch]),
+        verify_cfg=VerifyConfig(
+            arch=test_device.arch,
+            devtype=test_device.devtype,
+            devmode=test_device.devmode,
+            test_kind=TestKind.INFERENCE,
+        ),
+    )
