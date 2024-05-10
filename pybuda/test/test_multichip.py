@@ -20,6 +20,7 @@ from pybuda.config import _get_global_compiler_config
 backend_devices = {
     "grayskull" : BackendDevice.Grayskull,
     "wormhole_b0": BackendDevice.Wormhole_B0,
+    "blackhole": BackendDevice.Blackhole
 }
 
 # Currently only guarded for Grayskull:

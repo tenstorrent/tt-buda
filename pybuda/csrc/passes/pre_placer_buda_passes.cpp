@@ -570,9 +570,9 @@ placer::PlacerConfigUpdate schedule_pre_placer_graph(
         .arch_name = device_config.arch_name,
         .op_to_epoch_type = placer::lowering::get_op_to_epoch_type_mapping(graph, scheduled_ops),
         .ops_tagged_for_chip_id_break =
-            placer::lowering::tag_ops_for_chip_break(device_config.arch_name, op_names_to_chip_break, scheduled_ops, graph, use_interactive_placer),
+            placer::lowering::tag_ops_for_chip_break(device_config, op_names_to_chip_break, scheduled_ops, graph, use_interactive_placer),
         .ops_tagged_for_epoch_break = placer::lowering::tag_ops_for_epoch_break(
-            device_config.arch_name,
+            device_config,
             op_names_to_epoch_break,
             op_names_to_chip_break,
             scheduled_ops,

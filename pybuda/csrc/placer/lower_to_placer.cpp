@@ -8,6 +8,7 @@
 #include <unordered_set>
 
 #include "autograd/autograd.hpp"
+#include "backend_api/device_config.hpp"
 #include "graph_lib/graph.hpp"
 #include "graph_lib/node.hpp"
 #include "graph_lib/utils.hpp"
@@ -310,7 +311,7 @@ static unordered_set<string> tag_ops_for_epoch_or_chip_break(
 }
 
 unordered_set<string> tag_ops_for_epoch_break(
-    const string& arch_name,
+    const DeviceConfig& device_config,
     const vector<vector<string>>& op_names_to_epoch_break,
     const vector<vector<string>>& op_names_to_chip_break,
     const vector<string>& scheduled_ops,
@@ -326,7 +327,7 @@ unordered_set<string> tag_ops_for_epoch_break(
         }
         return ops_tagged_for_epoch_break;
     }
-    if ((use_interactive_placer == false || env_as<bool>("PYBUDA_WORMHOLE_PIPELINED_PLACER")) && arch_name.find("wormhole") != std::string::npos)
+    if ((use_interactive_placer == false || env_as<bool>("PYBUDA_WORMHOLE_PIPELINED_PLACER")) && device_config.is_wormhole_b0())
     {
         vector<vector<string>> updated_op_names_to_epoch_break = op_names_to_epoch_break;
         updated_op_names_to_epoch_break.insert(
@@ -346,13 +347,13 @@ unordered_set<string> tag_ops_for_epoch_break(
 }
 
 unordered_set<string> tag_ops_for_chip_break(
-    const string& arch_name,
+    const DeviceConfig& device_config,
     const vector<vector<string>>& op_names_to_chip_break,
     const vector<string>& scheduled_ops,
     graphlib::Graph const* graph,
     bool use_interactive_placer)
 {
-    if (use_interactive_placer == false && arch_name.find("wormhole") != std::string::npos)
+    if (use_interactive_placer == false && device_config.is_wormhole_b0())
     {
         return {};
     }

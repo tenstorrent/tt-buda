@@ -1474,7 +1474,7 @@ BalancerPolicySolution run_policy_ribbon2(
                 // in our case and can cause perf degradation.
                 op_names_to_epoch_break.pop_back();
                 epoch_break_ops = placer::lowering::tag_ops_for_epoch_break(
-                    config.device_config.arch_name,
+                    config.device_config,
                     op_names_to_epoch_break,
                     config.op_names_to_chip_break,
                     scheduled_ops,

@@ -87,13 +87,13 @@ placer::PlacerSolution run_placer(
         .op_to_grad_op = placer::lowering::get_op_to_grad_op_mapping(graph, scheduled_ops),
         .op_to_recompute_op = placer::lowering::get_op_to_recompute_mapping(graph, scheduled_ops),
         .ops_tagged_for_chip_id_break = placer::lowering::tag_ops_for_chip_break(
-            config.device_config.arch_name,
+            config.device_config,
             config.op_names_to_chip_break,
             scheduled_ops,
             graph,
             config.use_interactive_placer),
         .ops_tagged_for_epoch_break = placer::lowering::tag_ops_for_epoch_break(
-            config.device_config.arch_name,
+            config.device_config,
             config.op_names_to_epoch_break,
             config.op_names_to_chip_break,
             scheduled_ops,
@@ -410,14 +410,14 @@ std::tuple<scheduler::Schedule, std::unordered_set<string>, std::unordered_set<s
     epoch_or_chip_break_remove_processed_nodes(graph, op_names_to_epoch_break, processed_nodes);
     epoch_or_chip_break_remove_processed_nodes(graph, op_names_to_chip_break, processed_nodes);
     std::unordered_set<string> epoch_break_ops = placer::lowering::tag_ops_for_epoch_break(
-        config.device_config.arch_name,
+        config.device_config,
         op_names_to_epoch_break,
         op_names_to_chip_break,
         scheduled_ops,
         graph,
         config.use_interactive_placer);
     std::unordered_set<string> chip_break_ops = placer::lowering::tag_ops_for_chip_break(
-        config.device_config.arch_name, op_names_to_chip_break, scheduled_ops, graph, config.use_interactive_placer);
+        config.device_config, op_names_to_chip_break, scheduled_ops, graph, config.use_interactive_placer);
 
     return make_tuple(std::move(scheduled_ops), std::move(epoch_break_ops), std::move(chip_break_ops));
 }

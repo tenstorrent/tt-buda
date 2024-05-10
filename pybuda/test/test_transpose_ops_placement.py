@@ -113,8 +113,8 @@ class TwoOpsModulev2(pybuda.PyBudaModule):
 @pytest.mark.parametrize("r", [x+1 for x in range(10)])
 @pytest.mark.parametrize("c", [x+1 for x in range(10)])
 def test_manual_op_transpose(test_device, r, c):
-    if test_device.arch == pybuda.BackendDevice.Wormhole_B0 and (r > 8 or c > 8):
-        pytest.skip("Wormhole has 8 columns, skip the op-test with c = 9 or 10")
+    if (test_device.arch == pybuda.BackendDevice.Wormhole_B0 or test_device.arch == pybuda.BackendDevice.Blackhole) and (r > 8 or c > 8):
+        pytest.skip(f"{test_device.arch.to_string()} has 8 columns, skip the op-test with c = 9 or 10")
 
     compiler_cfg = _get_global_compiler_config()
     dev_cfg = get_device_config(test_device.arch, [0], compiler_cfg.backend_cluster_descriptor_path, compiler_cfg.backend_runtime_params_path, compiler_cfg.store_backend_db_to_yaml, test_device.devtype)
@@ -161,8 +161,8 @@ def test_auto_op_transpose_case1(test_device):
     grid_transpose = placer_solution.name_to_op_placement["add"].grid_transpose
 
     expected_placed_core_rows = (0,1)
-    # if WH_B0, there is 1 less op, since transpose combined with srcA
-    expected_placed_core_cols = (4,6) if test_device.is_wormhole_b0() else (5,7)
+    # if grayskull, there is 1 more op, since transpose combined with srcA isn't supported
+    expected_placed_core_cols = (5,7) if test_device.is_grayskull() else (4,6)
 
     assert (placed_core.start.row, placed_core.end.row) == expected_placed_core_rows, f"(placed_core.start.row, placed_core.end.row) = {(placed_core.start.row, placed_core.end.row)} != expected_placed_core_rows = ({expected_placed_core_rows})"
     assert (placed_core.start.col, placed_core.end.col) == expected_placed_core_cols, f"(placed_core.start.col, placed_core.end.col) = {(placed_core.start.col, placed_core.end.col)} != expected_placed_core_cols = ({expected_placed_core_cols})"
@@ -227,7 +227,7 @@ def test_auto_op_transpose_case3(test_device):
 
 
 def test_auto_op_transpose_multi_rows1(test_device): 
-    if test_device.arch == pybuda.BackendDevice.Wormhole_B0:
+    if test_device.arch != pybuda.BackendDevice.Grayskull:
         pytest.skip("Targetting grid-size of GS only")
 
     compiler_cfg = _get_global_compiler_config()  
@@ -259,7 +259,7 @@ def test_auto_op_transpose_multi_rows1(test_device):
 
 
 def test_auto_op_transpose_multi_rows2(test_device): 
-    if test_device.arch == pybuda.BackendDevice.Wormhole_B0:
+    if test_device.arch != pybuda.BackendDevice.Grayskull:
         pytest.skip("Targetting grid-size of GS only")
 
     compiler_cfg = _get_global_compiler_config()  

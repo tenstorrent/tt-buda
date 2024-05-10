@@ -41,7 +41,7 @@ def test_fracture(test_kind, test_device, dim, factor):
 @pytest.mark.parametrize("dim", [-1, -2])
 @pytest.mark.parametrize("factor", [2, 3, 4])
 def test_fracture_multichip(test_kind, test_device, dim, factor):
-    if test_device.arch == pybuda.BackendDevice.Wormhole_B0:
+    if test_device.arch == pybuda.BackendDevice.Wormhole_B0 or test_device.arch == pybuda.BackendDevice.Blackhole:
         pytest.skip("Skip until #736 is solved")
         
     if test_device.arch == pybuda.BackendDevice.Grayskull:

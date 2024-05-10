@@ -437,7 +437,10 @@ def op_model_to_desc(
             desc.mblock_k = op_model.op_shape.inputs[1].rt
             desc.ublock_kt = 1
         if type == "maximum":
-            desc.version = 2
+            if arch_name == "blackhole":
+                desc.version = 1
+            else:
+                desc.version = 2
 
         desc.op_attr = op_model.get_reduce_dim()
         # desc.op_attr is only used to capture the dim of reduce - ideally, we should support tt::BudaOpAttrs in

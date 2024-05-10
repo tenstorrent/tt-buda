@@ -45,7 +45,7 @@ unordered_set<string> get_output_nodes(const graphlib::Graph *graph);
 vector<string> generate_placer_schedule(graphlib::Graph const* graph, PlacementScheduleOrder schedule_type);
 
 unordered_set<string> tag_ops_for_epoch_break(
-    const string& arch_name,
+    const DeviceConfig& device_config,
     const vector<vector<string>>& op_names_to_epoch_break,
     const vector<vector<string>>& op_names_to_chip_break,
     const vector<string>& scheduled_ops,
@@ -53,7 +53,7 @@ unordered_set<string> tag_ops_for_epoch_break(
     bool use_interactive_placer);
 
 unordered_set<string> tag_ops_for_chip_break(
-    const string& arch_name,
+    const DeviceConfig& device_config,
     const vector<vector<string>>& op_names_to_chip_break,
     const vector<string>& scheduled_ops,
     graphlib::Graph const* graph,

@@ -254,7 +254,7 @@ packages = [p for p in find_packages("pybuda") if not p.startswith("test")]
 short_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
 date = subprocess.check_output(['git', 'show', '-s', '--format=%cd', "--date=format:%y%m%d", 'HEAD']).decode('ascii').strip()
 
-arch_codes = {"wormhole_b0": "wh_b0", "grayskull": "gs"}
+arch_codes = {"wormhole_b0": "wh_b0", "grayskull": "gs", "blackhole": "bh"}
 arch_code = arch_codes[os.environ["BACKEND_ARCH_NAME"]]
 
 version = "0.1." + date + "+dev." + arch_code + "." + short_hash
