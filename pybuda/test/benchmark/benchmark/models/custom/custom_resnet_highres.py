@@ -44,11 +44,8 @@ def custom_resnet_highres(training: bool, config: str, microbatch: int, devtype:
     #os.environ["PYBUDA_DISABLE_CAP_SPARSE_MM_FIDELITY"] = "1"
     #os.environ["PYBUDA_RIBBON2_OPTIMIZATION_ITERATIONS"] = "10"
     #os.environ["PYBUDA_TEMP_ELT_UNARY_ESTIMATES_LEGACY"] = "1"
-    os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
-    os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
     #os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{77*1024}"
     os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
-    os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
     os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
 
     models = {"tt" : pybuda_onnx_model}

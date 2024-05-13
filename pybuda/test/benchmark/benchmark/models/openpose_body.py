@@ -23,12 +23,6 @@ def openpose_osmr_body(training: bool, config: str, microbatch: int, devtype: st
     os.environ["PYBUDA_SUPRESS_T_FACTOR_MM"] = "13"
     os.environ["PYBUDA_ENABLE_HOST_INPUT_NOP_BUFFERING"] = "1"
 
-    # These are about to be enabled by default.
-    #
-    os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
-    os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
-    os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
-
     # Set model parameters based on chosen task and model configuration
     model_name = ""
     img_res = 224

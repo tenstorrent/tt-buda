@@ -120,6 +120,11 @@ def generate_model_yoloV5I640_imgcls_torchhub_pytorch(test_device, variant, size
             compiler_cfg.place_on_new_epoch("conv2d_27.dc.matmul.8")
         if size in ["l"]:
             compiler_cfg.place_on_new_epoch("conv2d_313.dc.matmul.8")
+            # Temp mitigations for net2pipe errors, should be removed.
+            #
+            os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "0"
+            os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "0"
+            os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "0"
 
 
     elif test_device.arch == BackendDevice.Wormhole_B0:
@@ -158,6 +163,11 @@ def generate_model_yoloV5I640_imgcls_torchhub_pytorch(test_device, variant, size
             compiler_cfg.enable_tm_cpu_fallback = True
             os.environ["PYBUDA_DISABLE_CAP_SPARSE_MM_FIDELITY"] = "0"
             os.environ["PYBUDA_TEMP_BALANCER_DISABLE_TARGET_PROXIMITY"] = "1"
+            # Temp mitigations for net2pipe errors, should be removed.
+            #
+            os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "0"
+            os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "0"
+            os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "0"
 
     name = "yolov5" + size
     model = download_model(torch.hub.load, variant, name, pretrained=True)
@@ -242,10 +252,7 @@ def generate_model_yoloV5I480_imgcls_torchhub_pytorch(test_device, variant, size
             os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
 
             # These are planned to be on by default
-            os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
-            os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
             os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
-            os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
 
     name = "yolov5" + size
     model = download_model(torch.hub.load, variant, name, pretrained=True)

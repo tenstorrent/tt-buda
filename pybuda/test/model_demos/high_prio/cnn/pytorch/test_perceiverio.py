@@ -42,6 +42,12 @@ def test_perceiverio_for_image_classification_pytorch(test_device):
     os.environ["PYBUDA_RIBBON2"] = "1"
     verify_enabled = True
 
+    # Temp mitigations for net2pipe errors, should be removed.
+    #
+    os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "0"
+    os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "0"
+    os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "0"
+
     if test_device.arch == pybuda.BackendDevice.Wormhole_B0:
         os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{10*1024}"
 

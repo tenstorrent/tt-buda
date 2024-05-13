@@ -372,8 +372,8 @@ def op_model_to_desc(
                 desc.ublock_kt = op_model.input_buffers[1].block_shape.ublock.rt
                 desc.mblock_k = op_model.op_shape.inputs[1].rt // desc.ublock_kt
                 desc.sparse_indices = op_model.sparse_indices
-                scale_sparse_args = os.environ.get("PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS", False)
-                if os.environ.get("PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES", False):
+                scale_sparse_args = bool(int(os.environ.get("PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS", True)))
+                if bool(int(os.environ.get("PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES", True))):
                     sparse_metadata = op_model.get_sparse_metadata()
                     desc.sparse_indices = sum(sparse_metadata.nz_tiles)
                     desc.sparse_nz_ublocks = sum(sparse_metadata.nz_ublocks)

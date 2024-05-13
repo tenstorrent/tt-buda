@@ -103,6 +103,11 @@ def test_retinanet(variant, test_device):
             )
 
     if test_device.arch == BackendDevice.Grayskull:
+        # Temp mitigations for net2pipe errors, should be removed.
+        #
+        os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "0"
+        os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "0"
+        os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "0"
 
         if variant == "retinanet_rn18fpn":
             compiler_cfg.balancer_op_override(

@@ -38,6 +38,11 @@ def generate_model_inceptionV4_imgcls_osmr_pytorch(test_device, variant):
     compiler_cfg.balancer_op_override("_fused_op_7", "t_stream_shape", (158,1)) # TM error
     if test_device.arch == BackendDevice.Wormhole_B0:
         compiler_cfg.balancer_op_override("conv2d_551.dc.sparse_matmul.10.dc.sparse_matmul.1.lc2", "grid_shape", (1,4))
+        # Temp mitigations for net2pipe errors, should be removed.
+        #
+        os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "0"
+        os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "0"
+        os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "0"
     elif test_device.arch == BackendDevice.Grayskull:
         compiler_cfg.balancer_op_override("_fused_op_2", "t_stream_shape", (676,1)) # TM error (ref pybuda#1527)
 
@@ -126,6 +131,11 @@ def generate_model_inceptionV4_imgcls_timm_pytorch(test_device, variant):
     compiler_cfg.balancer_op_override("_fused_op_7", "t_stream_shape", (158,1)) # TM error
     if test_device.arch == BackendDevice.Wormhole_B0:
         compiler_cfg.balancer_op_override("conv2d_551.dc.sparse_matmul.10.dc.sparse_matmul.1.lc2", "grid_shape", (1,4))
+        # Temp mitigations for net2pipe errors, should be removed.
+        #
+        os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "0"
+        os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "0"
+        os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "0"
     elif test_device.arch == BackendDevice.Grayskull:
         compiler_cfg.balancer_op_override("_fused_op_2", "t_stream_shape", (676,1)) # TM error (ref pybuda#1527)
 

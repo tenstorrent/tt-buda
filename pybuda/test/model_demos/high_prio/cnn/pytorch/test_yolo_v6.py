@@ -107,6 +107,12 @@ def test_yolo_v6_pytorch(variant, test_device):
         os.environ["PYBUDA_FORK_JOIN_SKIP_EXPANDING_BUFFERS"] = "1"
         os.environ["PYBUDA_MAX_FORK_JOIN_BUF"] = "1"
 
+        # Temp mitigations for net2pipe errors, should be removed.
+        #
+        os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "0"
+        os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "0"
+        os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "0"
+
         if test_device.arch == BackendDevice.Grayskull and variant == "yolov6m":
             compiler_cfg.balancer_op_override(
                 "conv2d_258.dc.reshape.0.dc.sparse_matmul.4.lc2", "grid_shape", (1, 1)

@@ -35,6 +35,11 @@ def test_vgg_osmr_pytorch(variant, test_device):
     if (test_device.arch == BackendDevice.Wormhole_B0):
         os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "65536"
         os.environ["PYBUDA_LEGACY_KERNEL_BROADCAST"] = "1"
+        # Temp mitigations for net2pipe errors, should be removed.
+        #
+        os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "0"
+        os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "0"
+        os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "0"
 
     # STEP 2: Create PyBuda module from PyTorch model
     # Variants: 

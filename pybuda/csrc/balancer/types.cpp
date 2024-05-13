@@ -230,7 +230,7 @@ int OpModel::get_execution_cycles_uncached(std::string const &arch_name, bool th
     std::shared_ptr<FusedOp> fused_op = this->fused_op();
 
     // Calculate sparse matmul metadata and write into OpModel's SparseMetadata struct
-    if (env_as<bool>("PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES", false) and this->is_sparse_matmul and
+    if (env_as<bool>("PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES", true) and this->is_sparse_matmul and
         this->sparse_metadata == nullptr)
     {
         auto *p_this = const_cast<OpModel *>(this);
@@ -242,7 +242,7 @@ int OpModel::get_execution_cycles_uncached(std::string const &arch_name, bool th
         return tt::balancer::get_execution_cycles(arch_name, *this, theoretical);
     }
 
-    if (env_as<bool>("PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES", false))
+    if (env_as<bool>("PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES", true))
     {
         // to obtain the execution cycles for fused op, we are calculating cycles for each subop, so
         // we need to prepare necessary information and pass it inside the FusedSubOpModel object

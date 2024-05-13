@@ -26,11 +26,15 @@ def test_ddrnet(variant, test_device):
 
     if test_device.arch == BackendDevice.Wormhole_B0:
         # These overrides are planned to be ON by default
-        os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
-        os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
         os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
-        os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
-    
+
+    if test_device.arch == BackendDevice.Grayskull:
+        # Temp mitigations for net2pipe errors, should be removed.
+        #
+        os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "0"
+        os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "0"
+        os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "0"
+
     # STEP 2: # Create PyBuda module from onnx weights
     model_name = f"{variant}_onnx"
 

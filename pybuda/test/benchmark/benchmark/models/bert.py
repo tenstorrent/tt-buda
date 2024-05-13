@@ -98,9 +98,6 @@ def bert(training: bool, config: str, microbatch: int, devtype: str, arch: str, 
         if compiler_cfg.balancer_policy == "default":
             compiler_cfg.balancer_policy = "Ribbon"
             os.environ["PYBUDA_RIBBON2"] = "1"
-            os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "1"
-            os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "1"
-            os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "1"
             os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
             os.environ["PYBUDA_DISABLE_UNROLLED_PARAMETERS"] = "1" # causes DRAM queue buffers overlap
             if data_type == "Bfp8_b":

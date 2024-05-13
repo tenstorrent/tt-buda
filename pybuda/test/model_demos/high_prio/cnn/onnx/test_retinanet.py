@@ -55,6 +55,12 @@ def test_retinanet_r101_640x480_onnx(test_device):
     os.environ["PYBUDA_BALANCER_PREPASS_DISABLED"] = "1"
     os.environ["PYBUDA_LEGACY_UBLOCK_SHAPE"] = "1"
 
+    # Temp mitigations for net2pipe errors, should be removed.
+    #
+    os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "0"
+    os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "0"
+    os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "0"
+
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
@@ -143,6 +149,11 @@ def test_retinanet_onnx(variant, test_device):
     
     if test_device.arch == BackendDevice.Grayskull:
         os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "69632"
+        # Temp mitigations for net2pipe errors, should be removed.
+        #
+        os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "0"
+        os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "0"
+        os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "0"
 
         if variant == "retinanet_rn18fpn":
             compiler_cfg.balancer_op_override("conv2d_82.dc.matmul.11", "t_stream_shape", (1,1))

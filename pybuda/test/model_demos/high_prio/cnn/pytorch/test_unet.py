@@ -37,6 +37,11 @@ def generate_model_unet_imgseg_osmr_pytorch(test_device, variant):
     if test_device.arch == BackendDevice.Wormhole_B0:
         compiler_cfg.balancer_policy = "Ribbon"
         os.environ["PYBUDA_BALANCER_PREPASS_DISABLED"] = "1"
+        # Temp mitigations for net2pipe errors, should be removed.
+        #
+        os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "0"
+        os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "0"
+        os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "0"
     elif test_device.arch == BackendDevice.Grayskull:
         compiler_cfg.balancer_policy = "CNN"
 

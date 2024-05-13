@@ -117,6 +117,11 @@ def test_yolo_v5_480x480_onnx(test_device, variant):
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
     os.environ["PYBUDA_RIBBON2"] = "1"
     compiler_cfg.enable_tm_cpu_fallback = True
+    # Temp mitigations for net2pipe errors, should be removed.
+    #
+    os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "0"
+    os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "0"
+    os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "0"
 
     if test_device.arch == BackendDevice.Wormhole_B0:
 

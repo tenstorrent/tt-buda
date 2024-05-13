@@ -16,6 +16,11 @@ variants = ["xception", "xception41", "xception65", "xception71"]
 def test_xception_timm(variant, test_device):
     if test_device.arch == BackendDevice.Grayskull and variant == "xception":
         os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
+        # Temp mitigations for net2pipe errors, should be removed.
+        #
+        os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "0"
+        os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "0"
+        os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "0"
     (
         model,
         inputs,
