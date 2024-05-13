@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import subprocess
 
 import pytest
+import _pytest.skipping
 import torch.multiprocessing as mp
 import torch
 import tensorflow as tf
@@ -165,6 +166,7 @@ def pytest_cmdline_preparse(config, args):
         return
 
     pytest.skip = no_skip
+    _pytest.skipping.skip = no_skip  # can't run skipped tests with decorator @pytest.mark.skip without this
 
 DEVICE_CONFIG_TO_BACKEND_DEVICE_TYPE = {
     "gs_e150": BackendDevice.Grayskull,
