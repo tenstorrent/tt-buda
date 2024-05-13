@@ -21,7 +21,7 @@ def get_sample_data(model_name):
     return pixel_values
 
 
-variants = [
+variants_semseg = [
     "nvidia/segformer-b0-finetuned-ade-512-512",
     "nvidia/segformer-b1-finetuned-ade-512-512",
     "nvidia/segformer-b2-finetuned-ade-512-512",
@@ -30,9 +30,10 @@ variants = [
 ]
 
 
-@pytest.mark.parametrize("variant", variants)
-def test_segformer_onnx(test_device, variant):
+@pytest.mark.parametrize("variant", variants_semseg)
+def test_segformer_semantic_segmentation_onnx(test_device, variant):
 
+    # Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
@@ -82,6 +83,76 @@ def test_segformer_onnx(test_device, variant):
 
             if variant == "nvidia/segformer-b1-finetuned-ade-512-512":
                 pcc_value = 0.97
+
+    # Load the sample image
+    pixel_values = get_sample_data(variant)
+
+    onnx_model_path = (
+        "third_party/confidential_customer_models/generated/files/"
+        + str(variant).split("/")[-1].replace("-", "_")
+        + ".onnx"
+    )
+    model = onnx.load(onnx_model_path)
+    onnx.checker.check_model(model)
+
+    tt_model = pybuda.OnnxModule(
+        str(variant).split("/")[-1].replace("-", "_"), model, onnx_model_path
+    )
+
+    # Run inference on Tenstorrent device
+    verify_module(
+        tt_model,
+        input_shapes=[(pixel_values.shape,)],
+        inputs=[(pixel_values,)],
+        verify_cfg=VerifyConfig(
+            arch=test_device.arch,
+            devtype=test_device.devtype,
+            devmode=test_device.devmode,
+            test_kind=TestKind.INFERENCE,
+            verify_pybuda_codegen_vs_framework=True,
+            verify_tvm_compile=True,
+            pcc=pcc_value,
+        ),
+    )
+
+
+variants_img_classification = [
+    "nvidia/mit-b0",
+    "nvidia/mit-b1",
+    "nvidia/mit-b2",
+    "nvidia/mit-b3",
+    "nvidia/mit-b4",
+    "nvidia/mit-b5",
+]
+
+
+@pytest.mark.parametrize("variant", variants_img_classification)
+def test_segformer_image_classification_onnx(test_device, variant):
+
+    # Set PyBuda configuration parameters
+    compiler_cfg = pybuda.config._get_global_compiler_config()
+    compiler_cfg.balancer_policy = "Ribbon"
+    compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
+    os.environ["PYBUDA_RIBBON2"] = "1"
+    os.environ["PYBUDA_DISABLE_PADDING_PASS"] = "1"
+    pcc_value = 0.99
+
+    if test_device.arch == pybuda.BackendDevice.Wormhole_B0:
+
+        if variant in [
+            "nvidia/mit-b1",
+            "nvidia/mit-b2",
+            "nvidia/mit-b3",
+            "nvidia/mit-b4",
+            "nvidia/mit-b5",
+        ]:
+            os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
+
+        if (
+            variant == "nvidia/mit-b0"
+            and test_device.devtype == pybuda.BackendType.Silicon
+        ):
+            pcc_value = 0.97
 
     # Load the sample image
     pixel_values = get_sample_data(variant)
