@@ -2100,6 +2100,25 @@ def decompose_post_optimize(type, attr, dc, inputs):
             
             result = dc.op("narrow", [result], (-1, 0, attr[-1], result.shape[-1]))
             result = dc.op("narrow", [result], (-2, 0, attr[-2], result.shape[-2]))
+        
+            
+        elif len(orig_shape) == 4 and len(orig_attr) < 4 and orig_shape[-4] == 1 and orig_shape[-3] * orig_shape[-2] == attr[-3] * attr[-2] and orig_shape[-1] == attr[-1] and orig_shape[-3] % attr[-3] == 0:
+            # example: (1, 1024, 4, 128) -> (1, 128, 32, 128)
+            # in vstack op, slice size is equal to orig_shape[-3] / attr[-3], hence the constraint orig_shape[-3] % attr[-3] == 0
+            # TODO: this is a temporary solution for decomposing reshape in pytorch implementation of Grouped Query Attention
+            # in this particular case, padding is not needed, while adding padding would increase the input tensor size 8 times (dim -2 going from 4 to 32)
+            # in the future, hard constraint of divisibility of R dim by TILE_DIM should be removed, but removing it currently causes some models to fail compilation
+            # hint: look into function convert_reshape_into_vslice_or_vstack_if_possible
+            result = dc.op('vstack', [result], (orig_shape[-3] // attr[-3],))
+
+        elif len(orig_shape) == 4 and len(attr) == 4 and orig_shape[-4] == attr[-4] and orig_shape[-1] == attr[-1] and attr[-3] == orig_shape[-2] * orig_shape[-3] and attr[-2] == 1 and attr[-3] % orig_shape[-3] == 0:
+            # example: (1, 6, 8, 128) -> (1, 48, 1, 128)
+            # in vslice op, slice size is equal to attr[-3] / orig_shape[-3], hence the constraint attr[-3] % orig_shape[-3] == 0
+            # TODO: this is a temporary solution for decomposing reshape in pytorch implementation of Grouped Query Attention
+            # in this particular case, padding is not needed, while adding padding would increase the resulting tensor size 32 times (dim -2 going from 1 to 32)
+            # in the future, hard constraint of divisibility of R dim by TILE_DIM should be removed, but removing it currently causes some models to fail compilation
+            # hint: look into function convert_reshape_into_vslice_or_vstack_if_possible
+            result = dc.op('vslice', [result], (orig_shape[-2],))
             
         elif (len(orig_shape) < 4 or (len(orig_shape) == 4 and orig_shape[0] == 1)) \
               and (len(attr) < 4 or (len(attr) == 4 and attr[0] == 1)): # General reshape (only support for w == 1)
