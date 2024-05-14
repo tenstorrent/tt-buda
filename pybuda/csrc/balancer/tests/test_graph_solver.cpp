@@ -177,7 +177,7 @@ TEST_F(GraphSolverResolveSanity, resolve_no_streaming_output)
 
     auto topo_sort = tt::graphlib::topological_sort(*graph);
 
-    // Validate that there is no op_model allowing streaming into output.
+    // Validate that there is no op_model allowing C streaming into output.
     //
     for (Node* node : topo_sort)
     {
@@ -189,7 +189,7 @@ TEST_F(GraphSolverResolveSanity, resolve_no_streaming_output)
 
                 for (auto op_model : opmodels)
                 {
-                    EXPECT_TRUE(op_model.t_stream_factor.none());
+                    EXPECT_TRUE(!op_model.t_stream_factor.is_streaming_c());
                 }
             }
         }

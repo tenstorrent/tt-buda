@@ -1777,6 +1777,7 @@ def test_read_back_intermediates(test_kind, test_device):
     else:
         op_intermediates = ["matmul_intermediate"]
 
+    os.environ["PYBUDA_DISABLE_STREAM_OUTPUT"]  = "1" #issue #2657
     pybuda.set_configuration_options(op_intermediates_to_save=op_intermediates)
     num_inputs = 4
 

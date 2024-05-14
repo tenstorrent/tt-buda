@@ -1683,10 +1683,15 @@ void GraphSolver::invalidate_streaming_into_output(const std::vector<graphlib::N
 {
     for (graphlib::Node* node : nodes)
     {
-        // Try to eliminate streaming into output if possible.
+        // Try to eliminate C streaming into output if possible(avoiding performance penalty of C streaming into
+        // output).
         //
         if (node->node_type() == graphlib::NodeType::kOutput)
         {
+            std::function<bool(tt::graphlib::Edge)> is_partial_datacopy_edge = [](Edge e)
+            { return (e.edge_type == graphlib::EdgeType::kPartialDataCopy); };
+            std::vector<graphlib::Edge> partial_datacopy_edges = graph->user_edges(node, is_partial_datacopy_edge);
+
             for (graphlib::Node* operand_node : graph->data_operands(node))
             {
                 if (operand_node->node_type() == graphlib::NodeType::kBudaOp)
@@ -1717,14 +1722,27 @@ void GraphSolver::invalidate_streaming_into_output(const std::vector<graphlib::N
                             continue;
                         }
 
-                        if (op_models[index].t_stream_factor.none())
+                        if (partial_datacopy_edges.empty())
                         {
-                            no_stream_output_valid = true;
-                            break;
+                            if (!op_models[index].t_stream_factor.is_streaming_c())
+                            {
+                                no_stream_output_valid = true;
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            // For partial datacopy eliminate all streaming due to issue #2662.
+                            //
+                            if (op_models[index].t_stream_factor.none())
+                            {
+                                no_stream_output_valid = true;
+                                break;
+                            }
                         }
                     }
 
-                    // At least one valid non stream option present. Eliminate streaming ones.
+                    // At least one valid non C stream option present. Eliminate C streaming ones.
                     //
                     if (no_stream_output_valid)
                     {
@@ -1733,10 +1751,23 @@ void GraphSolver::invalidate_streaming_into_output(const std::vector<graphlib::N
 
                         for (std::size_t index = 0; index < op_model_count; index++)
                         {
-                            if (node_bitset->test(index) and !op_models[index].t_stream_factor.none())
+                            if (partial_datacopy_edges.empty())
                             {
-                                discarded_op_models_bitset.set(index);
-                                stream_option_eliminated = true;
+                                if (node_bitset->test(index) and op_models[index].t_stream_factor.is_streaming_c())
+                                {
+                                    discarded_op_models_bitset.set(index);
+                                    stream_option_eliminated = true;
+                                }
+                            }
+                            else
+                            {
+                                // For partial datacopy eliminate all streaming due to issue #2662.
+                                //
+                                if (node_bitset->test(index) and !op_models[index].t_stream_factor.none())
+                                {
+                                    discarded_op_models_bitset.set(index);
+                                    stream_option_eliminated = true;
+                                }
                             }
                         }
 
