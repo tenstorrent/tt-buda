@@ -570,7 +570,37 @@ def test_recompute(test_device):
             VerifyConfig(test_kind=TestKind.TRAINING_RECOMPUTE, devtype=test_device.devtype, arch=test_device.arch, 
                 epoch_breaks=[f"matmul_{i}" for i in range(0, num_matmuls, 2)]))
 
+def test_z_sparse_matmul(test_device):
+    input_shape = (1, 64, 128, 128)
 
+    class Model(PyBudaModule):
+        def __init__(self):
+            super().__init__(name="sparsematmul_test")
+            rows = torch.arange(0, 128).tolist()
+            cols = rows
+            sparse = torch.sparse_coo_tensor([rows, cols],torch.ones(len(cols)), (128, 128), dtype=torch.float32)
+            sparse = torch.stack([sparse]*64, -3)
+            sparse = torch.unsqueeze(sparse, 0) 
+            self.add_constant("sparse")
+            self.set_constant("sparse", pybuda.Tensor.create_from_torch(sparse, constant=True))
+
+        def forward(self, x):
+            out = pybuda.op.SparseMatmul("", self.get_constant("sparse"), x)
+            return out
+
+    compiler_cfg = _get_global_compiler_config()
+    compiler_cfg.balancer_policy = "MaximizeTMinimizeGrid"
+
+    pybuda.verify.verify_module(
+        Model(),
+        (input_shape,),
+        verify_cfg=VerifyConfig(
+            arch=test_device.arch,
+            devtype=test_device.devtype,
+            test_kind=TestKind.INFERENCE,
+        ),
+    )
+    
 @pytest.mark.parametrize("config", ["3x3conv", "data_mismatch", "c_stream", "in_out_stream"])
 def test_sparse_matmul(test_device, config):
     from pybuda.op.eval.sparse_utils import create_conv2d_sparse_picker_matrix
@@ -809,20 +839,6 @@ def test_dropout(test_kind, test_device, p):
     simple_dropout(x)
 
 
-def test_matmul_gradient_t(test_kind, test_device):
-    shape = (1, 3, 128, 128)
-
-    pcc = 0.96 if test_device.devtype == BackendType.Silicon else 0.99
-    @run(
-        VerifyConfig(test_kind=test_kind, devtype=test_device.devtype, arch=test_device.arch, pcc=pcc),
-    )
-    def simple_matmul_gradient_t(x, weight=None):
-        return pybuda.op.Matmul("mm0", x, weight)
-
-    x = Tensor.create_from_torch(torch.randn(shape, requires_grad=test_kind.is_training()))
-    w = pybuda.Parameter(*shape, requires_grad=test_kind.is_training())
-    simple_matmul_gradient_t(x, weight=w)
-
 class ComparisonTest(PyBudaModule):
     """
     Test wrapper for comparison operators
@@ -989,28 +1005,6 @@ def test_heaviside(
         verify_cfg=verify_cfg,
     )
 
-def test_matmul_relu(test_kind):
-    def matmul_relu(act, *, weights):
-        op0 = pybuda.op.Matmul(f"op0", act, weights)
-        op1 = pybuda.op.Relu(f"op1", op0)
-        return op1
-
-    module = ModuleBuilder(matmul_relu, weights=pybuda.Parameter(1,1,64,64))
-    verify_module(module, [(1, 1, 64, 64)],
-            VerifyConfig(test_kind=test_kind))
-
-
-def test_matmul_gelu_matmul(test_kind):
-    def matmul_gelu(act, *, ff1_weights, ff2_weights):
-        op0 = pybuda.op.Matmul(f"ff1", act, ff1_weights)
-        op1 = pybuda.op.Gelu(f"gelu", op0)
-        op2 = pybuda.op.Matmul(f"ff2", op1, ff2_weights)
-        return op2
-
-    module = ModuleBuilder(matmul_gelu, ff1_weights=pybuda.Parameter(1,1,64,64), ff2_weights=pybuda.Parameter(1,1,64,64))
-    verify_module(module, [(1, 1, 64, 64)],
-            VerifyConfig(test_kind=test_kind, optimizer=None))
-
 
 def test_consumer_ops_belonging_to_different_epochs(test_kind):
     def consumer_ops_belonging_to_different_epochs(act, *, weights):
@@ -1067,53 +1061,6 @@ def test_consumer_ops_belonging_to_different_chips(test_kind):
     module = ModuleBuilder(consumer_ops_belonging_to_different_chips, weights=pybuda.Parameter(1,1,64,64))
     verify_module(module, [(1, 1, 64, 64)],
             VerifyConfig(test_kind=test_kind, arch=arch, chip_ids=list(range(2))))
-
-
-def test_matmul_buffer_matmul(test_kind):
-    def matmul_buffer_matmul(act, *, ff1_weights, ff2_weights):
-        op0 = pybuda.op.Matmul(f"ff1", act, ff1_weights)
-        op1 = pybuda.op.Buffer(f"gelu", op0)
-        op2 = pybuda.op.Matmul(f"ff2", op1, ff2_weights)
-        return op2
-    
-    pybuda.set_epoch_break("gelu")
-    pybuda.set_epoch_break("ff2")
-
-    module = ModuleBuilder(matmul_buffer_matmul, ff1_weights=pybuda.Parameter(1,1,64,64), ff2_weights=pybuda.Parameter(1,1,64,64))
-    verify_module(module, [(1, 1, 64, 64)], VerifyConfig(test_kind=test_kind))
-
-
-def test_z_sparse_matmul(test_device):
-    input_shape = (1, 64, 128, 128)
-
-    class Model(PyBudaModule):
-        def __init__(self):
-            super().__init__(name="sparsematmul_test")
-            rows = torch.arange(0, 128).tolist()
-            cols = rows
-            sparse = torch.sparse_coo_tensor([rows, cols],torch.ones(len(cols)), (128, 128), dtype=torch.float32)
-            sparse = torch.stack([sparse]*64, -3)
-            sparse = torch.unsqueeze(sparse, 0) 
-            self.add_constant("sparse")
-            self.set_constant("sparse", pybuda.Tensor.create_from_torch(sparse, constant=True))
-
-        def forward(self, x):
-            out = pybuda.op.SparseMatmul("", self.get_constant("sparse"), x)
-            return out
-
-    compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.balancer_policy = "MaximizeTMinimizeGrid"
-
-    pybuda.verify.verify_module(
-        Model(),
-        (input_shape,),
-        verify_cfg=VerifyConfig(
-            arch=test_device.arch,
-            devtype=test_device.devtype,
-            test_kind=TestKind.INFERENCE,
-        ),
-    )
-
 
 
 class PowTest(pybuda.PyBudaModule):
@@ -1629,25 +1576,6 @@ def test_3d_mm(test_device):
         )
     )
     
-
-def test_multipliers_overrides(test_device):
-    shape = (1, 1, 32, 32)
-    test_kind = TestKind.INFERENCE
-
-    @run(
-        VerifyConfig(test_kind=test_kind, devtype=test_device.devtype, arch=test_device.arch),
-    )
-    def simple_matmul_buffer_overrides(x, weight=None):
-        return pybuda.op.Matmul("mm0", x, weight)
-
-    x = Tensor.create_from_torch(torch.randn(shape, requires_grad=test_kind.is_training()))
-    w = pybuda.Parameter(torch.randn(shape, requires_grad=test_kind.is_training()))
-    pybuda.config.override_input_buffer_multiplier("mm0", 0, multiplier=4)
-    pybuda.config.internal_override_output_buffer_multiplier("mm0", multiplier=4)
-
-    simple_matmul_buffer_overrides(x, weight=w)
-
-
 def test_broadcast_transpose(test_device):
 
     @run(test_device)
@@ -1656,23 +1584,6 @@ def test_broadcast_transpose(test_device):
         return pybuda.op.Transpose("", x, -2, -1)
 
     broadcast_transpose(Tensor.create_from_torch(torch.randn(1, 1, 1, 128)))
-
-
-def test_scalar_matmul_bias(test_device):
-    pybuda.set_configuration_options(backend_output_dir=f"tt_build/test_scalar_matmul_bias")
-    @run(test_device)
-    def scalar_matmul_bias(a, w=None, b=None):
-        x = pybuda.op.Matmul("", a, w)
-        x = pybuda.op.Add("", x, b)
-        return x
-    
-    x = Tensor.create_from_torch(torch.randn(1, 1, 32, 32))
-    w = pybuda.Parameter.create_from_torch(torch.randn(1, 1, 32, 128))
-    tmp = torch.zeros(1, 1, 1, 1)
-    tmp[0, 0, 0, 0] = 1000.0
-    b = pybuda.Parameter.create_from_torch(tmp)
-    scalar_matmul_bias(x, w=w, b=b)
-
 
 def test_mismatch_repro(test_device):
     pytest.xfail()
@@ -1769,54 +1680,6 @@ def get_device_intermediates(op_intermediates: List[str]) -> Dict[str, List[torc
         for name, intermediate_tensor in zip(op_intermediates, intermediate_tensors):
             device_intermediates[name].append(intermediate_tensor.to_pytorch())
     return device_intermediates
-
-
-def test_read_back_intermediates(test_kind, test_device):
-    if test_kind.is_training():
-        op_intermediates = ["matmul_intermediate", "bw_in0_matmul_output_matmul_1"]
-    else:
-        op_intermediates = ["matmul_intermediate"]
-
-    os.environ["PYBUDA_DISABLE_STREAM_OUTPUT"]  = "1" #issue #2657
-    pybuda.set_configuration_options(op_intermediates_to_save=op_intermediates)
-    num_inputs = 4
-
-    @run(
-        VerifyConfig(
-            test_kind=test_kind,
-            devtype=test_device.devtype,
-            arch=test_device.arch,
-            intermediates=True,
-            microbatch_count=num_inputs,
-        ),
-        num_inputs=num_inputs,
-    )
-    def fetch_intermediates(x0, x1, x2):
-        intermediate = pybuda.op.Matmul("matmul_intermediate", x0, x1)
-        return pybuda.op.Matmul("matmul_output", intermediate, x2)
-
-    x = Tensor.create_from_torch(torch.randn(1, 1, 63, 63, requires_grad=test_kind.is_training()))
-    y = Tensor.create_from_torch(torch.randn(1, 1, 63, 63, requires_grad=test_kind.is_training()))
-    z = Tensor.create_from_torch(torch.randn(1, 1, 63, 63, requires_grad=test_kind.is_training()))
-    fetch_intermediates(x, y, z)
-
-    device = pybuda.get_tenstorrent_device()
-    compiled_results = device.get_compiled_results()
-
-    golden_intermediates: Dict[str, torch.Tensor ] = compiled_results.golden_intermediates  # golden replicated
-    device_intermediates: Dict[str, List[torch.Tensor]] = get_device_intermediates(op_intermediates)
-
-    for op_name in op_intermediates:
-        assert (len(device_intermediates[op_name]) == num_inputs), f"Expected {num_inputs} intermediate tensors for {op_name}"
-        if op_name in golden_intermediates:
-            for idx in range(num_inputs):
-                compare_tensor_to_golden(
-                    op_name,
-                    golden_intermediates[op_name],
-                    device_intermediates[op_name][idx],
-                    is_buda=True,
-                )
-
 
 def test_2d_daisy_chain(test_device):
     @run(test_device)

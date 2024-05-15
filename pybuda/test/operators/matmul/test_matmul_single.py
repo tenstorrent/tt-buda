@@ -7,6 +7,7 @@
 # In this test we use pytorch tensors and operators to verify buda operators
 #
 
+import json
 import os
 import pytest
 import numpy as np
@@ -15,6 +16,7 @@ import pybuda
 import pybuda.op
 from pybuda import TTDevice, BackendType, pybuda_compile, VerifyConfig, CompilerConfig
 
+from .test_matmul import test_matmul_according_to_pytorch_docs, test_matmul_according_to_test_plan
 from .models import generic
 
 MODELS_PATH = "./pybuda/test/operators/matmul/models/"
@@ -77,3 +79,22 @@ def test_matmul_generic(
                      ), 
         verify_cfg=VerifyConfig()
     )
+
+
+@pytest.mark.skip
+def test_matmul_according_to_pytorch_docs_single(
+    mm_model: str,
+    test_device
+):
+    test_matmul_according_to_pytorch_docs(mm_model, test_device)
+
+@pytest.mark.skip
+def test_matmul_according_to_test_plan_single(
+    mm_model: str,
+    mm_shape: str,
+    test_device,
+):
+    mm_shape = tuple(json.loads(mm_shape))
+    test_matmul_according_to_test_plan(mm_model, mm_shape, test_device)
+
+

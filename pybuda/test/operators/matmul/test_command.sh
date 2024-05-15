@@ -23,3 +23,17 @@ pytest -svv test_matmul_single.py --mm_model model_2 --mm_train False --mm_recom
 pytest -svv test_matmul_single.py --mm_model model_2 --mm_train False --mm_recompute True --mm_shape '[138, 204, 134, 134]'
 
 pytest -svv test_matmul_single.py --mm_model model_2 --mm_train False --mm_recompute True --mm_shape '[1, 1, 8192, 8192]'
+
+#Issues - per PyTorchs docs
+GOLDEN_WORMHOLE_B0=1 pytest -svv pybuda/test/operators/matmul/test_matmul_single.py::test_matmul_according_to_pytorch_docs_single --mm_model model_11 --runxfail --no-skips
+GOLDEN_WORMHOLE_B0=1 pytest -svv pybuda/test/operators/matmul/test_matmul_single.py::test_matmul_according_to_pytorch_docs_single --mm_model model_12 --runxfail --no-skips
+GOLDEN_WORMHOLE_B0=1 pytest -svv pybuda/test/operators/matmul/test_matmul_single.py::test_matmul_according_to_pytorch_docs_single --mm_model model_13 --runxfail --no-skips
+GOLDEN_WORMHOLE_B0=1 pytest -svv pybuda/test/operators/matmul/test_matmul_single.py::test_matmul_according_to_pytorch_docs_single --mm_model model_14 --runxfail --no-skips
+GOLDEN_WORMHOLE_B0=1 pytest -svv pybuda/test/operators/matmul/test_matmul_single.py::test_matmul_according_to_pytorch_docs_single --mm_model model_15 --runxfail --no-skips
+
+#Issues - when input shape is (1, 1, 10000, 1) - extreme ratios between height/width
+GOLDEN_WORMHOLE_B0=1 pytest -svv pybuda/test/operators/matmul/test_matmul_single.py::test_matmul_according_to_test_plan_single --mm_model model_op_src_from_another_op  --mm_shape '[1, 1, 10000, 1]' --runxfail --no-skips
+GOLDEN_WORMHOLE_B0=1 pytest -svv pybuda/test/operators/matmul/test_matmul_single.py::test_matmul_according_to_test_plan_single --mm_model model_op_src_from_dram2       --mm_shape '[1, 1, 10000, 1]' --runxfail --no-skips
+GOLDEN_WORMHOLE_B0=1 pytest -svv pybuda/test/operators/matmul/test_matmul_single.py::test_matmul_according_to_test_plan_single --mm_model model_op_src_const_inputs1    --mm_shape '[1, 1, 10000, 1]' --runxfail --no-skips
+GOLDEN_WORMHOLE_B0=1 pytest -svv pybuda/test/operators/matmul/test_matmul_single.py::test_matmul_according_to_test_plan_single --mm_model model_op_src_const_inputs2    --mm_shape '[1, 1, 10000, 1]' --runxfail --no-skips
+GOLDEN_WORMHOLE_B0=1 pytest -svv pybuda/test/operators/matmul/test_matmul_single.py::test_matmul_according_to_test_plan_single --mm_model model_op_src_from_host        --mm_shape '[1, 1, 10000, 1]' --runxfail --no-skips
