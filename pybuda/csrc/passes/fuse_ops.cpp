@@ -86,6 +86,9 @@ class FusionGroup
         const std::unordered_set<BudaOpNode *> &allowed_ops,
         bool stop_on_base_op = false) const;
 
+    // Returns true if dest can be used as output.
+    bool can_use_dest_as_output(const Graph *graph, const BudaOpNode *op);
+
     // Reuse dest if possible. Returns true if dest is reused.
     bool reuse_dest_if_possible(
         BudaOpNode *op,
@@ -515,6 +518,39 @@ class BufferAllocator
     }
 };
 
+// Returns true if dest can be used as output.
+bool FusionGroup::can_use_dest_as_output(const Graph *graph, const BudaOpNode *op)
+{
+    if (op->buda_attrs().find("relu_en") != op->buda_attrs().end()) 
+    {
+        // If operator has relu activation, don't reuse it (for better performance).
+        return false;
+    }
+
+    if (op->is_maximum() or op->is_quantization_related_op()) 
+    {
+        // Unsupported ops.
+        //
+        return false;
+    }
+
+    if (op->is_add()) 
+    {
+        // Cannot use dest as output if op is add and have Int32 input.
+        //
+        auto operands = graph->data_operands(op);
+        for (auto operand : operands) 
+        {
+            if (operand->output_df() == tt::DataFormat::Int32) 
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 // Reuse dest if possible. Returns true if dest is reused.
 bool FusionGroup::reuse_dest_if_possible(
     BudaOpNode *op,
@@ -854,13 +890,9 @@ void FusionGroup::create_schedules(
 
             std::uint32_t output_buffer_id = (output_buffer != nullptr) ? output_buffer->id : 0;
 
-            // Dont reuse dest in case:
-            //  - operator has relu activation, don't reuse it (for better performance).
-            //  - operator is maximum
-            bool dont_reuse = (op->buda_attrs().find("relu_en") != op->buda_attrs().end())
-                || is_maximum(op);
+            bool dont_reuse_dest = !can_use_dest_as_output(graph, op);
 
-            if (output_buffer == nullptr || dont_reuse)
+            if (output_buffer == nullptr || dont_reuse_dest)
                 prev_output_allocated_buffer.reset();
             else
                 prev_output_allocated_buffer = output_buffer->id;  // save for dest reuse
@@ -1477,6 +1509,10 @@ bool should_fuse_node(
 
     // If it is accumulation op don't fuse it.
     if (node->is_gradient_op())
+        return false;
+
+    // Disable fusing of Quantization for now.
+    if (node->is_quantization_related_op())
         return false;
 
     // If user has tagged the op_type/original_op_type with a tag that should disable fusing, then disable fusing

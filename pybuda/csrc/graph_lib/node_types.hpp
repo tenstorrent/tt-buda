@@ -455,6 +455,12 @@ public:
     bool is_splice() const { return op_name() == "splice"; }
     bool is_tilize() const {return op_name().find("tilizer")!= std::string::npos;}
     bool is_reduce() const { return op_name() == "reduce"; }
+    bool is_add() const { return op_name() == "add"; }
+    bool is_maximum() const { return op_name() == "maximum"; }
+    bool is_quantization() const { return op_name() == "quantization"; }
+    bool is_dequantization() const { return op_name() == "dequantization"; }
+    bool is_requantization() const { return op_name() == "requantization"; }
+    bool is_quantization_related_op() const { return is_quantization() or is_dequantization() or is_requantization(); }
     bool is_dense_matmul() const { return is_matmul() and not is_sparse_matmul() and not is_depthwise_matmul(); }
     bool is_sparse_matmul() const { return is_matmul() and (buda_attrs().find("identity") != buda_attrs().end()); }
     bool is_depthwise_matmul() const { return op_name().compare("depthwise") == 0; }
