@@ -364,13 +364,8 @@ bool disable_dynamic_dram_if_possible(
 bool try_static_dram_placement(
     std::vector<DRAMScheduleData> &scheduled_queue_placements, DramAllocator &chip_dram_allocator, int microbatch_size)
 {
-    try
-    {
-        // try static allocation if possible
-        chip_dram_allocator.allocate_queues(scheduled_queue_placements, /*disable_dynamic_dram*/ true, microbatch_size);
-        return true;
-    }
-    catch (const tt::placer::FailToAllocateQueues &e)
+    // Try static allocation if possible
+    if (!chip_dram_allocator.allocate_queues(scheduled_queue_placements, /*disable_dynamic_dram*/ true, microbatch_size))
     {
         log_debug("\tStatic allocation of all queues failed, trying dynamic allocation instead");
         // To handle unsuccessful static allocation, we have to remove all previously placed dram_buffers and reset dram
@@ -382,6 +377,8 @@ bool try_static_dram_placement(
         chip_dram_allocator.reset_dram_allocator();
         return false;
     }
+
+    return true;
 }
 
 //
@@ -696,28 +693,33 @@ void place_dram_queues(
     for (std::uint32_t chip_id = 0; chip_id <= max_chip_id; chip_id++)
     {
         if (scheduled_queue_placements.count(chip_id) == 0)
-            continue;
-        log_info(tt::LogPlacer, "Running DRAM allocator for device {}", chip_id);
-        bool disable_dynamic_dram = disable_dynamic_dram_if_possible(scheduled_queue_placements, chip_dram_allocators);
-        disable_dynamic_dram = disable_dynamic_dram || config.force_disable_dynamic_dram;
-        int microbatch_size = graph->get_microbatch();
-        if (disable_dynamic_dram)
         {
-            bool static_placement_success = try_static_dram_placement(
-                scheduled_queue_placements.at(chip_id), chip_dram_allocators.at(chip_id), microbatch_size);
-            if (!static_placement_success)
+            continue;
+        }
+
+        log_info(tt::LogPlacer, "Running DRAM allocator for device {}", chip_id);
+
+        auto& chip_allocator = chip_dram_allocators.at(chip_id);
+        auto& scheduled_queues = scheduled_queue_placements.at(chip_id);
+
+        bool disable_dynamic_dram = 
+            disable_dynamic_dram_if_possible(scheduled_queue_placements, chip_dram_allocators) || config.force_disable_dynamic_dram;
+        int microbatch_size = graph->get_microbatch();
+
+        bool allocation_success = disable_dynamic_dram && try_static_dram_placement(scheduled_queues, chip_allocator, microbatch_size);
+        if (!allocation_success) 
+        {
+            // If static allocation was not successful, we try dynamic allocation.
+            //
+            allocation_success = chip_allocator.allocate_queues(scheduled_queues, false /* disable_dynamic_dram */, microbatch_size);
+            if (!allocation_success) 
             {
-                // if static placement was not successful, we try dynamic allocation
-                chip_dram_allocators.at(chip_id).allocate_queues(
-                    scheduled_queue_placements.at(chip_id), /*disable_dynamic_dram*/ false, microbatch_size);
+                // Queues cannot be allocated, throw an error.
+                //
+                TT_THROW("Failed DRAM queue allocation on chip " + std::to_string(chip_id));
             }
         }
-        else
-        {
-            // Dynamic allocation
-            chip_dram_allocators.at(chip_id).allocate_queues(
-                scheduled_queue_placements.at(chip_id), disable_dynamic_dram, microbatch_size);
-        }
+
         for (auto &[queue_placement, parameters] : scheduled_queue_placements[chip_id])
         {
             log_debug(tt::LogPlacer, "\tAllocating/placing queue {} on chip {}", queue_placement.name, chip_id);

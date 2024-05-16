@@ -263,15 +263,7 @@ std::vector<Blocks> DramAllocator::get_blocks()
     blocks.push_back(p2p_allocator->get_blocks());
     return blocks;
 }
-const std::unique_ptr<ChannelAllocator> &DramAllocator::get_allocator(
-    std::uint32_t channel_index, bool in_p2p_region) const
-{
-    if (in_p2p_region)
-        return p2p_allocator;
 
-    TT_ASSERT(channel_index < channel_allocators.size());
-    return channel_allocators.at(channel_index);
-}
 // Gets dram free space, both in p2p region (managed by p2p_allocator) and in regular part of dram (managed by channel_allocators)
 std::pair<uint32_t, uint32_t> DramAllocator::get_dram_free_space()
 {
@@ -300,7 +292,7 @@ void DramAllocator::reset_dram_allocator()
     channel_picker->reset();
 }
 
-void DramAllocator::allocate_queues(
+bool DramAllocator::allocate_queues(
     std::vector<DRAMScheduleData> &scheduled_queue_placements, bool disable_dynamic_dram, int microbatch_size)
 {
 
@@ -352,7 +344,13 @@ void DramAllocator::allocate_queues(
         auto &[queue_placement, parameters] = scheduled_queue_placements[i];
         if (is_static_queue(parameters.node, parameters.is_input))
         {
-            queue_placement.dram_buffers = allocate_buffers(parameters);
+            auto [is_allocated, dram_buffers] = allocate_buffers(parameters);
+            if (!is_allocated) 
+            {
+                return false;
+            }
+
+            queue_placement.dram_buffers = dram_buffers;
             log_debug(
                 "\tstatic queue {}: {} buffers allocated, on channel {}, address {} ",
                 queue_placement.name,
@@ -366,70 +364,56 @@ void DramAllocator::allocate_queues(
         }
     }
 
-    std::unordered_set<const Node *> deallocated;
-    std::uint32_t current_epoch = 0;
+    // When allocating queues we keep them sorted by last consumer epoch so that queues that 
+    // are deallocated at the same time are more likely to be allocated next to each other.
+    //
+    struct ConsumerEpochComparator {
+        bool operator()(const DRAMScheduleData* lhs, const DRAMScheduleData* rhs) const {
+            return lhs->second.last_consumer_epoch < rhs->second.last_consumer_epoch;
+        }
+    };
 
-    // Before we dynamically allocate buffers we want to sort dynamic_queues by producer epoch, then by consumer epoch, so that queues that are deallocated at the same time are more
-    // likely to be allocated next to each other
-    sort(
-        dynamic_queues.begin(),
-        dynamic_queues.end(),
-        [](const DRAMScheduleData *i1, const DRAMScheduleData *i2)
-        {
-            if (i1->second.producer_epoch == i2->second.producer_epoch)
-                return i1->second.last_consumer_epoch < i2->second.last_consumer_epoch;
-            return i1->second.producer_epoch < i2->second.producer_epoch;
-        });
-
-    for (std::size_t i = 0; i < dynamic_queues.size(); i++)
+    // For each epoch keep track of the dynamic queues to allocate and deallocate.
+    //
+    using QueueScheduleData = std::pair<std::multiset<DRAMScheduleData*, ConsumerEpochComparator>, std::vector<DRAMScheduleData*>>;
+    std::map<std::uint32_t, QueueScheduleData> epoch_to_queue_schedule;
+    for (DRAMScheduleData* queue: dynamic_queues) 
     {
-        auto &[queue_placement, parameters] = *dynamic_queues[i];
+        const QueueDRAMPlacementParameters& placement_parameters = queue->second;
+        epoch_to_queue_schedule[placement_parameters.producer_epoch].first.insert(queue);
+        epoch_to_queue_schedule[placement_parameters.last_consumer_epoch].second.push_back(queue);
+    }
 
-        // Allocate new queues
-        queue_placement.dram_buffers = allocate_buffers(parameters);
-        log_debug(
-            "\tdynamic queue {}: {} buffers allocated, on channel {}, address {} ",
-            queue_placement.name,
-            queue_placement.dram_buffers.size(),
-            queue_placement.dram_buffers[0].dram_channel,
-            queue_placement.dram_buffers[0].dram_address);
-        queue_placement.epoch_allocate = parameters.producer_epoch;
-
-        // Deallocate queues that were used in the previous epoch, if we moved epochs, or if this is the last queue to
-        // place
-        bool last_queue = (i == dynamic_queues.size() - 1);
-        if ((parameters.producer_epoch >= current_epoch) || last_queue)
+    // For each epoch, we first allocate dynamic queues starting at that epoch and then deallocate queues ending at that epoch,
+    // since queues ending at that epoch persist until its end.
+    //
+    for (auto& [epoch, queue_schedule_data]: epoch_to_queue_schedule) 
+    {
+        auto& [queues_to_allocate, queues_to_deallocate] = queue_schedule_data;
+        for (DRAMScheduleData* queue_to_allocate : queues_to_allocate) 
         {
-            for (DRAMScheduleData* queue_placement_pair : dynamic_queues)
+            auto& [queue_placement, placement_parameters] = *queue_to_allocate;
+            auto [is_allocated, dram_buffers] = allocate_buffers(placement_parameters);
+            if (!is_allocated) 
             {
-                auto &[prev_queue_placement, prev_parameters] = *queue_placement_pair;
-
-                if ((prev_parameters.producer_epoch > current_epoch) && !last_queue)
-                    break;  // only looking into the past
-
-                if ((prev_parameters.last_consumer_epoch <= current_epoch) || last_queue)
-                {
-                    // Deallocate, if it hasn't been deallocated
-                    if (deallocated.count(prev_parameters.node) > 0)
-                        continue;
-
-                    for (auto &buffer : prev_queue_placement.dram_buffers)
-                    {
-                        // TODO: if p2p_soft, we might not be allocated there, in which case we need to deallocate
-                        // elsewhere
-                        get_allocator(
-                            buffer.dram_channel,
-                            prev_parameters.in_p2p_region_soft | prev_parameters.in_p2p_region_hard)
-                            ->deallocate(buffer.dram_address);
-                        dram_logger->log_deallocate(
-                            buffer.dram_channel, buffer.dram_address, prev_parameters.last_consumer_epoch);
-                        prev_queue_placement.epoch_deallocate = prev_parameters.last_consumer_epoch;
-                    }
-
-                    deallocated.insert(prev_parameters.node);
-                }
+                return false;
             }
-            current_epoch = parameters.producer_epoch;
+
+            queue_placement.dram_buffers = dram_buffers;
+            queue_placement.epoch_allocate = placement_parameters.producer_epoch;
+            log_debug(
+                "\tdynamic queue {}: {} buffers allocated, on channel {}, address {} ",
+                queue_placement.name,
+                queue_placement.dram_buffers.size(),
+                queue_placement.dram_buffers[0].dram_channel,
+                queue_placement.dram_buffers[0].dram_address);
+        }
+
+        for (DRAMScheduleData* queue_to_deallocate : queues_to_deallocate) 
+        {
+            auto& [queue_placement, placement_parameters] = *queue_to_deallocate;
+            deallocate_buffers(queue_placement, placement_parameters);
+            queue_placement.epoch_deallocate = placement_parameters.last_consumer_epoch;
         }
     }
 
@@ -451,106 +435,134 @@ void DramAllocator::allocate_queues(
     dram_logger->dump_to_reportify(
         reportify::get_default_reportify_path(graph_name) + reportify::get_memory_report_relative_directory(),
         graph_name);
+
+    return true;
 }
 
-std::vector<QueueBufferPlacement> DramAllocator::allocate_buffers(const QueueDRAMPlacementParameters &parameters)
+QueueBufferPlacement DramAllocator::create_buffer_placement(
+    std::uint32_t virtual_channel,
+    std::uint32_t channel_address,
+    std::uint32_t buffer_size,
+    bool in_p2p_region)
 {
-    std::vector<QueueBufferPlacement> buffer_placement;
+    std::uint32_t real_channel = virtual_channel;
+    if (dram_config.device_config.is_wormhole_b0())
+    {
+        // On wormhole, each channel is divided into 2 virtual channels, so to get the real channel index
+        // we have to divide the virtual channel by 2.
+        //
+        real_channel = virtual_channel / 2;
+    }
 
-    std::uint32_t queue_size = parameters.queue_size;
+    return QueueBufferPlacement{
+        .dram_channel = virtual_channel,
+        .dram_address = channel_address,
+        .dram_channel_location = dram_config.dram_config[real_channel].location,
+        .buffer_size = buffer_size,
+        .allocated_in_p2p_region = in_p2p_region,
+    };
+}
 
+std::pair<bool, std::vector<QueueBufferPlacement>> DramAllocator::allocate_buffers(const QueueDRAMPlacementParameters &parameters)
+{
     const std::uint32_t num_channels = channel_allocators.size();
+    const std::uint32_t buffer_size = parameters.queue_size;
+    TT_ASSERT(buffer_size > 0, "Buffer size for queue {} must be larger than 0", parameters.node->name());
 
+    std::vector<QueueBufferPlacement> buffer_placement;
     for (std::uint32_t row = 0; row < parameters.grid_shape.rows; row++)
     {
         for (std::uint32_t col = 0; col < parameters.grid_shape.columns; col++)
         {
-            std::uint32_t addr;
-            std::uint32_t channel;
+            std::uint32_t allocated_address;
 
-            if (auto queue_override_it = this->dram_config.manual_dram_queue_placement.find(parameters.node->name());
-                queue_override_it != this->dram_config.manual_dram_queue_placement.end() and
-                queue_override_it->second.channel.has_value())
+            if (parameters.in_p2p_region_soft or parameters.in_p2p_region_hard) 
             {
-                auto channel_override = queue_override_it->second.channel.value();
-                log_debug(
-                    tt::LogPlacer,
-                    "Manually placing dram queue {} to channel: {}",
-                    parameters.node->name(),
-                    channel_override);
-                channel = channel_override;
-            }
-            else
-            {
-                channel = channel_picker->pick_channel(parameters, Coord{row, col}, channel_allocators);
-            }
-
-            bool allocated = false;
-            bool try_p2p_region =
-                parameters.in_p2p_region_soft |
-                parameters.in_p2p_region_hard;  // try first, fall back to normal channels if not possible (if ok)
-            for (std::size_t attempt = 0; attempt < num_channels + (try_p2p_region ? 1 : 0); attempt++)
-            {
-                if (get_allocator(channel, try_p2p_region)->allocate(queue_size, addr))
+                // Try to allocate the queue first in the p2p region.
+                //
+                if (p2p_allocator->allocate(buffer_size, allocated_address))
                 {
-                    allocated = true;
-                    dram_logger->log_allocate(parameters.node, channel, addr, queue_size, parameters.producer_epoch);
-                    if (try_p2p_region)
-                        channel = 0;
+                    buffer_placement.push_back(create_buffer_placement(0 /* virtual_channel */, allocated_address, buffer_size, true /* in_p2p_region */));
+                    dram_logger->log_allocate(parameters.node, 0 /* dram_channel */, allocated_address, buffer_size, parameters.producer_epoch);
+
+                    continue;
+                }
+                else if (parameters.in_p2p_region_hard) 
+                {
+                    // Queue must be allocated in the p2p region but the allocation has failed.
+                    //
+                    return std::make_pair(false, buffer_placement);
+                }
+            }
+
+            const DramQueueMap& manual_queue_placement = this->dram_config.manual_dram_queue_placement;
+            std::optional<std::uint32_t> channel_override;
+            auto it = manual_queue_placement.find(parameters.node->name());
+            if (it != manual_queue_placement.end()) 
+            {
+                channel_override = it->second.channel;
+            }
+
+            std::uint32_t selected_channel;
+            if (channel_override.has_value()) 
+            {
+                selected_channel = channel_override.value();
+                log_debug(tt::LogPlacer, "Manually placing DRAM queue {} to channel: {}", parameters.node->name(), selected_channel);
+            } 
+            else 
+            {
+                selected_channel = channel_picker->pick_channel(parameters, Coord{row, col}, channel_allocators);
+            }
+            TT_ASSERT(selected_channel < channel_allocators.size(), "Chosen DRAM channel {} for queue allocation is invalid", selected_channel);
+
+            for (std::size_t attempt = 0; attempt < num_channels; attempt++)
+            {
+                // Try to allocate the queue in regular DRAM channels.
+                //
+                if (channel_allocators.at(selected_channel)->allocate(buffer_size, allocated_address))
+                {
+                    buffer_placement.push_back(create_buffer_placement(selected_channel, allocated_address, buffer_size, false /* in_p2p_region */));
+                    dram_logger->log_allocate(parameters.node, selected_channel, allocated_address, buffer_size, parameters.producer_epoch);
+
                     break;
                 }
-                if (!try_p2p_region)
+                
+                if (attempt == num_channels - 1) 
                 {
-                    channel++;
-                    if (channel >= num_channels)
-                        channel = 0;
-                }
-                else
-                {
-                    if (parameters.in_p2p_region_hard)
-                    {
-                        log_fatal(
-                            tt::LogPlacer,
-                            "Failed to allocate queue {} of size {} ({} MB) in p2p dram on chip {}",
-                            parameters.node->name(),
-                            queue_size,
-                            int(queue_size * 1.0 / (1024 * 1024)),
-                            chip_id);
-                    }
+                    // Allocation has been tried on all channel.
+                    //
+                    return std::make_pair(false, buffer_placement);
                 }
 
-                try_p2p_region = false;
+                // Use round robin method to choose the next possible channel.
+                //
+                selected_channel = (selected_channel + 1) % num_channels;
             }
-
-            if (!allocated)
-            {
-                log_error(
-                    tt::LogPlacer,
-                    "Failed to allocate queue {} of size {} ({} MB) in dram, as there's no room left on chip {}",
-                    parameters.node->name(),
-                    queue_size,
-                    int(queue_size * 1.0 / (1024 * 1024)),
-                    chip_id);
-                throw FailToAllocateQueues("Failed to allocate queues in DRAM memory");
-            }
-
-            int real_channel = channel;  // not virtual
-            if (dram_config.device_config.is_wormhole_b0())
-            {
-                real_channel = channel / 2;
-            }
-
-            buffer_placement.push_back(QueueBufferPlacement{
-                .dram_channel = channel,  // this is still virtual channel, meaning that it has to be divided by 2 to
-                                          // get actual dram channel.
-                .dram_address = addr,
-                .dram_channel_location = dram_config.dram_config[real_channel].location,
-                .buffer_size = queue_size,
-            });
         }
     }
+    
+    return std::make_pair(true, buffer_placement);
+}
 
-    return buffer_placement;
+void DramAllocator::deallocate_buffers(
+    const QueuePlacement& queue_placement,
+    const QueueDRAMPlacementParameters& placement_parameters) 
+{
+    TT_ASSERT(!queue_placement.dram_buffers.empty(), "Queue {} does not have any buffers allocated.", queue_placement.name);
+
+    for (auto &buffer : queue_placement.dram_buffers)
+    {    
+        if (buffer.allocated_in_p2p_region) 
+        {
+            p2p_allocator->deallocate(buffer.dram_address);
+        }
+        else 
+        {
+            channel_allocators.at(buffer.dram_channel)->deallocate(buffer.dram_address);
+        }
+        dram_logger->log_deallocate(
+            buffer.dram_channel, buffer.dram_address, placement_parameters.last_consumer_epoch);
+    }
 }
 
 std::uint32_t noc_distance(const Coord &start, const Coord &end, const tt::DeviceGrid &grid_size, std::uint32_t noc)

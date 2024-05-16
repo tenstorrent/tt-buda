@@ -32,11 +32,4 @@ struct FailToSatisfyConflictingConstraint : public std::exception
     virtual char const* what() const noexcept override { return message.c_str(); }
 };
 
-struct FailToAllocateQueues : public std::exception
-{
-    std::string message;
-    FailToAllocateQueues(std::string const& message) : message(message) {}
-    virtual char const* what() const noexcept override { return message.c_str(); }
-};
-
 }  // namespace tt::placer

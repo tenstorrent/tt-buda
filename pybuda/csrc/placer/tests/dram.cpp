@@ -45,10 +45,10 @@ class DRAMPlacerTest : public testing::TestWithParam<ARCH>
     // List of queues to be placed
     std::vector<std::pair<QueuePlacement, QueueDRAMPlacementParameters>> queue_placement_params;
 
+   public:
     // DRAM allocator, DUT
     std::unique_ptr<DramAllocator> allocator;
 
-   public:
     // Configs
     tt::DeviceConfig device_config = tt::test::create_device_config();
     std::unique_ptr<DramPlacerConfig> dram_config;
@@ -357,6 +357,55 @@ TEST_P(DRAMPlacerTest, DramPlacerFallback)
                 {
                     expected_channel = 0;
                 }
+            }
+        }
+    }
+}
+
+TEST_P(DRAMPlacerTest, OverlappingQueuesTest)
+{
+    // Test to check if dynamic queues overlap if they get allocated and deallocated in the same epoch.
+    //
+    SetUp(DRAMPlacementAlgorithm::ROUND_ROBIN);
+
+    const std::uint32_t num_channels = allocator->get_num_of_channels();
+
+    // 64Mb queue size
+    //
+    uint32_t queue_size = 64 * 1024 * 1024;
+    bool is_cross_epoch_type = false;
+    bool is_cross_chip_type = false;
+
+    add_e2e_queue(num_channels, 1, 0, 0, {}, {}, queue_size, is_cross_epoch_type, is_cross_chip_type);
+    add_e2e_queue(num_channels, 1, 0, 0, {}, {}, queue_size, is_cross_epoch_type, is_cross_chip_type);
+
+    std::unordered_map<const Node*, std::vector<QueueBufferPlacement>> queue_placement_map = run_allocator();
+    std::vector<std::vector<QueueBufferPlacement>> queue_placements;
+    for (auto &[node, dram_buffers] : queue_placement_map)
+    {
+        EXPECT_FALSE(dram_buffers.empty());    
+        queue_placements.push_back(dram_buffers);
+    }
+
+    EXPECT_TRUE(queue_placements.size() == 2);
+    std::vector<QueueBufferPlacement>& first_queue_placement = queue_placements[0];
+    std::vector<QueueBufferPlacement>& second_queue_placement = queue_placements[1];
+    for (const QueueBufferPlacement& first_buffer : first_queue_placement) 
+    {
+        for (const QueueBufferPlacement& second_buffer : second_queue_placement) 
+        {
+            if (first_buffer.dram_channel == second_buffer.dram_channel)  
+            {
+                std::uint32_t first_buff_start = first_buffer.dram_address;
+                std::uint32_t first_buff_end = first_buffer.dram_address + first_buffer.buffer_size - 1;
+
+                std::uint32_t second_buff_start = second_buffer.dram_address;
+                std::uint32_t second_buff_end = second_buffer.dram_address + second_buffer.buffer_size - 1;
+
+                EXPECT_TRUE(first_buff_start < first_buff_end);
+                EXPECT_TRUE(second_buff_start < second_buff_end);
+                EXPECT_TRUE(first_buff_start < second_buff_start or first_buff_start > second_buff_end);
+                EXPECT_TRUE(first_buff_end < second_buff_start or first_buff_end > second_buff_end);
             }
         }
     }

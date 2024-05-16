@@ -294,6 +294,7 @@ struct QueueBufferPlacement
     // Not strictly needed to set placement, but convenient to have here
     Coord dram_channel_location;
     uint32_t buffer_size;
+    bool allocated_in_p2p_region;
 
     // methods
     json to_json() const;

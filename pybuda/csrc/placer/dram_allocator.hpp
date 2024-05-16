@@ -73,8 +73,13 @@ class DramAllocator
     std::unique_ptr<ChannelAllocator> p2p_allocator;
     std::unique_ptr<ChannelPicker> channel_picker;
 
-    std::vector<QueueBufferPlacement> allocate_buffers(const QueueDRAMPlacementParameters &parameters);
-    const std::unique_ptr<ChannelAllocator> &get_allocator(std::uint32_t channel_index, bool in_p2p_region) const;
+    QueueBufferPlacement create_buffer_placement(
+        std::uint32_t virtual_channel,
+        std::uint32_t address,
+        std::uint32_t block_size,
+        bool allocated_in_p2p_region);
+    std::pair<bool, std::vector<QueueBufferPlacement>> allocate_buffers(const QueueDRAMPlacementParameters &parameters);
+    void deallocate_buffers(const QueuePlacement& queue_placement, const QueueDRAMPlacementParameters& placement_parameters);
 
    public:
     DramAllocator(
@@ -84,10 +89,11 @@ class DramAllocator
         std::vector<Blocks> &allocated_blocks,
         DRAMPlacementAlgorithm placement_algorithm = ROUND_ROBIN,
         AllocationAlgorithm allocator_algorithm = BEST_FIT);
-    void allocate_queues(std::vector<DRAMScheduleData> &scheduled_queue_placements, bool disable_dynamic_dram, int microbatch_size);
+    bool allocate_queues(std::vector<DRAMScheduleData> &scheduled_queue_placements, bool disable_dynamic_dram, int microbatch_size);
     void reset_dram_allocator();
     std::vector<Blocks> get_blocks();
     std::pair<uint32_t, uint32_t> get_dram_free_space();
+    std::uint32_t get_num_of_channels() { return channel_allocators.size(); };
 };
 
 }  // namespace placer
