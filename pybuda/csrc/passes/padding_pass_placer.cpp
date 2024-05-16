@@ -56,13 +56,27 @@ using LegalOpModels = std::unordered_map<Node const *, std::vector<tt::balancer:
 namespace tt::padding_placer
 {
 
-// Inserts buffering queue instead of nop node.
-void insert_queue_instead_of_nop(
+// Inserts buffering queue instead of nop node. If we can't insert queue, we return false.
+bool insert_queue_instead_of_nop(
     Graph *graph,
     Node *producer_node,
     Node *nop_node
 )
 {
+    // We have to check if producer or any of consumers of the nop node is a queue.
+    if (producer_node->node_type() == NodeType::kQueue)
+    {
+        return false;
+    }
+
+    for (Edge user_edge : graph->user_data_edges(nop_node))
+    {
+        Node* consumer_node = graph->node_by_id(user_edge.consumer_node_id);
+        if (consumer_node->node_type() == NodeType::kQueue)
+        {
+            return false;
+        }
+    }
     std::stringstream name_ss;
         name_ss << "queue_replacement_for_" << nop_node->name();
 
@@ -70,6 +84,7 @@ void insert_queue_instead_of_nop(
     log_debug(LogPadding, "\tCreating dram buffering queue node {} to replace nop {} ", name_ss.str(), nop_node->name());
     // After we have made queue_node, we now replace nop with it.
     replace_node(graph, /*original_node*/ nop_node, /*new_node*/ queue_node, /*skip_operands*/ false);
+    return true;
 }
 
 bool check_if_queue_fixes_failures(
@@ -152,6 +167,7 @@ bool pad_pass_placer(
         // better to pad the node or just to add queue.
         bool queue_fixes_failures =
             check_if_queue_fixes_failures(graph, node, balancer_config, balancer_cache_collection);
+        log_trace(LogPadding, "For node {}, queue after node fixes failures: {}", node->name(), queue_fixes_failures);
 
         while (padding_try_it++ < PADDING_TRY_MAX && buffer_alloc_cnt > 0)
         {
@@ -209,22 +225,37 @@ bool pad_pass_placer(
 
         if (!no_failures)
         {
-            std::uint32_t user_access_cnt_final = (buffer_alloc_cnt > 0) ? user_access_cnt_begin : user_access_cnt;
-            std::uint32_t operand_and_user_access_cnt_final = (buffer_alloc_cnt > 0) ? operand_and_user_access_cnt_begin : operand_and_user_access_cnt;
-
-            if (buffer_alloc_cnt > 0)
+            // if we have failures after padding loop, we still have few things that can make the node legal.
+            // If queue_fixes_failures is true, this means that adding queue without padding the node fixes the failures.
+            if (queue_fixes_failures)
             {
-                // After padding loop we still have input buffer allocation count issues.
-                log_warning(LogPadding, "Couldn't find padding for node: {} after {} iterations.", node->name(), padding_try_it);
-                // we remove padding only if it didn't solve input buffer allocation issues.
                 remove_padding(graph, node, padding);
-            }
-
-            if (user_access_cnt_final > 0 || operand_and_user_access_cnt_final > 0)
-            {
-                // Inserting queue helps with user access failures but can also solve input buffer allocation issues.
                 insert_queue(graph, node);
-                padded = true;
+                std::unordered_map<Node *, const BudaOpNodeLegalizerFailureInfo> failures =
+                    check_node_legality(graph, node, balancer_config, balancer_cache_collection);
+                TT_ASSERT(
+                    failures.size() == 0, "Adding queue is expected to fix all failures in this situation");
+            }
+            else
+            {
+                // If queue doesn't fix the failures, we try to add 
+                std::uint32_t user_access_cnt_final = (buffer_alloc_cnt > 0) ? user_access_cnt_begin : user_access_cnt;
+                std::uint32_t operand_and_user_access_cnt_final = (buffer_alloc_cnt > 0) ? operand_and_user_access_cnt_begin : operand_and_user_access_cnt;
+
+                if (buffer_alloc_cnt > 0)
+                {
+                    // After padding loop we still have input buffer allocation count issues.
+                    log_warning(LogPadding, "Couldn't find padding for node: {} after {} iterations.", node->name(), padding_try_it);
+                    // We remove padding only if it didn't solve input buffer allocation issues.
+                    remove_padding(graph, node, padding);
+                }
+
+                if (user_access_cnt_final > 0 || operand_and_user_access_cnt_final > 0)
+                {
+                    // Inserting queue helps with user access failures but can also solve input buffer allocation issues.
+                    insert_queue(graph, node);
+                    padded = true;
+                }
             }
         }
 
@@ -1193,10 +1224,10 @@ std::vector<Node*> insert_queue(Graph *graph, Node *node)
     // Insert unpad for each outgoing node.
     for (Edge outgoing_edge : outgoing_edges)
     {
-        NodeId outgoing_node_id = outgoing_edge.consumer_node_id;
-        Node* outgoing_node = graph->node_by_id(outgoing_node_id);
+        NodeId consumer_node_id = outgoing_edge.consumer_node_id;
+        Node* consumer_node = graph->node_by_id(consumer_node_id);
 
-        if (outgoing_node->node_type() == NodeType::kQueue)
+        if (consumer_node->node_type() == NodeType::kQueue)
             continue;
 
         std::tuple<Edge, graphlib::Node *, Edge> new_queue_info = insert_serialized_dram_queue_between_ops(
@@ -1205,7 +1236,7 @@ std::vector<Node*> insert_queue(Graph *graph, Node *node)
                 // producer name
                 node->name(),
                 // consumer name
-                outgoing_node->name(),
+                consumer_node->name(),
                 // operand index is always zero,
                 // because vstack has only one operand
                 (PortId)outgoing_edge.consumer_input_port_id);
