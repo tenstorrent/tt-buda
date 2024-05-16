@@ -33,6 +33,8 @@ def yolo_v5(training: bool, config: str, microbatch: int, devtype: str, arch: st
     if data_type == "Bfp8_b":
         os.environ["PYBUDA_FORK_JOIN_SKIP_EXPANDING_BUFFERS"] = "1"
         os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
+        # Temp workaround for tenstorrent/bbe#2595, output BW is unpredictable.
+        os.environ["PYBUDA_DISABLE_STREAM_OUTPUT"] = "1"
 
     if available_devices[0] == BackendDevice.Grayskull:
         compiler_cfg.enable_tm_cpu_fallback = True

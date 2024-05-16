@@ -52,8 +52,6 @@ def generate_model_whisper_congen_hf_pytorch(test_device, variant):
 
     if test_device.arch == BackendDevice.Wormhole_B0:
         compiler_cfg.amp_level = 1
-        os.environ["PYBUDA_DISABLE_STREAM_OUTPUT"] = "1"  # Disable streaming for LM head to output queue (perf)
-
 
     class Wrapper(torch.nn.Module):
         def __init__(self, model):
@@ -238,7 +236,6 @@ def test_whisper_encoder(test_device, variant):
     if test_device.arch == BackendDevice.Wormhole_B0:
         compiler_cfg.amp_level = 1
         compiler_cfg.default_dram_parameters = False
-        os.environ["PYBUDA_DISABLE_STREAM_OUTPUT"] = "1"  # Disable streaming for LM head to output queue (perf)
         os.environ["PYBUDA_PAD_OUTPUT_BUFFER"] = "1"
         os.environ["PYBUDA_PAD_OUTPUT_BUFFER_THRESHOLD_TILES"] = "1536"
         os.environ["PYBUDA_NLP_MANUAL_TARGET"] = "35000"

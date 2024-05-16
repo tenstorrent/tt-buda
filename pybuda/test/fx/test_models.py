@@ -55,7 +55,6 @@ def test_resnet():
     compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_training = False
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
-    os.environ["PYBUDA_DISABLE_STREAM_OUTPUT"] = "1"  # Disable streaming for output queue (perf)
     os.environ["PYBUDA_PAD_OUTPUT_BUFFER"] = "1"
 
     # Load ResNet feature extractor and model checkpoint from HuggingFace

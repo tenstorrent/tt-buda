@@ -79,7 +79,6 @@ def generate_model_whisper_decoder_past_cache(test_device, variant):
 
     if test_device.arch == BackendDevice.Wormhole_B0:
         compiler_cfg.amp_level = 1
-        os.environ["PYBUDA_DISABLE_STREAM_OUTPUT"] = "1"  # Disable streaming for LM head to output queue (perf)
         os.environ["PYBUDA_PAD_OUTPUT_BUFFER"] = "1"
         os.environ["TT_BACKEND_MULTI_THREADED_PUSH"] = "1"
         os.environ["TT_BACKEND_DRAM_POLLING_FREQUENCY"] = "64"

@@ -384,7 +384,6 @@ def test_t5_past_cache(variant, test_device):
         pytest.skip()
 
     import os
-    os.environ["PYBUDA_DISABLE_STREAM_OUTPUT"] = "1"
     os.environ["PYBUDA_PAD_OUTPUT_BUFFER"] = "1"
     os.environ["TT_BACKEND_MULTI_THREADED_PUSH"] = "1"
     os.environ["PYBUDA_EXTRA_L1_MARGIN"] = "169536"
@@ -524,7 +523,6 @@ def test_t5_past_cache_pybuda_pipeline(variant, test_device):
         pytest.skip()
 
     import os
-    os.environ["PYBUDA_DISABLE_STREAM_OUTPUT"] = "1"
     os.environ["PYBUDA_PAD_OUTPUT_BUFFER"] = "1"
     os.environ["TT_BACKEND_MULTI_THREADED_PUSH"] = "1"
     os.environ["PYBUDA_EXTRA_L1_MARGIN"] = "169536"
