@@ -77,3 +77,99 @@ def test_ddrnet(variant, test_device):
             ),
         ),
     )
+
+
+variants = ["ddrnet_23_slim_1024"]
+
+
+@pytest.mark.parametrize("variant", variants)
+def test_ddrnet_semantic_segmentation_onnx(variant, test_device):
+
+    # Set PyBuda configuration parameters
+    compiler_cfg = pybuda.config._get_global_compiler_config()
+    compiler_cfg.balancer_policy = "Ribbon"
+    compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
+    os.environ["PYBUDA_RIBBON2"] = "1"
+
+    if test_device.arch == BackendDevice.Wormhole_B0:
+        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "36864"
+        compiler_cfg.balancer_op_override(
+            "conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone931.dc.sparse_matmul.4.lc2",
+            "t_stream_shape",
+            (1, 8),
+        )
+        compiler_cfg.balancer_op_override(
+            "conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone925.dc.sparse_matmul.4.lc2",
+            "t_stream_shape",
+            (1, 8),
+        )
+        compiler_cfg.balancer_op_override(
+            "conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone11803.dc.sparse_matmul.4.lc2",
+            "t_stream_shape",
+            (1, 8),
+        )
+        compiler_cfg.balancer_op_override(
+            "conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone11809.dc.sparse_matmul.4.lc2",
+            "t_stream_shape",
+            (1, 8),
+        )
+        compiler_cfg.balancer_op_override(
+            "conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone11986.dc.sparse_matmul.4.lc2",
+            "t_stream_shape",
+            (1, 16),
+        )
+        compiler_cfg.balancer_op_override(
+            "conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone11980.dc.sparse_matmul.4.lc2",
+            "t_stream_shape",
+            (1, 8),
+        )
+        compiler_cfg.balancer_op_override(
+            "conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone11872.dc.sparse_matmul.4.lc2",
+            "t_stream_shape",
+            (1, 8),
+        )
+        compiler_cfg.balancer_op_override(
+            "conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone11866.dc.sparse_matmul.4.lc2",
+            "t_stream_shape",
+            (1, 8),
+        )
+
+    if test_device.arch == BackendDevice.Grayskull:
+        compiler_cfg.balancer_op_override(
+            "conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone931.dc.sparse_matmul.4.lc2",
+            "t_stream_shape",
+            (1, 32),
+        )
+        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "24576"
+        compiler_cfg.balancer_op_override(
+            "conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone11915.dc.sparse_matmul.4.lc2",
+            "t_stream_shape",
+            (1, 32),
+        )
+
+    # Load and validate the model
+    load_path = f"third_party/confidential_customer_models/customer/model_0/files/cnn/ddrnet/{variant}.onnx"
+    model = onnx.load(load_path)
+    onnx.checker.check_model(model)
+    model_name = f"onnx_{variant}"
+    tt_model = pybuda.OnnxModule(model_name, model, load_path)
+
+    # Prepare input
+    image_path = "third_party/confidential_customer_models/cv_demos/ddrnet/semantic_segmentation/image/road_scenes.png"
+    input_image = Image.open(image_path)
+    input_image = transforms.Resize((1024, 1024))(input_image)
+    input_tensor = transforms.ToTensor()(input_image)
+    input_batch = input_tensor.unsqueeze(0)
+
+    # Inference
+    verify_module(
+        tt_model,
+        input_shapes=([input_batch.shape]),
+        inputs=([input_batch]),
+        verify_cfg=VerifyConfig(
+            arch=test_device.arch,
+            devtype=test_device.devtype,
+            devmode=test_device.devmode,
+            test_kind=TestKind.INFERENCE,
+        ),
+    )

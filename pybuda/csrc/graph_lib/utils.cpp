@@ -1942,6 +1942,7 @@ std::unique_ptr<Node> ConstEvalGraph::promote_node(
         for (Edge const &runtime_edge : runtime_graph->operand_data_edges(runtime_node))
         {
             auto runtime_attr = runtime_graph->get_edge_attributes(runtime_edge);
+            int const_producer_id = 0;
 
             if (runtime_to_consteval_map.find(runtime_edge.producer_node_id) == runtime_to_consteval_map.end())
             {
@@ -1949,12 +1950,21 @@ std::unique_ptr<Node> ConstEvalGraph::promote_node(
                     dynamic_cast<InputNode *>(runtime_graph->node_by_id(runtime_edge.producer_node_id));
                 TT_ASSERT(runtime_operand, "All operands of promoted nodes must be graph inputs");
                 Node *consteval_operand = nullptr;
+                
+                // Only add the node if it doesn't already exist in the consteval graph
                 if (ConstEvalGraph *nested_consteval_graph = runtime_operand->get_consteval_graph())
                     consteval_operand = graft(nested_consteval_graph->get_graph());
-                else
+                else if (!consteval_graph.has_node_with_name(runtime_operand->name()))
                     consteval_operand = consteval_graph.add_node<Node>(runtime_operand->clone(), subgraph_id_);
+                else
+                    consteval_operand = consteval_graph.get_node_by_name(runtime_operand->name());
 
-                runtime_to_consteval_map.insert({runtime_operand->id(), consteval_operand->id()});
+                // Only map the operand if it has 1 user
+                if (runtime_graph->user_data_edges(runtime_operand).size() > 1)
+                    const_producer_id = consteval_operand->id();
+                else if (runtime_graph->user_data_edges(runtime_operand).size() == 1)
+                    runtime_to_consteval_map.insert({runtime_operand->id(), consteval_operand->id()});
+
                 runtime_graph->remove_edge(runtime_edge);
                 auto users = runtime_graph->user_edges(runtime_operand);
                 if (users.empty())
@@ -1962,7 +1972,7 @@ std::unique_ptr<Node> ConstEvalGraph::promote_node(
             }
 
             Edge consteval_edge = Edge(
-                runtime_to_consteval_map.at(runtime_edge.producer_node_id),
+                const_producer_id ? const_producer_id : runtime_to_consteval_map.at(runtime_edge.producer_node_id),
                 runtime_edge.producer_output_port_id,
                 runtime_to_consteval_map.at(runtime_edge.consumer_node_id),
                 runtime_edge.consumer_input_port_id,
