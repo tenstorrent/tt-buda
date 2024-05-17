@@ -44,7 +44,7 @@ def test_dla_pytorch(variant, test_device):
     compiler_cfg.default_df_override = pybuda._C.Float16_b
     os.environ["PYBUDA_RIBBON2"] = "1"
 
-    func = variants_func["variant"]
+    func = variants_func[variant]
     if test_device.arch == BackendDevice.Grayskull:
         if func.__name__ == "dla102x2":
             os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
