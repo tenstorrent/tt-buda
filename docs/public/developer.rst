@@ -125,7 +125,7 @@ User Visible Constants
 ++++++++++++++++++++++
 
 Constant registers are implemented as objects which can be referenced
-whereever a vector can be used.
+wherever a vector can be used.
 
   * Grayskull:
 
@@ -230,8 +230,8 @@ Library
 
 Below ``Vec`` means any vector type.
 
-Grayskulll and Wormhole
-^^^^^^^^^^^^^^^^^^^^^^^
+Grayskull and Wormhole
+^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: c++
 
@@ -396,8 +396,8 @@ For example:
     l_reg[LRegs::LReg1] = x;         // this is necessary at the end of the function
                                      // to preserve the value in LReg1 (if desired)
 
-Miscelaneous
-************
+Miscellaneous
+*************
 
 Register Pressure Management
 ++++++++++++++++++++++++++++
@@ -413,7 +413,7 @@ loads dst_reg[0] and dst_reg[1] into temporary LREGs (as expected).
 
 The compiler will not spill registers.  Exceeding the number of registers
 available will result in the cryptic: ``error: cannot store SFPU register
-(reigster spill?) - exiting!`` without a line number.
+(register spill?) - exiting!`` without a line number.
 
 The compiler does a reasonable job with lifetime analysis when assigning
 variables to registers.  Reloading or recalculating results helps the compiler
@@ -448,7 +448,7 @@ The ``SFPREPLAY`` instruction available on Wormhole allows the RISCV processor
 to submit up to 32 SFP instructions at once.  The compiler looks for sequences
 of instructions that repeat, stores these and then "replays" them later.
 
-The current implemention of this is very much first cut: it does not handle
+The current implementation of this is very much first cut: it does not handle
 kernels with rolled up loops very well.  Best performance is typically attained by
 unrolling the top level loop and then letting the compiler find the repetitions
 and replace them with ``SFPREPLAY``.  This works well when the main loop
@@ -494,15 +494,15 @@ Register Spilling
 +++++++++++++++++
 
 The compiler does not implement register spilling.  Since Grayskull only has 4
-LRegs, running out of registers is a common occurence.  If you see the
-following: ``error: cannot store SFPU register (reigster spill?) - exiting!``
+LRegs, running out of registers is a common occurrence.  If you see the
+following: ``error: cannot store SFPU register (register spill?) - exiting!``
 you have most likely run out of registers.
 
 Error Messages
 ++++++++++++++
 
 Unfortunately, many errors are attributed to the code in the wrapper rather than in the code
-being written.  For example, using an unitialized variable would show an error at a macro
+being written.  For example, using an uninitialized variable would show an error at a macro
 called by a wrapper function before showing the line number in the user's code.
 
 Function Calls
