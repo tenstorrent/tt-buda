@@ -36,6 +36,9 @@ def openpose_hand(training: bool, config: str, microbatch: int, devtype: str, ar
     if compiler_cfg.balancer_policy == "Ribbon":
         compiler_cfg.enable_amp_light()
 
+    if pybuda.detect_available_devices()[0] == BackendDevice.Grayskull:
+        pybuda.set_epoch_break("conv2d_99.dc.sparse_matmul.9.dc.sparse_matmul.1.lc2")
+
     # Set model parameters based on chosen task and model configuration
     model_name = ""
     img_res = 224

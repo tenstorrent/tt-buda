@@ -1,15 +1,27 @@
 include:
   - .gitlab-ci.wheels.yml
+
+  # PyBuda repo, Grayskull e150
   - ci/gitlab-test-lists/.gitlab-ci.grayskull_e150_perf_bfp8_b_nightly.yml
   - ci/gitlab-test-lists/.gitlab-ci.grayskull_e150_perf_fp16_nightly.yml
+  - ci/gitlab-test-lists/.gitlab-ci.grayskull_e150_perf_release_nightly.yml
+
+  # PyBuda repo, Grayskull e75
   - ci/gitlab-test-lists/.gitlab-ci.grayskull_e75_perf_bfp8_b_nightly.yml
   - ci/gitlab-test-lists/.gitlab-ci.grayskull_e75_perf_fp16_nightly.yml
+  - ci/gitlab-test-lists/.gitlab-ci.grayskull_e75_perf_release_nightly.yml
+  
+  # PyBuda repo, Wormhole B0
   - ci/gitlab-test-lists/.gitlab-ci.wormhole_b0_silicon_perf_bfp8_b_nightly.yml
   - ci/gitlab-test-lists/.gitlab-ci.wormhole_b0_silicon_perf_fp16_nightly.yml
   - ci/gitlab-test-lists/.gitlab-ci.wormhole_b0_silicon_perf_release_nightly.yml
+
   - ci/gitlab-test-lists/.gitlab-ci.wormhole_b0_silicon_perf_bfp8_b_manual.yml
   - ci/gitlab-test-lists/.gitlab-ci.wormhole_b0_silicon_perf_fp16_manual.yml
   - ci/gitlab-test-lists/.gitlab-ci.wormhole_b0_silicon_perf_release_manual.yml
+
+  # Benchmarking repo
+  # Grayskull e75, Grayskull e150, Wormhole B0
   - ci/gitlab-test-lists/benchmarking/.gitlab-ci.wormhole_b0_silicon_perf_release_public.yml
   - ci/gitlab-test-lists/benchmarking/.gitlab-ci.grayskull_e75_perf_release_public.yml
   - ci/gitlab-test-lists/benchmarking/.gitlab-ci.grayskull_e150_perf_release_public.yml

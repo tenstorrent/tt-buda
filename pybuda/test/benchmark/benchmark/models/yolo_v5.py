@@ -28,7 +28,8 @@ def yolo_v5(training: bool, config: str, microbatch: int, devtype: str, arch: st
     os.environ["PYBUDA_PAD_OUTPUT_BUFFER"] = "1"
 
     if data_type == "Fp16_b":
-        os.environ["PYBUDA_FORK_JOIN_BUF_QUEUES"] = "1"
+        if available_devices[0] != BackendDevice.Grayskull:
+            os.environ["PYBUDA_FORK_JOIN_BUF_QUEUES"] = "1"
 
     if data_type == "Bfp8_b":
         os.environ["PYBUDA_FORK_JOIN_SKIP_EXPANDING_BUFFERS"] = "1"
@@ -38,7 +39,9 @@ def yolo_v5(training: bool, config: str, microbatch: int, devtype: str, arch: st
 
     if available_devices[0] == BackendDevice.Grayskull:
         compiler_cfg.enable_tm_cpu_fallback = True
-
+        compiler_cfg.enable_tm_cpu_fallback = True
+        compiler_cfg.enable_auto_fusing = False  # required to fix accuracy
+        os.environ["PYBUDA_DECOMPOSE_SIGMOID"] = "1"
 
     # Set model parameters based on chosen task and model configuration
     config_name = ""

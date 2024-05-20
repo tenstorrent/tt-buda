@@ -26,11 +26,6 @@ def mobilenet_v3_timm(training: bool, config: str, microbatch: int, devtype: str
     #
     os.environ["PYBUDA_RIBBON2_CONSERVATIVE_OPTIMIZATION_ITERATIONS"] = "10"
 
-    if arch == "grayskull":
-        os.environ["PYBUDA_MAXIMIZE_SPARSE_UBLOCK"] = "1" 
-        os.environ["PYBUDA_SUPRESS_T_FACTOR_MM"] = "16" 
-        os.environ["PYBUDA_FUSED_OP_MULTIPLIER"] = "7" 
-
     # Set model parameters based on chosen task and model configuration
     model_name = ""
     if config == "small":

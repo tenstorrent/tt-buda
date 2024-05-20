@@ -1,0 +1,141 @@
+.pybuda-backend-silicon-gs-e150-perf-release:
+  extends: .backend-gs-common
+  stage: perf-gs-e150-release
+  rules:
+    - if: ($CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_MESSAGE =~ /\[perf_gs\]/)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_MESSAGE =~ /\[perf_gs_e150\]/)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_MESSAGE =~ /\[no_ci_perf_gs_e150\]/)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_MESSAGE =~ /\[no_ci_perf_gs_e150\]/)
+    - if: ($CI_COMMIT_REF_NAME == "main" && $CI_JOB_DESCRIPTION == "pybuda-nightly")
+  timeout: 60m
+  variables:
+    PYTEST_CURRENT_TEST: $CI_JOB_NAME
+  tags:
+    - gs-1-card
+    - e150
+    - performance
+  script:
+    - !reference [.common_prep, script]
+  artifacts:
+    paths:
+      - /builds/tenstorrent/pybuda/*-perf.json
+      - "*netlist.yaml"
+  after_script:
+    - ci/upload-perf-test.py -b gitlab-pipeline-$CI_PIPELINE_ID --job_name $CI_JOB_NAME
+    # Move netlist(s) to root so that they'll be in root of artifacts - this runs before artifacts are saved
+    - mv pytest_ci_out/$CI_JOB_NAME/*netlist.yaml ./
+  
+pybuda-silicon-gs-e150-perf-resnet-release:
+  extends: .pybuda-backend-silicon-gs-e150-perf-release
+  script:
+    - !reference [.pybuda-backend-silicon-gs-e150-perf-release, script]
+    - pybuda/test/benchmark/benchmark.py -m resnet -c resnet50 -mb 64 -df Fp16_b -mf HiFi3 -o $CI_JOB_NAME-perf.json
+
+pybuda-silicon-gs-e150-perf-mobilenet-v1-release:
+  extends: .pybuda-backend-silicon-gs-e150-perf-release
+  script:
+    - !reference [.pybuda-backend-silicon-gs-e150-perf-release, script]
+    - pybuda/test/benchmark/benchmark.py -m mobilenet_v1 -c 224 -mb 64 -df Fp16_b -mf HiFi3 -o $CI_JOB_NAME-perf.json
+
+pybuda-silicon-gs-e150-perf-mobilenet-v2-release:
+  extends: .pybuda-backend-silicon-gs-e150-perf-release
+  script:
+    - !reference [.pybuda-backend-silicon-gs-e150-perf-release, script]
+    - pybuda/test/benchmark/benchmark.py -m mobilenet_v2 -c 224 -mb 64 -df Fp16_b -mf HiFi3 -o $CI_JOB_NAME-perf.json
+
+pybuda-silicon-gs-e150-perf-mobilenet-v3-release:
+  extends: .pybuda-backend-silicon-gs-e150-perf-release
+  script:
+    - !reference [.pybuda-backend-silicon-gs-e150-perf-release, script]
+    - pybuda/test/benchmark/benchmark.py -m mobilenet_v3_timm -c large -mb 64 -df Fp16_b -mf HiFi3 -o $CI_JOB_NAME-perf.json
+
+# tenstorrent/pybuda#2197
+pybuda-silicon-gs-e150-perf-vit-release:
+  extends: .pybuda-backend-silicon-gs-e150-perf-release
+  script:
+    - !reference [.pybuda-backend-silicon-gs-e150-perf-release, script]
+    - pybuda/test/benchmark/benchmark.py -m vit -c base -mb 64 -o $CI_JOB_NAME-perf.json
+
+# tenstorrent/pybuda#2198
+pybuda-silicon-gs-e150-perf-deit-release:
+  extends: .pybuda-backend-silicon-gs-e150-perf-release
+  script:
+    - !reference [.pybuda-backend-silicon-gs-e150-perf-release, script]
+    - pybuda/test/benchmark/benchmark.py -m deit -c base -mb 64 -o $CI_JOB_NAME-perf.json
+    
+pybuda-silicon-gs-e150-perf-vovnet-v2-release:
+  extends: .pybuda-backend-silicon-gs-e150-perf-release
+  script:
+    - !reference [.pybuda-backend-silicon-gs-e150-perf-release, script]
+    - pybuda/test/benchmark/benchmark.py -m vovnet_v2 -c 39 -mb 64 -df Fp16_b -mf HiFi3 -o $CI_JOB_NAME-perf.json
+
+pybuda-silicon-gs-e150-perf-openpose-body-release:
+  extends: .pybuda-backend-silicon-gs-e150-perf-release
+  script:
+    - !reference [.pybuda-backend-silicon-gs-e150-perf-release, script]
+    - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+    - pybuda/test/benchmark/benchmark.py -m openpose_osmr_body -c 2d -mb 64 -df Fp16 -mf HiFi3 -o $CI_JOB_NAME-perf.json
+
+pybuda-silicon-gs-e150-perf-openpose-hand-release:
+  extends: .pybuda-backend-silicon-gs-e150-perf-release
+  script:
+    - !reference [.pybuda-backend-silicon-gs-e150-perf-release, script]
+    - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+    - pybuda/test/benchmark/benchmark.py -m openpose_hand -c basic -mb 64 -df Fp16_b -mf HiFi3 -o $CI_JOB_NAME-perf.json
+
+# tenstorrent/pybuda#2183
+pybuda-silicon-gs-e150-perf-hrnet-release:
+  extends: .pybuda-backend-silicon-gs-e150-perf-release
+  script:
+    - !reference [.pybuda-backend-silicon-gs-e150-perf-release, script]
+    - pybuda/test/benchmark/benchmark.py -m hrnet -c v2_w64 -mb 64 -o $CI_JOB_NAME-perf.json
+
+pybuda-silicon-gs-e150-perf-yolo-v3-release:
+  extends: .pybuda-backend-silicon-gs-e150-perf-release
+  script:
+    - !reference [.pybuda-backend-silicon-gs-e150-perf-release, script]
+    - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+    - pybuda/test/benchmark/benchmark.py -m yolo_v3 -c default -mb 32 -df Fp16_b -mf HiFi3 -o $CI_JOB_NAME-perf.json
+
+pybuda-silicon-gs-e150-perf-yolo-v5-release:
+  extends: .pybuda-backend-silicon-gs-e150-perf-release
+  script:
+    - !reference [.pybuda-backend-silicon-gs-e150-perf-release, script]
+    - pybuda/test/benchmark/benchmark.py -m yolo_v5 -c s -mb 64 -df Fp16_b -mf HiFi3 -o $CI_JOB_NAME-perf.json
+
+pybuda-silicon-gs-e150-perf-inception-v4-release:
+  extends: .pybuda-backend-silicon-gs-e150-perf-release
+  script:
+    - !reference [.pybuda-backend-silicon-gs-e150-perf-release, script]
+    - pybuda/test/benchmark/benchmark.py -m inception_v4 -c 224 -mb 64 -df Fp16_b -mf HiFi3 -o $CI_JOB_NAME-perf.json
+
+pybuda-silicon-gs-e150-perf-unet-release:
+  extends: .pybuda-backend-silicon-gs-e150-perf-release
+  script:
+    - !reference [.pybuda-backend-silicon-gs-e150-perf-release, script]
+    - pybuda/test/benchmark/benchmark.py -m unet -c 256 -mb 64 -df Fp16_b -mf HiFi3 -o $CI_JOB_NAME-perf.json
+
+# tenstorrent/pybuda#2196
+pybuda-silicon-gs-e150-perf-bert-large-release:
+  extends: .pybuda-backend-silicon-gs-e150-perf-release
+  script:
+    - !reference [.pybuda-backend-silicon-gs-e150-perf-release, script]
+    - pybuda/test/benchmark/benchmark.py -m bert -c large_tc -mb 64 -o $CI_JOB_NAME-perf.json
+
+pybuda-silicon-gs-e150-perf-whisper-release:
+  extends: .pybuda-backend-silicon-gs-e150-perf-release
+  script:
+    - !reference [.pybuda-backend-silicon-gs-e150-perf-release, script]
+    - pybuda/test/benchmark/benchmark.py -m whisper -c small --loop_count 1 -mb 1 -df Fp16_b -mf HiFi3 --single-thread --generative -o $CI_JOB_NAME-perf.json
+
+pybuda-silicon-gs-e150-perf-t5-large-release:
+  extends: .pybuda-backend-silicon-gs-e150-perf-release
+  script:
+    - !reference [.pybuda-backend-silicon-gs-e150-perf-release, script]
+    - pybuda/test/benchmark/benchmark.py -m t5 -c large --loop_count 1 -mb 1 -df Fp16_b -mf HiFi3 --single-thread --generative -o $CI_JOB_NAME-perf.json
+
+pybuda-silicon-gs-e150-perf-flan-t5-large-release:
+  extends: .pybuda-backend-silicon-gs-e150-perf-release
+  script:
+    - !reference [.pybuda-backend-silicon-gs-e150-perf-release, script]
+    - pybuda/test/benchmark/benchmark.py -m flan_t5 -c large --loop_count 1 -mb 1 -df Fp16_b -mf HiFi3 --single-thread --generative -o $CI_JOB_NAME-perf.json

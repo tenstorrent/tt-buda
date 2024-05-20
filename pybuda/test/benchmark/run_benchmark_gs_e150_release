@@ -1,0 +1,61 @@
+# ------------------------------------------------------------------------------------------------------------------------------------------------------------ #
+# Models with data Formats that have good accuracy on Grayskull and that we release as official numbers
+# ------------------------------------------------------------------------------------------------------------------------------------------------------------ #
+
+# ------------------------------------------------------- #
+# Grayskull e150, unharvested chip, grid size: 10x12
+# ------------------------------------------------------- #
+
+# ResNet fp16_b
+pybuda/test/benchmark/benchmark.py -m resnet -c resnet50 -mb 64 -df Fp16_b -mf HiFi3 -o pybuda-silicon-gs-e150-perf-all-perf.json
+
+# Mobilenet v1 fp16_b
+pybuda/test/benchmark/benchmark.py -m mobilenet_v1 -c 224 -mb 64 -df Fp16_b -mf HiFi3 -o pybuda-silicon-gs-e150-perf-all-perf.json
+
+# Mobilenet v2 fp16_b
+pybuda/test/benchmark/benchmark.py -m mobilenet_v2 -c 224 -mb 64 -df Fp16_b -mf HiFi3 -o pybuda-silicon-gs-e150-perf-all-perf.json
+
+# Mobilenet v3 fp16_b
+pybuda/test/benchmark/benchmark.py -m mobilenet_v3_timm -c large -mb 64 -df Fp16_b -mf HiFi3 -o pybuda-silicon-gs-e150-perf-all-perf.json
+
+# Vit bfp8_b
+pybuda/test/benchmark/benchmark.py -m vit -c base -mb 64 -o pybuda-silicon-gs-e150-perf-all-perf.json
+
+# Deit bfp8_b
+pybuda/test/benchmark/benchmark.py -m deit -c base -mb 64 -o pybuda-silicon-gs-e150-perf-all-perf.json
+
+# VoVNet v2 fp16_b
+pybuda/test/benchmark/benchmark.py -m vovnet_v2 -c 39 -mb 64 -df Fp16_b -mf HiFi3 -o pybuda-silicon-gs-e150-perf-all-perf.json
+
+# OpenPose Body fp16
+pybuda/test/benchmark/benchmark.py -m openpose_osmr_body -c 2d -mb 64 -df Fp16 -mf HiFi3 -o pybuda-silicon-gs-e150-perf-all-perf.json
+
+# OpenPose Hand fp16_b
+pybuda/test/benchmark/benchmark.py -m openpose_hand -c basic -mb 64 -df Fp16_b -mf HiFi3 -o pybuda-silicon-gs-e150-perf-all-perf.json
+
+# HRNet bfp8_b
+pybuda/test/benchmark/benchmark.py -m hrnet -c v2_w64 -mb 64 -o pybuda-silicon-gs-e150-perf-all-perf.json
+
+# YOLOv3 fp16_b
+pybuda/test/benchmark/benchmark.py -m yolo_v3 -c default -mb 32 -df Fp16_b -mf HiFi3 -o pybuda-silicon-gs-e150-perf-all-perf.json
+
+# YOLOv5 fp16_b
+pybuda/test/benchmark/benchmark.py -m yolo_v5 -c s -mb 64 -df Fp16_b -mf HiFi3 -o pybuda-silicon-gs-e150-perf-all-perf.json
+
+# Inception v4 fp16_b
+pybuda/test/benchmark/benchmark.py -m inception_v4 -c 224 -mb 64 -df Fp16_b -mf HiFi3 -o pybuda-silicon-gs-e150-perf-all-perf.json
+
+# UNet fp16_b
+pybuda/test/benchmark/benchmark.py -m unet -c 256 -mb 64 -df Fp16_b -mf HiFi3 -o pybuda-silicon-gs-e150-perf-all-perf.json
+
+# Bert large bfp8_b
+pybuda/test/benchmark/benchmark.py -m bert -c large_tc -mb 64 -o pybuda-silicon-gs-e150-perf-all-perf.json
+
+# Whisper fp16_b
+pybuda/test/benchmark/benchmark.py -m whisper -c small --loop_count 1 -mb 1 -df Fp16_b -mf HiFi3 --single-thread --generative -o pybuda-silicon-gs-e150-perf-all-perf.json
+
+# T5 fp16_b
+pybuda/test/benchmark/benchmark.py -m t5 -c large --loop_count 1 -mb 1 -df Fp16_b -mf HiFi3 --single-thread --generative -o pybuda-silicon-gs-e150-perf-all-perf.json
+
+# Flan-T5 fp16_b
+pybuda/test/benchmark/benchmark.py -m flan_t5 -c large --loop_count 1 -mb 1 -df Fp16_b -mf HiFi3 --single-thread --generative -o pybuda-silicon-gs-e150-perf-all-perf.json

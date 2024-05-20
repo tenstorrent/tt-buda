@@ -1,0 +1,19 @@
+# ------------------------------------------------------------------------------------------------------------------------------------------------------------ #
+# Data Format Fp16, Fp16_b
+# ------------------------------------------------------------------------------------------------------------------------------------------------------------ #
+
+# ------------------------------------------------------- #
+# Grayskull e150, unharvested chip, grid size: 10x12
+# ------------------------------------------------------- #
+
+# Vit
+pybuda/test/benchmark/benchmark.py -m vit -c base -df Fp16_b -mf HiFi2 -o pybuda-silicon-gs-e150-perf-all-perf.json
+
+# Deit
+pybuda/test/benchmark/benchmark.py -m deit -c base -df Fp16_b -mf HiFi2 -o pybuda-silicon-gs-e150-perf-all-perf.json
+
+# Hrnet
+pybuda/test/benchmark/benchmark.py -m hrnet -c v2_w64 -df Fp16_b -mf HiFi3 -o pybuda-silicon-gs-e150-perf-all-perf.json
+
+# Bert
+pybuda/test/benchmark/benchmark.py -m bert -c large_tc -df Fp16_b -mf HiFi3 -o pybuda-silicon-gs-e150-perf-all-perf.json

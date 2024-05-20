@@ -41,6 +41,8 @@ class BertWrapper(torch.nn.Module):
 @benchmark_model(configs=["tiny", "base", "large", "base_tc", "large_tc"])
 def bert(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str, force_num_layers: Optional[int] = None):
 
+    from pybuda._C.backend_api import BackendDevice
+
     compiler_cfg = _get_global_compiler_config()
 
     if config == "tiny":
@@ -101,14 +103,16 @@ def bert(training: bool, config: str, microbatch: int, devtype: str, arch: str, 
             os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
             os.environ["PYBUDA_DISABLE_UNROLLED_PARAMETERS"] = "1" # causes DRAM queue buffers overlap
             if data_type == "Bfp8_b":
-                os.environ["PYBUDA_FORK_JOIN_BUF_QUEUES"] = "1"
+                if pybuda.detect_available_devices()[0] != BackendDevice.Grayskull:
+                    os.environ["PYBUDA_FORK_JOIN_BUF_QUEUES"] = "1"
                 os.environ["PYBUDA_EXP_APPROX"] = "1"
                 pybuda.config.configure_mixed_precision(op_type="add", output_df=pybuda.DataFormat.Float16_b)
                 pybuda.config.configure_mixed_precision(op_type="subtract", output_df=pybuda.DataFormat.Float16_b)
                 pybuda.config.configure_mixed_precision(op_type="reciprocal", output_df=pybuda.DataFormat.Float16_b)
             if data_type == "Fp16_b":
-                os.environ["PYBUDA_ENABLE_HOST_INPUT_NOP_BUFFERING"] = "1" #overlay blob issue on bfp8
-                os.environ["PYBUDA_RIBBON2_OPTIMIZATION_ITERATIONS"] = "10"
+                if pybuda.detect_available_devices()[0] != BackendDevice.Grayskull:
+                    os.environ["PYBUDA_ENABLE_HOST_INPUT_NOP_BUFFERING"] = "1" #overlay blob issue on bfp8
+                    os.environ["PYBUDA_RIBBON2_OPTIMIZATION_ITERATIONS"] = "10"
     else:
         raise RuntimeError("Unknown config")
 

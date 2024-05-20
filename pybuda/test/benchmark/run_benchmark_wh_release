@@ -1,9 +1,9 @@
 # ------------------------------------------------------------------------------------------------------------------------------------------------------------ #
-# Data Formats that have good accuracy on WH_B0 and that we release as official numbers
+# Models with data Formats that have good accuracy on Wormhole B0 and that we release as official numbers
 # ------------------------------------------------------------------------------------------------------------------------------------------------------------ #
 
 
-# ResNet bfp_8b
+# ResNet bfp8_b
 pybuda/test/benchmark/benchmark.py -m resnet -c resnet50 -mb 256 -o pybuda-silicon-wh-b0-perf-all-perf.json
 
 #ResNet quant fp32

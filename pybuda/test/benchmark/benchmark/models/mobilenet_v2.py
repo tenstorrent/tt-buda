@@ -41,12 +41,6 @@ def mobilenet_v2(training: bool, config: str, microbatch: int, devtype: str, arc
         pybuda.config.configure_mixed_precision(op_type="multiply", math_fidelity=pybuda.MathFidelity.HiFi2)
         pybuda.config.configure_mixed_precision(op_type="matmul", math_fidelity=pybuda.MathFidelity.HiFi2)
 
-    if arch == "grayskull":
-        os.environ["PYBUDA_MAXIMIZE_SPARSE_UBLOCK"] = "1"
-        os.environ["PYBUDA_FORK_JOIN_SKIP_EXPANDING_BUFFERS"] = "1" 
-        os.environ["PYBUDA_RIBBON2_OPTIMIZATION_ITERATIONS"] = "10" 
-        os.environ["PYBUDA_TEMP_ELT_UNARY_ESTIMATES_LEGACY"] = "1"
-
     # Set model parameters based on chosen task and model configuration
     if config == "224":
         model_name = "google/mobilenet_v2_1.0_224"

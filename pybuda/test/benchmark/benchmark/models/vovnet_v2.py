@@ -14,13 +14,15 @@ from pybuda.config import _get_global_compiler_config
 def vovnet_v2(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str):
 
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_auto_transposing_placement = True
+    from pybuda._C.backend_api import BackendDevice
+    available_devices = pybuda.detect_available_devices()
+    if available_devices[0] != BackendDevice.Grayskull:
+        compiler_cfg.enable_auto_transposing_placement = True
 
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"
-        os.environ["PYBUDA_RIBBON2"] = "1" 
+        os.environ["PYBUDA_RIBBON2"] = "1"
 
-    os.environ["PYBUDA_ENABLE_HOST_INPUT_NOP_BUFFERING"] = "1"
     os.environ["PYBUDA_ALLOW_MULTICOLUMN_SPARSE_MATMUL"] = "1"
     os.environ["PYBUDA_FORK_JOIN_BUF_QUEUES"] = "1"
     os.environ["PYBUDA_SUPRESS_T_FACTOR_MM"] = "60"

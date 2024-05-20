@@ -1,0 +1,51 @@
+# ------------------------------------------------------------------------------------------------------------------------------------------------------------ #
+# Data Format Bfp8_b
+# ------------------------------------------------------------------------------------------------------------------------------------------------------------ #
+
+# ------------------------------------------------------- #
+# Grayskull e75, two-row harvested chip, grid size: 8x12
+# ------------------------------------------------------- #
+
+export PYBUDA_FORCE_EMULATE_HARVESTED=2
+
+# Resnet
+pybuda/test/benchmark/benchmark.py -m resnet -c resnet50 -o pybuda-silicon-gs-e75-perf-all-perf.json
+
+# Mobilenet v1
+pybuda/test/benchmark/benchmark.py -m mobilenet_v1 -c 224 -mf HiFi2 -o pybuda-silicon-gs-e75-perf-all-perf.json
+
+# Mobilenet v2
+pybuda/test/benchmark/benchmark.py -m mobilenet_v2 -c 224 -o pybuda-silicon-gs-e75-perf-all-perf.json
+
+# Mobilenet v3
+pybuda/test/benchmark/benchmark.py -m mobilenet_v3_timm -c large -o pybuda-silicon-gs-e75-perf-all-perf.json
+
+# Vovnet v2
+pybuda/test/benchmark/benchmark.py -m vovnet_v2 -c 39 -o pybuda-silicon-gs-e75-perf-all-perf.json
+
+# Openpose Body
+pybuda/test/benchmark/benchmark.py -m openpose_osmr_body -c 2d -o pybuda-silicon-gs-e75-perf-all-perf.json
+
+# Openpose Hand
+pybuda/test/benchmark/benchmark.py -m openpose_hand -c basic -o pybuda-silicon-gs-e75-perf-all-perf.json
+
+# YOLOv3
+pybuda/test/benchmark/benchmark.py -m yolo_v3 -c default -mb 32 -o pybuda-silicon-gs-e75-perf-all-perf.json
+
+# YOLOv5
+pybuda/test/benchmark/benchmark.py -m yolo_v5 -c s -o pybuda-silicon-gs-e75-perf-all-perf.json
+
+# Inception v4
+pybuda/test/benchmark/benchmark.py -m inception_v4 -c 224 -o pybuda-silicon-gs-e75-perf-all-perf.json
+
+# Unet
+pybuda/test/benchmark/benchmark.py -m unet -c 256 -mb 64 -o pybuda-silicon-gs-e75-perf-all-perf.json
+
+# Whisper
+pybuda/test/benchmark/benchmark.py -m whisper -c small --loop_count 1 -mb 1 --single-thread --generative -o pybuda-silicon-gs-e75-perf-all-perf.json
+
+# T5
+pybuda/test/benchmark/benchmark.py -m t5 -c large --loop_count 1 -mb 1 --single-thread --generative -o pybuda-silicon-gs-e75-perf-all-perf.json
+
+# Flan-T5
+pybuda/test/benchmark/benchmark.py -m flan_t5 -c large --loop_count 1 -mb 1 -mf HiFi2 --single-thread --generative -o pybuda-silicon-gs-e75-perf-all-perf.json
