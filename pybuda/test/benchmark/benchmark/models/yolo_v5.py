@@ -13,7 +13,7 @@ from pybuda.config import _get_global_compiler_config
 @benchmark_model(configs=["s", "m"])
 def yolo_v5(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str):
     compiler_cfg = _get_global_compiler_config()
-
+    compiler_cfg.enable_auto_transposing_placement = True
 
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"
@@ -21,11 +21,13 @@ def yolo_v5(training: bool, config: str, microbatch: int, devtype: str, arch: st
 
     from pybuda._C.backend_api import BackendDevice
     available_devices = pybuda.detect_available_devices()
-    if available_devices[0] == BackendDevice.Wormhole_B0:
-        os.environ["PYBUDA_SUPRESS_T_FACTOR_MM"] = "49"
 
     # Temp perf workaround for tenstorrent/bbe#2595
     os.environ["PYBUDA_PAD_OUTPUT_BUFFER"] = "1"
+
+    # These are about to be enabled by default.
+    #
+    os.environ["PYBUDA_RIBBON2_CONSERVATIVE_OPTIMIZATION_ITERATIONS"] = "10"
 
     if data_type == "Fp16_b":
         if available_devices[0] != BackendDevice.Grayskull:
@@ -33,7 +35,6 @@ def yolo_v5(training: bool, config: str, microbatch: int, devtype: str, arch: st
 
     if data_type == "Bfp8_b":
         os.environ["PYBUDA_FORK_JOIN_SKIP_EXPANDING_BUFFERS"] = "1"
-        os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
         # Temp workaround for tenstorrent/bbe#2595, output BW is unpredictable.
         os.environ["PYBUDA_DISABLE_STREAM_OUTPUT"] = "1"
 

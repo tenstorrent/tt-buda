@@ -92,11 +92,7 @@ placer::PlacerSolution run_placer(
         .op_to_grad_op = placer::lowering::get_op_to_grad_op_mapping(graph, scheduled_ops),
         .op_to_recompute_op = placer::lowering::get_op_to_recompute_mapping(graph, scheduled_ops),
         .ops_tagged_for_chip_id_break = placer::lowering::tag_ops_for_chip_break(
-            config.device_config,
-            config.op_names_to_chip_break,
-            scheduled_ops,
-            graph,
-            config.use_interactive_placer),
+            config.device_config, config.op_names_to_chip_break, scheduled_ops, graph, config.use_interactive_placer),
         .ops_tagged_for_epoch_break = placer::lowering::tag_ops_for_epoch_break(
             config.device_config,
             config.op_names_to_epoch_break,
@@ -1976,6 +1972,7 @@ OpCycleEstimates get_op_cycles_estimates(
     const float inefficency_divider = 2.0;
     const float subchannel_oversub_coeff = 1.5;
     const float pcie_observed_max = 24;
+    const float wh_dram_observed_max = 20.4;
 
     // Use max between 1 and the computed fork divider to guard against the case when the passed in dram access core
     // count is 0, so the scaled estimated dram read bandwidth would be infinite
@@ -2002,9 +1999,17 @@ OpCycleEstimates get_op_cycles_estimates(
     // tenstorrent/budabackend#2423
     //
     float dram_bw = device_config.is_wormhole_b0()
-                        ? 20.4 / dram_bw_divider
+                        ? wh_dram_observed_max / dram_bw_divider
                         : static_cast<float>(device_config.get_dram_bandwidth_bytes_per_cycle()) / dram_bw_divider;
     float pcie_bw = 0 == pcie_access_core_count ? pcie_observed_max : pcie_observed_max / pcie_access_core_count;
+
+    // Do not scale dram prologue bandwidth with dram access core count as it is performed at start of the epoch.
+    //
+    float dram_prologue_bw =
+        device_config.is_wormhole_b0()
+            ? wh_dram_observed_max / inefficency_divider
+            : static_cast<float>(device_config.get_dram_bandwidth_bytes_per_cycle()) / inefficency_divider;
+
     if (!model_pcie_bw)
     {
         // Temp fallback to legacy dram calc.
@@ -2133,11 +2138,25 @@ OpCycleEstimates get_op_cycles_estimates(
                     //
                     TT_ASSERT(!input_is_kb);
 
-                    input_bw_estimates[input_idx] = edge_dram_bw * graph->get_microbatch();
-                    memory_read_cycles[input_idx] = static_cast<int>(
-                        input_tensor_size_bytes / edge_dram_bw /
-                        graph->get_microbatch());  // divide by microbatch as we only transfer data once per input
-                                                   // in epoch
+                    bool is_post_tm = op_model.parameter_buffers[edge.consumer_input_port_id].is_unrolled();
+
+                    if (!is_post_tm)
+                    {
+                        // Pre TM will be also fetched once per epoch but it will need to be re-read every time from
+                        // local cores. We will need to introduce new NOC constrained BW estimate for this case but for
+                        // now we will use unscaled dram prologue BW.
+                        //
+                        input_bw_estimates[input_idx] = dram_prologue_bw;
+                        memory_read_cycles[input_idx] = static_cast<int>(input_tensor_size_bytes / dram_prologue_bw);
+                    }
+                    else
+                    {
+                        input_bw_estimates[input_idx] = dram_prologue_bw * graph->get_microbatch();
+                        memory_read_cycles[input_idx] = static_cast<int>(
+                            input_tensor_size_bytes / dram_prologue_bw /
+                            graph->get_microbatch());  // divide by microbatch as we only transfer data once per input
+                                                       // in epoch
+                    }
                 }
                 else if (input_is_host_queue)
                 {

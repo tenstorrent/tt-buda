@@ -28,7 +28,6 @@ def deit(training: bool, config: str, microbatch: int, devtype: str, arch: str, 
 
     if data_type == "Fp16_b":
         os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES_APPLY_FILTERING"] = "1"
-        os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
 
     if data_type == "Bfp8_b":
         os.environ["PYBUDA_FORK_JOIN_BUF_QUEUES"] = "1"

@@ -24,9 +24,6 @@ def inception_v4(training: bool, config: str, microbatch: int, devtype: str, arc
     #
     os.environ["PYBUDA_RIBBON2_CONSERVATIVE_OPTIMIZATION_ITERATIONS"] = "10"
 
-    if data_type == "Fp16_b":
-        os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "0"
-
     # Set model parameters based on chosen task and model configuration
     if config == "224":
         model_name = "inception_v4"

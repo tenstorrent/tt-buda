@@ -101,7 +101,7 @@ def bert(training: bool, config: str, microbatch: int, devtype: str, arch: str, 
             compiler_cfg.balancer_policy = "Ribbon"
             os.environ["PYBUDA_RIBBON2"] = "1"
             os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
-            os.environ["PYBUDA_DISABLE_UNROLLED_PARAMETERS"] = "1" # causes DRAM queue buffers overlap
+            os.environ["PYBUDA_ENABLE_HOST_INPUT_NOP_BUFFERING"] = "1"
             if data_type == "Bfp8_b":
                 if pybuda.detect_available_devices()[0] != BackendDevice.Grayskull:
                     os.environ["PYBUDA_FORK_JOIN_BUF_QUEUES"] = "1"
@@ -109,10 +109,6 @@ def bert(training: bool, config: str, microbatch: int, devtype: str, arch: str, 
                 pybuda.config.configure_mixed_precision(op_type="add", output_df=pybuda.DataFormat.Float16_b)
                 pybuda.config.configure_mixed_precision(op_type="subtract", output_df=pybuda.DataFormat.Float16_b)
                 pybuda.config.configure_mixed_precision(op_type="reciprocal", output_df=pybuda.DataFormat.Float16_b)
-            if data_type == "Fp16_b":
-                if pybuda.detect_available_devices()[0] != BackendDevice.Grayskull:
-                    os.environ["PYBUDA_ENABLE_HOST_INPUT_NOP_BUFFERING"] = "1" #overlay blob issue on bfp8
-                    os.environ["PYBUDA_RIBBON2_OPTIMIZATION_ITERATIONS"] = "10"
     else:
         raise RuntimeError("Unknown config")
 

@@ -1766,8 +1766,7 @@ void add_buffering_on_path(
         }
         bool merge_nops = dests.size() > 1;
 
-        if (add_buffer_queues && buff_mem_consumption < max_queue_mem &&
-            !src_is_recompute)
+        if (add_buffer_queues && buff_mem_consumption < max_queue_mem && !src_is_recompute)
         {
             auto edges = graph->user_data_edges(src);
             for (std::uint32_t fork_id = 0; fork_id < edges.size(); fork_id++)
@@ -1790,11 +1789,16 @@ void add_buffering_on_path(
 
                         if (num_entries > 0)
                         {
-                            log_trace(LogGraphCompiler, "Adding instruction for buffering queue from {} to {} with {} entries", src->name(), dest->name(), num_entries);
+                            log_trace(
+                                LogGraphCompiler,
+                                "Adding instruction for buffering queue from {} to {} with {} entries",
+                                src->name(),
+                                dest->name(),
+                                num_entries);
 
-                            // if dests have more than one element that means that I want to add queue with source src but
-                            // more than 1 destination. Even though I make 2 instructions, later there won't be 2 queues but
-                            // one that feeds to 2 consumers if dests.size() is 2 for example.
+                            // if dests have more than one element that means that I want to add queue with source src
+                            // but more than 1 destination. Even though I make 2 instructions, later there won't be 2
+                            // queues but one that feeds to 2 consumers if dests.size() is 2 for example.
                             std::shared_ptr<InsertionInstruction> ins = std::make_shared<QueueInsertionInstruction>(
                                 src->name() /* src */,
                                 dest->name() /* dest */,
@@ -1806,10 +1810,11 @@ void add_buffering_on_path(
                             InsInstructionUniqueId key = ins->unique_id();
                             insert_queue_ins_to_instructions(instructions, key, ins);
                         }
-
                     }
                 }
             }
+
+            fj_graph.add_nop_buffered_fj(&fj);
         }
         else
         {
