@@ -1031,58 +1031,9 @@ bool is_candidate_better_than_current(
             return bigger_mblock_util(current, candidate, current_exec_util, candidate_exec_util);
         }
     }
-    else if (op_model_compare_version == 2)
+    else
     {
-        if (close_to_target_exec_cycles(current_exec_cycles, current_cycles, target_exec_cycles))
-        {
-            if (close_to_target_exec_cycles(candidate_exec_cycles, candidate_cycles, target_exec_cycles))
-            {
-                return bigger_mblock_util(current, candidate, current_exec_util, candidate_exec_util);
-            }
-        }
-        else if (close_to_target_exec_cycles(candidate_exec_cycles, candidate_cycles, target_exec_cycles))
-        {
-            return true;
-        }
-        else
-        {
-            if (candidate_cycles <= target_exec_cycles)
-            {
-                if (current_cycles > target_exec_cycles)
-                {
-                    return true;
-                }
-                else
-                {
-                    return bigger_mblock_util(current, candidate, current_exec_util, candidate_exec_util);
-                }
-            }
-            else if (candidate_cycles < current_cycles)
-            {
-                return true;
-            }
-        }
-    }
-    else if (op_model_compare_version == 1)
-    {
-        if (close_to_target(current_cycles, target_exec_cycles))
-        {
-            if (close_to_target(candidate_cycles, target_exec_cycles))
-            {
-                if (candidate.block_shape().volume_no_t() > current.block_shape().volume_no_t())
-                {
-                    return true;
-                }
-            }
-        }
-        else if (close_to_target(candidate_cycles, target_exec_cycles))
-        {
-            return true;
-        }
-        else if (std::abs(target_exec_cycles - candidate_cycles) < std::abs(target_exec_cycles - current_cycles))
-        {
-            return true;
-        }
+        TT_THROW("Unknown op model compare version");
     }
 
     return false;
