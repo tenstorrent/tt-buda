@@ -295,7 +295,20 @@ void DramAllocator::reset_dram_allocator()
 bool DramAllocator::allocate_queues(
     std::vector<DRAMScheduleData> &scheduled_queue_placements, bool disable_dynamic_dram, int microbatch_size)
 {
+    // print start and end addresses for all channels
+    for (std::size_t i = 0; i < channel_allocators.size(); i++)
+    {
+        log_debug("DRAM channel: {} ", i);
 
+        auto free_blocks_start = channel_allocators[i]->get_blocks().free_blocks_start;
+        for (auto &block : free_blocks_start)
+        {
+            log_debug(
+                "\t Free block starts at address: {}, and ends at address {}",
+                block.second.addr,
+                block.second.addr + block.second.size);
+        }
+    }
     auto is_cross_epoch_type = [](const Node *q) -> bool
     {
         if (q->node_type() != graphlib::NodeType::kQueue)
