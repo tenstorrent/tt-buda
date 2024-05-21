@@ -27,7 +27,11 @@ def get_sample_data(model_name):
 
 @pytest.mark.parametrize(
     "model_name",
-    ["deepmind/vision-perceiver-conv", "deepmind/vision-perceiver-learned"],
+    [
+        "deepmind/vision-perceiver-conv",
+        "deepmind/vision-perceiver-learned",
+        "deepmind/vision-perceiver-fourier",
+    ],
 )
 def test_perceiver_for_image_classification_onnx(test_device, model_name):
 
@@ -53,6 +57,9 @@ def test_perceiver_for_image_classification_onnx(test_device, model_name):
             compiler_cfg.balancer_op_override("multiply_2745", "t_stream_shape", (1, 1))
             compiler_cfg.balancer_op_override("multiply_2934", "t_stream_shape", (1, 1))
 
+        elif model_name == "deepmind/vision-perceiver-fourier":
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{101*1024}"
+
     elif test_device.arch == pybuda.BackendDevice.Grayskull:
 
         if test_device.devtype == pybuda.BackendType.Silicon:
@@ -60,6 +67,15 @@ def test_perceiver_for_image_classification_onnx(test_device, model_name):
 
         if model_name == "deepmind/vision-perceiver-learned":
             os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{101*1024}"
+
+        elif model_name == "deepmind/vision-perceiver-fourier":
+            os.environ["PYBUDA_DISABLE_PADDING_PASS"] = "1"
+            compiler_cfg.place_on_new_epoch("hslice_50.dc.sparse_matmul.2.lc2")
+            compiler_cfg.place_on_new_epoch("matmul_47")
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{101*1024}"
+            compiler_cfg.balancer_op_override(
+                "hslice_50.dc.sparse_matmul.2.lc2", "t_stream_shape", (1, 7)
+            )
 
     onnx_model_path = (
         "third_party/confidential_customer_models/generated/files/"
@@ -91,7 +107,7 @@ def test_perceiver_for_image_classification_onnx(test_device, model_name):
             devtype=test_device.devtype,
             devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
-            enabled=verify_enabled,# pcc drops in silicon devicetype
+            enabled=verify_enabled,  # pcc drops in silicon devicetype
             pcc=0.96,
         ),
     )

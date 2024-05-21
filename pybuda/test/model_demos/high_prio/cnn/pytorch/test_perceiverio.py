@@ -6,10 +6,13 @@ import torch
 import os
 import requests
 from PIL import Image
+import pytest
 from loguru import logger
 from transformers import (
     AutoImageProcessor,
     PerceiverForImageClassificationConvProcessing,
+    PerceiverForImageClassificationLearned,
+    PerceiverForImageClassificationFourier,
 )
 
 from pybuda.verify.backend import verify_module
@@ -33,7 +36,15 @@ def get_sample_data(model_name):
     return pixel_values
 
 
-def test_perceiverio_for_image_classification_pytorch(test_device):
+variants = [
+    "deepmind/vision-perceiver-conv",
+    "deepmind/vision-perceiver-learned",
+    "deepmind/vision-perceiver-fourier",
+]
+
+
+@pytest.mark.parametrize("variant", variants)
+def test_perceiverio_for_image_classification_pytorch(test_device, variant):
 
     # Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()
@@ -41,33 +52,82 @@ def test_perceiverio_for_image_classification_pytorch(test_device):
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
     os.environ["PYBUDA_RIBBON2"] = "1"
     verify_enabled = True
+    pcc_value = 0.99
 
     # Temp mitigations for net2pipe errors, should be removed.
     #
-    os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "0"
-    os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "0"
-    os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "0"
+    if variant == "deepmind/vision-perceiver-conv":
+        os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "0"
+        os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "0"
+        os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "0"
 
     if test_device.arch == pybuda.BackendDevice.Wormhole_B0:
-        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{10*1024}"
+
+        if variant == "deepmind/vision-perceiver-conv":
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{10*1024}"
+
+        if variant in [
+            "deepmind/vision-perceiver-learned",
+            "deepmind/vision-perceiver-fourier",
+        ]:
+            os.environ["PYBUDA_DISABLE_PADDING_PASS"] = "1"
+            compiler_cfg.enable_auto_fusing = False
+
+        if variant == "deepmind/vision-perceiver-fourier":
+            compiler_cfg.balancer_op_override(
+                "hslice_41.dc.sparse_matmul.2.lc2", "t_stream_shape", (1, 2)
+            )
+            if test_device.devtype == pybuda.BackendType.Silicon:
+                pcc_value = 0.97
+
+        if variant == "deepmind/vision-perceiver-learned":
+            if test_device.devtype == pybuda.BackendType.Silicon:
+                pcc_value = 0.92
 
     elif test_device.arch == pybuda.BackendDevice.Grayskull:
-        compiler_cfg.enable_auto_fusing = False
 
         if test_device.devtype == pybuda.BackendType.Silicon:
             verify_enabled = False
 
-    model_name = "deepmind/vision-perceiver-conv"
+        if variant in [
+            "deepmind/vision-perceiver-conv",
+            "deepmind/vision-perceiver-learned",
+            "deepmind/vision-perceiver-fourier",
+        ]:
+            compiler_cfg.enable_auto_fusing = False
+
+        if variant in [
+            "deepmind/vision-perceiver-learned",
+            "deepmind/vision-perceiver-fourier",
+        ]:
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{101*1024}"
+            os.environ["PYBUDA_DISABLE_PADDING_PASS"] = "1"
+
+        if variant == "deepmind/vision-perceiver-fourier":
+            compiler_cfg.balancer_op_override(
+                "hslice_41.dc.sparse_matmul.2.lc2", "t_stream_shape", (1, 7)
+            )
 
     # Sample Image
-    pixel_values = get_sample_data(model_name)
+    pixel_values = get_sample_data(variant)
 
-    # Load the model
-    model = PerceiverForImageClassificationConvProcessing.from_pretrained(model_name)
+    # Load the model from HuggingFace
+    if variant == "deepmind/vision-perceiver-learned":
+        model = PerceiverForImageClassificationLearned.from_pretrained(variant)
+
+    elif variant == "deepmind/vision-perceiver-conv":
+        model = PerceiverForImageClassificationConvProcessing.from_pretrained(variant)
+
+    elif variant == "deepmind/vision-perceiver-fourier":
+        model = PerceiverForImageClassificationFourier.from_pretrained(variant)
+
+    else:
+        logger.info(f"The model {variant} is not supported")
+
     model.eval()
 
     tt_model = pybuda.PyTorchModule(
-        "pt_" + str(model_name.split("/")[-1].replace("-", "_")), model
+        "pt_" + str(variant.split("/")[-1].replace("-", "_")), model
     )
 
     # Run inference on Tenstorrent device
@@ -80,6 +140,7 @@ def test_perceiverio_for_image_classification_pytorch(test_device):
             devtype=test_device.devtype,
             devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
-            enabled=verify_enabled, # pcc drops in silicon devicetype
+            enabled=verify_enabled,  # pcc drops in silicon devicetype
+            pcc=pcc_value,
         ),
     )
