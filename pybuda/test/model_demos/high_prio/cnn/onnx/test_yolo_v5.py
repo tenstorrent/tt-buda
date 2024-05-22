@@ -235,6 +235,9 @@ def test_yolo_v5_640x640_onnx(test_device, variant):
 
         compiler_cfg.enable_tm_cpu_fallback = True
 
+        if variant=="yolov5n":
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "4096"
+
         if variant == "yolov5l":
             os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{112*1024}"
 
