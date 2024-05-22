@@ -19,7 +19,7 @@ Prerequisites
 OS Compatibility
 ----------------
 
-Presently, Tenstorrent software is only supported on the **Ubuntu 20.04 LTS (Focal Fossa)** operating system.
+Currently, Tenstorrent software is fully supported and tested on **Ubuntu 22.04 LTS (Jammy Jellyfish)**. Software is also functional on **Ubuntu 20.04 LTS (Focal Fossa)**, but we don't extensively test to guarantee there are no regressions on this OS version.
 
 Download
 ********
@@ -166,6 +166,9 @@ You may need to append each ``apt-get`` command with ``sudo`` if you do not have
   apt-get install -y software-properties-common
   apt-get install -y python3.8-venv libboost-all-dev libgoogle-glog-dev libgl1-mesa-glx ruby
   apt-get install -y build-essential clang-6.0 libhdf5-serial-dev libzmq3-dev
+
+Environment variable PYTHON_VERSION sets path to the Python executable. This is used by the build system to determine which version of Python to use and where to look for Python.h. 
+For example on Ubuntu 22.04, PYTHON_VERSION should be set to "python3.10", while on Ubuntu 20.04 it should be set to "python3.8".
 
 Additional PyBUDA Compile Dependencies
 --------------------------------------
