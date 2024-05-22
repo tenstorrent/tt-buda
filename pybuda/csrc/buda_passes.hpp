@@ -61,8 +61,7 @@ std::pair<std::unique_ptr<graphlib::Graph>, placer::PlacerConfigUpdate> run_pre_
     const bool enable_recompute = false,
     const bool output_queues_on_host = true,
     const bool input_queues_on_host = true,
-    const tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
-        &ins_instructions = {},
+    const InsertionInstructionMap &ins_instructions = {},
     const std::vector<std::tuple<std::string, std::string, int>> &insert_queues = {},
     std::vector<AMPNodeProperties> amp_properties = {},
     const std::vector<std::string> &op_intermediates_to_save = {},
@@ -71,8 +70,7 @@ std::pair<std::unique_ptr<graphlib::Graph>, placer::PlacerConfigUpdate> run_pre_
 struct PostPlacerResults
 {
     std::unordered_map<std::string, float> perf_model_results;
-    tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
-        ins_instructions;
+    InsertionInstructionMap ins_instructions;
     std::vector<std::vector<placer::Blocks>> allocated_blocks;
     std::uint32_t current_host_address;
 };
@@ -85,8 +83,7 @@ PostPlacerResults run_post_placer_buda_passes(
     placer::PlacerSolution &placer_solution,
     PostPlacerConfig &config,
     std::shared_ptr<balancer::BalancerSolution> balancer_solution,
-    const tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
-        &previous_ins_instructions,
+    const InsertionInstructionMap &previous_ins_instructions,
     std::vector<std::vector<placer::Blocks>> &pre_allocated_blocks,
     std::uint32_t last_host_address);
 

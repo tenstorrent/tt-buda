@@ -39,6 +39,7 @@ namespace graphlib
 struct OpType;
 class QueueNode;
 class InputNode;
+class BudaOpNode;
 
 // pass through
 bool default_node_filter(Node *);
@@ -86,6 +87,10 @@ std::pair<Edge, Edge> insert_node_on_edge(
 
 QueueNode *create_buffering_queue(
     Graph *graph, const graphlib::Node *producer_node, const std::string name, int num_entries);
+
+// Creates and inserts a nop node on the given edge.
+// Returns newly created node and edges.
+std::tuple<BudaOpNode*, Edge, Edge> insert_nop_on_edge(Graph *graph, Edge &edge, const std::string &nop_name, bool is_buffering = false, bool hoist_tms = false, bool remove_edge = true);
 
 // Bypass queue, connecting its source to its destination. There has to be only one source for queue, and user is
 // defined by user_edge. Diference from bypassing node (bypass_node) is that here we can bypass some users of queue and

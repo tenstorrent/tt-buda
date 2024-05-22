@@ -16,7 +16,6 @@
 #include "graph_lib/utils.hpp"
 #include "lower_to_buda/common.hpp"
 #include "shared_utils/sparse_matmul_utils.hpp"
-#include "utils/small_vector.hpp"
 
 namespace tt::balancer {
 class BudaOpNodeLegalizerFailureInfo;

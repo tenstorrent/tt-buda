@@ -9,7 +9,6 @@
 
 #include "balancer/types.hpp"
 #include "graph_lib/defines.hpp"
-#include "utils/env.hpp"
 #include "utils/hash_combine.hpp"
 #include "utils/ordered_associative_containers/ordered_map.hpp"
 
@@ -24,7 +23,7 @@ class Node;
 
 // Instruct pre-placer to insert a NOP between src/dest nodes
 // Further information on iteration attempt, etc. can be added in the future to augment this
-enum InstructionType
+enum class InstructionType: std::uint8_t
 {
     NopInstruction,
     QueueInstruction
@@ -78,36 +77,60 @@ struct ForkJoinIdHash : public std::unary_function<ForkJoinId, std::size_t>
 struct InsertionInstruction
 {
     /*
-    This is base class for insertion instructions. From this we inherit NopInsertionInstruction and
-    QueueInsertionInstruction
+    This is base class for insertion instructions. From this we derive NopInsertionInstruction and
+    QueueInsertionInstruction classes.
     */
    public:
+    InstructionType instr_type;
     std::string src, dest;
     bool hoist_tms;                         // whether to hoist tms to the input to the new nop
     std::optional<std::uint32_t> input_id;  // input id into dest; if nullopt, use input_id from original edge
     std::optional<std::uint32_t> fork_id;   // index of output from src; if nullopt, use fork_id from original edge
     bool user_defined;                      // whether these requested NOPs were user-defined
-    InstructionType instr_type;
-    InsertionInstruction() = default;
+    bool is_fj_buffering;                   // whether this insertion instruction is generated for FJ buffering
+
     InsertionInstruction(
+        InstructionType instr_type,
         const std::string &src,
         const std::string &dest,
         bool hoist_tms,
         std::optional<std::uint32_t> input_id = std::nullopt,
         std::optional<std::uint32_t> fork_id = std::nullopt,
-        bool user_defined = false) :
-        src(src), dest(dest), hoist_tms(hoist_tms), input_id(input_id), fork_id(fork_id), user_defined(user_defined)
+        bool user_defined = false,
+        bool is_fj_buffering = false) :
+        instr_type(instr_type), src(src), dest(dest), hoist_tms(hoist_tms), input_id(input_id), fork_id(fork_id), user_defined(user_defined), is_fj_buffering(is_fj_buffering)
     {
     }
 
-    virtual ~InsertionInstruction() {}
+    virtual ~InsertionInstruction() = default;
 
-    virtual InsInstructionUniqueId unique_id() const = 0;
+    InsInstructionUniqueId unique_id() const 
+    {
+        return std::make_tuple(
+            this->src,
+            this->dest,
+            this->input_id.value_or(-1),
+            this->fork_id.value_or(-1),
+            this->user_defined,
+            this->is_fj_buffering);
+    }
 
     std::pair<graphlib::Node *, graphlib::Node *> is_instruction_still_valid(graphlib::Graph *graph);
 
     virtual void insert(graphlib::Graph *graph) = 0;
+
+    virtual std::string to_string() const
+    {
+        return "src: " + src + ", dest: " + dest + ", hoist_tms: " + std::to_string(hoist_tms) +
+               ", input_id: " + (input_id.has_value() ? std::to_string(input_id.value()) : "nullopt") +
+               ", fork_id: " + (fork_id.has_value() ? std::to_string(fork_id.value()) : "nullopt") +
+               ", user_defined: " + std::to_string(user_defined);
+    }
 };
+
+std::ostream &operator<<(std::ostream &out, const InsertionInstruction* ins);
+
+using InsertionInstructionMap = tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>;
 
 struct PyInsertionInstruction : public InsertionInstruction
 {
@@ -116,8 +139,6 @@ struct PyInsertionInstruction : public InsertionInstruction
     using InsertionInstruction::InsertionInstruction;
 
     void insert(graphlib::Graph *graph) override;
-
-    InsInstructionUniqueId unique_id() const override;
 };
 
 struct NopInsertionInstruction : public InsertionInstruction
@@ -127,9 +148,7 @@ struct NopInsertionInstruction : public InsertionInstruction
     bool mergeable;           // whether to merge user-defined NOPs with the same src
     bool daisy_chain;         // change the behaviour for merging nops with src->multiple consumers
     bool request_merge;       // enable to invoke the API call to perform the daisy-chain/merge
-    bool is_fj_buffering;     // whether this NOP is inserted for FJ buffering
 
-    NopInsertionInstruction() : InsertionInstruction() {}
     NopInsertionInstruction(
         const std::string &src,
         const std::string &dest,
@@ -142,31 +161,22 @@ struct NopInsertionInstruction : public InsertionInstruction
         bool daisy_chain = false,
         bool request_merge = false,
         bool is_fj_buffering = false) :
-        InsertionInstruction(src, dest, hoist_tms, input_id, fork_id, user_defined),
+        InsertionInstruction(InstructionType::NopInstruction, src, dest, hoist_tms, input_id, fork_id, user_defined, is_fj_buffering),
         nop_count(nop_count),
         mergeable(mergeable),
         daisy_chain(daisy_chain),
-        request_merge(request_merge),
-        is_fj_buffering(is_fj_buffering)
-    {
-        this->instr_type = InstructionType::NopInstruction;
-    }
-
-    InsInstructionUniqueId unique_id() const override
-    {
-        static const bool fix_2351 = env_as<bool>("PYBUDA_TEMP_FIX_2351", false);
-
-        return std::make_tuple(
-            this->src,
-            this->dest,
-            this->input_id.value_or(-1),
-            this->fork_id.value_or(-1),
-            this->mergeable,
-            fix_2351 ? false : this->is_fj_buffering);
-    }
+        request_merge(request_merge)
+    {}
 
     void insert(graphlib::Graph *graph) override;
     void set_nop_count(int nop_count) { this->nop_count = nop_count; };
+
+    std::string to_string() const override
+    {
+        return InsertionInstruction::to_string() + ", nop_count: " + std::to_string(nop_count) +
+               ", mergeable: " + std::to_string(mergeable) + ", daisy_chain: " + std::to_string(daisy_chain) +
+               ", request_merge: " + std::to_string(request_merge) + ", is_fj_buffering: " + std::to_string(is_fj_buffering);
+    }
 };
 
 struct QueueInsertionInstruction : public InsertionInstruction
@@ -174,6 +184,7 @@ struct QueueInsertionInstruction : public InsertionInstruction
    public:
     int num_entries;
     int queue_size;  // in bytes
+
     QueueInsertionInstruction(
         const std::string &src,
         const std::string &dest,
@@ -182,30 +193,27 @@ struct QueueInsertionInstruction : public InsertionInstruction
         std::uint32_t queue_size,
         std::optional<std::uint32_t> input_id = std::nullopt,
         std::optional<std::uint32_t> fork_id = std::nullopt,
-        bool user_defined = false) :
-        InsertionInstruction(src, dest, hoist_tms, input_id, fork_id, user_defined),
+        bool user_defined = false,
+        bool is_fj_buffering = false) :
+        InsertionInstruction(InstructionType::QueueInstruction, src, dest, hoist_tms, input_id, fork_id, user_defined, is_fj_buffering),
         num_entries(num_entries),
         queue_size(queue_size)
-    {
-        this->instr_type = InstructionType::QueueInstruction;
-    }
-
-    InsInstructionUniqueId unique_id() const override
-    {
-        // last parameter in unique id is mergeable, and it is false for QueueInsertionInstruction, since we use it only
-        // in NopInsertionInstruction. We need uniform paterns for unique id so we fix mergeable to false for queues.
-        return std::make_tuple(this->src, this->dest, this->input_id.value_or(-1), this->fork_id.value_or(-1), false, false);
-    }
+    {}
 
     void insert(graphlib::Graph *graph) override;
     void set_num_entries(int num_entries) { this->num_entries = num_entries; };
+
+    std::string to_string() const override
+    {
+        return InsertionInstruction::to_string() + ", num_entries: " + std::to_string(num_entries) +
+               ", queue_size: " + std::to_string(queue_size);
+    }
 };
 
 struct FJBufferingResult
 {
     // Instructions generated for fork-join buffering.
-    tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
-        instructions;
+    InsertionInstructionMap instructions;
     // All fork-joins which were buffered with nops.
     std::vector<ForkJoin> nop_buffered_fjs;
 };
@@ -216,8 +224,7 @@ FJBufferingResult insert_fork_join_buffering(
     balancer::OpModelMap *op_models_post_placer,
     balancer::OpModels *op_models,
     const std::uint32_t usable_l1_size,
-    const tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
-        &previous_ins_instructions,
+    const InsertionInstructionMap &previous_ins_instructions,
     std::function<int(const tt::balancer::OpModel &)> buffering_factor = [](const tt::balancer::OpModel &)
     { return 1; });
 
@@ -225,10 +232,8 @@ void upsize_dram_input(graphlib::Graph *graph, balancer::OpModelMap &op_models, 
 
 // Checking if two maps of instructions are equal
 std::tuple<bool, int, int> is_subset_of_instructions(
-    const tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
-        &instructions,
-    const tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
-        &previous_instructions);
+    const InsertionInstructionMap &instructions,
+    const InsertionInstructionMap &previous_instructions);
 
 class FJGraph
 {

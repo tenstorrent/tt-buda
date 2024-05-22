@@ -15,7 +15,6 @@
 #include "graph_lib/graph.hpp"
 #include "graph_lib/node.hpp"
 #include "graph_lib/node_types.hpp"
-#include "passes/fuse_ops.hpp"
 #include "reportify/reportify.hpp"
 #include "utils/logger.hpp"
 
@@ -299,7 +298,7 @@ std::vector<std::vector<Node *>> topological_generations(const Graph &graph)
 
     // iterate through the queue
     // store processed nodes in a set
-    unordered_set<NodeId> processed_nodes;
+    std::unordered_set<NodeId> processed_nodes;
     while (not bfs_queue.empty())
     {
         Node *node = bfs_queue.front();
@@ -707,11 +706,21 @@ std::pair<Edge, Edge> insert_node_on_edge(
 
     graph->add_edge(new_edge0);
     graph->add_edge(new_edge1);
+
+    graph->copy_edge_attributes(edge, new_edge0);
+    graph->copy_edge_attributes(edge, new_edge1);
+
+    // TMs should be placed only on one of the edges.
+    // Since we've copied all edge attributes (including TMs) to both edges,
+    // we need to remove TMs from one of them.
     if (not place_tms_on_outgoing)
-        graph->copy_edge_attributes(edge, new_edge0);
+    {
+        graph->get_edge_attributes(new_edge1)->set_tms({});
+    }
     else
-        graph->copy_edge_attributes(edge, new_edge1);
-    graph->get_edge_attributes(new_edge1)->set_ublock_order(graph->get_edge_attributes(edge)->get_ublock_order());
+    {
+        graph->get_edge_attributes(new_edge0)->set_tms({});
+    }
 
     bool edges_added = false;
     for (Edge &e : graph->operand_edges(consumer))
@@ -765,6 +774,36 @@ std::pair<Edge, Edge> insert_node_on_edge(
     }
 
     return std::make_pair(new_edge0, new_edge1);
+}
+
+std::tuple<BudaOpNode*, Edge, Edge> insert_nop_on_edge(Graph *graph, Edge &edge, const std::string &nop_name, bool is_buffering, bool hoist_tms, bool remove_edge)
+{
+    const Node *src = graph->node_by_id(edge.producer_node_id);
+    const Node *dest = graph->node_by_id(edge.consumer_node_id);
+
+    BudaOpNode *nop = graph->add_node(
+        graphlib::create_node<graphlib::BudaOpNode>(nop_name, "nop"),
+        graph->get_subgraph_id_for_node(src->id()));
+    nop->set_shape(src->shape());
+    nop->set_buffering_op(is_buffering);
+
+    nop->set_epoch_type(dest->get_epoch_type());
+    nop->set_output_df(src->output_df());
+
+    if (src->node_type() == NodeType::kBudaOp)
+    {
+        const BudaOpNode *src_op = src->as<BudaOpNode>();
+        if (src_op->op_name() != "dequantization")
+        {
+            nop->set_accumulate_df(src_op->accumulate_df());
+            nop->set_intermediate_df(src_op->intermediate_df());
+            nop->set_math_fidelity(src_op->math_fidelity());
+        }
+    }
+
+    auto [edge0, edge1] = insert_node_on_edge(graph, edge, nop, false, remove_edge, 0 /* consumer_index */, not hoist_tms);
+
+    return std::make_tuple(nop, edge0, edge1);
 }
 
 // Copy non-data edges from old dest to new

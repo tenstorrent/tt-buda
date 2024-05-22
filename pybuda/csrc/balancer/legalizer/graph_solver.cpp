@@ -10,6 +10,7 @@
 #include "balancer/legalizer/legalizer.hpp"
 #include "graph_lib/node.hpp"
 #include "graph_lib/node_types.hpp"
+#include "graph_lib/utils.hpp"
 #include "reportify/reportify.hpp"
 #include "utils/assert.hpp"
 
@@ -1561,28 +1562,20 @@ std::vector<graphlib::Node*> GraphSolver::buffer(std::vector<BufferInfo>& buffer
 
                 if (buffer_nop == nullptr)
                 {
-                    buffer_nop = graph->add_node(
-                        graphlib::create_node<graphlib::BudaOpNode>(op_name(src, original_dest, buffer_index), "nop"),
-                        graph->get_subgraph_id_for_node(src->id()));
-                    buffer_nop->set_shape(src->shape());
-                    buffer_nop->set_buffering_op(true);
-                    buffer_nop->set_epoch_type(original_dest->get_epoch_type());
-                    buffer_nop->set_output_df(src->output_df());
-                    auto src_buda_op = dynamic_cast<graphlib::BudaOpNode*>(src);
-                    if (src_buda_op != nullptr and src_buda_op->op_name() != "dequantization")
-                    {
-                        buffer_nop->set_intermediate_df(src_buda_op->intermediate_df());
-                        buffer_nop->set_accumulate_df(src_buda_op->accumulate_df());
-                        buffer_nop->set_math_fidelity(src_buda_op->math_fidelity());
-                    }
+                    std::tie(buffer_nop, std::ignore, std::ignore) = graphlib::insert_nop_on_edge(
+                        graph, e, op_name(src, original_dest, buffer_index), true /* is_buffering_op */, buff_info.hoist_tms, false /* remove_edge */);
 
                     register_virtual_node(buffer_nop);
                     nodes_to_legalize.insert(buffer_nop);
                     inserted_nodes.push_back(buffer_nop);
                 }
-
-                auto [edge0, edge1] = graphlib::insert_node_on_edge(
-                    graph, e, buffer_nop, false /*inherit_consumer_attrs*/, false /*remove_edge*/);
+                else
+                {
+                    // Reuse the already created buffer nop for all edges between src and dest.
+                    // Covers the case when source node is connected with multiple edges to the destination node.
+                    // In that case we don't want to create multiple nops, but instead we reuse the same one.
+                    std::tie(std::ignore, std::ignore) = graphlib::insert_node_on_edge(graph, e, buffer_nop, false /* inherit_consumer_attrs */, false /* remove_edge */, 0, not buff_info.hoist_tms);
+                }
 
                 // Edge cannot be removed right away from the graph as we will affect global state
                 // for all GS instances and end up modifing common graph by GS instance that may end up discarded.
@@ -1598,20 +1591,6 @@ std::vector<graphlib::Node*> GraphSolver::buffer(std::vector<BufferInfo>& buffer
                     buffer_nop->name(),
                     src->name(),
                     dest->name());
-
-                // Move TMs to edge1.
-                //
-                auto& tms = graph->get_edge_attributes(edge0)->get_tms();
-
-                // TODO Should we do this by default, should hoist_tms remain?
-                //
-                if (not buff_info.hoist_tms)
-                {
-                    // Not hoisting tms, move them to edge1.
-                    //
-                    graph->get_edge_attributes(edge1)->set_tms(tms);
-                    graph->get_edge_attributes(edge0)->set_tms(std::vector<graphlib::OpType>{});
-                }
 
                 dest = buffer_nop;
             }

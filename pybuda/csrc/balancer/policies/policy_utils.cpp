@@ -2244,7 +2244,7 @@ bool is_output_write_to_dram_over_target(
 //
 bool buffer_graph(
     Graph *graph,
-    tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash> &inst,
+    InsertionInstructionMap &inst,
     legalizer::GraphSolver &graph_solver)
 {
     vector<legalizer::BufferInfo> buffer_info;
@@ -2256,6 +2256,9 @@ bool buffer_graph(
         if (it.second->instr_type == InstructionType::NopInstruction)
         {
             NopInsertionInstruction *nopInsertInst = static_cast<NopInsertionInstruction *>(it.second.get());
+
+            TT_ASSERT(graph->get_edges(graph->get_node_by_name(nopInsertInst->src), graph->get_node_by_name(nopInsertInst->dest)).size() == 1);
+
             for (graphlib::Edge edge : graph->get_edges(
                      graph->get_node_by_name(nopInsertInst->src), graph->get_node_by_name(nopInsertInst->dest)))
             {

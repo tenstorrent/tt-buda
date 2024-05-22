@@ -200,12 +200,14 @@ PYBIND11_MODULE(_C, m) {
     py::class_<InsertionInstruction,PyInsertionInstruction , std::shared_ptr<InsertionInstruction>>(m, "InsertionInstruction")
         .def(
             py::init<
+                InstructionType,
                 std::string,
                 std::string,
                 bool,
                 std::optional<std::uint32_t>,
                 std::optional<std::uint32_t>,
                 bool>(),
+            py::arg("instr_type"),
             py::arg("src"),
             py::arg("dest"),
             py::arg("hoist_tms"),
@@ -287,32 +289,45 @@ PYBIND11_MODULE(_C, m) {
             "from_json",
             [](std::unordered_map<std::string, NopInsertionFields> const &d)
             {
-                NopInsertionInstruction nii;
+                std::string src{};
+                std::string dest{};
+                bool hoist_tms{false};
+                std::uint32_t nop_count{1};
+                std::optional<std::uint32_t> input_id{std::nullopt};
+                std::optional<std::uint32_t> fork_id{std::nullopt};
+                bool user_defined{false};
+                bool mergeable{false};
+                bool daisy_chain{false};
+                bool request_merge{false};
+                bool is_fj_buffering{false};
+
                 if (auto match = d.find("src"); match != d.end())
-                    nii.src = std::get<std::string>(match->second);
+                    src = std::get<std::string>(match->second);
                 if (auto match = d.find("dest"); match != d.end())
-                    nii.dest = std::get<std::string>(match->second);
+                    dest = std::get<std::string>(match->second);
                 if (auto match = d.find("hoist_tms"); match != d.end())
-                    nii.hoist_tms = std::get<bool>(match->second);
+                    hoist_tms = std::get<bool>(match->second);
                 if (auto match = d.find("nop_count"); match != d.end())
-                    nii.nop_count = std::get<std::uint32_t>(match->second);
+                    nop_count = std::get<std::uint32_t>(match->second);
                 if (auto match = d.find("input_id");
                     match != d.end() && std::holds_alternative<std::optional<std::uint32_t>>(match->second))
-                    nii.input_id = std::get<std::optional<std::uint32_t>>(match->second);
+                    input_id = std::get<std::optional<std::uint32_t>>(match->second);
                 if (auto match = d.find("fork_id");
                     match != d.end() && std::holds_alternative<std::optional<std::uint32_t>>(match->second))
-                    nii.fork_id = std::get<std::optional<std::uint32_t>>(match->second);
+                    fork_id = std::get<std::optional<std::uint32_t>>(match->second);
                 if (auto match = d.find("user_defined"); match != d.end())
-                    nii.user_defined = std::get<bool>(match->second);
+                    user_defined = std::get<bool>(match->second);
                 if (auto match = d.find("mergeable"); match != d.end())
-                    nii.mergeable = std::get<bool>(match->second);
+                    mergeable = std::get<bool>(match->second);
                 if (auto match = d.find("daisy_chain"); match != d.end())
-                    nii.daisy_chain = std::get<bool>(match->second);
+                    daisy_chain = std::get<bool>(match->second);
                 if (auto match = d.find("request_merge"); match != d.end())
-                    nii.request_merge = std::get<bool>(match->second);
+                    request_merge = std::get<bool>(match->second);
                 if (auto match = d.find("is_fj_buffering"); match != d.end())
-                    nii.is_fj_buffering = std::get<bool>(match->second);
-                return nii;
+                    is_fj_buffering = std::get<bool>(match->second);
+
+                return NopInsertionInstruction(
+                    src, dest, hoist_tms, nop_count, input_id, fork_id, user_defined, mergeable, daisy_chain, request_merge, is_fj_buffering);
             })
         .def("unique_id", &NopInsertionInstruction::unique_id);
 

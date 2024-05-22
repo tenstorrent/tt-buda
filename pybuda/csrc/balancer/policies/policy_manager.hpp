@@ -30,9 +30,8 @@ class PolicyManager
     std::uint32_t op_nodes_to_process = 0;
     std::unordered_set<const tt::graphlib::Node*> current_epoch_ops;
     std::vector<const tt::graphlib::Node*> pre_buffering_epoch_ops;
-    tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash> inst;
-    const tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
-        prev_inst;
+    InsertionInstructionMap inst;
+    InsertionInstructionMap prev_inst;
     std::unordered_set<const tt::graphlib::Node*> processed_nodes;
     tt::scheduler::Schedule processed_schedule;
     tt::scheduler::Schedule epoch_schedule;

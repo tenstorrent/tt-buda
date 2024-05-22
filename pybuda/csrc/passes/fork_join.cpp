@@ -4,8 +4,10 @@
 #include "passes/fork_join.hpp"
 
 #include <cmath>
+#include <memory>
 #include <string>
 #include <queue>
+#include <tuple>
 #include <unordered_map>
 
 #include "buda_passes.hpp"
@@ -17,6 +19,7 @@
 #include "passes/eth_stream_reduction.hpp"
 #include "post_placer_buda_passes.hpp"
 #include "reportify/reportify.hpp"
+#include "utils/assert.hpp"
 #include "utils/logger.hpp"
 #include "utils/ordered_associative_containers/ordered_map.hpp"
 
@@ -41,13 +44,10 @@ void PyInsertionInstruction::insert(graphlib::Graph *graph)
     );
 }
 
-InsInstructionUniqueId PyInsertionInstruction::unique_id() const
+std::ostream &operator<<(std::ostream &out, const InsertionInstruction* ins)
 {
-    PYBIND11_OVERRIDE_PURE(
-        InsInstructionUniqueId, /* Return type */
-        InsertionInstruction,   /* Parent class */
-        unique_id,              /* Name of function in C++ (must match Python name) */
-    );
+    out << ins->to_string();
+    return out;
 }
 
 struct CurrentState
@@ -255,15 +255,6 @@ std::vector<ForkJoin> find_fork_joins(Graph *graph)
     return fork_joins;
 }
 
-struct pair_hash
-{
-    template <class T1, class T2>
-    std::size_t operator()(const std::pair<T1, T2> &pair) const
-    {
-        return std::hash<T1>()(pair.first) ^ std::hash<T2>()(pair.second);
-    }
-};
-
 // Recover src node if it's missing, from dest node and input_id
 Node *recover_missing_src(graphlib::Graph *graph, Node *dest, std::uint32_t input_id)
 {
@@ -280,11 +271,16 @@ Node *recover_missing_src(graphlib::Graph *graph, Node *dest, std::uint32_t inpu
 Node *recover_missing_dest(graphlib::Graph *graph, Node *src, std::uint32_t fork_id)
 {
     auto edges = graph->user_data_edges(src);
-    if (fork_id >= edges.size())
+    for (const Edge &e : edges)
     {
-        fork_id = 0;  // fall-back, since graph has changed enough that this isn't even a fork any more
+        if (e.producer_node_id == fork_id)
+        {
+            return graph->node_by_id(e.consumer_node_id);
+        }
     }
-    return graph->node_by_id(edges[fork_id].consumer_node_id);
+
+    TT_ASSERT("[recover_missing_dest] Unable to find dest with given fork_id");
+    return nullptr;
 }
 
 void merge_tagged_nops_with_same_src(graphlib::Graph *graph, bool daisy_chain)
@@ -629,6 +625,7 @@ void NopInsertionInstruction::insert(graphlib::Graph *graph)
 
     Node *src, *dest;
     std::tie(src, dest) = this->is_instruction_still_valid(graph);
+
     // if instruction isn't valid anymore (src or dest is nullptr after calling is_instruction_still_valid) we skip
     // adding nop
     if (src == nullptr || dest == nullptr)
@@ -660,7 +657,9 @@ void NopInsertionInstruction::insert(graphlib::Graph *graph)
     {
         return;  // don't need nop if src or dest are queues
     }
+
     Node *original_dest = dest;
+
     // insert min(nop_count,max_nops) nops between src and dest
     for (std::size_t nop_index = 0; nop_index < std::min(this->nop_count, max_nops); nop_index++)
     {
@@ -676,25 +675,17 @@ void NopInsertionInstruction::insert(graphlib::Graph *graph)
 
             if (buffer_nop == nullptr)
             {
-                // create new nop BudaOpNode
-                buffer_nop = graph->add_node(
-                    graphlib::create_node<graphlib::BudaOpNode>(op_name(src, original_dest, graph), "nop"),
-                    graph->get_subgraph_id_for_node(src->id()));
-                buffer_nop->set_shape(src->shape());
-                buffer_nop->set_buffering_op(this->is_fj_buffering);
+                std::tie(buffer_nop, std::ignore, std::ignore) = insert_nop_on_edge(graph, e, op_name(src, original_dest, graph), is_fj_buffering, hoist_tms);
                 buffer_nop->tag("mergeable", this->mergeable);
-
-                graphlib::BudaOpNode* src_op = dynamic_cast<graphlib::BudaOpNode*>(src);
-                if (src_op != nullptr and src_op->op_name() != "dequantization")
-                {
-                    buffer_nop->set_accumulate_df(src_op->accumulate_df());
-                    buffer_nop->set_intermediate_df(src_op->intermediate_df());
-                    buffer_nop->set_math_fidelity(src_op->math_fidelity());
-                }
+            }
+            else
+            {
+                // Reuse the already created buffer nop for all edges between src and dest.
+                // Covers the case when source node is connected with multiple edges to the destination node.
+                // In that case we don't want to create multiple nops, but instead we reuse the same one.
+                std::tie(std::ignore, std::ignore) = graphlib::insert_node_on_edge(graph, e, buffer_nop, false /* inherit_consumer_attrs */, true /* remove_edge */, 0, not hoist_tms);
             }
 
-            // insert new node on edge
-            auto [edge0, edge1] = graphlib::insert_node_on_edge(graph, e, buffer_nop, false /* inherit_consumer_attrs */);
             log_trace(
                 LogGraphCompiler,
                 "Inserted buffer nop node {} between {} and {}",
@@ -702,18 +693,10 @@ void NopInsertionInstruction::insert(graphlib::Graph *graph)
                 src->name(),
                 dest->name());
 
-            // Move TMs to edge1
-            auto &tms = graph->get_edge_attributes(edge0)->get_tms();
-            if (not this->hoist_tms)
-            {
-                // not hoisting tms, move them to edge1
-                graph->get_edge_attributes(edge1)->set_tms(tms);
-                graph->get_edge_attributes(edge0)->set_tms(std::vector<graphlib::OpType>{});
-            }
             dest = buffer_nop;
         }
     }
-    // sometimes we want to connect one src to pultiple consumers but adding one nop between them.
+    // sometimes we want to connect one src to multiple consumers but adding one nop between them.
     // This is done buy adding separate nops between every pair of src - dest and then calling this
     // method merge_tagged_nops_with_same_src to merge tagged nops with same source.
     // Tag is "mergeable" and if it is true than nop can be merged
@@ -1317,8 +1300,7 @@ Calculates how much dram memory buffering queue nodes consume in bytes. If this 
 we can stop producing queues and continue only using nops for fork-join buffering
 */
 int buffering_queues_mem_consumption(
-    const tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
-        &instructions)
+    const InsertionInstructionMap &instructions)
 {
     int buff_queue_memory_consumption = 0;
     for (auto instruction : instructions)
@@ -1333,14 +1315,14 @@ int buffering_queues_mem_consumption(
 }
 // Inserts new queue instruction to map of instructions. 
 void insert_queue_ins_to_instructions(
-    tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
-        &instructions,
+    InsertionInstructionMap &instructions,
     InsInstructionUniqueId key,
     std::shared_ptr<InsertionInstruction> new_ins)
 {
     TT_ASSERT(
         new_ins.get()->instr_type == InstructionType::QueueInstruction,
         "Instruction has to be of type InstructionType::QueueInstruction");
+
     if (instructions.count(key) > 0)
     {
         if (instructions[key].get()->instr_type == InstructionType::NopInstruction)
@@ -1521,10 +1503,8 @@ void add_buffering_on_path(
     const std::vector<Node *> path,
     std::uint32_t long_path_required,
     std::uint32_t short_path_available,
-    tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
-        &instructions,
-    const tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
-        &previous_ins_instructions,
+    InsertionInstructionMap &instructions,
+    const InsertionInstructionMap &previous_ins_instructions,
     balancer::OpModelMap *op_models_post_placer,
     balancer::OpModels *op_models,
     const std::uint32_t usable_l1_size,
@@ -1769,11 +1749,10 @@ void add_buffering_on_path(
         if (add_buffer_queues && buff_mem_consumption < max_queue_mem && !src_is_recompute)
         {
             auto edges = graph->user_data_edges(src);
-            for (std::uint32_t fork_id = 0; fork_id < edges.size(); fork_id++)
+            for (const auto &e : edges)
             {
                 for (Node *dest : dests)
                 {
-                    graphlib::Edge e = edges[fork_id];
                     if (e.consumer_node_id == dest->id())
                     {
                         // number if entries in queue is 2 * microbatch_size at maximum. We take the minimum of that
@@ -1800,13 +1779,15 @@ void add_buffering_on_path(
                             // but more than 1 destination. Even though I make 2 instructions, later there won't be 2
                             // queues but one that feeds to 2 consumers if dests.size() is 2 for example.
                             std::shared_ptr<InsertionInstruction> ins = std::make_shared<QueueInsertionInstruction>(
-                                src->name() /* src */,
-                                dest->name() /* dest */,
+                                src->name(),
+                                dest->name(),
                                 false /* hoist_tms */,
                                 num_entries,
                                 queue_size,
                                 e.consumer_input_port_id /* input_id */,
-                                fork_id /* fork_id */);
+                                e.producer_output_port_id,
+                                false /* user_defined */,
+                                true /* is_fj_buffering */);
                             InsInstructionUniqueId key = ins->unique_id();
                             insert_queue_ins_to_instructions(instructions, key, ins);
                         }
@@ -1858,21 +1839,19 @@ void add_buffering_on_path(
                 tile_size);
 
             auto edges = graph->user_data_edges(src);
-            for (std::uint32_t fork_id = 0; fork_id < edges.size(); fork_id++)
+            for (auto const &e : edges)
             {
                 for (Node *dest : dests)
                 {
-                    graphlib::Edge e = edges[fork_id];
                     if (e.consumer_node_id == dest->id())
                     {
-                        static const bool fix_2351 = env_as<bool>("PYBUDA_TEMP_FIX_2351", false);
                         InsInstructionUniqueId key = InsInstructionUniqueId(
                             src->name(),
                             dest->name(),
                             e.consumer_input_port_id,
-                            fork_id,
+                            e.producer_output_port_id,
                             merge_nops,
-                            !fix_2351 /* is_fj_buffering */);  // this should be set to true, unless the env is applied
+                            true /* is_fj_buffering */);
 
                         if (instructions.count(key) > 0)
                         {
@@ -1898,8 +1877,11 @@ void add_buffering_on_path(
                                 false /* hoist_tms */,
                                 nop_count /* nop_count */,
                                 e.consumer_input_port_id /* input_id */,
-                                fork_id /* fork_id */,
+                                e.producer_output_port_id /* fork_id */,
+                                false /* user_defined */,
                                 merge_nops,
+                                false,
+                                false,
                                 true /* is_fj_buffering */);
                             instructions[key] = ins;
                         }
@@ -1923,10 +1905,8 @@ each key in instructions there is the key in previous_instructions and values ma
 output are 0.
 */
 std::tuple<bool, int, int> is_subset_of_instructions(
-    const tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
-        &instructions,
-    const tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
-        &previous_instructions)
+    const InsertionInstructionMap &instructions,
+    const InsertionInstructionMap &previous_instructions)
 {
     bool instr_not_updated = true;
     int num_new_nops = 0;
@@ -1983,50 +1963,154 @@ std::tuple<bool, int, int> is_subset_of_instructions(
     return std::tuple<bool, int, int>(instr_not_updated, num_new_nops, num_new_queues);
 }
 
-/*
-Makes new tt::ordered map containing instructions and previous_instructions. If both maps contain the same nop
-instruction key we want to add nop_counts from previous_instructions to new nop_count. This hapens all the time because
-we don't add all necesarry nops in one step. On the contrary, we add fraction of needed nops in each pass of pre-placer
-post-placer loop in compile.py . This is because adding nops can cause fork-join to span across two epochs, thus
-elliminating further need for adding new nops (because e2e queues act as buffers).
-*/
-tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
-append_prev_instr(
-    tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
-        &instructions,
-    const tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
-        previous_instructions)
+std::shared_ptr<InsertionInstruction> merge_instructions(std::shared_ptr<InsertionInstruction> &prev_instr, std::shared_ptr<InsertionInstruction> &instr)
 {
-    tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
-        combined_instructions = previous_instructions;
+    TT_ASSERT(
+        prev_instr->is_fj_buffering
+        && instr->is_fj_buffering
+        && !prev_instr->user_defined
+        && !instr->user_defined,
+        "We should merge only non user defined fj buffering instructions");
+
+    if (prev_instr->instr_type == InstructionType::QueueInstruction)
+    {
+        if (instr->instr_type == InstructionType::NopInstruction)
+        {
+            // Return original Queue instruction (queues have precedence over nops).
+            return prev_instr;
+        }
+
+        TT_ASSERT(instr->instr_type == InstructionType::QueueInstruction);
+        std::shared_ptr<QueueInsertionInstruction> merged_instr = std::make_shared<QueueInsertionInstruction>(
+            *static_cast<QueueInsertionInstruction *>(prev_instr.get()));
+        merged_instr->num_entries = std::max(
+            static_cast<QueueInsertionInstruction *>(instr.get())->num_entries,
+            static_cast<QueueInsertionInstruction *>(prev_instr.get())->num_entries);
+        merged_instr->queue_size = std::max(
+            static_cast<QueueInsertionInstruction *>(instr.get())->queue_size,
+            static_cast<QueueInsertionInstruction *>(prev_instr.get())->queue_size);
+        return merged_instr;
+    }
+
+    TT_ASSERT(prev_instr->instr_type == InstructionType::NopInstruction);
+
+    if (instr->instr_type == InstructionType::QueueInstruction)
+    {
+        // Return the new Queue instruction (queues have precedence over nops).
+        return instr;
+    }
+
+    TT_ASSERT(instr->instr_type == InstructionType::NopInstruction);
+    std::shared_ptr<NopInsertionInstruction> merged_instr = std::make_shared<NopInsertionInstruction>(
+        *static_cast<NopInsertionInstruction *>(prev_instr.get()));
+    merged_instr->nop_count += static_cast<NopInsertionInstruction *>(instr.get())->nop_count;
+    return merged_instr;
+}
+
+// Merges new instructions with the previous ones.
+// The merge workflow is as follows:
+// 1. An instruction with the same key already exists in the previous instructions map.
+//      - If both the new one and the old one are NOP instructions (aggregate the nop count).
+//      - If both the new one and the old one are Queue instructions (aggregate the num_entries).
+//      - If the new one is a Queue instruction and the old one is a NOP instruction - replace the old one with the new one
+//      (queues have precedence over nops).
+//      - If the new one is a NOP instruction and the old one is a Queue instruction - this shouldn't happen
+// 2. There is no instruction with the same key in the previous instructions map.
+//      - If the dest node for the new instruction is not a buffering op, then this is a completely new instruction, so
+//      add it to the resulting map.
+//      - Otherwise, reconstruct the key of the original instruction which caused the buffering op to be added - by
+//      following the path of buffering ops. If the original instruction is found, merge the instructions as in case 1.
+//
+InsertionInstructionMap merge_with_prev_instr(
+    const Graph *graph,
+    const InsertionInstructionMap &instructions,
+    const InsertionInstructionMap &previous_instructions,
+    bool legacy_path = false)
+{
+    InsertionInstructionMap combined_instructions = previous_instructions;
+
+    log_debug(LogGraphCompiler, "prev instructions:");
+    for (const auto &elem : previous_instructions)
+    {
+        // Check if instruction is still valid.
+        const auto instr = elem.second;
+        Node* src = graph->get_node_by_name(instr->src, false);
+        Node* dest = graph->get_node_by_name(instr->dest, false);
+
+        if (src == nullptr || dest == nullptr)
+        {
+            log_debug(LogGraphCompiler, "Instruction {} is no longer valid. Removing it.", instr);
+            combined_instructions.erase(elem.first);
+            continue;
+        }
+
+        auto operand_edges = graph->operand_data_edges(dest, [instr](Edge e) { return e.consumer_input_port_id == instr->input_id; });
+        if (operand_edges.size() != 1)
+        {
+            log_debug(LogGraphCompiler, "Instruction {} is no longer valid. Removing it.", instr);
+            combined_instructions.erase(elem.first);
+        }
+
+        log_debug(LogGraphCompiler, " - {}", elem.second);
+    }
+
     for (auto elem : instructions)
     {
-        // Iterate through current instructions
         InsInstructionUniqueId key = elem.first;
         std::shared_ptr<InsertionInstruction> instr = elem.second;
-        if (combined_instructions.count(key) == 0)
+
+        log_trace(LogGraphCompiler, "Processing instruction: {}", instr);
+
+        if (combined_instructions.count(key) != 0)
         {
-            // if combined instructions doesn't contain current key
-            combined_instructions[key] = instr;
+            log_trace(LogGraphCompiler, "Found an existing instruction in prev_instructions with the same key as the new one!");
+            combined_instructions[key] = merge_instructions(combined_instructions[key], instr);
         }
         else
         {
-            // if combined instructions contains current key then we ask if value is instruction of type NopInstruction
-            // actually there should not be the case where two Queue instructions share the same key in instructions and
-            // previous_instructions maps because if queue instruction is in previous_instructions map then that
-            // fork-join is resolved and new instructions won't have that queue. however for future it is better to
-            // check.
-            if (instr->instr_type == InstructionType::NopInstruction &&
-                combined_instructions.at(key)->instr_type == InstructionType::NopInstruction)
+            Node *dest = graph->get_node_by_name(instr->dest);
+
+            if (dest->node_type() == graphlib::kBudaOp && dest->as<graphlib::BudaOpNode>()->is_buffering_op() && previous_instructions.size() && !legacy_path)
             {
-                // if we already have instructions for nop insertion on that place, we just update nop_count
-                NopInsertionInstruction *nop_instr = static_cast<NopInsertionInstruction *>(instr.get());
-                NopInsertionInstruction *instr_to_modify =
-                    static_cast<NopInsertionInstruction *>(combined_instructions[key].get());
-                instr_to_modify->set_nop_count(instr_to_modify->nop_count + nop_instr->nop_count);
+                // New instruction has a buffering op as a destination node. This means that we have
+                // the previous instruction for this edge - which originally added this nop.
+                // Find the original one and update it accordingly.
+                log_trace(LogGraphCompiler, "The instruction should be merged with one of the previous instructions.");
+
+                const graphlib::BudaOpNode *current_op = dest->as<graphlib::BudaOpNode>();
+                Edge last_edge{};
+                while (current_op->is_buffering_op())
+                {
+                    auto users = graph->user_data_edges(current_op);
+                    if (users.size() > 1)
+                    {
+                        // This can only happen if some of the nops we've added have been merged into one (via mergeable flag).
+                        // For now, just add the new instruction regardless and continue to the next instruction.
+                        combined_instructions[key] = instr;
+                        continue;
+                    }
+
+                    last_edge = users[0];
+                    current_op = graph->node_by_id(users[0].consumer_node_id)->as<graphlib::BudaOpNode>();
+                }
+
+                InsInstructionUniqueId id = instr->unique_id();
+                std::get<1>(id) = current_op->name();
+                std::get<2>(id) = last_edge.consumer_input_port_id;
+
+                if (combined_instructions.count(id) != 0)
+                {
+                    log_trace(LogGraphCompiler, "Merging with previous instruction: {}", combined_instructions[id]);
+                    combined_instructions[id] = merge_instructions(combined_instructions[id], instr);
+                    continue;
+                }
             }
+
+            // if combined instructions doesn't contain current key
+            combined_instructions[key] = instr;
         }
     }
+
     return combined_instructions;
 }
 
@@ -2038,16 +2122,14 @@ void add_queue_instr_based_on_queues_on_other_path(
     int buf_queue_num_entries,
     balancer::OpModelMap *op_models_post_placer,
     balancer::OpModels *op_models,
-    tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
-        &instructions)
+    InsertionInstructionMap &instructions)
 {
     Node *src = path_to_buffer[0];
     Node *dest = path_to_buffer[1];
 
     auto edges = graph->user_data_edges(src);
-    for (std::uint32_t fork_id = 0; fork_id < edges.size(); fork_id++)
+    for (const Edge &e : edges)
     {
-        graphlib::Edge e = edges[fork_id];
         if (e.consumer_node_id == dest->id())
         {
             balancer::OpModel &op_model = get_op_model(op_models_post_placer, op_models, path_to_buffer[0]);
@@ -2062,7 +2144,9 @@ void add_queue_instr_based_on_queues_on_other_path(
                 buf_queue_num_entries,
                 queue_size,
                 e.consumer_input_port_id /* input_id */,
-                fork_id /* fork_id */);
+                e.producer_output_port_id /* fork_id */,
+                false /* user_defined */,
+                true /* is_fj_buffering */);
             InsInstructionUniqueId key = queue_ins->unique_id();
             insert_queue_ins_to_instructions(instructions, key, queue_ins);
         }
@@ -2070,19 +2154,16 @@ void add_queue_instr_based_on_queues_on_other_path(
 }
 
 // Returns a map of pointers to insertion instructions needed for buffering the graph.
-tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
-generate_graph_buffering(
+InsertionInstructionMap generate_graph_buffering(
     Graph *graph,
     FJGraph &fj_graph,
     balancer::OpModelMap *op_models_post_placer,
     balancer::OpModels *op_models,
     const std::uint32_t usable_l1_size,
-    const tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
-        previous_ins_instructions,
+    const InsertionInstructionMap &previous_ins_instructions,
     std::function<int(const tt::balancer::OpModel &)> buffering_factor)
 {
-    tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
-        instructions;
+    InsertionInstructionMap instructions;
 
     std::vector<const ForkJoin *> sorted_fork_joins = fj_graph.get_topo_sorted_fjs();
 
@@ -2196,12 +2277,22 @@ generate_graph_buffering(
         log_trace(LogGraphCompiler, " new or updated instructions: ");
         for (const auto &i : instructions)
         {
-            log_trace(LogGraphCompiler, " - src: {}, dest: {}", i.second->src, i.second->dest);
+            log_trace(LogGraphCompiler, " - {}", i.second);
         }
     }
     // order of the arguments matters since tt::ordered_map keeps track of the adding order
     // therefore we have to add previos_ins_instructions before we add instructions
-    return append_prev_instr(instructions, previous_ins_instructions);
+    bool legacy_path = (op_models_post_placer != nullptr);
+    auto instrs = merge_with_prev_instr(graph, instructions, previous_ins_instructions, legacy_path);
+    if (instrs.size() != 0)
+    {
+        log_trace(LogGraphCompiler, " combined instructions: ");
+        for (const auto &i : instrs)
+        {
+            log_trace(LogGraphCompiler, " - {}", i.second);
+        }
+    }
+    return instrs;
 }
 
 // Generate buffering instructions for fork-join buffering.
@@ -2213,12 +2304,9 @@ FJBufferingResult insert_fork_join_buffering(
     balancer::OpModelMap *op_models_post_placer,
     balancer::OpModels *op_models,
     const std::uint32_t usable_l1_size,
-    const tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
-        &previous_ins_instructions,
+    const InsertionInstructionMap &previous_ins_instructions,
     std::function<int(const tt::balancer::OpModel &)> buffering_factor)
 {
-    // We can't change the graph, only adjust buffer sizes.
-    //
     TT_ASSERT(
         (op_models_post_placer or op_models) and !(op_models_post_placer and op_models),
         "op_models_post_placer or op_models must be passed in but not both!");
@@ -2237,8 +2325,7 @@ FJBufferingResult insert_fork_join_buffering(
     //
     // Find buffering locations due to mismatched paths, and adjust buffers
     //
-    tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>
-        instructions = generate_graph_buffering(
+    InsertionInstructionMap instructions = generate_graph_buffering(
             graph,
             fj_graph,
             op_models_post_placer,
