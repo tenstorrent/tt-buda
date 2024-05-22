@@ -36,16 +36,33 @@ class BackendCompileFailure:
     @property
     def value(self) -> int: ...
 
-class BackendCompileResult:
-    device_id: int
-    extra_size_bytes: int
+class BackendBaseCompileResult:
+    success: bool
+    failure_type: BackendCompileFailure
     failure_message: str
     failure_target: str
-    failure_type: BackendCompileFailure
+
+class BackendCompileResultPerEpoch(BackendBaseCompileResult):
+    device_id: int
+    temporal_epoch_id: int
     logical_core_x: int
     logical_core_y: int
-    success: bool
-    temporal_epoch_id: int
+    maximum_size_bytes: int
+    allocated_size_bytes: int
+    extra_size_bytes: int
+    def __init__(self) -> None: ...
+
+class BackendFwCompileResult(BackendBaseCompileResult):
+    def __init__(self) -> None: ...
+
+class BackendOverlayCompileResult(BackendBaseCompileResult):
+    failed_compile_results_per_epoch: List[BackendCompileResultPerEpoch]
+    blob_usage_per_epoch_per_core: dict[int, dict[str, int]]
+    def __init__(self) -> None: ...
+
+class BackendCompileResult(BackendBaseCompileResult):
+    fw_compile_result: BackendBaseCompileResult
+    overlay_compile_result: BackendOverlayCompileResult
     def __init__(self) -> None: ...
 
 class BackendConfig:

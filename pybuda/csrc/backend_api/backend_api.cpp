@@ -635,19 +635,35 @@ void BackendModule(py::module &m_backend) {
         .value("OverlaySize",tt::COMPILE_FAILURE::OverlaySize)
         .value("Invalid",tt::COMPILE_FAILURE::Invalid);
 
-    py::class_<tt_compile_result>(m_backend, "BackendCompileResult")
+    py::class_<tt_base_compile_result>(m_backend, "BackendBaseCompileResult")
+        .def_readwrite("success", &tt_base_compile_result::success)
+        .def_readwrite("failure_type", &tt_base_compile_result::failure_type)
+        .def_readwrite("failure_message", &tt_base_compile_result::failure_message)
+        .def_readwrite("failure_target", &tt_base_compile_result::failure_target);
+
+    py::class_<tt_compile_result_per_epoch, tt_base_compile_result>(m_backend, "BackendCompileResultPerEpoch")
         .def(py::init<>())
-        .def_readwrite("success", &tt_compile_result::success)
-        .def_readwrite("failure_type", &tt_compile_result::failure_type)
-        .def_readwrite("failure_message", &tt_compile_result::failure_message)
-        .def_readwrite("failure_target",&tt_compile_result::failure_target)
-        .def_readwrite("device_id",&tt_compile_result::device_id)
-        .def_readwrite("temporal_epoch_id", &tt_compile_result::temporal_epoch_id)
-        .def_readwrite("logical_core_x",&tt_compile_result::logical_core_x)
-        .def_readwrite("logical_core_y", &tt_compile_result::logical_core_y)
-        .def_readwrite("extra_size_bytes", &tt_compile_result::extra_size_bytes);
-            
-        
+        .def_readwrite("device_id", &tt_compile_result_per_epoch::device_id)
+        .def_readwrite("temporal_epoch_id", &tt_compile_result_per_epoch::temporal_epoch_id)
+        .def_readwrite("logical_core_x", &tt_compile_result_per_epoch::logical_core_x)
+        .def_readwrite("logical_core_y", &tt_compile_result_per_epoch::logical_core_y)
+        .def_readwrite("maximum_size_bytes", &tt_compile_result_per_epoch::maximum_size_bytes)
+        .def_readwrite("allocated_size_bytes", &tt_compile_result_per_epoch::allocated_size_bytes)
+        .def_readwrite("extra_size_bytes", &tt_compile_result_per_epoch::extra_size_bytes);
+
+    py::class_<tt_fw_compile_result, tt_base_compile_result>(m_backend, "BackendFwCompileResult")
+        .def(py::init<>());
+
+    py::class_<tt_overlay_compile_result, tt_base_compile_result>(m_backend, "BackendOverlayCompileResult")
+        .def(py::init<>())
+        .def_readwrite("failed_compile_results_per_epoch", &tt_overlay_compile_result::failed_compile_results_per_epoch)
+        .def_readwrite("blob_usage_per_epoch_per_core", &tt_overlay_compile_result::blob_usage_per_epoch_per_core);
+
+    py::class_<tt_compile_result, tt_base_compile_result>(m_backend, "BackendCompileResult")
+        .def(py::init<>())
+        .def_readwrite("fw_compile_result", &tt_compile_result::fw_compile_result)
+        .def_readwrite("overlay_compile_result", &tt_compile_result::overlay_compile_result);
+
     py::class_<tt_backend, std::shared_ptr<tt_backend>>(m_backend, "BackendApi")
         .def(py::init(py::overload_cast<const std::string&, const tt::tt_backend_config&>(&tt_backend::create)))
         .def("initialize", py::overload_cast<>(&tt_backend::initialize), py::call_guard<py::gil_scoped_release>())

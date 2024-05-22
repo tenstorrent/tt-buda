@@ -855,7 +855,7 @@ class TTDevice(Device):
                         # Continue to recompile
                         continue
 
-                raise RuntimeError(f"Backend compile failed: {ex.compile_result.failure_type}")
+                raise RuntimeError("Backend compile failed!")
 
             if compile_context is not None and compile_context.recompile_count > 0:
                 logger.info("Compile successfully completed after {} retries!", compile_context.recompile_count)

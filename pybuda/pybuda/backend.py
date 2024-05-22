@@ -82,10 +82,8 @@ class BackendAPI:
         self.be_api = BackendApi(self.netlist, bcfg)
         self.compile_result = BackendCompileResult()
         if self.be_api.initialize(self.compile_result) != BackendStatusCode.Success:
-            logger.info(f"Backend compile {self.compile_result.success}, target: {self.compile_result.failure_target}, error type: {self.compile_result.failure_type}, error: {self.compile_result.failure_message}\n"
-            f"target chip id: {self.compile_result.device_id}, target core(x,y): {self.compile_result.logical_core_x} {self.compile_result.logical_core_y}, temporal epoch id: {self.compile_result.temporal_epoch_id}\n"
-            f"requires extra size bytes: {self.compile_result.extra_size_bytes}\n")
             self.shutdown()
+            self.log_compile_errors()
             raise BackendCompileException(self.compile_result)
 
         # Create and start a feeder thread, if requested
@@ -109,6 +107,28 @@ class BackendAPI:
             self.be_api.finish()
             release_backend_ptr(self.be_api)
             self.be_api = None
+
+    
+    def log_compile_errors(self):
+        """
+        Logs descriptions of backend compile errors.
+        """
+
+        # Log general compilation error
+        logger.error("Backend compile failed with error type: {}, error message: {}", self.compile_result.failure_type, self.compile_result.failure_message)
+
+        # Log firmware compilation errors
+        fw_result = self.compile_result.fw_compile_result
+        if not fw_result.success:
+            logger.error("Backend firmware compile error: {}, error message: {}", fw_result.failure_type, fw_result.failure_message)
+
+        # Log overlay compilation errors
+        overlay_result = self.compile_result.overlay_compile_result
+        if not overlay_result.success:
+            for epoch in overlay_result.failed_compile_results_per_epoch:
+                logger.error("Backend overlay compile error for epoch {}: {}, error message: {}",
+                            epoch.temporal_epoch_id, epoch.failure_type, epoch.failure_message)
+        
 
     def sync(self):
         """
