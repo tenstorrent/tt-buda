@@ -1031,7 +1031,7 @@ bool try_commute_bcast_through_clone(graphlib::Graph *graph, graphlib::OpNode *n
     if (op->op_name() == "reshape")
     {
         if (volume_above(operand_shape.as_vector(), matching_in_operand) == volume_above(op->shape().as_vector(), matching_in_op) and
-            volume_below(operand_shape.as_vector(), matching_in_operand) == volume_below(op->shape().as_vector(), matching_in_op)) {
+            volume_below(operand_shape.as_vector(), matching_in_operand) == volume_below(op->shape().as_vector(), matching_in_op) and (operand->shape().size() != op->shape().size() || operand->shape()[1] != op->shape()[1])) {
             // We can commute the broadcast through the reshape
             // Only one broadcast now
 
