@@ -34,9 +34,6 @@ def resnet(training: bool, config: str, microbatch: int, devtype: str, arch: str
     if data_type == "Fp16_b":
         os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES_APPLY_FILTERING"] = "1"
 
-    if arch != "wormhole_b0":
-        os.environ["PYBUDA_EXTRA_L1_MARGIN"] = "100000"
-
     if data_type == "Bfp8_b":
         pybuda.config.configure_mixed_precision(name_regex="input.*add.*", output_df=pybuda.DataFormat.Float16_b)
 
