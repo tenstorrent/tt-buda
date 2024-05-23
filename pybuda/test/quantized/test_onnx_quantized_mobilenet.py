@@ -22,6 +22,10 @@ from pybuda.verify.config import TestKind
 from pybuda.config import _get_global_compiler_config
 
 def test_onnx_quantized_mb_v2_depth(test_device):
+    # Skip test on blackhole until we have support for quantized models on blackhole pybuda#2700
+    if test_device.arch == BackendDevice.Blackhole:
+        pytest.skip("Blackhole does not support quantized models")
+
     # Download ONNX model
     save_path = "third_party/confidential_customer_models/quantized/mb_v2_depthwise-Int8.onnx"
     if not os.path.exists(save_path):
@@ -68,6 +72,10 @@ def test_onnx_quantized_mb_v2_depth(test_device):
 
 
 def test_onnx_quantized_mb_v2(test_device):
+    # Skip test on blackhole until we have support for quantized models on blackhole pybuda#2700
+    if test_device.arch == BackendDevice.Blackhole:
+        pytest.skip("Blackhole does not support quantized models")
+
     # Download ONNX model
     save_path = "third_party/confidential_customer_models/quantized/mobilenet_v2-Int8.onnx"
     if not os.path.exists(save_path):

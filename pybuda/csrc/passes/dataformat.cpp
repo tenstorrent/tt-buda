@@ -819,6 +819,11 @@ void validate_data_formats(const graphlib::Graph *graph, const DeviceConfig& dev
                     "op: {}, accumulate_df: {}: If op is configured for Int8/Int32, accumulate data format must be Int32.",
                     op->name(),
                     op->accumulate_df());
+                TT_LOG_ASSERT(
+                    device_config.is_wormhole_b0() && !device_config.is_blackhole(),
+                    "op: {}, arch: {}: Int8/Int32 is only supported on Wormhole B0.",
+                    op->name(),
+                    device_config.arch_name);
             }
             if (graphlib::is_eltwise_binary(op) or op->is_splice()) {
                 TT_LOG_ASSERT(

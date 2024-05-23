@@ -93,7 +93,7 @@ def test_bloom_hf(test_kind, test_device):
         # output mismatch
         pytest.skip()
 
-    if test_device.arch == BackendDevice.Wormhole_B0:
+    if test_device.arch == BackendDevice.Wormhole_B0 or test_device.arch == BackendDevice.Blackhole:
         pytest.skip() # see tenstorrent/pybuda#969
 
     compiler_cfg = _get_global_compiler_config()

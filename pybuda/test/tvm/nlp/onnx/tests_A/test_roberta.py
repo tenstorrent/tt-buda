@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import onnx
 import onnxruntime as ort
+from pybuda._C.backend_api import BackendDevice
 import pytest
 import torch
 from pybuda import (
@@ -118,6 +119,9 @@ def test_tvm_roberta_layer(test_kind, test_device):
 def test_tvm_roberta(test_kind, test_device):
     if test_kind == TestKind.TRAINING:
         pytest.skip()
+
+    if test_device.arch == BackendDevice.Blackhole:
+         pytest.skip("Skip until BudaBackend#2628 is consumed.")
 
     input_shape = (1, 256, 256)
     roberta_model = RobertaModel.from_pretrained("arampacha/roberta-tiny", torchscript=True)

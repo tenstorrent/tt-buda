@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: © 2024 Tenstorrent AI ULC
 
 # SPDX-License-Identifier: Apache-2.0
+from pybuda._C.backend_api import BackendDevice
 from pybuda.config import CompileDepth
 from pybuda.verify.config import TestKind
 import pytest
@@ -27,6 +28,9 @@ from pybuda.verify import verify_module
 def test_tvm_xglm(test_kind, test_device):
     if test_kind == TestKind.TRAINING:
         pytest.skip()
+
+    if test_device.arch == BackendDevice.Blackhole:
+         pytest.skip("Skip until BudaBackend#2628 is consumed.")
 
     config = XGLMConfig()
     input_shape = (1, 32, 1024)

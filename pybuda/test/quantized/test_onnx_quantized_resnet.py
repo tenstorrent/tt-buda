@@ -24,6 +24,10 @@ from pybuda.config import _get_global_compiler_config
 
 
 def test_onnx_quantized_resnet(test_device):
+    # Skip test on blackhole until we have support for quantized models on blackhole pybuda#2700
+    if test_device.arch == BackendDevice.Blackhole:
+        pytest.skip("Blackhole does not support quantized models")
+
     if test_device.arch == BackendDevice.Grayskull:
         pytest.skip()
 

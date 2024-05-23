@@ -48,7 +48,7 @@ def test_efficientnet_lite0(test_device):
     )
 
 def test_efficientnet_lite4(test_device):
-    if test_device.arch == pybuda.BackendDevice.Wormhole_B0:
+    if test_device.arch == pybuda.BackendDevice.Wormhole_B0 or test_device.arch == pybuda.BackendDevice.Blackhole:
         pytest.skip()
 
     compiler_cfg = _get_global_compiler_config()

@@ -38,7 +38,7 @@ def test_gptj_block(test_kind, test_device):
     if test_kind.is_training():
         compiler_cfg.compile_depth = CompileDepth.BUDA_GRAPH_PRE_PLACER
 
-    if test_device.arch == BackendDevice.Wormhole_B0:
+    if test_device.arch == BackendDevice.Wormhole_B0 or test_device.arch == BackendDevice.Blackhole:
         pytest.skip() # see tenstorrent/pybuda#969
 
     #Fusing disabled due to tenstorrent/pybuda#789
