@@ -61,8 +61,7 @@ build-docs-docsite:
   tags:
     - 8-core
   rules:
-  - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/
-  - if: $CI_COMMIT_BRANCH == "main"
+  - if: $CI_COMMIT_BRANCH == "main" && $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/
   script: 
     - !reference [.common_prep, script]
     - pip3 install sphinx
