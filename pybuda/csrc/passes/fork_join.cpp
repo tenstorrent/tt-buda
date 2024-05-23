@@ -5,8 +5,8 @@
 
 #include <cmath>
 #include <memory>
-#include <string>
 #include <queue>
+#include <string>
 #include <tuple>
 #include <unordered_map>
 
@@ -18,12 +18,11 @@
 #include "graph_lib/utils.hpp"
 #include "passes/eth_stream_reduction.hpp"
 #include "post_placer_buda_passes.hpp"
+#include "pybind11/pybind11.h"
 #include "reportify/reportify.hpp"
 #include "utils/assert.hpp"
 #include "utils/logger.hpp"
 #include "utils/ordered_associative_containers/ordered_map.hpp"
-
-#include "pybind11/pybind11.h"
 
 namespace tt
 {
@@ -44,7 +43,7 @@ void PyInsertionInstruction::insert(graphlib::Graph *graph)
     );
 }
 
-std::ostream &operator<<(std::ostream &out, const InsertionInstruction* ins)
+std::ostream &operator<<(std::ostream &out, const InsertionInstruction *ins)
 {
     out << ins->to_string();
     return out;
@@ -340,11 +339,16 @@ void merge_tagged_nops_with_same_src(graphlib::Graph *graph, bool daisy_chain)
 
                     graph->remove_edge(edge_to_reattach);
                     graph->add_edge(new_edge, edge_attributes);
-                    log_trace(LogGraphCompiler, "Trying to connect a new edge between producer={} and consumer={}", current_nop->name(), nops[i]->name());
+                    log_trace(
+                        LogGraphCompiler,
+                        "Trying to connect a new edge between producer={} and consumer={}",
+                        current_nop->name(),
+                        nops[i]->name());
                     current_nop = nops[i];
                 }
 
-                for (std::size_t i = 0; i < nops.size(); i++) {
+                for (std::size_t i = 0; i < nops.size(); i++)
+                {
                     // Make all merged daisy-chain nops unmergeable to allow for insertion of later daisy-chains
                     Node *current_nop = nops[i];
                     graphlib::OpNode *current_op = dynamic_cast<graphlib::OpNode *>(current_nop);
@@ -466,8 +470,9 @@ void FJGraph::topological_sort()
 
     // initialize the vector of number of incoming edges to zeros.
     // for each node in graph we want to know how many incomming edges it has.
-    // node that has 0 incomming edges should be the first one in topological order (it does not depend on any other node).
-    std::vector<std::uint32_t> num_incomming_edges(fj_ids.size(), 0); 
+    // node that has 0 incomming edges should be the first one in topological order (it does not depend on any other
+    // node).
+    std::vector<std::uint32_t> num_incomming_edges(fj_ids.size(), 0);
     for (std::uint32_t src_fj_id : fj_ids)
     {
         for (auto dest_fj_id : adjacency_vector[src_fj_id])
@@ -500,7 +505,9 @@ void FJGraph::topological_sort()
         // decrease num_incomming_edges for all neighbouring nodes of current_fj_id
         for (auto dest_fj_id : adjacency_vector[current_fj_id])
         {
-            TT_ASSERT(num_incomming_edges[dest_fj_id] > 0, " It is expected that num_incomming_edges is greater than null, but it is not");
+            TT_ASSERT(
+                num_incomming_edges[dest_fj_id] > 0,
+                " It is expected that num_incomming_edges is greater than null, but it is not");
             num_incomming_edges[dest_fj_id]--;
             // if num_incomming_edges of dest_fj_id is reduced to 0, emplace dest_fj_id to nodes_to_visit
             if (num_incomming_edges[dest_fj_id] == 0)
@@ -509,13 +516,17 @@ void FJGraph::topological_sort()
             }
         }
     }
-    TT_ASSERT(cnt_visited_nodes == fj_ids.size(), "Number of visited nodes is not equal to number of nodes -> topological sort is not possible for the given graph.");
+    TT_ASSERT(
+        cnt_visited_nodes == fj_ids.size(),
+        "Number of visited nodes is not equal to number of nodes -> topological sort is not possible for the given "
+        "graph.");
 }
 
-// Fork join FJ_1 is parent to FJ_2 if FJ_1 is the most inner fj that contains FJ_2. We need map that tells us who is the parent for each fork-join.
-// This method creates a map of node -> sorted_fj_ind, to track first ForkJoin index that contains node not including most inner fork
-// join that contains node. this can be called parent fork-join. We need this structure to handle skipping already
-// buffered fork-joins effectively. Most outer fork-join in graph won't have parent fork-join.
+// Fork join FJ_1 is parent to FJ_2 if FJ_1 is the most inner fj that contains FJ_2. We need map that tells us who is
+// the parent for each fork-join. This method creates a map of node -> sorted_fj_ind, to track first ForkJoin index that
+// contains node not including most inner fork join that contains node. this can be called parent fork-join. We need
+// this structure to handle skipping already buffered fork-joins effectively. Most outer fork-join in graph won't have
+// parent fork-join.
 void FJGraph::create_parents_map()
 {
     for (std::size_t i = 0; i < topo_sort_fj_indices.size(); i++)
@@ -540,8 +551,7 @@ void FJGraph::create_parents_map()
     }
 }
 
-void FJGraph::add_elem_to_buffered_fjs(
-    NodeId fork_id, FJBufferingInfo fj_buff_info)
+void FJGraph::add_elem_to_buffered_fjs(NodeId fork_id, FJBufferingInfo fj_buff_info)
 {
     if (buffered_fjs.count(fork_id))
     {
@@ -550,8 +560,7 @@ void FJGraph::add_elem_to_buffered_fjs(
     else
     {
         // if there is no key fork_id in the map yet.
-        buffered_fjs[fork_id] =
-            std::vector<FJBufferingInfo>{fj_buff_info};
+        buffered_fjs[fork_id] = std::vector<FJBufferingInfo>{fj_buff_info};
     }
 }
 
@@ -635,13 +644,14 @@ void NopInsertionInstruction::insert(graphlib::Graph *graph)
 
     // when multiple buffering nops are needed, this string becomes too long and breaks yaml spec when dumped to netlist
     // so if dest name contains buffer_N_src, increment index, and remove buffer_N_src from dest name
-    auto op_name = [](Node *src, Node *dest,  graphlib::Graph* graph)
+    auto op_name = [](Node *src, Node *dest, graphlib::Graph *graph)
     {
         std::uint32_t buffer_index = 0;
         auto dest_name = dest->name();
         if (dest->name().find("buffer_") != std::string::npos and dest->name().find(src->name()) != std::string::npos)
         {
-            buffer_index = std::stoi(dest_name.substr(dest_name.find("buffer_") + 7, dest_name.find(src->name()) - dest_name.find("buffer_") - 7));
+            buffer_index = std::stoi(dest_name.substr(
+                dest_name.find("buffer_") + 7, dest_name.find(src->name()) - dest_name.find("buffer_") - 7));
             std::string remove = "buffer_" + std::to_string(buffer_index) + "_" + src->name() + "_";
             dest_name.erase(dest_name.find(remove), remove.length());
         }
@@ -675,7 +685,8 @@ void NopInsertionInstruction::insert(graphlib::Graph *graph)
 
             if (buffer_nop == nullptr)
             {
-                std::tie(buffer_nop, std::ignore, std::ignore) = insert_nop_on_edge(graph, e, op_name(src, original_dest, graph), is_fj_buffering, hoist_tms);
+                std::tie(buffer_nop, std::ignore, std::ignore) =
+                    insert_nop_on_edge(graph, e, op_name(src, original_dest, graph), is_fj_buffering, hoist_tms);
                 buffer_nop->tag("mergeable", this->mergeable);
             }
             else
@@ -683,7 +694,8 @@ void NopInsertionInstruction::insert(graphlib::Graph *graph)
                 // Reuse the already created buffer nop for all edges between src and dest.
                 // Covers the case when source node is connected with multiple edges to the destination node.
                 // In that case we don't want to create multiple nops, but instead we reuse the same one.
-                std::tie(std::ignore, std::ignore) = graphlib::insert_node_on_edge(graph, e, buffer_nop, false /* inherit_consumer_attrs */, true /* remove_edge */, 0, not hoist_tms);
+                std::tie(std::ignore, std::ignore) = graphlib::insert_node_on_edge(
+                    graph, e, buffer_nop, false /* inherit_consumer_attrs */, true /* remove_edge */, 0, not hoist_tms);
             }
 
             log_trace(
@@ -801,7 +813,7 @@ float get_output_multiplier(
     {
         input_shape_volume /= (float)(op_model.t_stream_factor.t());
     }
-    return input_multiplier * input_shape_volume / out_shape_volume ;
+    return input_multiplier * input_shape_volume / out_shape_volume;
 }
 
 // Calculates stack factor between node and consumer node based on op_models, more specifically op shape z dimensions.
@@ -846,7 +858,7 @@ float get_stack_factor(
 }
 
 // compares two fork-joins node by node
-bool is_same_fj(const ForkJoin& fj1, const ForkJoin& fj2)
+bool is_same_fj(const ForkJoin &fj1, const ForkJoin &fj2)
 {
     if (fj1.first.size() != fj2.first.size() || fj1.second.size() != fj2.second.size())
     {
@@ -877,8 +889,7 @@ bool is_same_fj(const ForkJoin& fj1, const ForkJoin& fj2)
 // gets current node (fork) and tries to find if there is fork-join starting at that node (fork) and finishing at join
 // that belongs to current fork-join (fj) Also, fork-join which we are trying to find has to be already buffered
 // (contained in map fj_graph.buffered_fjs).
-FJBufferingInfo FJGraph::find_sub_fork_join_from_node(
-    const ForkJoin &fj, const std::vector<Node *> &path, Node *fork)
+FJBufferingInfo FJGraph::find_sub_fork_join_from_node(const ForkJoin &fj, const std::vector<Node *> &path, Node *fork)
 {
     if (buffered_fjs.count(fork->id()))
     {
@@ -903,8 +914,7 @@ FJBufferingInfo FJGraph::find_sub_fork_join_from_node(
     return FJBufferingInfo(nullptr, 0, 0, nullptr);
 }
 
-
-void FJGraph::update_buffered_fj_map(const ForkJoin& fj, FJBufferingInfo fj_buff_info)
+void FJGraph::update_buffered_fj_map(const ForkJoin &fj, FJBufferingInfo fj_buff_info)
 {
     // ForkJoinId fj_key = std::make_pair(fj.second[0]->id(),fj.second.back()->id());
     NodeId fork_id = fj.second[0]->id();
@@ -915,10 +925,9 @@ void FJGraph::update_buffered_fj_map(const ForkJoin& fj, FJBufferingInfo fj_buff
     }
     else
     {
-        // there are buffered fork-joins with same fork as current fj. We want to delete buffered fork-joins that have same fork
-        // as current fj if that fork-join is their parent.
-        std::vector<FJBufferingInfo> already_buff_fj_info =
-            buffered_fjs.at(fork_id);
+        // there are buffered fork-joins with same fork as current fj. We want to delete buffered fork-joins that have
+        // same fork as current fj if that fork-join is their parent.
+        std::vector<FJBufferingInfo> already_buff_fj_info = buffered_fjs.at(fork_id);
         std::vector<std::size_t> indices_to_delete;
         for (std::size_t i = 0; i < already_buff_fj_info.size(); i++)
         {
@@ -965,7 +974,7 @@ std::tuple<std::uint32_t, bool, int> get_buffering(
     const std::vector<Node *> &path,
     const ForkJoin &fj,
     bool available,
-    FJGraph& fj_graph)
+    FJGraph &fj_graph)
 {
     float current_output_multiplier = 1.0;  // keep track of expansions and reductions of fork outputs
     Node *prev_node = path[0];
@@ -1107,12 +1116,14 @@ std::tuple<std::uint32_t, bool, int> get_buffering(
                     const balancer::OpModel &previous_op_model =
                         get_op_model(op_models_post_placer, op_models, prev_node);
                     float prev_slice_factor = 1;
-                    if (op_model.op_shape.inputs[e.consumer_input_port_id].volume_in_tiles() == previous_op_model.op_shape.outputs[0].volume_in_tiles())
+                    if (op_model.op_shape.inputs[e.consumer_input_port_id].volume_in_tiles() ==
+                        previous_op_model.op_shape.outputs[0].volume_in_tiles())
                     {
-                        // if volumes are the same, then we can compare z dimensions to infer if it was slicing between prev_node and node.
-                        // if volume has changed from output of prev_node to input of node, we had some broadcast
+                        // if volumes are the same, then we can compare z dimensions to infer if it was slicing between
+                        // prev_node and node. if volume has changed from output of prev_node to input of node, we had
+                        // some broadcast
                         prev_slice_factor = op_model.op_shape.inputs[e.consumer_input_port_id].z /
-                            (float)(previous_op_model.get_out_shape().z);
+                                            (float)(previous_op_model.get_out_shape().z);
                     }
 
                     // If prev_slice_factor is < 1 that means that we have stack onprevious edge, which doesn't
@@ -1123,7 +1134,8 @@ std::tuple<std::uint32_t, bool, int> get_buffering(
                 else if (is_join)
                 {
                     // We just need to fill the input buffer to make progress, not actually produce a full output
-                    in_tiles = op_model.input_buffers.at(e.consumer_input_port_id).block_shape.volume_no_t() * 2; // 2 because of double buffering
+                    in_tiles = op_model.input_buffers.at(e.consumer_input_port_id).block_shape.volume_no_t() *
+                               2;  // 2 because of double buffering
                     in_tiles *= op_model.grid_shape.volume();
                 }
                 else if (node->as<graphlib::BudaOpNode>()->op_type().op == "matmul")
@@ -1148,12 +1160,14 @@ std::tuple<std::uint32_t, bool, int> get_buffering(
                     const balancer::OpModel &previous_op_model =
                         get_op_model(op_models_post_placer, op_models, prev_node);
                     float prev_slice_factor = 1;
-                    if (op_model.op_shape.inputs[e.consumer_input_port_id].volume_in_tiles() == previous_op_model.op_shape.outputs[0].volume_in_tiles())
+                    if (op_model.op_shape.inputs[e.consumer_input_port_id].volume_in_tiles() ==
+                        previous_op_model.op_shape.outputs[0].volume_in_tiles())
                     {
-                        // if volumes are the same, then we can compare z dimensions to infer if it was slicing between prev_node and node.
-                        // if volume has changed from output of prev_node to input of node, we had some broadcast
+                        // if volumes are the same, then we can compare z dimensions to infer if it was slicing between
+                        // prev_node and node. if volume has changed from output of prev_node to input of node, we had
+                        // some broadcast
                         prev_slice_factor = op_model.op_shape.inputs[e.consumer_input_port_id].z /
-                            (float)(previous_op_model.get_out_shape().z);
+                                            (float)(previous_op_model.get_out_shape().z);
                     }
 
                     // If prev_slice_factor is < 1 that means that we have stack onprevious edge, which doesn't
@@ -1193,12 +1207,16 @@ std::tuple<std::uint32_t, bool, int> get_buffering(
                     node_debug_info << '\t' << "input edge has broadcast of factor: " << broadcast_factor << std::endl;
                 node_debug_info << '\t' << "op grid shape: " << op_model.grid_shape << std::endl;
                 node_debug_info << '\t' << "input shape: " << in_shape << std::endl;
-                node_debug_info << '\t' << "input buffer block shape: " << op_model.input_buffers.at(e.consumer_input_port_id).block_shape << std::endl;
-                node_debug_info << '\t' << "l1 size tiles: " << op_model.input_buffers.at(e.consumer_input_port_id).l1_size_tiles << std::endl;
+                node_debug_info << '\t' << "input buffer block shape: "
+                                << op_model.input_buffers.at(e.consumer_input_port_id).block_shape << std::endl;
+                node_debug_info << '\t' << "l1 size tiles: "
+                                << op_model.input_buffers.at(e.consumer_input_port_id).l1_size_tiles << std::endl;
                 node_debug_info << '\t' << "in tiles: " << in_tiles << std::endl;
                 node_debug_info << '\t' << "input multiplier: " << input_multiplier << std::endl;
                 node_debug_info << '\t' << "total in: " << in_req << std::endl;
-                node_debug_info << '\t' << "next output multiplier: " << get_output_multiplier(node, input_multiplier, op_model, e.consumer_input_port_id) << std::endl;
+                node_debug_info << '\t' << "next output multiplier: "
+                                << get_output_multiplier(node, input_multiplier, op_model, e.consumer_input_port_id)
+                                << std::endl;
 
                 node_debug_info << std::endl;
             }
@@ -1266,8 +1284,15 @@ std::tuple<std::uint32_t, bool, int> get_buffering(
 
     if (dump_debug_info)
     {
-        debug_info << "Total " << (available ? "available" : "required") << " buffering: " << total_buffering << std::endl;
-        log_debug(LogGraphCompiler, "Calculating {} buffering between nodes {} and {}\n\n{}", available ? "available" : "required", path[0]->name(), path.back()->name(), debug_info.str());
+        debug_info << "Total " << (available ? "available" : "required") << " buffering: " << total_buffering
+                   << std::endl;
+        log_debug(
+            LogGraphCompiler,
+            "Calculating {} buffering between nodes {} and {}\n\n{}",
+            available ? "available" : "required",
+            path[0]->name(),
+            path.back()->name(),
+            debug_info.str());
     }
 
     return std::make_tuple(total_buffering, has_queue_on_path, sum_buff_queue_num_entries);
@@ -1279,7 +1304,7 @@ std::tuple<std::uint32_t, bool, int> get_available_buffering(
     balancer::OpModels *op_models,
     const std::vector<Node *> &path,
     const ForkJoin &fj,
-    FJGraph& fj_graph)
+    FJGraph &fj_graph)
 {
     return get_buffering(graph, op_models_post_placer, op_models, path, fj, true, fj_graph);
 }
@@ -1290,7 +1315,7 @@ std::tuple<std::uint32_t, bool, int> get_buffering_requirement(
     balancer::OpModels *op_models,
     const std::vector<Node *> &path,
     const ForkJoin &fj,
-    FJGraph& fj_graph)
+    FJGraph &fj_graph)
 {
     return get_buffering(graph, op_models_post_placer, op_models, path, fj, false, fj_graph);
 }
@@ -1299,8 +1324,7 @@ std::tuple<std::uint32_t, bool, int> get_buffering_requirement(
 Calculates how much dram memory buffering queue nodes consume in bytes. If this number exceeds some threshold
 we can stop producing queues and continue only using nops for fork-join buffering
 */
-int buffering_queues_mem_consumption(
-    const InsertionInstructionMap &instructions)
+int buffering_queues_mem_consumption(const InsertionInstructionMap &instructions)
 {
     int buff_queue_memory_consumption = 0;
     for (auto instruction : instructions)
@@ -1313,11 +1337,9 @@ int buffering_queues_mem_consumption(
     }
     return buff_queue_memory_consumption;
 }
-// Inserts new queue instruction to map of instructions. 
+// Inserts new queue instruction to map of instructions.
 void insert_queue_ins_to_instructions(
-    InsertionInstructionMap &instructions,
-    InsInstructionUniqueId key,
-    std::shared_ptr<InsertionInstruction> new_ins)
+    InsertionInstructionMap &instructions, InsInstructionUniqueId key, std::shared_ptr<InsertionInstruction> new_ins)
 {
     TT_ASSERT(
         new_ins.get()->instr_type == InstructionType::QueueInstruction,
@@ -1328,7 +1350,8 @@ void insert_queue_ins_to_instructions(
         if (instructions[key].get()->instr_type == InstructionType::NopInstruction)
         {
             // if instructions contains element with key equal to key and current instruction is NopInstruction,
-            // we replace it with queue instruction. This is because if we add queue on the path, we don't need nops on that path.
+            // we replace it with queue instruction. This is because if we add queue on the path, we don't need nops on
+            // that path.
             instructions[key] = new_ins;
         }
         else if (instructions[key].get()->instr_type == InstructionType::QueueInstruction)
@@ -1356,12 +1379,11 @@ void insert_queue_ins_to_instructions(
 uint32_t expand_output_buffer(
     const Graph *graph,
     const Node *node,
-    balancer::OpModel& op_model,
+    balancer::OpModel &op_model,
     float scale_usable_l1_size,
     uint32_t usable_l1_size,
     balancer::OpModelMap *op_models_post_placer,
-    balancer::OpModels *op_models
-)
+    balancer::OpModels *op_models)
 {
     if (scale_usable_l1_size * usable_l1_size <= op_model.get_l1_memory_usage())
     {
@@ -1369,15 +1391,17 @@ uint32_t expand_output_buffer(
     }
 
     uint32_t added_tiles = 0;
-    balancer::BufferModel& output_buffer = op_model.output_buffers[0];
+    balancer::BufferModel &output_buffer = op_model.output_buffers[0];
     const uint32_t tile_size_bytes = balancer::tile_size_bytes(output_buffer.data_format);
-    const uint32_t available_space_tiles = (scale_usable_l1_size * usable_l1_size - op_model.get_l1_memory_usage()) / tile_size_bytes;
+    const uint32_t available_space_tiles =
+        (scale_usable_l1_size * usable_l1_size - op_model.get_l1_memory_usage()) / tile_size_bytes;
     const uint32_t tiles_per_mb = op_model.block_shape().volume_no_t();
     const uint32_t t_dim = op_model.block_shape().t;
     const uint32_t initial_mb = output_buffer.buffer_factor;
 
     // We want to expand output buffer to fit at most t macro blocks.
-    const uint32_t mb_limit = std::min((uint32_t)(available_space_tiles + output_buffer.l1_size_tiles) / tiles_per_mb / 2, t_dim);
+    const uint32_t mb_limit =
+        std::min((uint32_t)(available_space_tiles + output_buffer.l1_size_tiles) / tiles_per_mb / 2, t_dim);
 
     if (mb_limit <= 1)
     {
@@ -1399,17 +1423,17 @@ uint32_t expand_output_buffer(
     }
 
     // Adjust for some, but not all constrains in budabackend/src/net2pipe/src/tile_maps.cpp::check_phased_stack.
-    // One of them is that the stack_factor must be divisible by the product of it's corresponding grid dimension and buf_size_mb / 2 (size_in_mb).
-    // There are a lot more and they are not implemented here.
-    for (const Edge& edge : graph->user_data_edges(node))
+    // One of them is that the stack_factor must be divisible by the product of it's corresponding grid dimension and
+    // buf_size_mb / 2 (size_in_mb). There are a lot more and they are not implemented here.
+    for (const Edge &edge : graph->user_data_edges(node))
     {
-        Node* consumer_node = graph->node_by_id(edge.consumer_node_id);
+        Node *consumer_node = graph->node_by_id(edge.consumer_node_id);
         if (consumer_node->node_type() != graphlib::NodeType::kBudaOp)
         {
             continue;
         }
 
-        const balancer::OpModel& consumer_op_model = get_op_model(op_models_post_placer, op_models, consumer_node);
+        const balancer::OpModel &consumer_op_model = get_op_model(op_models_post_placer, op_models, consumer_node);
 
         const uint32_t t_stream_r = op_model.t_stream_factor.r;
         const uint32_t consumer_t_stream_r = consumer_op_model.t_stream_factor.r;
@@ -1442,14 +1466,15 @@ uint32_t expand_output_buffer(
 
                 if (vstack_factor_per_core % size_in_mb != 0)
                 {
-                    size_in_mb = (t_dim_factors & balancer::FactorizedInt(vstack_factor_per_core)).get_nearest_factor_le(mb_limit);
+                    size_in_mb = (t_dim_factors & balancer::FactorizedInt(vstack_factor_per_core))
+                                     .get_nearest_factor_le(mb_limit);
                 }
             }
         }
 
         const uint32_t t_stream_c = op_model.t_stream_factor.c;
         const uint32_t consumer_t_stream_c = consumer_op_model.t_stream_factor.c;
-        
+
         // Need to hstack.
         if (t_stream_c > consumer_t_stream_c)
         {
@@ -1478,7 +1503,8 @@ uint32_t expand_output_buffer(
 
                 if (hstack_factor_per_core % size_in_mb != 0)
                 {
-                    size_in_mb = (t_dim_factors & balancer::FactorizedInt(hstack_factor_per_core)).get_nearest_factor_le(mb_limit);
+                    size_in_mb = (t_dim_factors & balancer::FactorizedInt(hstack_factor_per_core))
+                                     .get_nearest_factor_le(mb_limit);
                 }
             }
         }
@@ -1491,7 +1517,6 @@ uint32_t expand_output_buffer(
 
     return added_tiles;
 }
-
 
 // This function is attempting to add buffering along a given path in a graph, with the goal of minimizing the number of
 // nops that need to be inserted. It does this by iterating over the nodes in the path and attempting to add as much
@@ -1510,7 +1535,7 @@ void add_buffering_on_path(
     const std::uint32_t usable_l1_size,
     std::function<int(const tt::balancer::OpModel &)> buffering_factor,
     const ForkJoin &fj,
-    FJGraph& fj_graph)
+    FJGraph &fj_graph)
 {
     // Go along the path and try to add buffering as much as it fits
     std::uint32_t to_add = long_path_required - short_path_available;
@@ -1540,7 +1565,7 @@ void add_buffering_on_path(
     Node *prev_node = nullptr;
     // current_output_multiplier keeps track of expansions and reductions of fork outputs
     float current_output_multiplier = 1.0;
-    Node *join  = nullptr;
+    Node *join = nullptr;
 
     for (Node *node : path)
     {
@@ -1559,7 +1584,7 @@ void add_buffering_on_path(
         {
             prev_node = node;
 
-            balancer::OpModel& op_model = get_op_model(op_models_post_placer, op_models, node);
+            balancer::OpModel &op_model = get_op_model(op_models_post_placer, op_models, node);
             if (expand_fork_output_buffer && to_add > (uint32_t)op_model.block_shape().volume_no_t())
             {
                 // In cases when we need to buffer more than macro block size of tiles, we may end up
@@ -1568,11 +1593,16 @@ void add_buffering_on_path(
                 // 100% of the allocated input buffers.
                 //
                 // To workaround this limitation, we need to additionally expand output buffer of the fork node.
-                uint32_t added_tiles = expand_output_buffer(graph, node, op_model, scale_usable_l1_size, usable_l1_size, op_models_post_placer, op_models);
+                uint32_t added_tiles = expand_output_buffer(
+                    graph, node, op_model, scale_usable_l1_size, usable_l1_size, op_models_post_placer, op_models);
 
                 if (added_tiles > 0)
                 {
-                    log_debug(LogGraphCompiler, "Expanded fork node ({}) output buffers to a total of {} macro blocks.", node->name(), op_model.output_buffers[0].buffer_factor);
+                    log_debug(
+                        LogGraphCompiler,
+                        "Expanded fork node ({}) output buffers to a total of {} macro blocks.",
+                        node->name(),
+                        op_model.output_buffers[0].buffer_factor);
                 }
             }
 
@@ -1581,7 +1611,8 @@ void add_buffering_on_path(
 
         // If PYBUDA_FORK_JOIN_SKIP_EXPANDING_BUFFERS is enabled we don't want to expand buffers for regular ops.
         // This will cause the algorithm to resort to adding nops/buffers to buffer the path.
-        // NOTE: Here we don't skip buffering ops (nops), because after we add nops, this code will be executed again to expand their input buffers.
+        // NOTE: Here we don't skip buffering ops (nops), because after we add nops, this code will be executed again to
+        // expand their input buffers.
         if (skip_expanding_buffers && !node->as<graphlib::BudaOpNode>()->is_buffering_op())
         {
             prev_node = node;
@@ -1594,7 +1625,8 @@ void add_buffering_on_path(
         // If enabled, expand output buffer - except for join node since that doesn't help with fork-join buffering.
         if (expand_output_buffers && path.back() != node)
         {
-            output_buffer_tiles_added = expand_output_buffer(graph, node, op_model, scale_usable_l1_size, usable_l1_size, op_models_post_placer, op_models);
+            output_buffer_tiles_added = expand_output_buffer(
+                graph, node, op_model, scale_usable_l1_size, usable_l1_size, op_models_post_placer, op_models);
         }
 
         float next_output_multiplier = 1.0;
@@ -1614,7 +1646,7 @@ void add_buffering_on_path(
                 }
                 else
                 {
-                    // if available_space is 0 then we skip to the next op in path. 
+                    // if available_space is 0 then we skip to the next op in path.
                     continue;
                 }
                 std::uint32_t grid_size = op_model.grid_shape.volume();
@@ -1638,7 +1670,8 @@ void add_buffering_on_path(
                         input_multiplier /= (float)std::get<int>(tm.attr[1]);
                 }
                 std::uint32_t effective_available_space = available_space * input_multiplier;
-                next_output_multiplier = get_output_multiplier(node, input_multiplier, op_model, e.consumer_input_port_id);
+                next_output_multiplier =
+                    get_output_multiplier(node, input_multiplier, op_model, e.consumer_input_port_id);
 
                 // Only expand input buffers if expanding output buffers is disabled.
                 if (!expand_output_buffers)
@@ -1651,15 +1684,16 @@ void add_buffering_on_path(
                     }
                     else
                     {
-                        effective_add_amount = ceil((float)std::min(to_add, effective_available_space) / (float)grid_size);
+                        effective_add_amount =
+                            ceil((float)std::min(to_add, effective_available_space) / (float)grid_size);
                         add_amount = effective_add_amount / input_multiplier;
                     }
                     add_amount -=
                         add_amount % (op_model.input_buffers.at(e.consumer_input_port_id).block_shape.volume_no_t());
-
                 }
 
-                effective_add_amount = add_amount * input_multiplier + output_buffer_tiles_added * next_output_multiplier;
+                effective_add_amount =
+                    add_amount * input_multiplier + output_buffer_tiles_added * next_output_multiplier;
                 if (add_amount > 0 && outside_fj)
                 {
                     // we only want to increase input l1 buffers to nodes that are not part of already buffered inner
@@ -1725,7 +1759,7 @@ void add_buffering_on_path(
         int buff_mem_consumption = buffering_queues_mem_consumption(instructions) +
                                    buffering_queues_mem_consumption(previous_ins_instructions);
         Node *src = path[0];
-        std::vector<Node*> dests;
+        std::vector<Node *> dests;
         // currently if src is recompute, we skip adding queue
         // because of possible graph change (reconnecting consumers from recompute node)
         // that results in hang.
@@ -1794,8 +1828,6 @@ void add_buffering_on_path(
                     }
                 }
             }
-
-            fj_graph.add_nop_buffered_fj(&fj);
         }
         else
         {
@@ -1888,9 +1920,9 @@ void add_buffering_on_path(
                     }
                 }
             }
-
-            fj_graph.add_nop_buffered_fj(&fj);
         }
+
+        fj_graph.add_fj_buffered_with_instr(&fj);
     }
 
     FJBufferingInfo fj_buff_info =
@@ -1905,8 +1937,7 @@ each key in instructions there is the key in previous_instructions and values ma
 output are 0.
 */
 std::tuple<bool, int, int> is_subset_of_instructions(
-    const InsertionInstructionMap &instructions,
-    const InsertionInstructionMap &previous_instructions)
+    const InsertionInstructionMap &instructions, const InsertionInstructionMap &previous_instructions)
 {
     bool instr_not_updated = true;
     int num_new_nops = 0;
@@ -1963,13 +1994,11 @@ std::tuple<bool, int, int> is_subset_of_instructions(
     return std::tuple<bool, int, int>(instr_not_updated, num_new_nops, num_new_queues);
 }
 
-std::shared_ptr<InsertionInstruction> merge_instructions(std::shared_ptr<InsertionInstruction> &prev_instr, std::shared_ptr<InsertionInstruction> &instr)
+std::shared_ptr<InsertionInstruction> merge_instructions(
+    std::shared_ptr<InsertionInstruction> &prev_instr, std::shared_ptr<InsertionInstruction> &instr)
 {
     TT_ASSERT(
-        prev_instr->is_fj_buffering
-        && instr->is_fj_buffering
-        && !prev_instr->user_defined
-        && !instr->user_defined,
+        prev_instr->is_fj_buffering && instr->is_fj_buffering && !prev_instr->user_defined && !instr->user_defined,
         "We should merge only non user defined fj buffering instructions");
 
     if (prev_instr->instr_type == InstructionType::QueueInstruction)
@@ -1981,8 +2010,8 @@ std::shared_ptr<InsertionInstruction> merge_instructions(std::shared_ptr<Inserti
         }
 
         TT_ASSERT(instr->instr_type == InstructionType::QueueInstruction);
-        std::shared_ptr<QueueInsertionInstruction> merged_instr = std::make_shared<QueueInsertionInstruction>(
-            *static_cast<QueueInsertionInstruction *>(prev_instr.get()));
+        std::shared_ptr<QueueInsertionInstruction> merged_instr =
+            std::make_shared<QueueInsertionInstruction>(*static_cast<QueueInsertionInstruction *>(prev_instr.get()));
         merged_instr->num_entries = std::max(
             static_cast<QueueInsertionInstruction *>(instr.get())->num_entries,
             static_cast<QueueInsertionInstruction *>(prev_instr.get())->num_entries);
@@ -2001,8 +2030,8 @@ std::shared_ptr<InsertionInstruction> merge_instructions(std::shared_ptr<Inserti
     }
 
     TT_ASSERT(instr->instr_type == InstructionType::NopInstruction);
-    std::shared_ptr<NopInsertionInstruction> merged_instr = std::make_shared<NopInsertionInstruction>(
-        *static_cast<NopInsertionInstruction *>(prev_instr.get()));
+    std::shared_ptr<NopInsertionInstruction> merged_instr =
+        std::make_shared<NopInsertionInstruction>(*static_cast<NopInsertionInstruction *>(prev_instr.get()));
     merged_instr->nop_count += static_cast<NopInsertionInstruction *>(instr.get())->nop_count;
     return merged_instr;
 }
@@ -2012,8 +2041,8 @@ std::shared_ptr<InsertionInstruction> merge_instructions(std::shared_ptr<Inserti
 // 1. An instruction with the same key already exists in the previous instructions map.
 //      - If both the new one and the old one are NOP instructions (aggregate the nop count).
 //      - If both the new one and the old one are Queue instructions (aggregate the num_entries).
-//      - If the new one is a Queue instruction and the old one is a NOP instruction - replace the old one with the new one
-//      (queues have precedence over nops).
+//      - If the new one is a Queue instruction and the old one is a NOP instruction - replace the old one with the new
+//      one (queues have precedence over nops).
 //      - If the new one is a NOP instruction and the old one is a Queue instruction - this shouldn't happen
 // 2. There is no instruction with the same key in the previous instructions map.
 //      - If the dest node for the new instruction is not a buffering op, then this is a completely new instruction, so
@@ -2034,8 +2063,8 @@ InsertionInstructionMap merge_with_prev_instr(
     {
         // Check if instruction is still valid.
         const auto instr = elem.second;
-        Node* src = graph->get_node_by_name(instr->src, false);
-        Node* dest = graph->get_node_by_name(instr->dest, false);
+        Node *src = graph->get_node_by_name(instr->src, false);
+        Node *dest = graph->get_node_by_name(instr->dest, false);
 
         if (src == nullptr || dest == nullptr)
         {
@@ -2044,7 +2073,8 @@ InsertionInstructionMap merge_with_prev_instr(
             continue;
         }
 
-        auto operand_edges = graph->operand_data_edges(dest, [instr](Edge e) { return e.consumer_input_port_id == instr->input_id; });
+        auto operand_edges =
+            graph->operand_data_edges(dest, [instr](Edge e) { return e.consumer_input_port_id == instr->input_id; });
         if (operand_edges.size() != 1)
         {
             log_debug(LogGraphCompiler, "Instruction {} is no longer valid. Removing it.", instr);
@@ -2063,14 +2093,17 @@ InsertionInstructionMap merge_with_prev_instr(
 
         if (combined_instructions.count(key) != 0)
         {
-            log_trace(LogGraphCompiler, "Found an existing instruction in prev_instructions with the same key as the new one!");
+            log_trace(
+                LogGraphCompiler,
+                "Found an existing instruction in prev_instructions with the same key as the new one!");
             combined_instructions[key] = merge_instructions(combined_instructions[key], instr);
         }
         else
         {
             Node *dest = graph->get_node_by_name(instr->dest);
 
-            if (dest->node_type() == graphlib::kBudaOp && dest->as<graphlib::BudaOpNode>()->is_buffering_op() && previous_instructions.size() && !legacy_path)
+            if (dest->node_type() == graphlib::kBudaOp && dest->as<graphlib::BudaOpNode>()->is_buffering_op() &&
+                previous_instructions.size() && !legacy_path)
             {
                 // New instruction has a buffering op as a destination node. This means that we have
                 // the previous instruction for this edge - which originally added this nop.
@@ -2084,8 +2117,8 @@ InsertionInstructionMap merge_with_prev_instr(
                     auto users = graph->user_data_edges(current_op);
                     if (users.size() > 1)
                     {
-                        // This can only happen if some of the nops we've added have been merged into one (via mergeable flag).
-                        // For now, just add the new instruction regardless and continue to the next instruction.
+                        // This can only happen if some of the nops we've added have been merged into one (via mergeable
+                        // flag). For now, just add the new instruction regardless and continue to the next instruction.
                         combined_instructions[key] = instr;
                         continue;
                     }
@@ -2134,8 +2167,8 @@ void add_queue_instr_based_on_queues_on_other_path(
         {
             balancer::OpModel &op_model = get_op_model(op_models_post_placer, op_models, path_to_buffer[0]);
             std::uint32_t tile_size = balancer::tile_size_bytes(op_model.output_buffers.at(0).data_format);
-            std::uint32_t queue_size = (std::uint32_t)(ceil(
-                buf_queue_num_entries * (float)op_model.op_shape.outputs.at(0).volume_in_tiles() * tile_size));
+            std::uint32_t queue_size = (std::uint32_t)(
+                ceil(buf_queue_num_entries * (float)op_model.op_shape.outputs.at(0).volume_in_tiles() * tile_size));
 
             std::shared_ptr<InsertionInstruction> queue_ins = std::make_shared<QueueInsertionInstruction>(
                 src->name() /* src */,
@@ -2183,39 +2216,42 @@ InsertionInstructionMap generate_graph_buffering(
         // print_fork_join(fj);
 
         // Figure out if buffering is needed.
-        auto [path0_req, path0_has_buff_queue, path0_buf_queue_num_entries] = get_buffering_requirement(
-            graph, op_models_post_placer, op_models, fj.first, fj, fj_graph);
-        auto [path1_req, path1_has_buff_queue, path1_buf_queue_num_entries] = get_buffering_requirement(
-            graph, op_models_post_placer, op_models, fj.second, fj, fj_graph);
+        auto [path0_req, path0_has_buff_queue, path0_buf_queue_num_entries] =
+            get_buffering_requirement(graph, op_models_post_placer, op_models, fj.first, fj, fj_graph);
+        auto [path1_req, path1_has_buff_queue, path1_buf_queue_num_entries] =
+            get_buffering_requirement(graph, op_models_post_placer, op_models, fj.second, fj, fj_graph);
 
         log_trace(LogGraphCompiler, "path0_req = {}, path1_req = {}", path0_req, path1_req);
 
-        if (path0_has_buff_queue != path1_has_buff_queue )
+        if (path0_has_buff_queue != path1_has_buff_queue)
         {
             // one of the paths has buffering queue, and other doesn't. We will add queue to the one that doesn't have
             // queue. after that, we don't need buffering of that fork-join, because all buffering queues have
             // num_entries equal to microbatch size this guaranties that both paths will be able to buffer all tensors
-            // that pass through them in one epoch. 
+            // that pass through them in one epoch.
             // These queue instructions don't conform to maximum queue memory
             // consumption threshold (max_queue_mem). This threshold is introduced for buffering queues that replace
             // nops in buffering fork joins that would require many nops. If all queue instructions exceed
             // max_queue_mem, we will still add buffering queues on fork-joins where we have buffering queue in one
             // path, but we will stop buffering regular fork-joins with buffering queues, and transfer to nops regardles
             // of the path difference
-            if(path0_has_buff_queue)
+            if (path0_has_buff_queue)
             {
-                // path0 has buffering queue and path1 doesn't. we want to add buffering queue to path1 to balance out fork-join
+                // path0 has buffering queue and path1 doesn't. we want to add buffering queue to path1 to balance out
+                // fork-join
 
-                // create instruction for buffering queue between first and second node of path1 (fj.second), and add it to
-                // existing instructions.
-                add_queue_instr_based_on_queues_on_other_path(graph, fj.second, path0_buf_queue_num_entries, op_models_post_placer, op_models, instructions);
+                // create instruction for buffering queue between first and second node of path1 (fj.second), and add it
+                // to existing instructions.
+                add_queue_instr_based_on_queues_on_other_path(
+                    graph, fj.second, path0_buf_queue_num_entries, op_models_post_placer, op_models, instructions);
             }
             else
             {
-                // path1 has buffering queue and path0 doesn't. we want to add buffering queue to path0 to balance out fork-join
-                // create instruction for buffering queue between first and second node of path0 (fj.first), and add it to
-                // existing instructions.
-                add_queue_instr_based_on_queues_on_other_path(graph, fj.first, path1_buf_queue_num_entries, op_models_post_placer, op_models, instructions);
+                // path1 has buffering queue and path0 doesn't. we want to add buffering queue to path0 to balance out
+                // fork-join create instruction for buffering queue between first and second node of path0 (fj.first),
+                // and add it to existing instructions.
+                add_queue_instr_based_on_queues_on_other_path(
+                    graph, fj.first, path1_buf_queue_num_entries, op_models_post_placer, op_models, instructions);
             }
         }
 
@@ -2223,8 +2259,8 @@ InsertionInstructionMap generate_graph_buffering(
         if (path0_req < path1_req && !path0_has_buff_queue && !path1_has_buff_queue)
         {
             // Path 0 is the short path
-            std::uint32_t available_bufferings = std::get<0>(get_available_buffering(
-                graph, op_models_post_placer, op_models, fj.first, fj, fj_graph));
+            std::uint32_t available_bufferings =
+                std::get<0>(get_available_buffering(graph, op_models_post_placer, op_models, fj.first, fj, fj_graph));
             log_trace(LogGraphCompiler, "path0 available: {}", available_bufferings);
             if (path1_req > available_bufferings)
             {
@@ -2247,8 +2283,8 @@ InsertionInstructionMap generate_graph_buffering(
         else if (path1_req < path0_req && !path1_has_buff_queue && !path0_has_buff_queue)
         {
             // Path 1 is the short path
-            std::uint32_t available_bufferings = std::get<0>(get_available_buffering(
-                graph, op_models_post_placer, op_models, fj.second, fj, fj_graph));
+            std::uint32_t available_bufferings =
+                std::get<0>(get_available_buffering(graph, op_models_post_placer, op_models, fj.second, fj, fj_graph));
             log_trace(LogGraphCompiler, "path1 available: {}", available_bufferings);
             if (path0_req > available_bufferings)
             {
@@ -2326,13 +2362,7 @@ FJBufferingResult insert_fork_join_buffering(
     // Find buffering locations due to mismatched paths, and adjust buffers
     //
     InsertionInstructionMap instructions = generate_graph_buffering(
-            graph,
-            fj_graph,
-            op_models_post_placer,
-            op_models,
-            usable_l1_size,
-            previous_ins_instructions,
-            buffering_factor);
+        graph, fj_graph, op_models_post_placer, op_models, usable_l1_size, previous_ins_instructions, buffering_factor);
 
     // if instructions is not subset of previous instructions, then we have some new instructions (nop or queue)
 
@@ -2352,9 +2382,9 @@ FJBufferingResult insert_fork_join_buffering(
     FJBufferingResult res;
     res.instructions = instructions;
 
-    for (auto& fj: fj_graph.get_nop_buffered_fjs())
+    for (auto &fj : fj_graph.get_fjs_buffered_with_instr())
     {
-        res.nop_buffered_fjs.push_back(*fj);
+        res.fjs_buffered_with_instr.push_back(*fj);
     }
 
     return res;

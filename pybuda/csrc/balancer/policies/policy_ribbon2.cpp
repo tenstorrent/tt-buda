@@ -795,9 +795,9 @@ bool buffer_fork_joins(
             prev_inst,
             &ribbon_buffering_factor);
 
-        for (auto &fj : fj_buffering.nop_buffered_fjs)
+        for (auto &fj : fj_buffering.fjs_buffered_with_instr)
         {
-            // Extract all fork and join nodes of nop buffered fork-joins.
+            // Extract all fork and join nodes of both nop and queue buffered fork-joins.
             fork_and_join_nodes.insert(fj.first[0]->id());
             fork_and_join_nodes.insert(fj.first.back()->id());
         }

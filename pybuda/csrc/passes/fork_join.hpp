@@ -4,8 +4,8 @@
 #pragma once
 
 #include <optional>
-#include <string>
 #include <set>
+#include <string>
 
 #include "balancer/types.hpp"
 #include "graph_lib/defines.hpp"
@@ -23,7 +23,7 @@ class Node;
 
 // Instruct pre-placer to insert a NOP between src/dest nodes
 // Further information on iteration attempt, etc. can be added in the future to augment this
-enum class InstructionType: std::uint8_t
+enum class InstructionType : std::uint8_t
 {
     NopInstruction,
     QueueInstruction
@@ -52,10 +52,10 @@ using ForkJoin = std::pair<std::vector<graphlib::Node *>, std::vector<graphlib::
 // information on buffered fork-join
 struct FJBufferingInfo
 {
-    graphlib::Node *join;          /* join node ptr */
-    std::uint32_t req;   /* required buffering */
-    std::uint32_t avail; /* available buffering */
-    const ForkJoin *fj;  /* pointer to buffered fork-join */
+    graphlib::Node *join; /* join node ptr */
+    std::uint32_t req;    /* required buffering */
+    std::uint32_t avail;  /* available buffering */
+    const ForkJoin *fj;   /* pointer to buffered fork-join */
 
     FJBufferingInfo(graphlib::Node *join, std::uint32_t req, std::uint32_t avail, const ForkJoin *fj) :
         join(join), req(req), avail(avail), fj(fj)
@@ -98,13 +98,20 @@ struct InsertionInstruction
         std::optional<std::uint32_t> fork_id = std::nullopt,
         bool user_defined = false,
         bool is_fj_buffering = false) :
-        instr_type(instr_type), src(src), dest(dest), hoist_tms(hoist_tms), input_id(input_id), fork_id(fork_id), user_defined(user_defined), is_fj_buffering(is_fj_buffering)
+        instr_type(instr_type),
+        src(src),
+        dest(dest),
+        hoist_tms(hoist_tms),
+        input_id(input_id),
+        fork_id(fork_id),
+        user_defined(user_defined),
+        is_fj_buffering(is_fj_buffering)
     {
     }
 
     virtual ~InsertionInstruction() = default;
 
-    InsInstructionUniqueId unique_id() const 
+    InsInstructionUniqueId unique_id() const
     {
         return std::make_tuple(
             this->src,
@@ -128,9 +135,10 @@ struct InsertionInstruction
     }
 };
 
-std::ostream &operator<<(std::ostream &out, const InsertionInstruction* ins);
+std::ostream &operator<<(std::ostream &out, const InsertionInstruction *ins);
 
-using InsertionInstructionMap = tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>;
+using InsertionInstructionMap =
+    tt::ordered_map<InsInstructionUniqueId, std::shared_ptr<InsertionInstruction>, InsInstructionUniqueIdHash>;
 
 struct PyInsertionInstruction : public InsertionInstruction
 {
@@ -161,12 +169,14 @@ struct NopInsertionInstruction : public InsertionInstruction
         bool daisy_chain = false,
         bool request_merge = false,
         bool is_fj_buffering = false) :
-        InsertionInstruction(InstructionType::NopInstruction, src, dest, hoist_tms, input_id, fork_id, user_defined, is_fj_buffering),
+        InsertionInstruction(
+            InstructionType::NopInstruction, src, dest, hoist_tms, input_id, fork_id, user_defined, is_fj_buffering),
         nop_count(nop_count),
         mergeable(mergeable),
         daisy_chain(daisy_chain),
         request_merge(request_merge)
-    {}
+    {
+    }
 
     void insert(graphlib::Graph *graph) override;
     void set_nop_count(int nop_count) { this->nop_count = nop_count; };
@@ -175,7 +185,8 @@ struct NopInsertionInstruction : public InsertionInstruction
     {
         return InsertionInstruction::to_string() + ", nop_count: " + std::to_string(nop_count) +
                ", mergeable: " + std::to_string(mergeable) + ", daisy_chain: " + std::to_string(daisy_chain) +
-               ", request_merge: " + std::to_string(request_merge) + ", is_fj_buffering: " + std::to_string(is_fj_buffering);
+               ", request_merge: " + std::to_string(request_merge) +
+               ", is_fj_buffering: " + std::to_string(is_fj_buffering);
     }
 };
 
@@ -195,10 +206,12 @@ struct QueueInsertionInstruction : public InsertionInstruction
         std::optional<std::uint32_t> fork_id = std::nullopt,
         bool user_defined = false,
         bool is_fj_buffering = false) :
-        InsertionInstruction(InstructionType::QueueInstruction, src, dest, hoist_tms, input_id, fork_id, user_defined, is_fj_buffering),
+        InsertionInstruction(
+            InstructionType::QueueInstruction, src, dest, hoist_tms, input_id, fork_id, user_defined, is_fj_buffering),
         num_entries(num_entries),
         queue_size(queue_size)
-    {}
+    {
+    }
 
     void insert(graphlib::Graph *graph) override;
     void set_num_entries(int num_entries) { this->num_entries = num_entries; };
@@ -214,8 +227,8 @@ struct FJBufferingResult
 {
     // Instructions generated for fork-join buffering.
     InsertionInstructionMap instructions;
-    // All fork-joins which were buffered with nops.
-    std::vector<ForkJoin> nop_buffered_fjs;
+    // All fork-joins which were buffered with either nop or queue instructions.
+    std::vector<ForkJoin> fjs_buffered_with_instr;
 };
 
 // Insert buffers to match short/long forks
@@ -232,8 +245,7 @@ void upsize_dram_input(graphlib::Graph *graph, balancer::OpModelMap &op_models, 
 
 // Checking if two maps of instructions are equal
 std::tuple<bool, int, int> is_subset_of_instructions(
-    const InsertionInstructionMap &instructions,
-    const InsertionInstructionMap &previous_instructions);
+    const InsertionInstructionMap &instructions, const InsertionInstructionMap &previous_instructions);
 
 class FJGraph
 {
@@ -250,7 +262,7 @@ class FJGraph
     // itself.
     std::unordered_map<graphlib::NodeId, std::vector<FJBufferingInfo>> buffered_fjs;
     std::unordered_map<const ForkJoin *, const ForkJoin *> parent_fj_map;
-    std::vector<const ForkJoin *> nop_buffered_fjs;
+    std::vector<const ForkJoin *> fjs_buffered_with_instr;
 
    public:
     FJGraph(graphlib::Graph *graph);
@@ -261,18 +273,17 @@ class FJGraph
 
     void create_parents_map();
 
-    FJBufferingInfo find_sub_fork_join_from_node(const ForkJoin &fj, const std::vector<graphlib::Node *> &path, graphlib::Node *fork);
+    FJBufferingInfo find_sub_fork_join_from_node(
+        const ForkJoin &fj, const std::vector<graphlib::Node *> &path, graphlib::Node *fork);
 
     void update_buffered_fj_map(const ForkJoin &fj, FJBufferingInfo fj_buff_info);
 
     // getters
     std::unordered_map<const ForkJoin *, const ForkJoin *> &get_parent_fj_map() { return parent_fj_map; }
 
-    const std::unordered_map<graphlib::NodeId, std::vector<FJBufferingInfo>> &get_buffered_fjs() { return buffered_fjs; }
-
     std::vector<const ForkJoin *> get_topo_sorted_fjs() { return topo_sort_fjs; }
     std::vector<ForkJoin> &get_fjs() { return fork_joins; }
-    std::vector<const ForkJoin *> &get_nop_buffered_fjs() { return nop_buffered_fjs; }
+    std::vector<const ForkJoin *> &get_fjs_buffered_with_instr() { return fjs_buffered_with_instr; }
 
     // setters
 
@@ -281,7 +292,7 @@ class FJGraph
     // erase element with the key fork_id and index idx from the map
     void erase_elem_from_buffered_fjs(graphlib::NodeId fork_id, std::size_t idx);
 
-    void add_nop_buffered_fj(const ForkJoin *fj) { nop_buffered_fjs.push_back(fj); }
+    void add_fj_buffered_with_instr(const ForkJoin *fj) { fjs_buffered_with_instr.push_back(fj); }
 };
 
 }  // namespace tt
