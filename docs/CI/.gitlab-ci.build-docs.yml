@@ -48,3 +48,37 @@ build-docs-staging:
     - git commit -m "update docs from pipeline $CI_PIPELINE_ID"
     - git push
 
+# Job for building and pushing markdown to the new docsite repo
+# Note: the repo name will need to be updated when the docsite goes live, as the name will be changed from docs-test
+build-docs-docsite:
+  stage: docs
+  artifacts:
+    paths:
+      - docs/public/md
+  needs: 
+    - pybuda-wh-b0-wheel
+    - !reference [.common_deps, needs]
+  tags:
+    - 8-core
+  rules:
+  - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/
+  - if: $CI_COMMIT_BRANCH == "main"
+  script: 
+    - !reference [.common_prep, script]
+    - pip3 install sphinx
+    - pip3 install sphinx-markdown-builder
+    - sphinx-build -M markdown docs/public docs/public/md
+    - cp -r docs/public/images docs/public/md/markdown
+    - git config --global user.email "tenstorrent-github-bot@tenstorrent.com"
+    - git config --global user.name "tenstorrent-github-bot"
+    - git clone https://tenstorrent-github-bot:${GITHUB_BOT_TOKEN}@github.com/tenstorrent/docs-test.git
+    - cd docs-test
+    - git remote set-url origin https://tenstorrent-github-bot:${GITHUB_BOT_TOKEN}@github.com/tenstorrent/docs-test.git
+    - git checkout main
+    - pip install -r requirements.txt
+    - cp -r ../docs/public/md/* pybuda
+    - python update_tags.py pybuda $$CI_COMMIT_TAG
+    - git add .
+    - git commit -m "update pybuda docs from pipeline $CI_PIPELINE_ID with tag $CI_COMMIT_TAG"
+    - git tag -a $CI_COMMIT_TAG -m "pybuda documentation version $CI_COMMIT_TAG"
+    - git push && git push --tags
