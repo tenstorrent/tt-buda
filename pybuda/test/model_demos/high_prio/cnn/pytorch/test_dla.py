@@ -1,11 +1,14 @@
+import os
+
 import pybuda
 from pybuda.verify.backend import verify_module
 from pybuda import VerifyConfig
 from pybuda.verify import TestKind
 from pybuda._C.backend_api import BackendDevice
-import torch
-import os
+import requests
 import pytest
+import torchvision.transforms as transforms
+from PIL import Image
 
 from test.model_demos.models.dla import (
     dla34,
@@ -45,31 +48,48 @@ def test_dla_pytorch(variant, test_device):
     os.environ["PYBUDA_RIBBON2"] = "1"
 
     func = variants_func[variant]
-    if test_device.arch == BackendDevice.Grayskull:
-        if func.__name__ == "dla102x2":
-            os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
-    elif test_device.arch == BackendDevice.Wormhole_B0:
-        if func.__name__ == "dla60x":
-            compiler_cfg.place_on_new_epoch("concatenate_776.dc.concatenate.0")
-        elif func.__name__ == "dla60x":
-            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "20480"
-
     model_name = f"dla_{variant}_pytorch"
-    input = torch.randn(1, 3, 384, 1280)
+
+    pcc = 0.99
+    if test_device.arch == BackendDevice.Wormhole_B0:
+        if variant == ("dla60", "dla60x"):
+            compiler_cfg.place_on_new_epoch("concatenate_776.dc.concatenate.0")
+    elif test_device.arch == BackendDevice.Grayskull:
+        if func.__name__ in ("dla102x2", "dla169"):
+            os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
+        if func.__name__ == "dla46_c":
+            pcc = 0.97
+
+    # Load data sample
+    url = "https://images.rawpixel.com/image_1300/cHJpdmF0ZS9sci9pbWFnZXMvd2Vic2l0ZS8yMDIyLTA1L3BkMTA2LTA0Ny1jaGltXzEuanBn.jpg"
+    image = Image.open(requests.get(url, stream=True).raw)
+
+    # Preprocessing
+    transform = transforms.Compose(
+        [
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ]
+    )
+    img_tensor = transform(image).unsqueeze(0)
 
     pytorch_model = func(pretrained="imagenet")
+    pytorch_model.eval()
 
     # Create pybuda.PyTorchModule using the loaded Pytorch model
     tt_model = pybuda.PyTorchModule(model_name, pytorch_model)
 
     verify_module(
         tt_model,
-        input_shapes=[input.shape],
-        inputs=[(input,)],
+        input_shapes=[img_tensor.shape],
+        inputs=[(img_tensor,)],
         verify_cfg=VerifyConfig(
             arch=test_device.arch,
             devtype=test_device.devtype,
             devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
+            pcc=pcc,
         ),
     )
