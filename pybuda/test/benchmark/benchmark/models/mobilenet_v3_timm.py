@@ -22,10 +22,6 @@ def mobilenet_v3_timm(training: bool, config: str, microbatch: int, devtype: str
     os.environ["PYBUDA_BALANCER_PREPASS_DISABLED"] = "1"
     os.environ["PYBUDA_ENABLE_HOST_INPUT_NOP_BUFFERING"] = "1"
 
-    # These are about to be enabled by default.
-    #
-    os.environ["PYBUDA_RIBBON2_CONSERVATIVE_OPTIMIZATION_ITERATIONS"] = "10"
-
     # Set model parameters based on chosen task and model configuration
     model_name = ""
     if config == "small":

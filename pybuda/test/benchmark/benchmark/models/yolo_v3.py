@@ -31,7 +31,6 @@ def yolo_v3(training: bool, config: str, microbatch: int, devtype: str, arch: st
     if data_type == "Bfp8_b":
         os.environ["PYBUDA_FORK_JOIN_SKIP_EXPANDING_BUFFERS"] = "1"
         os.environ["PYBUDA_ALLOW_MULTICOLUMN_SPARSE_MATMUL"] = "1"
-        os.environ["PYBUDA_RIBBON2_CONSERVATIVE_OPTIMIZATION_ITERATIONS"] = "10"
 
     if data_type == "Fp16_b":
         os.environ["PYBUDA_OVERRIDE_INPUT_QUEUE_ENTRIES"] = "32"

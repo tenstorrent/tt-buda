@@ -106,7 +106,7 @@
  * PYBUDA\_CONCAT\_ON\_HOST: Lower concatenate ops on output nodes into runtime transforms so that they're done on host.
  * PYBUDA\_OP\_MODEL\_COMPARE\_VERSION: Version of op model comparision function. Can be used to compare effect of different comparison logic on performance.
  * PYBUDA\_RIBBON1\_PREPASS\_ENABLED: Whether to use or not suboptimal opmodel invalidation prepass. Default value is False.
- * PYBUDA\_RIBBON2\_OPTIMIZATION\_ITERATIONS: Number of optimization iterations in Ribbon2 balancing policy. Default value is 0.
+ * PYBUDA\_RIBBON2\_CONSERVATIVE\_OPTIMIZATION\_ITERATIONS: Number of optimization iterations in Ribbon2 balancing policy per epoch. Default value is 10.
  * PYBUDA\_RIBBON2\_DISABLE\_CLEANUP\_BUF\_NOPS: Disable cleanup of unneeded buffering nops in Ribbon2. (default: 0/False)
  * PYBUDA\_RIBBON2\_CALCULATE\_TARGET\_CYCLES: Calculate target cycles for every epoch within Ribbon2 balancing policy. (default: 0/False)
  * PYBUDA\_RIBBON2\_CALCULATE\_TARGET\_CYCLES\_APPLY\_FILTERING: Apply filtering on GS search space while calculating dynamic cycles per epoch within Ribbon2 balancing policy. (default: 0/False)

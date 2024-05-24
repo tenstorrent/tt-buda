@@ -25,10 +25,6 @@ def yolo_v5(training: bool, config: str, microbatch: int, devtype: str, arch: st
     # Temp perf workaround for tenstorrent/bbe#2595
     os.environ["PYBUDA_PAD_OUTPUT_BUFFER"] = "1"
 
-    # These are about to be enabled by default.
-    #
-    os.environ["PYBUDA_RIBBON2_CONSERVATIVE_OPTIMIZATION_ITERATIONS"] = "10"
-
     if data_type == "Fp16_b":
         if available_devices[0] != BackendDevice.Grayskull:
             os.environ["PYBUDA_FORK_JOIN_BUF_QUEUES"] = "1"

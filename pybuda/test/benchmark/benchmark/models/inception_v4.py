@@ -20,10 +20,6 @@ def inception_v4(training: bool, config: str, microbatch: int, devtype: str, arc
         compiler_cfg.balancer_policy = "Ribbon"
         os.environ["PYBUDA_RIBBON2"] = "1"
 
-    # These are about to be enabled by default.
-    #
-    os.environ["PYBUDA_RIBBON2_CONSERVATIVE_OPTIMIZATION_ITERATIONS"] = "10"
-
     # Set model parameters based on chosen task and model configuration
     if config == "224":
         model_name = "inception_v4"

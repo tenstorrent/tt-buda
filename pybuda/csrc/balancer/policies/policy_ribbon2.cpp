@@ -28,113 +28,62 @@ using NodeType = tt::graphlib::NodeType;
 namespace tt::balancer
 {
 
-OpModel get_closest_op_model(
-    const legalizer::GraphSolver &graph_solver_snapshot,
-    const OpModel &op_model_target,
-    const BalancerConfig *balancer_config,
-    const graphlib::Graph *graph)
-{
-    std::optional<OpModel> closest_model = std::nullopt;
-
-    const OpModels &selected_op_models = graph_solver_snapshot.get_selected_op_models();
-
-    for (const auto &op_model : graph_solver_snapshot.at(op_model_target.buda_op_node))
-    {
-        // try to set the same op model as before, if possible. If not, then pick the closest one
-        if (op_model == op_model_target)
-        {
-            closest_model = op_model;
-            break;
-        }
-        else if (op_model.is_similar(op_model_target))
-        {
-            closest_model = op_model;
-            break;
-        }
-        if (!closest_model.has_value())
-        {
-            closest_model = op_model;
-        }
-        else
-        {
-            auto my_delta = std::abs(
-                get_limiter_cycles(op_model, graph, *balancer_config, &selected_op_models) -
-                get_limiter_cycles(op_model_target, graph, *balancer_config, &selected_op_models));
-            auto best_delta = std::abs(
-                get_limiter_cycles(*closest_model, graph, *balancer_config, &selected_op_models) -
-                get_limiter_cycles(op_model_target, graph, *balancer_config, &selected_op_models));
-
-            if (my_delta < best_delta)
-            {
-                closest_model = op_model;
-            }
-            else if (my_delta == best_delta)
-            {
-                // Prefer the same shape
-                if (op_model_target.grid_shape == op_model.grid_shape)
-                {
-                    closest_model = op_model;
-                }
-            }
-        }
-    }
-    TT_ASSERT(closest_model.has_value());
-    return closest_model.value();
-}
-
 std::optional<OpModel> get_closest_op_model_conservative(
     const legalizer::GraphSolver &graph_solver_snapshot,
     const OpModel &op_model_target,
-    const OpModels *selected_op_models_target,
+    EpochSolution &current_solution,
+    const int target_limiter_cycles,
     const BalancerConfig *balancer_config,
     const graphlib::Graph *graph,
     const int ribbon_size)
 {
     std::optional<OpModel> closest_model = std::nullopt;
-    const OpModels &selected_op_models = graph_solver_snapshot.get_selected_op_models();
 
     for (const auto &op_model : graph_solver_snapshot.at(op_model_target.buda_op_node))
     {
         if (op_model == op_model_target)
         {
             closest_model = op_model;
-            break;
+            return closest_model;
         }
         else if (op_model.is_similar(op_model_target))
         {
             closest_model = op_model;
-            break;
+            return closest_model;
         }
-        else
-        {
-            if (ribbon_size == op_model.grid_shape.r || op_model_target.grid_shape.r == op_model.grid_shape.r)
-            {
-                if (closest_model.has_value())
-                {
-                    int my_delta = std::abs(
-                        get_limiter_cycles(op_model, graph, *balancer_config, &selected_op_models) -
-                        get_limiter_cycles(op_model_target, graph, *balancer_config, selected_op_models_target));
-                    int best_delta = std::abs(
-                        get_limiter_cycles(*closest_model, graph, *balancer_config, &selected_op_models) -
-                        get_limiter_cycles(op_model_target, graph, *balancer_config, selected_op_models_target));
+    }
 
-                    if (my_delta < best_delta)
+    int best_delta = std::numeric_limits<int>::max();
+
+    for (const auto &op_model : graph_solver_snapshot.at(op_model_target.buda_op_node))
+    {
+        if (ribbon_size == op_model.grid_shape.r || op_model_target.grid_shape.r == op_model.grid_shape.r)
+        {
+            int my_delta = target_limiter_cycles - get_limiter_cycles(
+                                                       op_model,
+                                                       graph,
+                                                       *balancer_config,
+                                                       current_solution.get_dram_access_core_count(),
+                                                       current_solution.get_pcie_access_core_count(),
+                                                       &current_solution.get_current_epoch_nodes(),
+                                                       false /* invalidate_cache */,
+                                                       &current_solution.current_epoch_op_models);
+
+            if (my_delta >= 0)
+            {
+                if (my_delta < best_delta)
+                {
+                    closest_model = op_model;
+                    best_delta = my_delta;
+                }
+                else if (my_delta == best_delta)
+                {
+                    // Prefer the same shape
+                    //
+                    if (op_model_target.grid_shape == op_model.grid_shape)
                     {
                         closest_model = op_model;
                     }
-                    else if (my_delta == best_delta)
-                    {
-                        // Prefer the same shape
-                        //
-                        if (op_model_target.grid_shape == op_model.grid_shape)
-                        {
-                            closest_model = op_model;
-                        }
-                    }
-                }
-                else
-                {
-                    closest_model = op_model;
                 }
             }
         }
@@ -143,242 +92,23 @@ std::optional<OpModel> get_closest_op_model_conservative(
     return closest_model;
 }
 
-// Optimize a solution by iteratively bumping up grids of the slowest ops, as long as that
-// improves the utilization of the epoch. We ideally try to stick to the same ribbon size, but if
-// that's not possible, we'll bump up the grid to anything available that's slightly better than
-// the current grid.
-EpochSolution optimize_solution(
-    const EpochSolution &solution,
-    const legalizer::GraphSolver &graph_solver,
-    placer::InteractivePlacer &interactive_placer,
-    const graphlib::Graph *graph,
-    std::uint32_t max_iterations)
+bool operand_of_datacopy_output_node(const graphlib::Graph *graph, const graphlib::Node *node)
 {
-    log_trace(LogBalancer, "RIBBON2: optimize solution, score {}, coming in:", solution.get_score());
-    solution.print();
-
-    EpochSolution best_solution = solution;
-
-    std::uint32_t iterations = 0;
-    std::uint32_t bad_iterations = 0;  // number of iterations in a row that made thing worse
-    const BalancerConfig *balancer_config = solution.get_balancer_config();  // save some typing
-
-    while ((bad_iterations < 3) && (iterations < max_iterations))
+    for (const graphlib::Node *user_node : graph->data_users(node))
     {
-        // Find the slowest cycle count
-        float slowest_cycles = 0;
-        for (const auto &op_model : best_solution.get_selected_op_models())
+        if (user_node->node_type() == graphlib::NodeType::kOutput)
         {
-            float cycles =
-                get_limiter_cycles(op_model, graph, *balancer_config, &best_solution.get_current_epoch_op_models());
-            if (cycles > slowest_cycles)
-                slowest_cycles = cycles;
-        }
-
-        // Now go through the models, and bump up the ones that are slowest
-        auto graph_solver_snapshot = std::make_unique<legalizer::GraphSolver>(graph_solver);
-        const OpModels *selected_op_models = &graph_solver_snapshot->get_selected_op_models();
-        auto new_solution = best_solution;
-        auto target_cycles = 0.9 * slowest_cycles;
-        std::vector<OpModel> blacklisted_models;  // models from previous bad iterations that shouldn't be tried again
-        log_trace(LogBalancer, "RIBBON2: target_cycles = {}", target_cycles);
-        for (std::size_t op_index = 0; op_index < new_solution.get_selected_op_models().size(); op_index++)
-        {
-            const auto &op_model = new_solution.get_selected_op_models()[op_index];
-            bool is_sparse_matmul = op_model.buda_op_node->is_sparse_matmul();
-            float cycles = get_limiter_cycles(op_model, graph, *balancer_config, selected_op_models);
-            if (cycles < target_cycles)
+            std::function<bool(tt::graphlib::Edge)> is_partial_datacopy_edge = [](Edge e)
+            { return (e.edge_type == graphlib::EdgeType::kPartialDataCopy); };
+            std::vector<graphlib::Edge> partial_datacopy_edges = graph->user_edges(user_node, is_partial_datacopy_edge);
+            if (!partial_datacopy_edges.empty())
             {
-                log_trace(LogBalancer, "RIBBON2: op {} is fast enough", op_model.buda_op_node->name());
-                auto closest_model = get_closest_op_model(*graph_solver_snapshot, op_model, balancer_config, graph);
-                graph_solver_snapshot->set(op_model.buda_op_node, closest_model);
-                if (!(closest_model == op_model))
-                {
-                    log_trace(
-                        LogBalancer,
-                        "RIBBON2: had to change the grid to {} with cycles {}",
-                        closest_model.grid_shape,
-                        get_limiter_cycles(closest_model, graph, *balancer_config, selected_op_models));
-                    new_solution.update_model(op_index, closest_model);
-                }
-            }
-            else
-            {
-                // Bump up the grid
-                // Ideally, use the same ribbon size first
-                log_trace(LogBalancer, "RIBBON2: op {} is too slow, bumping up grid", op_model.buda_op_node->name());
-                std::optional<OpModel> new_op_model = std::nullopt;
-                for (bool same_ribbon : {true, false})
-                {
-                    // Check for the case where none of the grids can have prologue, and then waive it
-                    bool waive_prologue = true;
-                    for (const auto &op_model : graph_solver_snapshot->at(op_model.buda_op_node))
-                    {
-                        if (prologue_ok(op_model))
-                        {
-                            waive_prologue = false;
-                            break;
-                        }
-                    }
-
-                    for (const auto &op_model : graph_solver_snapshot->at(op_model.buda_op_node))
-                    {
-                        log_trace(
-                            LogBalancer,
-                            "RIBBON2: trying grid {} with cycles {}, for same ribbon {}",
-                            op_model.grid_shape,
-                            get_limiter_cycles(op_model, graph, *balancer_config, selected_op_models),
-                            same_ribbon);
-                        if (is_sparse_matmul)
-                        {
-                            log_trace(
-                                LogBalancer,
-                                "RIBBON2: trying sparse_matmul grid {} with cycles {}, u_kt = {}",
-                                op_model.grid_shape,
-                                get_limiter_cycles(op_model, graph, *balancer_config, selected_op_models),
-                                op_model.input_buffers.at(1).block_shape.ublock.rt);
-                        }
-
-                        if (std::find(blacklisted_models.begin(), blacklisted_models.end(), op_model) !=
-                            blacklisted_models.end())
-                        {
-                            log_trace(LogBalancer, "RIBBON2: skipping blacklisted op_model");
-                            continue;
-                        }
-
-                        if (!waive_prologue && !prologue_ok(op_model))
-                            continue;
-
-                        if (same_ribbon && (op_model.grid_shape.r != (int)new_solution.get_ribbon_size()))
-                            continue;
-
-                        if (get_limiter_cycles(op_model, graph, *balancer_config, selected_op_models) >= slowest_cycles)
-                            continue;
-
-                        // Find the slowest improvement over the current op_model, to reduce drastic changes
-                        if (!new_op_model.has_value() ||  // nothing has been picked
-
-                            // current best is improvement, but not +10%
-                            ((get_limiter_cycles(*new_op_model, graph, *balancer_config, selected_op_models) >=
-                              target_cycles) &&
-                             (get_limiter_cycles(op_model, graph, *balancer_config, selected_op_models) <
-                              target_cycles)) ||
-
-                            // pick slower improvement
-                            (get_limiter_cycles(*new_op_model, graph, *balancer_config, selected_op_models) <
-                             get_limiter_cycles(op_model, graph, *balancer_config, selected_op_models)))
-                        {
-                            new_op_model = op_model;
-                            log_trace(
-                                LogBalancer,
-                                "RIBBON2: setting new grid for {}: {} with cycles {}",
-                                op_model.buda_op_node->name(),
-                                op_model.grid_shape,
-                                get_limiter_cycles(op_model, graph, *balancer_config, selected_op_models));
-                        }
-                    }
-                    if (same_ribbon && new_op_model.has_value())
-                        break;  // don't try changing the ribbon size, since we found an improvement with the same
-                                // ribbon
-                }
-
-                // If we found a larger grid, then use it
-                if (new_op_model.has_value())
-                {
-                    log_trace(
-                        LogBalancer,
-                        "RIBBON2: bumping up {} from {} to {}",
-                        op_model.buda_op_node->name(),
-                        op_model.grid_shape,
-                        new_op_model->grid_shape);
-                    new_solution.update_model(op_index, new_op_model.value());
-                    graph_solver_snapshot->set(op_model.buda_op_node, new_op_model.value());
-                    blacklisted_models.push_back(new_op_model.value());  // record in case this bump ended up being bad
-                }
-                else
-                {
-                    // We haven't found anything better, set the same (or closest legal)
-                    auto closest_model = get_closest_op_model(*graph_solver_snapshot, op_model, balancer_config, graph);
-                    new_solution.update_model(op_index, closest_model);
-                    graph_solver_snapshot->set(op_model.buda_op_node, closest_model);
-                }
+                return true;
             }
         }
-
-        // We need to place this new solution to see how much of it actually fits
-        std::size_t placed_ops = 0;
-        for (std::size_t i = 0; i < new_solution.get_selected_op_models().size(); i++)
-        {
-            const auto &op_model = new_solution.get_selected_op_models()[i];
-            std::optional<placer::CoordRange> op_placement;
-            int placing_step = 1;
-
-            const OpModel *next_op = i < new_solution.get_selected_op_models().size() - 1
-                                         ? &new_solution.get_selected_op_models()[i + 1]
-                                         : nullptr;
-
-            // Special case for sparse-dense matmul pairing. We want to always place them atomically together if
-            // possible.
-            //
-            if (next_op and can_bind_sparse_dense_matmul_pair(
-                                graph,
-                                op_model.buda_op_node,
-                                op_model,
-                                next_op->buda_op_node,
-                                *next_op,
-                                interactive_placer,
-                                true /*allow_transpose*/))
-            {
-                op_placement = interactive_placer.place_two_ops_rowwise(
-                    op_model.buda_op_node->name(),
-                    op_model.grid_shape,
-                    next_op->buda_op_node->name(),
-                    next_op->grid_shape,
-                    true);
-
-                placing_step = 2;
-                i++;
-            }
-            else
-            {
-                op_placement = interactive_placer.place_op(op_model.buda_op_node->name(), op_model.grid_shape, true);
-            }
-
-            if (op_placement.has_value())
-            {
-                placed_ops += placing_step;
-            }
-            else
-            {
-                break;
-            }
-        }
-        interactive_placer.rewind_epoch();  // rewind, we were just testing what fits
-        if (placed_ops < new_solution.get_selected_op_models().size())
-        {
-            // Trim the solution
-            new_solution.set_op_count(placed_ops);
-            log_trace(LogBalancer, "RIBBON2: trimmed solution to {} ops", placed_ops);
-        }
-
-        if (new_solution.get_score() > best_solution.get_score())
-        {
-            best_solution = new_solution;
-            bad_iterations = 0;
-            blacklisted_models.clear();
-            log_trace(LogBalancer, "RIBBON2: improved to {}", best_solution.get_score());
-        }
-        else
-        {
-            bad_iterations++;
-            log_trace(LogBalancer, "RIBBON2: solution got worse, bad iterations in a row = {}", bad_iterations);
-        }
-        iterations++;
     }
 
-    log_trace(LogBalancer, "RIBBON2: optimized solution with score {}:", best_solution.get_score());
-    best_solution.print();
-    return best_solution;
+    return false;
 }
 
 // Optimize a solution by iteratively bumping up grids of the slowest ops, as long as that
@@ -421,8 +151,15 @@ EpochSolution optimize_solution_conservative(
         float slowest_cycles = 0;
         for (const OpModel &op_model : best_solution.get_selected_op_models())
         {
-            float cycles =
-                get_limiter_cycles(op_model, graph, *balancer_config, &best_solution.get_current_epoch_op_models());
+            float cycles = get_limiter_cycles(
+                op_model,
+                graph,
+                *balancer_config,
+                best_solution.get_dram_access_core_count(),
+                best_solution.get_pcie_access_core_count(),
+                &best_solution.get_current_epoch_nodes(),
+                false /* invalidate_cache */,
+                &best_solution.get_current_epoch_op_models());
             if (cycles > slowest_cycles)
                 slowest_cycles = cycles;
         }
@@ -442,15 +179,31 @@ EpochSolution optimize_solution_conservative(
         for (std::size_t op_index = 0; op_index < new_solution.get_selected_op_models().size(); op_index++)
         {
             const OpModel &source_op_model = best_solution.get_selected_op_models()[op_index];
-            float cycles =
-                get_limiter_cycles(source_op_model, graph, *balancer_config, &best_solution.current_epoch_op_models);
+
+            // Mitigation for datacopy output nodes. We don't want to bump up the grid of the datacopy output node.
+            //
+            if (operand_of_datacopy_output_node(graph, source_op_model.buda_op_node))
+            {
+                continue;
+            }
+
+            int cycles = get_limiter_cycles(
+                source_op_model,
+                graph,
+                *balancer_config,
+                best_solution.get_dram_access_core_count(),
+                best_solution.get_pcie_access_core_count(),
+                &best_solution.get_current_epoch_nodes(),
+                false /* invalidate_cache */,
+                &best_solution.current_epoch_op_models);
             if (cycles <= target_cycles)
             {
                 log_trace(LogBalancer, "RIBBON2: op {} is fast enough", source_op_model.buda_op_node->name());
                 std::optional<OpModel> closest_model = get_closest_op_model_conservative(
                     *graph_solver_snapshot,
                     source_op_model,
-                    &best_solution.current_epoch_op_models,
+                    new_solution,
+                    cycles,
                     balancer_config,
                     graph,
                     solution.get_ribbon_size());
@@ -465,7 +218,15 @@ EpochSolution optimize_solution_conservative(
                             LogBalancer,
                             "RIBBON2: had to change the grid to {} with cycles {}",
                             closest_model.value().grid_shape,
-                            get_limiter_cycles(closest_model.value(), graph, *balancer_config, selected_op_models));
+                            get_limiter_cycles(
+                                closest_model.value(),
+                                graph,
+                                *balancer_config,
+                                new_solution.get_dram_access_core_count(),
+                                new_solution.get_pcie_access_core_count(),
+                                &new_solution.get_current_epoch_nodes(),
+                                false /* invalidate_cache */,
+                                &new_solution.current_epoch_op_models));
                         new_solution.update_model(op_index, closest_model.value());
                     }
                 }
@@ -491,7 +252,15 @@ EpochSolution optimize_solution_conservative(
                         LogBalancer,
                         "RIBBON2: trying grid {} with cycles {}",
                         op_model.grid_shape,
-                        get_limiter_cycles(op_model, graph, *balancer_config, selected_op_models));
+                        get_limiter_cycles(
+                            op_model,
+                            graph,
+                            *balancer_config,
+                            new_solution.get_dram_access_core_count(),
+                            new_solution.get_pcie_access_core_count(),
+                            &new_solution.get_current_epoch_nodes(),
+                            false /* invalidate_cache */,
+                            &new_solution.current_epoch_op_models));
 
                     if (op_model.grid_shape.volume() - source_op_model.grid_shape.volume() >
                         new_solution.get_free_cores())
@@ -506,12 +275,35 @@ EpochSolution optimize_solution_conservative(
                     if (op_model.grid_shape.r != (int)new_solution.get_ribbon_size())
                         continue;
 
-                    if (get_limiter_cycles(op_model, graph, *balancer_config, selected_op_models) >= slowest_cycles)
+                    if (get_limiter_cycles(
+                            op_model,
+                            graph,
+                            *balancer_config,
+                            new_solution.get_dram_access_core_count(),
+                            new_solution.get_pcie_access_core_count(),
+                            &new_solution.get_current_epoch_nodes(),
+                            false /* invalidate_cache */,
+                            &new_solution.current_epoch_op_models) >= slowest_cycles)
                         continue;
 
-                    if (!new_op_model.has_value() ||
-                        (get_limiter_cycles(op_model, graph, *balancer_config, selected_op_models) <
-                         get_limiter_cycles(new_op_model.value(), graph, *balancer_config, selected_op_models)))
+                    if (!new_op_model.has_value() || (get_limiter_cycles(
+                                                          op_model,
+                                                          graph,
+                                                          *balancer_config,
+                                                          new_solution.get_dram_access_core_count(),
+                                                          new_solution.get_pcie_access_core_count(),
+                                                          &new_solution.get_current_epoch_nodes(),
+                                                          false /* invalidate_cache */,
+                                                          selected_op_models) <
+                                                      get_limiter_cycles(
+                                                          new_op_model.value(),
+                                                          graph,
+                                                          *balancer_config,
+                                                          new_solution.get_dram_access_core_count(),
+                                                          new_solution.get_pcie_access_core_count(),
+                                                          &new_solution.get_current_epoch_nodes(),
+                                                          false /* invalidate_cache */,
+                                                          selected_op_models)))
                     {
                         new_op_model = op_model;
                         log_trace(
@@ -519,7 +311,15 @@ EpochSolution optimize_solution_conservative(
                             "RIBBON2: setting new grid for {}: {} with cycles {}",
                             op_model.buda_op_node->name(),
                             op_model.grid_shape,
-                            get_limiter_cycles(op_model, graph, *balancer_config, selected_op_models));
+                            get_limiter_cycles(
+                                op_model,
+                                graph,
+                                *balancer_config,
+                                new_solution.get_dram_access_core_count(),
+                                new_solution.get_pcie_access_core_count(),
+                                &new_solution.get_current_epoch_nodes(),
+                                false /* invalidate_cache */,
+                                &new_solution.current_epoch_op_models));
                     }
                 }
 
@@ -545,7 +345,8 @@ EpochSolution optimize_solution_conservative(
                     std::optional<OpModel> closest_model = get_closest_op_model_conservative(
                         *graph_solver_snapshot,
                         source_op_model,
-                        &best_solution.current_epoch_op_models,
+                        new_solution,
+                        cycles,
                         balancer_config,
                         graph,
                         solution.get_ribbon_size());
@@ -726,7 +527,7 @@ bool handle_fork_join_nop_overflow(
     {
         if (!ops_in_curr_epoch.count(op_id))
         {
-            const Node* node = graph->node_by_id(op_id);
+            const Node *node = graph->node_by_id(op_id);
             epoch_break.push_back(node->name());
         }
     }
@@ -772,7 +573,7 @@ bool buffer_fork_joins(
     std::unordered_set<std::string> &epoch_break_ops,
     std::uint32_t &placed_op_index,
     scheduler::Schedule &scheduled_ops,
-    const std::unordered_set<const Node*> &processed_nodes,
+    const std::unordered_set<const Node *> &processed_nodes,
     const tt::scheduler::Schedule &processed_schedule,
     std::unique_ptr<graphlib::GraphTraversalContext> &traversal_context,
     std::uint32_t &nodes_to_process,
@@ -899,8 +700,7 @@ bool apply_solution(
         traversal_context,
         nodes_to_process,
         fork_and_join_nodes,
-        prev_inst
-    );
+        prev_inst);
 
     if (graph_modified)
     {
@@ -1050,11 +850,9 @@ EpochSolution find_solution_for_epoch(
     const std::unordered_set<std::string> &epoch_break_ops,
     const graphlib::NodeEpochType current_epoch_type,
     const std::uint32_t placed_op_index,
-    const std::uint32_t epoch
-)
+    const std::uint32_t epoch)
 {
-    const int max_iterations = env_as<int>("PYBUDA_RIBBON2_OPTIMIZATION_ITERATIONS", 0);
-    const int max_conservative_opt_iterations = env_as<int>("PYBUDA_RIBBON2_CONSERVATIVE_OPTIMIZATION_ITERATIONS", 0);
+    const int max_conservative_opt_iterations = env_as<int>("PYBUDA_RIBBON2_CONSERVATIVE_OPTIMIZATION_ITERATIONS", 10);
 
     // In case of recompile, we can offset the target cycles to get a different solution.
     const int target_cycles = env_as<int>("PYBUDA_RIBBON_TARGET_CYCLES", 95000) + config.target_cycles_offset;
@@ -1069,21 +867,11 @@ EpochSolution find_solution_for_epoch(
         env_as<int>((std::string("PYBUDA_RIBBON2_TARGET_CYCLES_FOR_EPOCH") + std::to_string(epoch)).c_str(), 0);
     int epoch_target_cycles = (force_target_cycles != 0) ? force_target_cycles : target_cycles;
 
-    const int force_optimization_iterations = env_as<int>(
-        (std::string("PYBUDA_RIBBON2_OPTIMIZATION_ITERATIONS_FOR_EPOCH") + std::to_string(epoch)).c_str(), -1);
-    const int epoch_max_iterations =
-        (force_optimization_iterations != -1) ? force_optimization_iterations : max_iterations;
-
     const int force_ribbon =
         env_as<int>((std::string("PYBUDA_RIBBON2_RIBBON_FOR_EPOCH") + std::to_string(epoch)).c_str(), 0);
 
     log_debug(
-        LogBalancer,
-        "Epoch {} settings: target_cycles={}, max_iterations={}, force_ribbon={}",
-        epoch,
-        epoch_target_cycles,
-        epoch_max_iterations,
-        force_ribbon);
+        LogBalancer, "Epoch {} settings: target_cycles={}, force_ribbon={}", epoch, epoch_target_cycles, force_ribbon);
 
     for (std::uint32_t ribbon_size = 1; ribbon_size <= (std::uint32_t)config.device_config.grid_size.r; ribbon_size++)
     {
@@ -1154,10 +942,7 @@ EpochSolution find_solution_for_epoch(
                         node->name(),
                         selected_op_model.grid_shape,
                         get_limiter_cycles(
-                            selected_op_model,
-                            graph,
-                            config,
-                            &graph_solver_epoch_snapshot->get_selected_op_models()));
+                            selected_op_model, graph, config, &graph_solver_epoch_snapshot->get_selected_op_models()));
                     std::optional<placer::CoordRange> op_placement;
                     bool sparse_dense_pair = false;
                     bool op_already_set = false;
@@ -1238,7 +1023,8 @@ EpochSolution find_solution_for_epoch(
                 {
                     TT_ASSERT(!new_epoch || selected_models.size() > 0);
                     // Record the solution
-                    EpochSolution new_solution(epoch, ribbon_size, &config, selected_models, graph, epoch_target_cycles);
+                    EpochSolution new_solution(
+                        epoch, ribbon_size, &config, selected_models, graph, epoch_target_cycles);
 
                     // Check if the same solution was provided by another ribbon
                     bool found_same_solution = false;
@@ -1277,10 +1063,7 @@ EpochSolution find_solution_for_epoch(
         catch (const BalancerError &e)
         {
             log_debug(
-                LogBalancer,
-                "Encountered BalancerException while trying ribbon size {}: {}",
-                ribbon_size,
-                e.what());
+                LogBalancer, "Encountered BalancerException while trying ribbon size {}: {}", ribbon_size, e.what());
 
             bool fatal_exception = std::holds_alternative<balancer::BalancerError::Fatal>(e.type);
             if ((first_error == nullptr) || (first_error_is_fatal && !fatal_exception))
@@ -1306,16 +1089,7 @@ EpochSolution find_solution_for_epoch(
     {
         try
         {
-            if (epoch_max_iterations > 0)
-            {
-                EpochSolution optimized_solution = optimize_solution(
-                    solution, *graph_solver_main, interactive_placer, graph, epoch_max_iterations);
-                if (optimized_solution.get_score() > best_solution.get_score())
-                {
-                    best_solution = optimized_solution;
-                }
-            }
-            else if (max_conservative_opt_iterations > 0)
+            if (max_conservative_opt_iterations > 0)
             {
                 EpochSolution optimized_solution = optimize_solution_conservative(
                     solution, *graph_solver_main, interactive_placer, graph, max_conservative_opt_iterations);
@@ -1325,7 +1099,7 @@ EpochSolution find_solution_for_epoch(
                 }
             }
             else
-        {
+            {
                 // Fallback to non-optimized.
                 //
                 if (solution.get_score() > best_solution.get_score())
@@ -1427,7 +1201,6 @@ BalancerPolicySolution run_policy_ribbon2(
     std::tie(scheduled_ops, epoch_break_ops) =
         policy_run_scheduler(graph, config, processed_nodes, processed_schedule, op_names_to_epoch_break);
 
-
     TT_ASSERT(config.op_names_to_chip_break.size() == 0, "Ribbon2 policy does not process chip breaks");
 
     std::uint32_t epoch = 0;
@@ -1453,7 +1226,7 @@ BalancerPolicySolution run_policy_ribbon2(
             std::make_unique<legalizer::GraphSolver>(*graph_solver_main);
 
         std::unordered_set<graphlib::NodeId> pre_buffered_ops;  // Original solution for the epoch - before we applied
-                                                               // fork-join buffering.
+                                                                // fork-join buffering.
 
         while (!epoch_complete)
         {
@@ -1530,7 +1303,8 @@ BalancerPolicySolution run_policy_ribbon2(
                 applied_solutions.push_back(best_solution);
                 log_debug(
                     LogBalancer,
-                    "RIBBON2: (epoch={} target_cycles={}) applied solution with score: {} ribbon_size: {} pipeline_cycles: "
+                    "RIBBON2: (epoch={} target_cycles={}) applied solution with score: {} ribbon_size: {} "
+                    "pipeline_cycles: "
                     "{} dram_access: {} pcie_access: {}",
                     epoch,
                     best_solution.get_epoch_target_cycles(),
@@ -1547,10 +1321,7 @@ BalancerPolicySolution run_policy_ribbon2(
                     break;
                 }
 
-                log_info(
-                    LogBalancer,
-                    "Balancing {}% complete.",
-                    processed_nodes.size() * 100 / nodes_to_process);
+                log_info(LogBalancer, "Balancing {}% complete.", processed_nodes.size() * 100 / nodes_to_process);
 
                 epoch++;
 

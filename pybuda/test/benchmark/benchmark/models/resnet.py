@@ -29,7 +29,6 @@ def resnet(training: bool, config: str, microbatch: int, devtype: str, arch: str
     # These are about to be enabled by default.
     #
     os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
-    os.environ["PYBUDA_RIBBON2_CONSERVATIVE_OPTIMIZATION_ITERATIONS"] = "10"
 
     if data_type == "Fp16_b":
         os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES_APPLY_FILTERING"] = "1"
