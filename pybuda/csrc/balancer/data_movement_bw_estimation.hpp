@@ -34,6 +34,9 @@ BandwidthBucket get_bandwidth_estimation(
     bool is_queue,
     bool decompose_t_stream);
 
+// Scales dram read BW based on the number of readers of the dram buffer.
+float scale_dram_read_bandwidth_wrt_fork_factor(const float bw_without_fork, const float fork_factor);
+
 //----------------------------------------------------------------------------------------------------------------------
 
 enum class InputType
