@@ -308,12 +308,34 @@ void remove_padding(Graph *graph, Node *node, const Padding &padding)
 
 void remove_pad(Graph *graph, Node *node, const Padding &padding)
 {
-    if (node->as<BudaOpNode>()->is_sparse_matmul())
-        restore_smm(graph, node, padding);
-    remove_buda_pad(graph, node);
+    if (node->as<OpNode>()->is_sparse_matmul())
+        reset_smm(graph, node, padding);
+    else if (node->as<OpNode>()->is_matmul())
+        reset_bias_matmul_input(graph, node, padding);
+
+    // Remove padding nop on input edges of node, if they exist.
+    remove_input_padding_nop(graph, node);
+    // Remove pad tms from all input edges of the node.
+    remove_pad_tm(graph, node);
 }
 
-void restore_smm(Graph *graph, Node *node, const Padding &padding)
+// Reset bias operand if it was padded
+void reset_bias_matmul_input(Graph *graph, Node *node, const Padding &padding)
+{
+    // Check if node has bias operand and reset broadcast shape of the bias operand if it exists on edge.
+    std::vector<Edge> incoming_edges = graph->operand_data_edges(node);
+
+    for (Edge incoming_edge : incoming_edges)
+    {
+        // If consumer_input_port_id == 2, the edge is connected to the bias operand.
+        if (incoming_edge.consumer_input_port_id == 2)
+        {
+            update_broadcast_op_with_pad(graph, incoming_edge, padding.pad_lhs_rt /*pad_r*/, padding.pad_rhs_ct /*pad_c*/, false /*increase*/);
+        }
+    }
+}
+
+void reset_smm(Graph *graph, Node *node, const Padding &padding)
 {
 
     std::vector<Edge> incoming_edges = graph->operand_data_edges(node);
@@ -371,7 +393,8 @@ void remove_unpad(Graph *graph, Node *node /*, Padding &padding*/)
     remove_buda_unpad(graph, node);
 }
 
-void remove_buda_pad(Graph *graph, Node *node)
+// Removes padding nop on input edge of padded node, if it exists.
+void remove_input_padding_nop(Graph *graph, Node *node)
 {
     std::vector<Edge> incoming_edges = graph->operand_data_edges(node);
     for (Edge incoming_edge : incoming_edges)
@@ -393,6 +416,15 @@ void remove_buda_pad(Graph *graph, Node *node)
                 bypass_node(graph, operand_node, /* remove node */ true);
             }
         }
+    }
+}
+
+// Removes pad tms from all input edges of the node.
+void remove_pad_tm(Graph *graph, Node *node)
+{
+    std::vector<Edge> incoming_edges = graph->operand_data_edges(node);
+    for (Edge incoming_edge : incoming_edges)
+    {
         std::vector<OpType> tms = graph->get_edge_attributes(incoming_edge)->get_tms();
         // Buda Pad operation is always the last TM on the edge in this phase.
         if (tms.size() > 0 && tms.back().op == "buda_pad")
@@ -714,10 +746,10 @@ bool pad_matmul(
             add_nop_on_input_edge);
     }
 
-    // If matmul has bias with broadcast, align with proper padding.
+    // If matmul has bias operand (incoming_edges.size() > 2), we update tms on the bias edge to include padding.
     if ((incoming_edges.size() > 2))
     {
-        update_broadcast_op_with_pad(graph, bias_edge, padding.pad_lhs_rt, padding.pad_rhs_ct);
+        update_bias_tms(graph, bias_edge, padding.pad_lhs_rt, padding.pad_rhs_ct);
     }
 
     set_padded_node_out_shape(node, padding);
@@ -1758,11 +1790,14 @@ bool check_shape_ones(tt::graphlib::Shape shape)
     return is_one;
 }
 
-void update_broadcast_op_with_pad(Graph *graph, Edge edge, std::uint32_t pad_r, std::uint32_t pad_c)
+std::pair<bool, bool> update_broadcast_op_with_pad(
+    Graph *graph, Edge edge, std::uint32_t pad_r, std::uint32_t pad_c, bool increase)
 {
     // If padded node has broadcast value on input, that broadcast needs to be updated too.
 
     std::vector<graphlib::OpType> tms = graph->get_edge_attributes(edge)->get_tms();
+    bool has_broadcast_on_r = false;
+    bool has_broadcast_on_c = false;
     for (OpType tm : tms)
     {
         std::string tm_op = tm.op;
@@ -1773,25 +1808,62 @@ void update_broadcast_op_with_pad(Graph *graph, Edge edge, std::uint32_t pad_r, 
             // so, if we only change the shape broadcast on the will not be affected, because of that we change it
             // manually.
             int broadcast_dim = std::get<int>(attrs[0]);
-            if (broadcast_dim == -2)
+            int producer_shape_size = graph->node_by_id(edge.producer_node_id)->shape().size();
+
+            // shift broadcast_dim to negative indexing.
+            int shifted_broadcast_dim = broadcast_dim;
+            if (shifted_broadcast_dim >= 0)
             {
+                shifted_broadcast_dim -= producer_shape_size;
+            }
+
+            if (shifted_broadcast_dim == -2)
+            {
+                has_broadcast_on_r = true;
                 if (pad_r > 0)
                 {
                     int broadcast_size = std::get<int>(attrs[1]);
-                    graph->get_edge_attributes(edge)->remove_broadcast_dim(-2);
-                    graph->get_edge_attributes(edge)->set_broadcast_dim(-2, broadcast_size + (int)pad_r);
+                    graph->get_edge_attributes(edge)->remove_broadcast_dim(broadcast_dim);
+                    int updated_broadcast_size = increase ? broadcast_size + (int)pad_r : broadcast_size - (int)pad_r;
+                    graph->get_edge_attributes(edge)->set_broadcast_dim(broadcast_dim, updated_broadcast_size);
                 }
             }
-            if (broadcast_dim == -1)
+            else if (shifted_broadcast_dim == -1)
             {
+                has_broadcast_on_c = true;
                 if (pad_c > 0)
                 {
                     int broadcast_size = std::get<int>(attrs[1]);
-                    graph->get_edge_attributes(edge)->remove_broadcast_dim(-1);
-                    graph->get_edge_attributes(edge)->set_broadcast_dim(-1, broadcast_size + (int)pad_c);
+                    graph->get_edge_attributes(edge)->remove_broadcast_dim(broadcast_dim);
+                    int updated_broadcast_size = increase ? broadcast_size + (int)pad_c : broadcast_size - (int)pad_c;
+                    graph->get_edge_attributes(edge)->set_broadcast_dim(broadcast_dim, updated_broadcast_size);
                 }
             }
         }
+    }
+    return std::make_pair(has_broadcast_on_r, has_broadcast_on_c);
+}
+
+void update_bias_tms(Graph *graph, Edge edge, std::uint32_t pad_r, std::uint32_t pad_c)
+{
+    // If bias node has broadcast on some dim, and we pad that dim, we need to update broadcast dim.
+    // If it doesn't have broadcast, but has pad, we need to insert buda pad tm.
+    bool has_broadcast_on_r, has_broadcast_on_c;
+    std::tie(has_broadcast_on_r, has_broadcast_on_c) = update_broadcast_op_with_pad(graph, edge, pad_r, pad_c);
+    // if there is padding on R dimension, but there is no broadcast on that dimension, we need to add buda pad tm.
+    int pad_bias_on_r = (!has_broadcast_on_r && pad_r > 0) ? pad_r : 0;
+    // if there is padding on C dimension, but there is no broadcast on that dimension, we need to add buda pad tm.
+    int pad_bias_on_c = (!has_broadcast_on_c && pad_c > 0) ? pad_c : 0;
+    if (pad_bias_on_r || pad_bias_on_c)
+    {
+        insert_pad_buda(
+            graph,
+            edge,
+            // R dimension for right operand is the same as C dimension for left operand
+            pad_bias_on_r,
+            pad_bias_on_c,
+            0.0 /*value*/,
+            false /*insert_nop*/);
     }
 }
 
@@ -1867,19 +1939,27 @@ std::tuple<std::uint32_t, std::uint32_t, std::uint32_t> extract_dimensions_matmu
 
     Node *lhs_operand = nullptr;
     Node *rhs_operand = nullptr;
+    std::vector<OpType> lhs_tms;
+    std::vector<OpType> rhs_tms;
     for (Edge incoming_edge : incoming_edges)
     {
         // Left operand has input port id 0
         if (incoming_edge.consumer_input_port_id == 0)
+        {
             lhs_operand = graph->node_by_id(incoming_edge.producer_node_id);
+            lhs_tms = graph->get_edge_attributes(incoming_edge)->get_tms();
+        }
         // Right operand has input port id 1
         else if (incoming_edge.consumer_input_port_id == 1)
+        {
             rhs_operand = graph->node_by_id(incoming_edge.producer_node_id);
+            rhs_tms = graph->get_edge_attributes(incoming_edge)->get_tms();
+        }
     }
 
     // Get shapes and R/C dimensions of the operands
     // Left operand
-    std::vector<std::uint32_t> lhs_shape = lhs_operand->shape().as_vector();
+    std::vector<std::uint32_t> lhs_shape = graphlib::post_tms_shape(lhs_operand->shape(), lhs_tms).as_vector();
     std::uint32_t lhs_shape_size = lhs_shape.size();
     std::uint32_t lhs_row_dim = lhs_shape_size - 2;
     std::uint32_t lhs_row_size = lhs_shape[lhs_row_dim];
@@ -1889,7 +1969,7 @@ std::tuple<std::uint32_t, std::uint32_t, std::uint32_t> extract_dimensions_matmu
     // Right operand
     // In case for right hand we take only C dimension,
     // because inner dimensions are equal for both operands in matmul
-    std::vector<std::uint32_t> rhs_shape = rhs_operand->shape().as_vector();
+    std::vector<std::uint32_t> rhs_shape = graphlib::post_tms_shape(rhs_operand->shape(), rhs_tms).as_vector();
     std::uint32_t rhs_shape_size = rhs_shape.size();
     std::uint32_t rhs_col_dim = rhs_shape_size - 1;
     std::uint32_t rhs_col_size = rhs_shape[rhs_col_dim];

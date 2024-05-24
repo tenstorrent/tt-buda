@@ -103,13 +103,17 @@ std::unordered_map<tt::graphlib::Node *, const tt::balancer::BudaOpNodeLegalizer
 
 void remove_padding(tt::graphlib::Graph *, tt::graphlib::Node *, const Padding &);
 
-void restore_smm(tt::graphlib::Graph *, tt::graphlib::Node *, const Padding &);
+void reset_smm(tt::graphlib::Graph *, tt::graphlib::Node *, const Padding &);
 
-void remove_pad(tt::graphlib::Graph *, tt::graphlib::Node *, const Padding &padding);
+void remove_pad(tt::graphlib::Graph *, tt::graphlib::Node *, const Padding &);
+
+void reset_bias_matmul_input(Graph *, Node *, const Padding &);
 
 void remove_unpad(tt::graphlib::Graph *, tt::graphlib::Node * /* , Padding &padding */);
 
-void remove_buda_pad(tt::graphlib::Graph *, tt::graphlib::Node *);
+void remove_input_padding_nop(Graph *, Node *);
+
+void remove_pad_tm(Graph *, Node *);
 
 void remove_buda_unpad(tt::graphlib::Graph *, tt::graphlib::Node *);
 
@@ -229,7 +233,11 @@ bool check_shape_size(tt::graphlib::Shape);
 
 bool check_shape_ones(tt::graphlib::Shape);
 
-void update_broadcast_op_with_pad(graphlib::Graph *, graphlib::Edge, std::uint32_t, std::uint32_t);
+void reset_broadcast_tm_on_edge(Graph *, Edge , std::uint32_t , std::uint32_t );
+
+std::pair<bool,bool> update_broadcast_op_with_pad(graphlib::Graph *, graphlib::Edge, std::uint32_t, std::uint32_t, bool increase = true);
+
+void update_bias_tms(graphlib::Graph *, graphlib::Edge, std::uint32_t, std::uint32_t);
 
 std::string convert_pad_op(PaddingOperation);
 
