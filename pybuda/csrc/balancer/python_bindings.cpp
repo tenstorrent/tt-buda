@@ -81,7 +81,6 @@ void BalancerModule(py::module &m_balancer) {
         .def_readwrite("force_dram_parameters", &OpOverride::force_dram_parameters)
         .def_readwrite("t_stream_dir", &OpOverride::t_stream_dir)
         .def_readwrite("t_stream_shape", &OpOverride::t_stream_shape)
-        .def_readwrite("fracture_factor", &OpOverride::fracture_factor)
         .def_readwrite("u_kt", &OpOverride::u_kt)
         .def_readwrite("input_buffer_multiplier", &OpOverride::input_buffer_multiplier)
         .def_readwrite("output_buffer_multiplier", &OpOverride::output_buffer_multiplier)
@@ -92,7 +91,6 @@ void BalancerModule(py::module &m_balancer) {
                     p.force_dram_parameters,
                     p.t_stream_dir,
                     p.t_stream_shape,
-                    p.fracture_factor,
                     p.u_kt,
                     p.input_buffer_multiplier,
                     p.output_buffer_multiplier);
@@ -108,10 +106,9 @@ void BalancerModule(py::module &m_balancer) {
                 p.force_dram_parameters = t[1].cast<std::optional<bool>>();
                 p.t_stream_dir = t[2].cast<std::string>();
                 p.t_stream_shape = t[3].cast<std::optional<std::pair<int, int>>>();
-                p.fracture_factor = t[4].cast<std::optional<int>>();
-                p.u_kt = t[5].cast<std::optional<int>>();
-                p.input_buffer_multiplier = t[6].cast<std::optional<std::map<std::uint32_t, std::uint32_t>>>();
-                p.output_buffer_multiplier = t[7].cast<std::optional<int>>();
+                p.u_kt = t[4].cast<std::optional<int>>();
+                p.input_buffer_multiplier = t[5].cast<std::optional<std::map<std::uint32_t, std::uint32_t>>>();
+                p.output_buffer_multiplier = t[6].cast<std::optional<int>>();
                 return p;
             }))
         .def(
@@ -123,7 +120,6 @@ void BalancerModule(py::module &m_balancer) {
                 d["force_dram_parameters"] = op_override.force_dram_parameters;
                 d["t_stream_dir"] = op_override.t_stream_dir;
                 d["t_stream_shape"] = pair_as_array(op_override.t_stream_shape);
-                d["fracture_factor"] = op_override.fracture_factor;
                 d["u_kt"] = op_override.u_kt;
                 d["input_buffer_multiplier"] = op_override.input_buffer_multiplier;
                 d["output_buffer_multiplier"] = op_override.output_buffer_multiplier;
@@ -145,12 +141,9 @@ void BalancerModule(py::module &m_balancer) {
                     match != d.end() && std::holds_alternative<std::optional<std::array<int, 2>>>(match->second))
                     op_override.t_stream_shape =
                         array_as_pair(std::get<std::optional<std::array<int, 2>>>(match->second));
-                if (auto match = d.find("fracture_factor");
-                    match != d.end() and std::holds_alternative<std::optional<int>>(match->second))
-                    op_override.fracture_factor = std::get<std::optional<int>>(match->second);
                 if (auto match = d.find("u_kt");
                     match != d.end() and std::holds_alternative<std::optional<int>>(match->second))
-                    op_override.fracture_factor = std::get<std::optional<int>>(match->second);
+                    op_override.u_kt = std::get<std::optional<int>>(match->second);
                 if (auto match = d.find("input_buffer_multiplier");
                     match != d.end() &&
                     std::holds_alternative<std::optional<std::map<std::uint32_t, std::uint32_t>>>(match->second))
@@ -355,7 +348,6 @@ void BalancerModule(py::module &m_balancer) {
         .def_readonly("data_format", &OpModel::data_format)
         .def("math_fidelity", &OpModel::math_fidelity)
         .def_readonly("t_stream_factor", &OpModel::t_stream_factor)
-        .def_readonly("fracture_factor", &OpModel::fracture_factor)
         .def_readonly("sparse_indices", &OpModel::sparse_indices)
         .def_readonly("input_buffers", &OpModel::input_buffers)
         .def_readonly("output_buffers", &OpModel::output_buffers)
@@ -484,8 +476,7 @@ void BalancerModule(py::module &m_balancer) {
 namespace tt::balancer
 {
 
-std::pair<int, int> get_parallelization(
-    Graph const* graph, OpNode const* node, int fracture_factor)
+std::pair<int, int> get_parallelization(Graph const* graph, OpNode const* node)
 {
     auto eval_module = py::module_::import("pybuda.op.eval.buda");
     py::function pybuda_parallelization = eval_module.attr("get_f_pybuda_parallelization")(node->op_type_ptr());
@@ -528,7 +519,7 @@ std::pair<int, int> get_parallelization(
                 gcd_shape.ct);
         op_shape.outputs[0] = gcd_shape;
     }
-    return pybuda_parallelization(op_shape, fracture_factor).cast<std::pair<int, int>>();
+    return pybuda_parallelization(op_shape).cast<std::pair<int, int>>();
 }
 
 int get_execution_cycles(std::string const& arch_name, OpModel const& op_model, bool theoretical, std::vector<FusedSubOpModel> const& sub_op_models)

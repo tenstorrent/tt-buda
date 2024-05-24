@@ -84,7 +84,7 @@ def test_concat(dim, convert_mode_t):
         orig_dim, input_slices, output_stack = splice.convert_mode_t()
         output_shape = splice.shape(tensor_shapes, TILE_DIM, TILE_DIM)[0]
 
-    par = splice.parallelization(OpShape(tensor_shapes, tuple(output_shape)), 1)
+    par = splice.parallelization(OpShape(tensor_shapes, tuple(output_shape)))
     for (
         ublock_order_r,
         ublock_r,

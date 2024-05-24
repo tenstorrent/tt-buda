@@ -315,7 +315,7 @@ bool check_unsupported_hw_ops(Graph *graph, bool should_throw)
 
         graphlib::BudaOpNode *op = node->as<graphlib::BudaOpNode>();
         py::function pybuda_parallelization = eval_module.attr("get_f_pybuda_parallelization")(op->op_type_ptr());
-        py::object parallelization = pybuda_parallelization(balancer::get_op_shape(graph, node), 1);
+        py::object parallelization = pybuda_parallelization(balancer::get_op_shape(graph, node));
 
         if (parallelization.is_none())
         {

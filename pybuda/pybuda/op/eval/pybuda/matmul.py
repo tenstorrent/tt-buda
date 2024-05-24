@@ -12,7 +12,7 @@ import torch
 
 from pybuda.pybudaglobal import TILE_DIM
 from ..common import to_torch_operands, cast_for_cpu_eval
-from ..sparse_utils import transpose_sparse_picker_matrix, create_sparse_buda, shapeify_sparse_tiles_and_encodings, is_kernel_fracturing_candidate
+from ..sparse_utils import transpose_sparse_picker_matrix, create_sparse_buda, shapeify_sparse_tiles_and_encodings
 from pybuda.utils import round_up_div
 from pybuda.op.eval.common import calculate_tile_size
 from .transpose import TransposeTM
@@ -180,14 +180,7 @@ def lower(type, attr, buda_attr, lc, ops, outputs):
         zdim = 1 if len(picker.shape) < 3 else picker.shape[-3]
 
         z_bcast_factor = 1 if len(attr) < 2 else attr[1]  # set in sparse matmul's decompose
-
-        # We can fully fracture kH * kW
-        max_fracture_factor = z_bcast_factor if is_kernel_fracturing_candidate(ops, z_bcast_factor) else 1
-
-        # # TODO: this shouldn't be a sqrt but kW, though we don't have that info here currently
-        # fracture_factor = int(sqrt(z_bcast_factor)) if is_kernel_fracturing_candidate(ops, z_bcast_factor) else 1
-
-        sparse_buda = create_sparse_buda(picker, z_bcast_factor, max_fracture_factor)
+        sparse_buda = create_sparse_buda(picker, z_bcast_factor)
 
         # Set grid_r to smallest valid solution (MaxUblocksR)
         # Hardcode most of the values to 1, potentially add some solvers to choose valid combos if some limitations hit
@@ -196,7 +189,6 @@ def lower(type, attr, buda_attr, lc, ops, outputs):
         u_ct = 1
         t_factor_r = 1
         t_factor_c = 1
-        fracture_factor = 1
         grid_r = round_up_div(picker.shape[-2], TILE_DIM)
         grid_c = 1  # this is always 1 by default, before balancing, needed for buda eval
 
@@ -207,7 +199,6 @@ def lower(type, attr, buda_attr, lc, ops, outputs):
             sparse=sparse,
             encodings=encodings,
             grid_r=grid_r,
-            fracture_factor=fracture_factor
         )
 
         sparse_is_binary = (sparse.numel() == (torch.sum(sparse == 1) + torch.sum(sparse == 0))).item()
@@ -229,9 +220,8 @@ def lower(type, attr, buda_attr, lc, ops, outputs):
         buda_attrs["num_index_tiles"] = encodings.shape[-1] // TILE_DIM
         buda_attrs["sparse_tile_ptr_bits"] = sparse_tile_ptr_bits
         buda_attrs["sparse_ublock_idx_bits"] = sparse_ublock_idx_bits
-        buda_attrs["fracture_factor"] = fracture_factor
-        # We need fracture_factor in attributes as well, since shape() function doesn't get buda attrs
-        lc.op("matmul", [in0, in1, in2], (accumulate, is_sparse, sparse_tile_ptr_bits, 1, zdim, picker.shape[-2], in1.shape[-1], fracture_factor, u_rt, u_kt, u_ct, grid_c, t_factor_r, t_factor_c, sparse_ublock_idx_bits), buda_attrs)
+
+        lc.op("matmul", [in0, in1, in2], (accumulate, is_sparse, sparse_tile_ptr_bits, 1, zdim, picker.shape[-2], in1.shape[-1], u_rt, u_kt, u_ct, grid_c, t_factor_r, t_factor_c, sparse_ublock_idx_bits), buda_attrs)
     else:
         # Find proper tile sizes
         if bool(int(os.environ.get("PYBUDA_ENABLE_TINY_TILE", "0"))):

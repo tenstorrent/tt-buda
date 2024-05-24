@@ -291,7 +291,7 @@ class Splice(BudaEltwiseNaryOp):
         output_shape = self.shape(self.input_shapes, TILE_DIM, TILE_DIM)[0]
         return (output_shape[2] // TILE_DIM, output_shape[3] // TILE_DIM)
 
-    def parallelization(self, op_shape, fracture_factor):
+    def parallelization(self, op_shape):
         output_rt, output_ct = self._get_output_tile_shape(op_shape=op_shape)
         input_tile_dims = self._get_input_tile_dims(op_shape=op_shape)
 

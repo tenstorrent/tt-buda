@@ -15,7 +15,7 @@ def shape(type, attr, ops, tile_height, tile_width):
     return [1, 1, 32, 32], []
 
 
-def parallelization(type, attr, op_shape, fracture_factor):
+def parallelization(type, attr, op_shape):
     raise RuntimeError("parallelization intentionally not defined for void op")
 
 

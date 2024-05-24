@@ -610,15 +610,13 @@ SparseBUDA::SparseBUDA(
     std::vector<std::int64_t> sparse_shape,
     std::vector<float> sparse_uniq_tiles,
     int zdim,
-    int bcast_factor,
-    int fracture_factor) :
+    int bcast_factor) :
     sparse_zs(sparse_zs),
     sparse_indices(sparse_indices),
     sparse_shape(sparse_shape),
     sparse_uniq_tiles(sparse_uniq_tiles),
     zdim(zdim),
-    bcast_factor(bcast_factor),
-    fracture_factor(fracture_factor)
+    bcast_factor(bcast_factor)
 {
     TT_ASSERT(sparse_shape.size() == 2, "Expected sparse_shape to have dim length of 2");
 
@@ -638,7 +636,6 @@ enum EncodingBitErrors
 int SparseBUDA::get_sparse_tile_ptr_bits(int grid_r, int t_factor_r, int u_rt) const
 {
     // TODO: num_sparse_tiles should be calculated per core, and max should be used as the result of this fn
-    // TODO: also account for fracture factor!
 
     std::uint32_t num_sparse_tiles = (std::uint32_t)(sparse_uniq_tiles.size() / (TILE_DIM * TILE_DIM));
     TT_ASSERT(num_sparse_tiles > 0);
@@ -647,7 +644,6 @@ int SparseBUDA::get_sparse_tile_ptr_bits(int grid_r, int t_factor_r, int u_rt) c
         return MaxSparseTilesExceeded;
     }
 
-    // TODO: This can be divided by fracture factor
     std::uint32_t max_ublocks_r = this->sparse_shape[0] / (TILE_DIM * grid_r * t_factor_r * u_rt);
     if (max_ublocks_r > SparseBUDA::kMaxUblocksR)
     {
@@ -664,7 +660,6 @@ int SparseBUDA::get_sparse_tile_ptr_bits(int grid_r, int t_factor_r, int u_rt) c
 int SparseBUDA::get_sparse_ublock_idx_bits(int grid_r, int t_factor_r, int u_rt) const
 {
     // TODO: num_sparse_tiles should be calculated per core, and max should be used as the result of this fn
-    // TODO: also account for fracture factor!
 
     std::uint32_t num_sparse_tiles = (std::uint32_t)(sparse_uniq_tiles.size() / (TILE_DIM * TILE_DIM));
     TT_ASSERT(num_sparse_tiles > 0);
@@ -673,7 +668,6 @@ int SparseBUDA::get_sparse_ublock_idx_bits(int grid_r, int t_factor_r, int u_rt)
         return MaxSparseTilesExceeded;
     }
 
-    // TODO: This can be divided by fracture factor
     std::uint32_t max_ublocks_r = this->sparse_shape[0] / (TILE_DIM * grid_r * t_factor_r * u_rt);
     if (max_ublocks_r > SparseBUDA::kMaxUblocksR)
     {
@@ -702,10 +696,10 @@ int SparseBUDA::get_max_u_kt(int grid_r, int t_factor_r, int u_rt, int sparse_ti
     return (1 << ublock_bits);
 }
 
-SparseBUDA::Layout SparseBUDA::create_layout(bool z_major, int fracture_factor)
+SparseBUDA::Layout SparseBUDA::create_layout(bool z_major)
 {
     Layout layout = Layout::Default;
-    if (z_major and (fracture_factor == 1) and not env_as<bool>("PYBUDA_SPARSE_DISABLE_LAYOUT_DATAFLOW"))
+    if (z_major and not env_as<bool>("PYBUDA_SPARSE_DISABLE_LAYOUT_DATAFLOW"))
         layout = Layout::ZMajorDataflow;
     else if (z_major)
         layout = Layout::ZMajor;
@@ -776,7 +770,6 @@ std::unordered_map<int, std::vector<int>> SparseBUDA::get_par_t_values(
     std::vector<SparseCOO>& sparse_zs,
     std::vector<int> u_kts,
     int bcast_factor,
-    int fracture_factor,
     Layout layout)
 {
     TT_ASSERT(!sparse_zs.empty(), "Expected z >= 1");
@@ -795,9 +788,6 @@ std::unordered_map<int, std::vector<int>> SparseBUDA::get_par_t_values(
     // If a t is valid, all its factors are valid too - we can skip testing them
     std::sort(potential_ts.begin(), potential_ts.end(), [](const int a, const int b) { return a > b; });
 
-    // Fracture factor is like having multiple grid_r's in flight
-    int virtual_grid_r = grid_r * fracture_factor;
-
     std::set<int> ts;
     std::unordered_map<int, std::vector<int>> t_to_legal_u_kts = {{1, u_kts}};
     for (size_t idx = 0; idx < sparse_zs.size(); idx++)
@@ -814,25 +804,25 @@ std::unordered_map<int, std::vector<int>> SparseBUDA::get_par_t_values(
                 continue;
             }
 
-            std::vector<SparseCOO> slices = vslice_layout(sparse, virtual_grid_r, t, bcast_factor, layout);
+            std::vector<SparseCOO> slices = vslice_layout(sparse, grid_r, t, bcast_factor, layout);
 
             // slice.empty() means we failed to create the desired layout for the given parameters
             if (slices.empty())
                 continue;
 
             std::vector<int> legal_u_kts = u_kts;
-            int slices_per_core = slices.size() / virtual_grid_r;
+            int slices_per_core = slices.size() / grid_r;
 
-            for (int g_r = 0; g_r < virtual_grid_r; g_r++)
+            for (int g_r = 0; g_r < grid_r; g_r++)
             {
                 for (int slice_idx = 0; slice_idx < slices_per_core - 1; slice_idx++)
                 {
                     int next_idx = slice_idx + 1;
-                    const SparseCOO* curr_slice = &slices[slice_idx * virtual_grid_r + g_r];
-                    const SparseCOO* next_slice = &slices[next_idx * virtual_grid_r + g_r];
+                    const SparseCOO* curr_slice = &slices[slice_idx * grid_r + g_r];
+                    const SparseCOO* next_slice = &slices[next_idx * grid_r + g_r];
 
                     while (next_slice->vals.empty() and ++next_idx < slices_per_core)
-                        next_slice = &slices[next_idx * virtual_grid_r + g_r];
+                        next_slice = &slices[next_idx * grid_r + g_r];
 
                     if (curr_slice->vals.empty() or next_slice->vals.empty())
                     {
@@ -928,13 +918,11 @@ SparseBUDA::get_sparse_tiles_and_encodings(
     int t_factor_c,
     int u_rt,
     int u_kt,
-    int fracture_factor,
     Layout layout,
     std::string const& visualize_sparse_path) const
 {
     int sparse_tile_ptr_bits = get_sparse_tile_ptr_bits(grid_r, t_factor_r, u_rt);
     int sparse_ublock_idx_bits = get_sparse_ublock_idx_bits(grid_r, t_factor_r, u_rt);
-
     TT_ASSERT(sparse_tile_ptr_bits > 0 and sparse_ublock_idx_bits > 0);
 
     // Calculate bits needed for ublock (u_rt + u_kt separately encoded)
@@ -942,34 +930,32 @@ SparseBUDA::get_sparse_tiles_and_encodings(
     int u_kt_bits = get_u_kt_encoding_bits(u_kt);
     TT_ASSERT(sparse_tile_ptr_bits + u_rt_bits + u_kt_bits <= 16);
 
+    int zdim = this->sparse_zs.size();
+
     std::function<bool(tt::sparse::SparseIndex const&, tt::sparse::SparseIndex const&)> sp_indices_cmp_fn =
         [u_rt, u_kt](SparseIndex const& a, SparseIndex const& b) { return comp_zcr_ublocked(a, b, u_rt, u_kt); };
-
-    int zdim = this->sparse_zs.size();
-    // Fracture factor is like having multiple grid_r's in flight
-    int virtual_grid_r = grid_r * fracture_factor;
 
     SparseTiles sparse_tiles;
     EncodingTiles buda_indices;
     std::vector<int> num_strips_per_row;
 
     std::vector<SparseCOO> slice_ztr;  // |z * t * r * b|
-    slice_ztr.reserve(zdim * t_factor_r * virtual_grid_r * ((layout == Layout::Default) ? 1 : bcast_factor));
+    slice_ztr.reserve(zdim * t_factor_r * grid_r * ((layout == Layout::Default) ? 1 : bcast_factor));
     for (int z = 0; z < zdim; z++)
     {
         auto sparse = sparse_zs[z];
         sparse.sort(SparseCOO::SortOrder::ROW_MAJOR);
 
-        std::vector<SparseCOO> slices = vslice_layout(sparse, virtual_grid_r, t_factor_r, bcast_factor, layout);
+        std::vector<SparseCOO> slices = vslice_layout(sparse, grid_r, t_factor_r, bcast_factor, layout);
         TT_ASSERT(not slices.empty());
         slice_ztr.insert(slice_ztr.end(), slices.begin(), slices.end());
     }
 
     std::vector<SparseCOO> visualize_sparse_tensors;
-    for (int g_r = 0; g_r < virtual_grid_r; g_r++)
+    for (int g_r = 0; g_r < grid_r; g_r++)
     {
         std::vector<SparseCOO> curr_slice_ts;
-        for (size_t idx = g_r; idx < slice_ztr.size(); idx += virtual_grid_r)
+        for (size_t idx = g_r; idx < slice_ztr.size(); idx += grid_r)
         {
             curr_slice_ts.push_back(slice_ztr[idx]);
         }
@@ -1007,7 +993,7 @@ SparseBUDA::get_sparse_tiles_and_encodings(
         namespace py = pybind11;
         auto sparse_utils_module = py::module_::import("pybuda.op.eval.sparse_utils");
         py::function visualize_sparse = sparse_utils_module.attr("visualize_sparse");
-        visualize_sparse(visualize_sparse_tensors, visualize_sparse_path, virtual_grid_r, zdim * t_factor_r);
+        visualize_sparse(visualize_sparse_tensors, visualize_sparse_path, grid_r, zdim * t_factor_r);
     }
 
     // Pad sparse tiles
@@ -1037,8 +1023,8 @@ SparseBUDA::get_sparse_tiles_and_encodings(
         buda_indices[idx].insert(buda_indices[idx].end(), indices_max_len - buda_indices[idx].size(), 0);
     }
 
-    std::vector<uint32_t> sparse_shape = {1, 1, grid_r * TILE_DIM, sparse_max_len * fracture_factor / TILE_DIM};
-    std::vector<uint32_t> encodings_shape = {1, 1, grid_r * TILE_DIM, indices_max_len * fracture_factor / TILE_DIM};
+    std::vector<uint32_t> sparse_shape = {1, 1, grid_r * TILE_DIM, sparse_max_len / TILE_DIM};
+    std::vector<uint32_t> encodings_shape = {1, 1, grid_r * TILE_DIM, indices_max_len / TILE_DIM};
 
     return std::make_tuple<>(sparse_tiles, buda_indices, sparse_shape, encodings_shape, num_strips_per_row);
 }
@@ -1220,12 +1206,11 @@ int SparseBUDA::get_sparse_tiles_per_core_estimate(int grid_r, int t_factor_r) c
         ->size();
 }
 
-SparseBUDA compress_sparse_tensor_and_strip_info(
-    std::vector<SparseCOO> const& sparse_zs, int bcast_factor, int fracture_factor)
+SparseBUDA compress_sparse_tensor_and_strip_info(std::vector<SparseCOO> const& sparse_zs, int bcast_factor)
 {
     int zdim = (int)sparse_zs.size();
     auto [sparse_indices, tiles] = compress_unique_tiles(sparse_zs);
-    return SparseBUDA(sparse_zs, sparse_indices, sparse_zs[0].shape, tiles, zdim, bcast_factor, fracture_factor);
+    return SparseBUDA(sparse_zs, sparse_indices, sparse_zs[0].shape, tiles, zdim, bcast_factor);
 }
 
 std::ostream& operator<<(std::ostream& out, const SparseCOO::SortOrder& sort_order)

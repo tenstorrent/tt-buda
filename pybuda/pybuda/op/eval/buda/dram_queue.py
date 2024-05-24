@@ -18,7 +18,7 @@ def shape(type, attr, ops, tile_height, tile_width):
     return ops[0], []
 
 
-def parallelization(type, attr, op_shape, fracture_factor):
+def parallelization(type, attr, op_shape):
     return (op_shape.outputs[0].rt, op_shape.outputs[0].ct)
 
 

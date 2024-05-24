@@ -750,21 +750,6 @@ def override_t_stream_shape(op_name: str, shape: Tuple[int, int]):
     """
     _balancer_op_override(op_name, "t_stream_shape", shape)
 
-def override_fracture_factor(op_name: str, fracture_factor: int):
-    """
-    Override fracture factor
-
-    Parameters
-    ----------
-    op_name: str
-        Name of the op to override
-
-    fracture_factor: int
-        fracture_factor to set
-
-    """
-    _balancer_op_override(op_name, "fracture_factor", fracture_factor)
-
 def override_u_kt(op_name: str, u_kt: int):
     """
     Override u_kt

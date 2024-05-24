@@ -487,7 +487,7 @@ struct SparseBUDA
     //   This set of TM ops might look complicated, but when worked out, it just makes it so that each sparse matmul
     //   core sends data only to its corresponding dense matmul core, which is right next to it.
 
-    static Layout create_layout(bool z_major, int fracture_factor);
+    static Layout create_layout(bool z_major);
 
     std::vector<SparseCOO> sparse_zs;
     std::vector<SparseIndex> sparse_indices;
@@ -495,7 +495,6 @@ struct SparseBUDA
     std::vector<float> sparse_uniq_tiles;
     int zdim = 0;
     int bcast_factor = 0;
-    int fracture_factor = 1;
 
     SparseBUDA() = default;
     SparseBUDA(
@@ -504,8 +503,7 @@ struct SparseBUDA
         std::vector<std::int64_t> sparse_shape,
         std::vector<float> tiles,
         int zdim,
-        int bcast_factor,
-        int fracture_factor);
+        int bcast_factor);
 
     int get_sparse_tiles_per_core_estimate(int grid_r, int t_factor_r) const;
     int get_encoding_tiles_per_core_estimate(int grid_r, int t_factor_r, int u_rt, int u_kt) const;
@@ -520,7 +518,6 @@ struct SparseBUDA
         int t_factor_c = 1,
         int u_rt = 1,
         int u_kt = 1,
-        int fracture_factor = 1,
         Layout layout = Layout::Default,
         std::string const& visualize_sparse_path = "") const;
 
@@ -531,7 +528,6 @@ struct SparseBUDA
         std::vector<SparseCOO>& sparse_zs,
         std::vector<int> u_kts,
         int bcast_factor,
-        int fracture_factor,
         Layout layout);
 
    private:
@@ -542,9 +538,7 @@ struct SparseBUDA
     static constexpr std::uint32_t kMaxNZUblocks = 1 << 16;
 };
 
-// SparseBUDA compress_sparse_tensor(std::vector<SparseCOO> const& sparse_zs);
-SparseBUDA compress_sparse_tensor_and_strip_info(
-    std::vector<SparseCOO> const& sparse_zs, int bcast_factor, int fracture_factor);
+SparseBUDA compress_sparse_tensor_and_strip_info(std::vector<SparseCOO> const& sparse_zs, int bcast_factor);
 
 int get_u_rt_encoding_bits(int u_rt);
 int get_u_kt_encoding_bits(int u_kt);

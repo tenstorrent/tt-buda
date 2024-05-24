@@ -19,7 +19,6 @@ struct OpOverride
     std::optional<bool> force_dram_parameters;
     std::string t_stream_dir = "";
     std::optional<std::pair<int, int>> t_stream_shape;
-    std::optional<int> fracture_factor;
     std::optional<int> u_kt;
     std::optional<std::map<uint32_t, std::uint32_t>> input_buffer_multiplier;
     std::optional<int> output_buffer_multiplier;
@@ -32,7 +31,6 @@ struct OpOverride
         bool& enable_t_streaming,
         const std::string& op_name);
 
-    std::optional<int> get_fracture_factor();
     std::optional<int> get_u_kt();
 };
 

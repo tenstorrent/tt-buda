@@ -104,7 +104,6 @@ def generate_override_config(graph, balancer_solution, placer_solution, nop_inst
         "grid_shape": [v.grid_shape.r, v.grid_shape.c],
         "t_stream_dir": str(v.t_stream_factor.dir).split(".")[1],
         "t_stream_shape": [v.t_stream_factor.r, v.t_stream_factor.c],
-        "fracture_factor": v.fracture_factor,
     } for k, v in balancer_solution.op_models.items()}
 
     overrides["buffering_nops_to_insert"] = [NopInsertionInstruction.to_json(n) for n in nop_instructions]

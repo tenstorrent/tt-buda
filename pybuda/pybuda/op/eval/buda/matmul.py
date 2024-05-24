@@ -248,24 +248,19 @@ def eval(type, attr, ops):
             # broadcast across rows
             result = result + t_ops[2][:, :, 0:1, :]
     elif type == "matmul" and is_sparse:
-        assert len(attr) == 15, f"Unexpected number of attrs for sparse matmul: {len(attr)}"
-        _, _, sparse_tile_ptr_bits, wdim, zdim, rdim, cdim, fracture_factor, u_rt, u_kt, u_ct, grid_c, t_stream_factor_r, t_stream_factor_c, sparse_ublock_idx_bits = attr
+        assert len(attr) == 14, f"Unexpected number of attrs for sparse matmul: {len(attr)}"
+        _, _, sparse_tile_ptr_bits, wdim, zdim, rdim, cdim, u_rt, u_kt, u_ct, grid_c, t_stream_factor_r, t_stream_factor_c, sparse_ublock_idx_bits = attr
         sparse_tensor, activations, encodings = t_ops
 
-        # Inputs 0 & 2 are tm broadcasted by a factor of (grid_c / fracture_factor)
+        # Inputs 0 & 2 are tm broadcasted by a factor of (grid_c)
         # Here we undo the tm broadcast to make the math below easier
-        sparse_tensor = sparse_tensor[..., :sparse_tensor.shape[-1] // (grid_c // fracture_factor)]
-        encodings = encodings[..., :encodings.shape[-1] // (grid_c // fracture_factor)]
-
-        # If fractured, activations will be broadcast in C by fracture_factor, so we undo it here
-        activations = activations.detach()
-        activations.requires_grad_(False)
-        activations = activations[..., :activations.shape[-1] // fracture_factor]
+        sparse_tensor = sparse_tensor[..., :sparse_tensor.shape[-1] // grid_c]
+        encodings = encodings[..., :encodings.shape[-1] // grid_c]
 
         inner_r = u_rt
         inner_d = u_kt
         inner_c = u_ct
-        outer_r = align_up_tile(rdim) // TILE_DIM // inner_r // fracture_factor
+        outer_r = align_up_tile(rdim) // TILE_DIM // inner_r
         outer_d = activations.shape[-2] // (TILE_DIM * inner_d)
         outer_c = activations.shape[-1] // TILE_DIM // inner_c
         grid_r = encodings.shape[2] // TILE_DIM
@@ -275,41 +270,37 @@ def eval(type, attr, ops):
         act = activations
         act = act.reshape(1, 1, act.shape[-3] * act.shape[-2], act.shape[-1])
 
-        sparse_width_f = sparse_tensor.shape[-1] // fracture_factor
-        encodings_width_f_t = encodings.shape[-1] // fracture_factor // TILE_DIM
+        sparse_width = sparse_tensor.shape[-1]
+        encodings_width = encodings.shape[-1] // TILE_DIM
 
-        encodings = encodings.reshape(grid_r, fracture_factor * encodings_width_f_t, TILE_DIM, TILE_DIM)
+        encodings = encodings.reshape(grid_r, encodings_width, TILE_DIM, TILE_DIM)
 
         # TODO: Model this the way it's done in BE golden
-        f_results = []
-        for f in range(fracture_factor):
-            r_results = []
-            for g_r in range(grid_r):
-                # TODO: Do we want to simulate c dim as well?
-                r_sparse_tensor = sparse_tensor[:, :, g_r * TILE_DIM: (g_r + 1) * TILE_DIM, f * sparse_width_f: (f + 1) * sparse_width_f]
-                r_encodings = encodings[g_r, f * encodings_width_f_t: (f + 1) * encodings_width_f_t, :, :].view(1, 1, -1, TILE_DIM)
-                r_results.append(
-                    strip_ident_matmul(
-                        r_sparse_tensor,
-                        act,
-                        r_encodings,
-                        sparse_tile_ptr_bits,
-                        sparse_ublock_idx_bits,
-                        outer_r // grid_r // t_stream_factor_r,
-                        outer_d,
-                        outer_c,
-                        inner_r,
-                        inner_d,
-                        inner_c,
-                        t_stream_factor_r * t_stream_factor_c * zdim,
-                    )
+        r_results = []
+        for g_r in range(grid_r):
+            # TODO: Do we want to simulate c dim as well?
+            r_sparse_tensor = sparse_tensor[:, :, g_r * TILE_DIM: (g_r + 1) * TILE_DIM, :]
+            r_encodings = encodings[g_r, :, :, :].view(1, 1, -1, TILE_DIM)
+            r_results.append(
+                strip_ident_matmul(
+                    r_sparse_tensor,
+                    act,
+                    r_encodings,
+                    sparse_tile_ptr_bits,
+                    sparse_ublock_idx_bits,
+                    outer_r // grid_r // t_stream_factor_r,
+                    outer_d,
+                    outer_c,
+                    inner_r,
+                    inner_d,
+                    inner_c,
+                    t_stream_factor_r * t_stream_factor_c * zdim,
                 )
-            # interleave results
-            result = [torch.cat(r_r, dim=-3) for r_r in r_results]
-            result = torch.cat(result, dim=-2)
-            f_results.append(result)
+            )
+        # interleave results
+        result = [torch.cat(r_r, dim=-3) for r_r in r_results]
+        result = torch.cat(result, dim=-2)
 
-        result = torch.cat(f_results, dim=-1)
         result = result.to(original_type)
 
     if accumulate:
@@ -334,13 +325,11 @@ def shape(type, attr, ops, tile_height, tile_width):
         output_shape[-2] = align_up(output_shape[-2], tile_height)
 
     if is_sparse:
-        assert len(attr) == 15, f"Unexpected number of attrs for sparse matmul: {len(attr)}"
-        _, _, _, w, z, r, c, fracture_factor, _, _, _, _, t_factor_r, t_factor_c, _ = attr
+        assert len(attr) == 14, f"Unexpected number of attrs for sparse matmul: {len(attr)}"
+        _, _, _, w, z, r, c, _, _, _, _, t_factor_r, t_factor_c, _ = attr
         assert ops[1][-3] % z == 0
 
-        # C dim should be multiplied by fracture_factor, but since we're doing a broadcast(C, fracture_factor), we also
-        # need to divide C dim by fracture_factor, so they end up cancelling each other out
-        return (w, t_factor_r * t_factor_c * z, align_up_tile(r) // t_factor_r // fracture_factor, align_up_tile(ops[1][3])), []
+        return (w, t_factor_r * t_factor_c * z, align_up_tile(r) // t_factor_r, align_up_tile(ops[1][3])), []
 
     broadcast = []
     #assert ops[0][0] == ops[1][0] # Relax this for now, although we really can't do W != 1 anyway.. so that needs fixing
@@ -371,13 +360,8 @@ def shape(type, attr, ops, tile_height, tile_width):
     return tuple(output_shape), broadcast
 
 
-def parallelization(type, attr, op_shape, fracture_factor):
-    is_sparse = (len(attr) >= 2) and bool(attr[1])
-    if is_sparse:
-        assert op_shape.outputs[0].rt % fracture_factor == 0
-        return (op_shape.outputs[0].rt // fracture_factor, op_shape.outputs[0].ct * fracture_factor)
-    else:
-        return (op_shape.outputs[0].rt, op_shape.outputs[0].ct)
+def parallelization(type, attr, op_shape):
+    return (op_shape.outputs[0].rt, op_shape.outputs[0].ct)
 
 
 def input_ublock_order(type, attr, num_operands):

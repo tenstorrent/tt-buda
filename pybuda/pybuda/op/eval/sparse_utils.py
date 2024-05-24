@@ -1066,7 +1066,7 @@ def interleave_tiles(pickers: "list[torch.Tensor]"):
     ).coalesce()
 
 
-def create_sparse_buda(sparse, bcast_factor=1, fracture_factor=1, tile_align=True) -> SparseBUDA:
+def create_sparse_buda(sparse, bcast_factor=1, tile_align=True) -> SparseBUDA:
     while len(sparse.shape) < 4:
         sparse = sparse.unsqueeze(0)
     w, zdim, y, x = sparse.shape
@@ -1096,25 +1096,18 @@ def create_sparse_buda(sparse, bcast_factor=1, fracture_factor=1, tile_align=Tru
             SparseCOO(rows.tolist(), cols.tolist(), vals.tolist(), list(zslice.shape))
         )
 
-    return compress_sparse_tensor_and_strip_info(sparse_zs, bcast_factor, fracture_factor)
+    return compress_sparse_tensor_and_strip_info(sparse_zs, bcast_factor)
 
 
-def shapeify_sparse_tiles_and_encodings(sparse, encodings, grid_r, fracture_factor):
-    # TODO: this can be done more efficiently without handling each fracture separately
-    sparse_fs = []
-    for f in range(fracture_factor):
-        sparse_f = sparse[grid_r * f: grid_r * (f + 1)]
-        sparse_f = torch.tensor(sparse_f, requires_grad=False).view(1, 1, -1, TILE_DIM)  # TODO: Do we want a specific dtype?
-        sparse_f = sparse_f.reshape(-1, TILE_DIM, TILE_DIM).transpose(0, 1).reshape(TILE_DIM, -1).hsplit(grid_r)
-        sparse_f = torch.cat(sparse_f, dim=0).view(1, 1, TILE_DIM * grid_r, -1)
-        sparse_fs.append(sparse_f)
-    sparse_tensor = torch.cat(sparse_fs, dim=-1)
+def shapeify_sparse_tiles_and_encodings(sparse, encodings, grid_r):
+    sparse_tensor = torch.tensor(sparse).view(1, 1, -1, TILE_DIM)  # TODO: Do we want a specific dtype?
+    sparse_tensor = sparse_tensor.reshape(-1, TILE_DIM, TILE_DIM).transpose(0, 1).reshape(TILE_DIM, -1).hsplit(grid_r)
+    sparse_tensor = torch.cat(sparse_tensor, dim=0).view(1, 1, TILE_DIM * grid_r, -1)
 
     # Encodings behave differently... all the encoding scalars should be laid out in memory in row-major order, but
     # the resulting tensor should be shaped as the netlist would see it - BE will read scalar by scalar and fill up tile
     # by tile
-    encodings_tensor = torch.tensor(encodings, dtype=torch.int32, requires_grad=False)
-    encodings_tensor = torch.cat(encodings_tensor.vsplit(fracture_factor), dim=-1).view(1, 1, grid_r * TILE_DIM, -1)
+    encodings_tensor = torch.tensor(encodings, dtype=torch.int32).view(1, 1, grid_r * TILE_DIM, -1)
 
     return sparse_tensor, encodings_tensor
 
@@ -1216,25 +1209,6 @@ def calculate_total_sparse_tile_util(slices, grid_r, ts, bcast_factor, verbose=F
     for u_kt in u_kts:
         util = total_util[u_kt] / ts
         print(f"> Grid_r[{grid_r:2}] T[{ts:2}] Bfactor[{bcast_factor:2}] u_kt[{u_kt:2}] -> total_util [{util:0.4}] speedup[{util * grid_r:0.4}]")
-
-
-def is_kernel_fracturing_candidate(operands, z_bcast_factor):
-    # In production, we want to fracture convs with very specific properties
-    # For testing, we use this mechanism to enable fracturing for all convs
-    force_allow_fracturing = bool(int(os.environ.get("PYBUDA_FORCE_ALLOW_FRACTURING", "0")))
-    force_disallow_fracturing = bool(int(os.environ.get("PYBUDA_FORCE_DISALLOW_FRACTURING", "0")))
-
-    assert not (force_allow_fracturing and force_disallow_fracturing), "Both PYBUDA_FORCE_ALLOW_FRACTURING and PYBUDA_FORCE_DISALLOW_FRACTURING set to non-zero"
-
-    if force_allow_fracturing:
-        return True
-
-    if force_disallow_fracturing:
-        return False
-
-    # Enable only cases with single tile in C dim and 7x7 convs (like resnet50)
-    cin_tiles = operands[1].shape.c // TILE_DIM
-    return cin_tiles == 1 and (z_bcast_factor == 16 or z_bcast_factor == 49)
 
 
 def can_conv2d_prestride(act_shape, weight_shape, stride, dilation, groups, padding, channel_last, graph_input):

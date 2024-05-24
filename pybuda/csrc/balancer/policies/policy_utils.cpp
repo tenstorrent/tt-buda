@@ -1374,8 +1374,6 @@ OpModel make_queue_op_model(
     input_op_model.data_format = data_format;
     input_op_model.input_prologue = prologue;
 
-    input_op_model.fracture_factor = 1;
-
     return input_op_model;
 }
 

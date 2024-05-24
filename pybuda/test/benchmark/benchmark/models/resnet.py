@@ -68,7 +68,6 @@ def resnet_quant(training: bool, config: str, microbatch: int, devtype: str, arc
     compiler_cfg.graph_solver_self_cut_type = "FastCut"
 
     os.environ["PYBUDA_DISABLE_CONV_MULTI_OP_FRACTURE"] = "1"
-    os.environ["PYBUDA_FRACTURIZATION_DISABLE"] = "1"
     os.environ["PYBUDA_DISABLE_FUSE_OPS"] = "1"
     os.environ["PYBUDA_RIBBON2"] = "1"
 
@@ -317,7 +316,7 @@ def resnet50_layer(training: bool, config: str, microbatch: int, devtype: str, a
             pybuda.config.set_epoch_break(["_fused_op_0"])
         else:
             pybuda.config.override_op_size("conv2d_0.dc.conv2d.3.dc.sparse_matmul.9.dc.sparse_matmul.1.lc2", (2, 4))
-            pybuda.config.override_fracture_factor("conv2d_0.dc.conv2d.3.dc.sparse_matmul.9.dc.sparse_matmul.1.lc2", 4)
+            # pybuda.config.override_fracture_factor("conv2d_0.dc.conv2d.3.dc.sparse_matmul.9.dc.sparse_matmul.1.lc2", 4)
             pybuda.config.override_op_size("conv2d_0.dc.conv2d.3.dc.matmul.11", (2, 1))
             pybuda.config.override_op_size("max_pool2d_2.dc.sparse_matmul.5.dc.sparse_matmul.1.lc2", (2, 2))
 

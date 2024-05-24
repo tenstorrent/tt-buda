@@ -63,14 +63,12 @@
  * PYBUDA\_SPARSE\_MM\_ENCODING\_ESTIMATES\_OFF: when on, turns off estimation logic for in0/in2 for sparse mm, but gets slower
  * PYBUDA\_REBLOCK\_INPUT\_ACT: when enabled, we reblock input activations to the smallest grid across all users instead of forcing 1x1. (default: disabled)
  * PYBUDA\_DUMP\_MIXED\_PRECISION: when on, dump json with a per-op info about fidelity, data-formats (default: off). Default directory: reportify dump directory.
- * PYBUDA\_FRACTURIZATION\_DISABLE: disables kernel fracturing for convolutions
  * PYBUDA\_PRESTRIDE\_DISABLE: disables prestriding transform for convs
  * PYBUDA\_LEGALIZER\_DETAILED\_DEBUGGING: when on provides detailed debugging information and statistics about legalizer OpModel selection process including GraphSolver. Works only in DEBUG(default: off).
  * PYBUDA\_LEGALIZER\_DEBUG\_NODE\_NAME: used together with legalizer detailed debugging to narrow down debugging info to single node. Works only in DEBUG(default: off).
  * PYBUDA\_GRAPHSOLVER\_SELF\_CUT\_TYPE: Override for graph_solver_self_cut_type in BalancerConfig. Valid values: None, ConsumerOperandDataEdgesFirst, ProducerUserDataEdgesFirst, FastCut. When switched on(not None) graphsolver will cut edges for which it cannot produce valid paths. (default: None)
  * PYBUDA\_MAX\_GRAPH\_CUT\_RETRY: Override for default_resolve_retry_count_self_cutting in GraphSolver::resolve. This sets the max retry step if GraphSolver self cut is turned on.
  * PYBUDA\_REPLACE\_INF\_IN\_TVM\_PARAMS: Replace -inf and inf values from TVM parameters during PyBuda code generation.
- * PYBUDA\_FORCE\_ALLOW\_FRACTURING: All convs will be candidates for fracturing - this does NOT mean that all convs will fracture (search for is_kernel_fracturing_candidate)
  * PYBUDA\_DISABLE\_FUSE\_TAGS: Specify a list of ops (comma delimited) by original_op_type/op_type that will be exempt from fusion (e.g. PYBUDA\_DISABLE\_FUSE\_TAGS="reciprocal,softmax").
  * PYBUDA\_BISECT\_FUSING: bool, false by default. When it is set to true, we bisect fusing by defining PYBUDA\_FUSE\_OP\_FIRST\_IND and PYBUDA\_FUSE\_OP\_LAST\_IND.
  * PYBUDA\_FUSE\_OP\_FIRST\_IND: First index in topologically sorted graph of ops to fuse.

@@ -76,7 +76,7 @@ def shape(type, attr, ops, tile_height, tile_width):
     return tuple(output_shape), broadcast
 
 
-def parallelization(type, attr, op_shape, fracture_factor):
+def parallelization(type, attr, op_shape):
     return (op_shape.outputs[0].rt, 1)
 
 

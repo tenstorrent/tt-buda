@@ -295,7 +295,6 @@ struct OpModel
     std::shared_ptr<const SparseMetadata> sparse_metadata = nullptr;  // sparse-matmul specific
     // ^ using shared_ptr (vs unique_ptr) to allow for implicit copy construction of OpModel
     TStreamFactor t_stream_factor;
-    int fracture_factor;
     int sparse_indices;
     Padding padding;
     int overlay_size = 0;  // Op-level override for overlay blob size in Bytes, value 0 maps to default size, which is
@@ -405,7 +404,6 @@ struct OpModel
         return buda_op_node == other.buda_op_node
         and grid_shape == other.grid_shape
         and t_stream_factor == other.t_stream_factor
-        and fracture_factor == other.fracture_factor
         and input_prologue == other.input_prologue
         and padding == other.padding
         and input_buffers == other.input_buffers
@@ -880,7 +878,6 @@ inline std::ostream &ostream_with_indent(std::ostream &os, OpModel const &op_mod
     os << indent << "  .data_format = " << op_model.data_format << "," << std::endl;
     os << indent << "  .math_fidelity = " << op_model.math_fidelity() << "," << std::endl;
     os << indent << "  .t_stream_factor = " << op_model.t_stream_factor << "," << std::endl;
-    os << indent << "  .fracture_factor = " << op_model.fracture_factor << "," << std::endl;
     os << indent << "  .cached_execution_cycles = " << op_model.cached_execution_cycles << "," << std::endl;
     os << indent << "  .input_buffers = ";
     ostream_with_indent(os, op_model.input_buffers, indent);

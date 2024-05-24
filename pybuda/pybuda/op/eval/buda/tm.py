@@ -473,7 +473,7 @@ def shape(type, attr, ops, tile_height, tile_width):
 
     assert False, f"{type} not defined in tensor manipulations"
 
-def parallelization(type, attr, op_shape, fracture_factor):
+def parallelization(type, attr, op_shape):
     return None
 
 def input_ublock_order(type, attr, num_operands):

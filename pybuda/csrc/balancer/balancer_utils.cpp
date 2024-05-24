@@ -33,7 +33,6 @@ OpShape get_op_shape(
     int u_rt,
     int u_kt,
     TStreamFactor t_stream_factor,
-    int fracture_factor,
     bool calculate_sparse_in0_in2_shapes)
 {
     std::vector<TensorShape> producer_shapes;
@@ -74,13 +73,7 @@ OpShape get_op_shape(
         input_shapes.emplace_back(1, 1, grid_shape.r, encodings_ct);
 
         // out
-        graphlib::Shape out_shape = node->shape().canonical();
-        graphlib::Shape new_shape = graphlib::Shape::create_buda(
-            out_shape.as_vector()[0],
-            out_shape.as_vector()[1],
-            out_shape.as_vector()[2] / fracture_factor,
-            out_shape.as_vector()[3] * fracture_factor);
-        output_shapes.emplace_back(new_shape);
+        output_shapes.emplace_back(node->shape());
 
         producer_shapes.resize(3);
         producer_shapes[0] = input_shapes[0];
@@ -510,12 +503,6 @@ ResourceUsage get_edge_resource_usage(
 
     GridShape producer_grid_shape = producer_op_model.grid_shape;
     BlockShape producer_block_shape = producer_op_model.output_buffers[0].block_shape.canonical();
-    if (producer_op_model.fracture_factor > 1)
-    {
-        TT_ASSERT(producer_grid_shape.c % producer_op_model.fracture_factor == 0);
-        producer_grid_shape.r *= producer_op_model.fracture_factor;
-        producer_grid_shape.c /= producer_op_model.fracture_factor;
-    }
 
     GridShape consumer_grid_shape = consumer_op_model.get_input_grid_shape(edge.consumer_input_port_id);
     BlockShape consumer_block_shape =
@@ -607,8 +594,7 @@ std::shared_ptr<const OpModel::SparseMetadata> get_sparse_matmul_metadata(balanc
     const int bcast_factor = sparse_buda.bcast_factor;  // broadcast factor
     const std::vector<sparse::SparseIndex>& sparse_indices = sparse_buda.sparse_indices;
     auto layout = sparse::SparseBUDA::create_layout(
-        op_model.t_stream_factor.dir.z_major(),
-        op_model.fracture_factor);
+        op_model.t_stream_factor.dir.z_major());
 
     const int sparse_rt =
         sparse_buda.sparse_shape[0] / sparse::TILE_DIM;           // number of tiles in row dim of sparse tensor

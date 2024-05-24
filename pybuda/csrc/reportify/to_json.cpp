@@ -86,7 +86,6 @@ void to_json(json& j, OpModel const& op_model)
         j["op_type"] = op_model.op_type();
     j["grid_shape"] = op_model.grid_shape;
     j["t_stream_factor"] = op_model.t_stream_factor;
-    j["fracture_factor"] = op_model.fracture_factor;
     j["inputs"] = op_model.input_buffers;
     j["outputs"] = op_model.output_buffers;
     j["input_shapes"] = op_model.op_shape.inputs;

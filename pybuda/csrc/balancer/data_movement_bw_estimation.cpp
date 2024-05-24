@@ -26,12 +26,6 @@ TileLayout get_producer_tile_layout(const Graph* graph, const Edge& edge, const 
     graphlib::Node const* producer_node = graph->node_by_id(edge.producer_node_id);
     GridShape producer_grid_shape = producer_op_model.grid_shape;
     BlockShape producer_block_shape = producer_op_model.output_buffers[0].block_shape.canonical();
-    if (producer_op_model.fracture_factor > 1)
-    {
-        TT_ASSERT(producer_grid_shape.c % producer_op_model.fracture_factor == 0);
-        producer_grid_shape.r *= producer_op_model.fracture_factor;
-        producer_grid_shape.c /= producer_op_model.fracture_factor;
-    }
 
     return TileLayout(producer_grid_shape, producer_block_shape, get_output_ublock_order(graph, producer_node));
 }

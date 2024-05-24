@@ -109,7 +109,7 @@ def shape(type, attr, ops, tile_height, tile_width) -> Tuple[Tuple, List]:
     assert False, f"{type} not defined in eltwise_nary"
 
 
-def parallelization(type, attr, op_shape, fracture_factor):
+def parallelization(type, attr, op_shape):
     return None
 
 

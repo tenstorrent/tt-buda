@@ -178,8 +178,6 @@ class OpModel:
     @property
     def data_format(self) -> pybuda._C.DataFormat: ...
     @property
-    def fracture_factor(self) -> int: ...
-    @property
     def grid_shape(self) -> GridShape: ...
     @property
     def input_buffers(self) -> List[BufferModel]: ...
@@ -204,7 +202,6 @@ class OpModel:
 
 class OpOverride:
     force_dram_parameters: Optional[bool]
-    fracture_factor: Optional[int]
     grid_shape: Optional[Tuple[int, int]]
     input_buffer_multiplier: Optional[Dict[int, int]]
     output_buffer_multiplier: Optional[int]

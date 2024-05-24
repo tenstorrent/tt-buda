@@ -102,7 +102,6 @@ OpShape get_op_shape(
     int u_kt = 1,
     int u_rt = 1,
     TStreamFactor t_stream_factor = {},
-    int fracture_factor = 1,
     bool calculate_sparse_in0_in2_shapes = false);
 std::vector<tt::graphlib::OpType> calculate_undo_t_streaming_tms(
     Graph const *graph, Node const *node, OpModel const &op_model);

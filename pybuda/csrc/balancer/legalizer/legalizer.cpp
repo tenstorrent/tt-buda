@@ -94,16 +94,6 @@ void OpOverride::apply(
         enable_t_streaming = false;
 }
 
-std::optional<int> OpOverride::get_fracture_factor()
-{
-    if (this->fracture_factor.has_value())
-    {
-        return this->fracture_factor.value();
-    }
-
-    return {};
-}
-
 std::optional<int> OpOverride::get_u_kt()
 {
     if (this->u_kt.has_value())
@@ -208,37 +198,6 @@ static std::vector<TStreamDir> get_legal_streaming_dirs(Graph const* graph, grap
         return {TStreamDir::R, TStreamDir::C};
 }
 
-static FactorizedInt get_fracture_factorization(
-    graphlib::Graph const* graph, graphlib::BudaOpNode const* op_node, std::optional<OpOverride> op_override)
-{
-    bool fracturization_disable = env_as<bool>("PYBUDA_FRACTURIZATION_DISABLE");
-    if (fracturization_disable)
-        return FactorizedInt(1);
-
-    if (not op_node->is_sparse_matmul())
-        return FactorizedInt(1);
-
-    FactorizedInt fracture_factorization(
-        graph->data_operands(op_node)[0]->as<graphlib::ConstantInputNode>()->get_sparse_buda().fracture_factor);
-
-    if (op_override)
-    {
-        if (auto fracture_factor = op_override->get_fracture_factor())
-        {
-            fracture_factorization =
-                fracture_factorization & FactorizedInt(FactorizedInt::Constant(fracture_factor.value()));
-
-            if (fracture_factorization.empty())
-            {
-                log_fatal(
-                    LogBalancer, "Illegal fracture factor chose for override, factor: {}", fracture_factor.value());
-            }
-        }
-    }
-
-    return fracture_factorization;
-}
-
 std::optional<int> get_output_buffer_override(
     graphlib::BudaOpNode const* op_node, std::optional<OpOverride> op_override)
 {
@@ -292,8 +251,7 @@ static std::pair<FactorizedShape, LegalSparseUKts> calculate_streaming_pars(
     graphlib::BudaOpNode const* op_node,
     Parallelization grid_par,
     FactorizedShape all_pars,
-    TStreamDir dir,
-    int fracture_factor)
+    TStreamDir dir)
 {
     bool is_reduce_z = graphlib::is_reduce_z(op_node);
     int operand_z_dim = graph->operands(op_node)[0]->shape().z();
@@ -310,7 +268,7 @@ static std::pair<FactorizedShape, LegalSparseUKts> calculate_streaming_pars(
         sparse::SparseBUDA& sparse_buda =
             graph->data_operands(op_node)[0]->as<graphlib::ConstantInputNode>()->get_sparse_buda();
         std::vector<tt::sparse::SparseCOO>& sparse_zs = sparse_buda.sparse_zs;
-        auto layout = sparse::SparseBUDA::create_layout(dir.z_major(), fracture_factor);
+        auto layout = sparse::SparseBUDA::create_layout(dir.z_major());
         int bcast_factor =
             (layout == sparse::SparseBUDA::Layout::ZMajor || layout == sparse::SparseBUDA::Layout::ZMajorDataflow)
                 ? sparse_buda.bcast_factor
@@ -329,7 +287,6 @@ static std::pair<FactorizedShape, LegalSparseUKts> calculate_streaming_pars(
             sparse_zs,
             inner_dim.get_factors(),
             sparse_buda.bcast_factor,
-            fracture_factor,
             layout);
 
         std::vector<int> r_para;
@@ -340,10 +297,6 @@ static std::pair<FactorizedShape, LegalSparseUKts> calculate_streaming_pars(
         log_trace(LogBalancer, "Streaming dir: {} -- Found t values: {} // {}", dir, fmt::join(r_para, ", "), total_t);
 
         return std::make_pair(FactorizedShape(FactorizedInt(r_para.begin(), r_para.end()), 1), r_para_to_legal_u_kts);
-    }
-    else if (op_node->is_sparse_matmul() and dir.c() and fracture_factor > 1)
-    {
-        return std::make_pair(FactorizedShape(1, 1), LegalSparseUKts{});
     }
 
     FactorizedInt r(FactorizedInt::FactorRange(grid_par.r, all_pars.r.get_max_factor()));
@@ -406,8 +359,7 @@ static std::pair<FactorizedShape, LegalSparseUKts> calculate_streaming_pars(
     FactorizedShape all_pars,
     TStreamDir dir,
     FactorizedShape overridden_pars,
-    bool enable_t_streaming,
-    int fracture_factor)
+    bool enable_t_streaming)
 {
     if (not enable_t_streaming or streaming_unsupported_op(op_node->op_type().op))
     {
@@ -415,7 +367,7 @@ static std::pair<FactorizedShape, LegalSparseUKts> calculate_streaming_pars(
     }
 
     auto [streaming_pars, legal_sparse_u_kts] =
-        calculate_streaming_pars(graph, op_node, grid_par, all_pars, dir, fracture_factor);
+        calculate_streaming_pars(graph, op_node, grid_par, all_pars, dir);
 
     if (not overridden_pars.empty())
         streaming_pars = streaming_pars & overridden_pars;
@@ -1225,7 +1177,6 @@ static std::vector<BufferModel> calculate_matmul_input_buffer_models_for_l1_budg
     BlockShape const& output_block_shape,
     TStreamFactor const& t_stream_factor,
     std::size_t input_l1_buffer_space,
-    int,
     std::unordered_map<std::string, balancer::UBlockShape>,
     LegalSparseUKts const&,
     int u_kt_override,
@@ -1376,7 +1327,6 @@ static std::vector<BufferModel> calculate_sparse_matmul_input_buffer_models_for_
     BlockShape const& output_block_shape,
     TStreamFactor const& t_stream_factor,
     std::size_t input_l1_buffer_space,
-    int fracture_factor,
     std::unordered_map<std::string, balancer::UBlockShape>,
     LegalSparseUKts const& legal_sparse_u_kts,
     int u_kt_override,
@@ -1409,7 +1359,7 @@ static std::vector<BufferModel> calculate_sparse_matmul_input_buffer_models_for_
         calculate_input_multiplier(input_multiplier_overrides, 1, input1, UBlockShape(1, output_block_shape.ublock.ct));
     BlockShape input_block_shape_ukt1(
         input1,
-        GridShape(1, grid_shape.c / fracture_factor),
+        GridShape(1, grid_shape.c),
         1,
         output_block_shape.mblock_n,
         UBlockShape(1, output_block_shape.ublock.ct));
@@ -1455,7 +1405,7 @@ static std::vector<BufferModel> calculate_sparse_matmul_input_buffer_models_for_
     // Recreate buffer model with new u_kt
     BlockShape input_block_shape = BlockShape(
         input1,
-        GridShape(1, grid_shape.c / fracture_factor),
+        GridShape(1, grid_shape.c),
         1,
         output_block_shape.mblock_n,
         UBlockShape(u_kt, output_block_shape.ublock.ct));
@@ -1473,7 +1423,6 @@ static std::vector<BufferModel> calculate_depthwise_input_buffer_models_for_l1_b
     BlockShape const& output_block_shape,
     TStreamFactor const&,
     std::size_t input_l1_buffer_space,
-    int,
     std::unordered_map<std::string, balancer::UBlockShape>,
     LegalSparseUKts const&,
     int,
@@ -1543,7 +1492,6 @@ static std::vector<BufferModel> calculate_eltwise_input_buffer_models_for_l1_bud
     BlockShape const& output_block_shape,
     TStreamFactor const&,
     std::size_t,
-    int,
     std::unordered_map<std::string, balancer::UBlockShape>,
     LegalSparseUKts const&,
     int,
@@ -1573,7 +1521,6 @@ static std::vector<BufferModel> calculate_reduce_input_buffer_models_for_l1_budg
     BlockShape const& output_block_shape,
     TStreamFactor const& t_stream_factor,
     std::size_t input_l1_buffer_space,
-    int,
     std::unordered_map<std::string, balancer::UBlockShape>,
     LegalSparseUKts const&,
     int,
@@ -1595,7 +1542,6 @@ static std::vector<BufferModel> calculate_reduce_input_buffer_models_for_l1_budg
             output_block_shape,
             t_stream_factor,
             input_l1_buffer_space,
-            1,
             {},
             {},
             0,
@@ -1643,7 +1589,6 @@ static std::vector<BufferModel> calculate_embedding_input_buffer_models_for_l1_b
     BlockShape const& output_block_shape,
     TStreamFactor const&,
     std::size_t,
-    int,
     std::unordered_map<std::string, balancer::UBlockShape>,
     LegalSparseUKts const&,
     int,
@@ -1677,7 +1622,6 @@ static std::vector<BufferModel> calculate_fused_input_buffer_models_for_l1_budge
     BlockShape const&,
     TStreamFactor const&,
     std::size_t,
-    int,
     std::unordered_map<std::string, balancer::UBlockShape> fused_op_ublock_shape,
     LegalSparseUKts const&,
     int,
@@ -2296,7 +2240,6 @@ static std::pair<OpModel, OpModelFailureReason> calculate_op_model_impl(
     std::size_t l1_usable_size,
     std::size_t dram_channel_capacity,
     std::string& customFailureMessage,
-    int fracture_factor,
     LegalSparseUKts const& legal_sparse_u_kts,
     int u_kt_override,
     std::map<std::uint32_t, std::uint32_t> const& min_input_buffer_factor_overrides,
@@ -2315,13 +2258,11 @@ static std::pair<OpModel, OpModelFailureReason> calculate_op_model_impl(
         /* u_kt */ 1,
         /* u_rt */ 1,  // u_kt and u_rt both set to 1, this provides worst-case scenario for in0/in2 L1 footprints
         t_stream_factor,
-        fracture_factor,
         /* calculate_sparse_in0_in2_shapes */ true);  // Need in0/in2 shapes to calculate their L1 footprint!
     op_model.grid_shape = selected_grid;
     op_model.buda_op_node = op_node;
     op_model.data_format = op_node->output_df();
     op_model.t_stream_factor = t_stream_factor;
-    op_model.fracture_factor = fracture_factor;
     auto [pad_rt, pad_ct] = graphlib::get_padding(graph, op_node);
     op_model.padding = Padding(pad_rt, pad_ct);
 
@@ -2463,7 +2404,6 @@ static std::pair<OpModel, OpModelFailureReason> calculate_op_model_impl(
             output_block_shape,
             t_stream_factor,
             input_l1_buffer_space,
-            fracture_factor,
             op_model.fused_op_ublock_shape,
             legal_sparse_u_kts,
             u_kt_override,
@@ -2485,7 +2425,6 @@ static std::pair<OpModel, OpModelFailureReason> calculate_op_model_impl(
                 ublock.rt,
                 op_model.input_buffers[1].block_shape.ublock.rt,
                 t_stream_factor,
-                fracture_factor,
                 /* calculate_sparse_in0_in2_shapes */ true);
         }
 
@@ -2562,7 +2501,6 @@ std::pair<OpModel, OpModelFailureReason> calculate_op_model(
     std::size_t l1_usable_size,
     std::size_t dram_channel_capacity,
     std::string& customFailureMessage,
-    int fracture_factor,
     LegalSparseUKts const& legal_sparse_u_kts,
     int u_kt_override,
     std::map<std::uint32_t, std::uint32_t> const& min_input_buffer_factor_overrides,
@@ -2583,7 +2521,6 @@ std::pair<OpModel, OpModelFailureReason> calculate_op_model(
             l1_usable_size,
             dram_channel_capacity,
             customFailureMessage,
-            fracture_factor,
             legal_sparse_u_kts,
             u_kt_override,
             min_input_buffer_factor_overrides,
@@ -2619,7 +2556,7 @@ LegalOpModels get_legal_op_models(
 #endif
 
     std::unordered_map<Node*, const BudaOpNodeLegalizerFailureInfo> nodes_without_legal_op_model;
-    LegalOpModels valid_op_models;
+    LegalOpModels all_valid_op_models;
     FactorizedShape device_grid(
         FactorizedInt::Factorial(config.device_config.grid_size.r),
         FactorizedInt::Factorial(config.device_config.grid_size.c));
@@ -2656,7 +2593,6 @@ LegalOpModels get_legal_op_models(
 #endif
 
         auto op_override = config.get_op_override(node->name());
-        FactorizedInt fracture_factorization = get_fracture_factorization(graph, op_node, op_override);
         std::optional<int> output_buffer_override = get_output_buffer_override(op_node, op_override);
         std::map<std::uint32_t, std::uint32_t> input_buffer_multipliers =
             get_min_input_buffer_multiplier_overrides(op_override);
@@ -2674,158 +2610,149 @@ LegalOpModels get_legal_op_models(
             op_node->shape().get_tile_volume(),
             full_dst_mode ? 1 : 2);
 
-        std::vector<OpModel> valid_grids;
-        for (int fracture_factor : fracture_factorization.get_factors())
+        std::vector<OpModel> valid_op_models;
+
+        // all_pars can extend beyond the device grid, used to express t-streaming
+        auto all_pars = FactorizedShape(get_parallelization(graph, op_node));
+        auto grid_pars = all_pars & device_grid;
+        bool force_dram_parameters = config.default_dram_parameters;
+        FactorizedShape overridden_streaming_pars;
+
+        // output ops will be placed on Nebula hence they should fit a harvested grid
+        if (env_as<bool>("PYBUDA_NEBULA_GALAXY_PLACER"))
         {
-            // all_pars can extend beyond the device grid, used to express t-streaming
-            auto all_pars = FactorizedShape(get_parallelization(graph, op_node, fracture_factor));
-            all_pars.c = all_pars.c.keep_factors_divisible_by(
-                FactorizedInt::Constant(fracture_factor));  // remove invalid factors
-            // TODO: each op's parallelization() should define FactorizedShape, instead of returning a 2-tuple, in order
-            // to avoid having the line above (which is specific to sparse mm)
-            auto grid_pars = all_pars & device_grid;
-            bool force_dram_parameters = config.default_dram_parameters;
-            FactorizedShape overridden_streaming_pars;
-
-            // output ops will be placed on Nebula hence they should fit a harvested grid
-            if (env_as<bool>("PYBUDA_NEBULA_GALAXY_PLACER"))
+            auto consumers = graph->users(op_node);
+            bool feeds_graph_output_queue = std::any_of(
+                consumers.begin(),
+                consumers.end(),
+                [](Node* n) { return n->node_type() == graphlib::NodeType::kOutput; });
+            if (feeds_graph_output_queue)
             {
-                auto consumers = graph->users(op_node);
-                bool feeds_graph_output_queue = std::any_of(
-                    consumers.begin(),
-                    consumers.end(),
-                    [](Node* n) { return n->node_type() == graphlib::NodeType::kOutput; });
-                if (feeds_graph_output_queue)
-                {
-                    grid_pars = grid_pars & harvested_device_grid;
-                }
+                grid_pars = grid_pars & harvested_device_grid;
             }
+        }
 
-            std::vector<TStreamDir> streaming_dirs = get_legal_streaming_dirs(graph, op_node);
+        std::vector<TStreamDir> streaming_dirs = get_legal_streaming_dirs(graph, op_node);
 
-            log_debug(LogBalancer, "Calculate legal op models for node {} {}:", node->name(), node->get_type());
+        log_debug(LogBalancer, "Calculate legal op models for node {} {}:", node->name(), node->get_type());
 
-            bool override_enable_t_streaming = not config.manual_t_streaming;
-            if (auto op_override = config.get_op_override(node->name()))
-                op_override->apply(
-                    grid_pars,
-                    force_dram_parameters,
-                    streaming_dirs,
-                    overridden_streaming_pars,
-                    override_enable_t_streaming,
-                    node->name());
+        bool override_enable_t_streaming = not config.manual_t_streaming;
+        if (auto op_override = config.get_op_override(node->name()))
+            op_override->apply(
+                grid_pars,
+                force_dram_parameters,
+                streaming_dirs,
+                overridden_streaming_pars,
+                override_enable_t_streaming,
+                node->name());
 
-            bool enable_t_streaming = config.enable_t_streaming and override_enable_t_streaming and
-                                      (not node->as<graphlib::TaggedNode>()->has_tag("padding_nop"));
+        bool enable_t_streaming = config.enable_t_streaming and override_enable_t_streaming and
+                                    (not node->as<graphlib::TaggedNode>()->has_tag("padding_nop"));
 
-            log_trace(LogBalancer, "  Grids:");
-            for (Parallelization grid_par : grid_pars)
+        log_trace(LogBalancer, "  Grids:");
+        for (Parallelization grid_par : grid_pars)
+        {
+            bool did_non_streaming = false;
+            for (auto streaming_dir : streaming_dirs)
             {
-                bool did_non_streaming = false;
-                for (auto streaming_dir : streaming_dirs)
+                auto [streaming_pars, legal_sparse_u_kts] = calculate_streaming_pars(
+                    graph,
+                    op_node,
+                    grid_par,
+                    all_pars,
+                    streaming_dir,
+                    overridden_streaming_pars,
+                    enable_t_streaming);
+
+                for (auto streaming_par : streaming_pars)
                 {
-                    auto [streaming_pars, legal_sparse_u_kts] = calculate_streaming_pars(
+                    if (did_non_streaming and streaming_par == Parallelization(1, 1))
+                        continue;  // We already covered this case with TStreamDir::R, i.e. non-streaming
+                    did_non_streaming |= (streaming_par == Parallelization(1, 1));
+
+                    std::string customFailureMessage;
+
+                    auto [op_model, failure_reason] = calculate_op_model(
                         graph,
+                        cache_collection,
                         op_node,
                         grid_par,
-                        all_pars,
-                        streaming_dir,
-                        overridden_streaming_pars,
-                        enable_t_streaming,
-                        fracture_factor);
+                        TStreamFactor(streaming_dir, streaming_par),
+                        ublock_order,
+                        force_dram_parameters,
+                        dst_size_tiles,
+                        config.device_config.get_l1_usable_size(),
+                        config.device_config.get_dram_channel_capacity(),
+                        customFailureMessage,
+                        legal_sparse_u_kts,
+                        user_overriden_u_kt,
+                        input_buffer_multipliers,
+                        output_buffer_override,
+                        fallback_single_buffer);
 
-                    for (auto streaming_par : streaming_pars)
+                    if (NoFailure == failure_reason)
                     {
-                        if (did_non_streaming and streaming_par == Parallelization(1, 1))
-                            continue;  // We already covered this case with TStreamDir::R, i.e. non-streaming
-                        did_non_streaming |= (streaming_par == Parallelization(1, 1));
+                        valid_op_models.push_back(op_model);
 
-                        std::string customFailureMessage;
-
-                        auto [op_model, failure_reason] = calculate_op_model(
-                            graph,
-                            cache_collection,
-                            op_node,
-                            grid_par,
-                            TStreamFactor(streaming_dir, streaming_par),
-                            ublock_order,
-                            force_dram_parameters,
-                            dst_size_tiles,
-                            config.device_config.get_l1_usable_size(),
-                            config.device_config.get_dram_channel_capacity(),
-                            customFailureMessage,
-                            fracture_factor,
-                            legal_sparse_u_kts,
-                            user_overriden_u_kt,
-                            input_buffer_multipliers,
-                            output_buffer_override,
-                            fallback_single_buffer);
-
-                        if (NoFailure == failure_reason)
+                        for (int u_kt_override :
+                                enumerate_factored_u_kts(op_model, user_overriden_u_kt, config.enable_enumerate_u_kt))
                         {
-                            valid_grids.push_back(op_model);
-
-                            for (int u_kt_override :
-                                 enumerate_factored_u_kts(op_model, user_overriden_u_kt, config.enable_enumerate_u_kt))
-                            {
-                                auto [factored_u_kt_op_model, factored_u_kt_failure_reason] = calculate_op_model(
-                                    graph,
-                                    cache_collection,
-                                    op_node,
-                                    grid_par,
-                                    TStreamFactor(streaming_dir, streaming_par),
-                                    ublock_order,
-                                    force_dram_parameters,
-                                    dst_size_tiles,
-                                    config.device_config.get_l1_usable_size(),
-                                    config.device_config.get_dram_channel_capacity(),
-                                    customFailureMessage,
-                                    fracture_factor,
-                                    legal_sparse_u_kts,
-                                    u_kt_override,
-                                    input_buffer_multipliers,
-                                    output_buffer_override,
-                                    fallback_single_buffer);
-                                if (factored_u_kt_failure_reason == NoFailure)
-                                    valid_grids.push_back(factored_u_kt_op_model);
-                            }
-
-                            log_trace(
-                                LogBalancer,
-                                "    {} {:<32} {} Legalizer Valid",
-                                op_node->name(),
-                                GridShape(grid_par),
-                                TStreamFactor(streaming_dir, streaming_par));
-                            log_trace(LogBalancer, "      L1: {:<16}", op_model.get_l1_memory_usage());
-                            log_trace(
-                                LogBalancer,
-                                "      Cycles: {:<16}",
-                                op_model.get_execution_cycles(config.device_config.arch_name));
-                            log_trace(LogBalancer, "{}", op_model);
-                        }
-                        else
-                        {
-                            log_trace(
-                                LogBalancer,
-                                "    {} {:<26} {} Legalizer Failed: {}",
-                                op_node->name(),
-                                GridShape(grid_par),
+                            auto [factored_u_kt_op_model, factored_u_kt_failure_reason] = calculate_op_model(
+                                graph,
+                                cache_collection,
+                                op_node,
+                                grid_par,
                                 TStreamFactor(streaming_dir, streaming_par),
-                                customFailureMessage.empty() ? OpModelFailureReasonMessages[failure_reason]
-                                                             : customFailureMessage);
-                            log_trace(LogBalancer, "{}", op_model);
-                            failure_info.recordOpModelFailure(failure_reason);
+                                ublock_order,
+                                force_dram_parameters,
+                                dst_size_tiles,
+                                config.device_config.get_l1_usable_size(),
+                                config.device_config.get_dram_channel_capacity(),
+                                customFailureMessage,
+                                legal_sparse_u_kts,
+                                u_kt_override,
+                                input_buffer_multipliers,
+                                output_buffer_override,
+                                fallback_single_buffer);
+                            if (factored_u_kt_failure_reason == NoFailure)
+                                valid_op_models.push_back(factored_u_kt_op_model);
                         }
+
+                        log_trace(
+                            LogBalancer,
+                            "    {} {:<32} {} Legalizer Valid",
+                            op_node->name(),
+                            GridShape(grid_par),
+                            TStreamFactor(streaming_dir, streaming_par));
+                        log_trace(LogBalancer, "      L1: {:<16}", op_model.get_l1_memory_usage());
+                        log_trace(
+                            LogBalancer,
+                            "      Cycles: {:<16}",
+                            op_model.get_execution_cycles(config.device_config.arch_name));
+                        log_trace(LogBalancer, "{}", op_model);
+                    }
+                    else
+                    {
+                        log_trace(
+                            LogBalancer,
+                            "    {} {:<26} {} Legalizer Failed: {}",
+                            op_node->name(),
+                            GridShape(grid_par),
+                            TStreamFactor(streaming_dir, streaming_par),
+                            customFailureMessage.empty() ? OpModelFailureReasonMessages[failure_reason]
+                                                            : customFailureMessage);
+                        log_trace(LogBalancer, "{}", op_model);
+                        failure_info.recordOpModelFailure(failure_reason);
+                    }
 
 #ifdef DEBUG
-                        if (enable_legalizer_detailed_debugging)
-                        {
-                            debug_op_node->leg_debug_info->recordOpModelFailure(failure_reason);
-                        }
-
-                        op_graph_debug_info.recordOpModelFailure(failure_reason);
-#endif
+                    if (enable_legalizer_detailed_debugging)
+                    {
+                        debug_op_node->leg_debug_info->recordOpModelFailure(failure_reason);
                     }
+
+                    op_graph_debug_info.recordOpModelFailure(failure_reason);
+#endif
                 }
             }
         }
@@ -2846,8 +2773,8 @@ LegalOpModels get_legal_op_models(
         }
 #endif
 
-        log_debug(LogBalancer, "Total op models for node: {} {}", node->name(), valid_grids.size());
-        if (valid_grids.empty())
+        log_debug(LogBalancer, "Total op models for node: {} {}", node->name(), valid_op_models.size());
+        if (valid_op_models.empty())
         {
             nodes_without_legal_op_model.emplace(node, failure_info);
             std::uint32_t buffer_alloc_cnt = nodes_without_legal_op_model[node].getOpModelFailureCountByType(
@@ -2870,7 +2797,7 @@ LegalOpModels get_legal_op_models(
                 operand_access_cnt,
                 operand_and_user_access_cnt);
         }
-        valid_op_models.emplace(node, valid_grids);
+        all_valid_op_models.emplace(node, valid_op_models);
     }
 
 #ifdef DEBUG
@@ -2885,7 +2812,7 @@ LegalOpModels get_legal_op_models(
             BalancerError::NoValidGrid(std::move(nodes_without_legal_op_model)));
     }
 
-    return valid_op_models;
+    return all_valid_op_models;
 }
 
 static OpModel create_input_queue_op_model(

@@ -218,7 +218,7 @@ class BudaOp(OpTypeWrapper):
     ) -> Tuple[Tuple[int], List[int]]:
         raise NotImplemented()
 
-    def parallelization(self, op_shape: OpShape, fracture_factor: int) -> Tuple[int]:
+    def parallelization(self, op_shape: OpShape) -> Tuple[int]:
         raise NotImplemented()
 
     def input_ublock_order(self, num_tensors: int):

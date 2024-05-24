@@ -177,7 +177,7 @@ def shape(op_type, attr, ops, tile_height, tile_width):
     return ops[0], []
 
 
-def parallelization(type, attr, op_shape, fracture_factor):
+def parallelization(type, attr, op_shape):
     if type == "reduce":
         dim = attr[0]
         if dim == 1:

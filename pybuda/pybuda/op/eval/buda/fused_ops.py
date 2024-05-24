@@ -58,7 +58,7 @@ def input_ublock_order(type, attr, num_operands):
     return None
 
 
-def parallelization(type, attr, op_shape, fracture_factor):
+def parallelization(type, attr, op_shape):
     # If there's a reduce, then we have to force the 
     reduce_dim = attr[0] if len(attr) >= 1 else 0
     if reduce_dim == 1:

@@ -86,7 +86,7 @@ class Nop(BudaEltwiseUnaryOp):
 
         return shape, []
 
-    def parallelization(self, op_shape, fracture_factor):
+    def parallelization(self, op_shape):
         return (op_shape.outputs[0].rt, op_shape.outputs[0].ct)
 
     def input_ublock_order(self, num_operands):

@@ -94,7 +94,7 @@ def shape(type, attr, ops, tile_height, tile_width) -> Tuple[Tuple, List]:
     return tuple(output_shape), broadcast
 
 
-def parallelization(type, attr, op_shape, fracture_factor):
+def parallelization(type, attr, op_shape):
     if type in {"binary_vstack", "binary_hstack"}:
         # Unsupported HW op
         return None

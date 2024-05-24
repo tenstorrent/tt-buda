@@ -49,7 +49,6 @@ std::pair<OpModel, OpModelFailureReason> calculate_op_model(
     std::size_t l1_usable_size,
     std::size_t dram_channel_capacity,
     std::string& customFailureMessage,
-    int fracture_factor = 1,
     LegalSparseUKts const& = {},
     int u_kt_override = 0,
     std::map<std::uint32_t, std::uint32_t> const& min_input_buffer_factor_overrides = {},

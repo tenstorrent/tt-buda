@@ -107,15 +107,8 @@ legalizer::GraphSolver get_graph_solver(
 static void add_broadcasts_for_sparse_inputs_0_2(
     graphlib::Graph const* graph, graphlib::Node const* node, OpModel const& op_model)
 {
-    // If fracture factor > 1, inputs have already been properly sized to target eltwise pipes scenario
-    // The reason they can't be handled here as well is that fractured convs have different inputs 0 and
-    // 2 for each c-dim core
-    if (op_model.fracture_factor > 1)
-    {
-        return;
-    }
-
     // No need to broadcast in this case
+    //
     if (op_model.grid_shape.c == 1)
     {
         return;
@@ -138,35 +131,6 @@ static void add_broadcasts_for_sparse_inputs_0_2(
 
     input0_edge_attrs->set_tms(input0_edge_tms);
     input2_edge_attrs->set_tms(input2_edge_tms);
-}
-
-static void insert_sparse_fracturing_tms(
-    graphlib::Graph const* graph, graphlib::Node const* node, OpModel const& op_model)
-{
-    // Out
-    std::vector<Edge> out_edges = graph->user_data_edges(node);
-    TT_ASSERT(out_edges.size() == 1);
-    std::shared_ptr<tt::graphlib::EdgeAttributes> out_edge_attrs = graph->get_edge_attributes(out_edges[0]);
-    std::vector<tt::graphlib::OpType> out_edge_tms = out_edge_attrs->get_tms();
-
-    std::vector<tt::graphlib::OpType> prepend_tms = {
-        // Instead of adding hslice(f) + vstack(f), we could just add an hslice(f) and divide the existing vslice's
-        // split factor by f (where f = fracture_factor), but the optimize_tms() pass does this for us
-        graphlib::OpType("hslice", {op_model.fracture_factor}, {}),
-        graphlib::OpType("vstack", {op_model.fracture_factor}, {})};
-    out_edge_tms.insert(out_edge_tms.begin(), prepend_tms.begin(), prepend_tms.end());
-    out_edge_attrs->set_tms(out_edge_tms);
-
-    // In1
-    std::vector<Edge> in_edges = graph->operand_data_edges(node);
-    TT_ASSERT(in_edges.size() == 3);
-    std::shared_ptr<tt::graphlib::EdgeAttributes> in1_edge_attrs = graph->get_edge_attributes(in_edges[1]);
-    std::vector<tt::graphlib::OpType> in1_edge_tms = in1_edge_attrs->get_tms();
-
-    std::vector<tt::graphlib::OpType> append_tms = {
-        graphlib::OpType("broadcast", {3, op_model.fracture_factor, true}, {})};
-    in1_edge_tms.insert(in1_edge_tms.end(), append_tms.begin(), append_tms.end());
-    in1_edge_attrs->set_tms(in1_edge_tms);
 }
 
 // Layout dataflow reorders the output buffer of sparse matmul in a way
@@ -328,7 +292,7 @@ void update_ops_on_selected_op_models(graphlib::Graph const* graph, OpModels con
                 const sparse::SparseBUDA& sparse_buda =
                     graph->data_operands(node)[0]->as<graphlib::ConstantInputNode>()->get_sparse_buda();
                 auto layout =
-                    sparse::SparseBUDA::create_layout(op_model.t_stream_factor.dir.z_major(), op_model.fracture_factor);
+                    sparse::SparseBUDA::create_layout(op_model.t_stream_factor.dir.z_major());
 
                 std::string visualize_sparse_path =
                     env_as<bool>("PYBUDA_VISUALIZE_SPARSE") ? "sparse_" + op->name() + ".png" : "";
@@ -339,7 +303,6 @@ void update_ops_on_selected_op_models(graphlib::Graph const* graph, OpModels con
                         op_model.t_stream_factor.c,
                         u_rt,
                         u_kt,
-                        op_model.fracture_factor,
                         layout,
                         visualize_sparse_path);
                 int sparse_tile_ptr_bits =
@@ -357,8 +320,7 @@ void update_ops_on_selected_op_models(graphlib::Graph const* graph, OpModels con
                 py::function shapeify = sparse_utils_module.attr("shapeify_sparse_tiles_and_encodings");
 
                 // Overwrite input tensors
-                auto [sp, enc] = shapeify(sparse, encodings, grid_r, op_model.fracture_factor)
-                                     .cast<std::pair<py::object, py::object>>();
+                auto [sp, enc] = shapeify(sparse, encodings, grid_r).cast<std::pair<py::object, py::object>>();
                 graphlib::ConstantInputNode* cin0 = graph->data_operands(node)[0]->as<graphlib::ConstantInputNode>();
                 graphlib::ConstantInputNode* cin2 = graph->data_operands(node)[2]->as<graphlib::ConstantInputNode>();
                 cin0->set_tensor_handle(make_shared_py_object(sp));
@@ -373,27 +335,23 @@ void update_ops_on_selected_op_models(graphlib::Graph const* graph, OpModels con
 
                 // Overwrite op attributes
                 auto op_attrs = op->op_attrs();
-                TT_ASSERT(op_attrs.size() == 15);
+                TT_ASSERT(op_attrs.size() == 14);
                 op_attrs[2] = sparse_tile_ptr_bits;
-                op_attrs[7] = op_model.fracture_factor;
-                op_attrs[8] = u_rt;
-                op_attrs[9] = u_kt;
-                op_attrs[10] = u_ct;
-                op_attrs[11] = op_model.grid_shape.c;
-                op_attrs[12] = op_model.t_stream_factor.r;
-                op_attrs[13] = op_model.t_stream_factor.c;
-                op_attrs[14] = sparse_ublock_idx_bits;
+                op_attrs[7] = u_rt;
+                op_attrs[8] = u_kt;
+                op_attrs[9] = u_ct;
+                op_attrs[10] = op_model.grid_shape.c;
+                op_attrs[11] = op_model.t_stream_factor.r;
+                op_attrs[12] = op_model.t_stream_factor.c;
+                op_attrs[13] = sparse_ublock_idx_bits;
                 op->overwrite_op_attrs(op_attrs);
 
                 // Overwrite buda attributes
                 auto buda_attrs = op->buda_attrs();
-                buda_attrs["num_sparse_tiles"] =
-                    static_cast<int>(sparse_s[3] / sparse::TILE_DIM / op_model.fracture_factor);
-                buda_attrs["num_index_tiles"] =
-                    static_cast<int>(encodings_s[3] / sparse::TILE_DIM / op_model.fracture_factor);
+                buda_attrs["num_sparse_tiles"] = static_cast<int>(sparse_s[3] / sparse::TILE_DIM);
+                buda_attrs["num_index_tiles"] = static_cast<int>(encodings_s[3] / sparse::TILE_DIM);
                 buda_attrs["sparse_tile_ptr_bits"] = sparse_tile_ptr_bits;
                 buda_attrs["sparse_ublock_idx_bits"] = sparse_ublock_idx_bits;
-                buda_attrs["fracture_factor"] = op_model.fracture_factor;
                 op->overwrite_buda_attrs(buda_attrs);
 
                 // Overwrite op attributes
@@ -410,22 +368,6 @@ void update_ops_on_selected_op_models(graphlib::Graph const* graph, OpModels con
 
                 graph->data_operands(node)[0]->set_shape(graphlib::Shape::create_buda(sparse_s));
                 graph->data_operands(node)[2]->set_shape(graphlib::Shape::create_buda(encodings_s));
-
-                if (op_model.fracture_factor > 1)
-                {
-                    // Update node shape to account for fracture factor
-                    tt::graphlib::Shape shape = node->shape().canonical();
-                    tt::graphlib::Shape new_shape = graphlib::Shape::create_buda(
-                        shape.as_vector()[0],
-                        shape.as_vector()[1],
-                        shape.as_vector()[2] / op_model.fracture_factor,
-                        shape.as_vector()[3] * op_model.fracture_factor);
-                    TT_ASSERT(shape.volume() == new_shape.volume());
-                    node->set_shape(new_shape);
-
-                    // Insert tms to account for fracture factor
-                    insert_sparse_fracturing_tms(graph, node, op_model);
-                }
 
                 log_trace(LogBalancer, "Sparse layout {}: {}", op->name(), layout);
                 if (layout == sparse::SparseBUDA::Layout::ZMajorDataflow)
