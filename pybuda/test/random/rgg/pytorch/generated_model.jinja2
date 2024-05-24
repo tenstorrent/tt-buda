@@ -4,7 +4,7 @@ import pybuda
 import pytest
 from pybuda.verify import verify_module, VerifyConfig
 {% endif %}
-
+{# TODO replace empty new lines with spaces to keep formatting in pipeline #}
 class GeneratedTestModel_{{ test_index }}_{{ random_seed }}(torch.nn.Module):
     # graph_builder: {{ graph_builder_name }}
     # id: {{ test_id }}
@@ -13,19 +13,15 @@ class GeneratedTestModel_{{ test_index }}_{{ random_seed }}(torch.nn.Module):
 
     def __init__(self):
         super(GeneratedTestModel_{{ test_index }}_{{ random_seed }}, self).__init__()
-{% for node in nodes %}{% if node.operator.is_layer() %}        
+{% for node in graph.nodes %}{% if node.operator.is_layer() %}        
         self.{{ node.layer_name() }} = {{ build_layer(node) }}{% endif %}{% endfor %}
 
-    def forward(self, act: torch.Tensor) -> torch.Tensor:
-    
-        v = act{% for node in nodes %}{% if node.inputs %}
+    def forward(self{% for node in graph.input_nodes %}, {{ node.out_value }}: torch.Tensor{% endfor %}) -> torch.Tensor:
+        {% for node in graph.nodes %}
 
-        inputs = [{% for input_node in node.inputs %}{{ input_node.out_value }}{% if not loop.last %}, {% endif %}{% endfor %}]{% else %}
-
-        inputs = [v]{% endif %}{% if node.operator.is_layer() %}
-        v = self.{{ node.layer_name() }}(inputs[0]){% else %}
-        v = {% if node.operator.forward_code %}{{node.operator.forward_code()}}{% else %}{{ node.operator.full_name }}({{ forward_args(node=node) }}{{ forward_kwargs(node=node) }}){% endif %}{% endif %}{% if node.out_value %}
-        {{ node.out_value }} = v{% endif %}{% endfor %}
+        inputs = [{% for input_node in node.inputs %}{{ input_node.out_value }}{% if not loop.last %}, {% endif %}{% endfor %}]{% if node.operator.is_layer() %}
+        {{ node.out_value }} = self.{{ node.layer_name() }}(inputs[0]){% else %}
+        {{ node.out_value }} = {% if node.operator.forward_code %}{{node.operator.forward_code()}}{% else %}{{ node.operator.full_name }}({{ forward_args(node=node) }}{{ forward_kwargs(node=node) }}){% endif %}{% endif %}{% endfor %}
 
         return v
 {% if test_format %}
@@ -33,10 +29,10 @@ class GeneratedTestModel_{{ test_index }}_{{ random_seed }}(torch.nn.Module):
 # @pytest.mark.skip(reason="Skip this test for now.")
 def test_gen_model_{{ test_index }}_{{ random_seed }}(test_device):
     
-    input_shape = {{ graph.input_shape }}
+    input_shapes = [{% for input_node in graph.input_nodes %}{{ input_node.input_shape }}, {% endfor %}]
     pytorch_model = GeneratedTestModel_{{ test_index }}_{{ random_seed }}()
     model = pybuda.PyTorchModule("pytest_gen_model_{{ test_id }}", pytorch_model)
 
-    verify_module(model, [input_shape], VerifyConfig(devtype=test_device.devtype, arch=test_device.arch))
+    verify_module(model, input_shapes, VerifyConfig(devtype=test_device.devtype, arch=test_device.arch))
 
 {% endif %}

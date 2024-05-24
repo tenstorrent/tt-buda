@@ -4,30 +4,18 @@
 # Utility functions
 
 
-from typing import Dict
-import torch
+import random
+from typing import List, Dict
+from dataclasses import asdict
 import re
+import yaml
 
 import numpy as np
 
 from pybuda.op_repo import OperatorParam, OperatorParamNumber
 
-from .datatypes import RandomizerTestContext
-
-
-# TODO move to StrUtils
-def tensor_shape(t: torch.Tensor) -> str:
-    """
-    Returns a string representation of the shape of a tensor.
-    The method is used for logging purposes.
-
-    Args:
-        t (torch.Tensor): The input tensor.
-
-    Returns:
-        str: A string representation of the tensor shape, in the format "dim=<number of dimensions> v=<size of each dimension>".
-    """
-    return f"dim={t.dim()} v={t.size()}"
+from .datatypes import TensorShape
+from .datatypes import RandomizerConfig, RandomizerTestContext, RandomizerNode, RandomizerGraph
 
 
 class StrUtils:
@@ -59,6 +47,11 @@ class StrUtils:
         test_id = f"{parameters.framework_name}_{graph_builder_snake_case}_{parameters.test_index}_{parameters.random_seed}"
         return test_id
 
+    @staticmethod
+    def nodes_to_str(nodes: List[RandomizerNode]) -> str:
+        nodes_str = "\n".join([f"    {node}" for node in nodes])
+        return nodes_str
+
 
 class RandomUtils:
 
@@ -87,3 +80,83 @@ class RandomUtils:
     @classmethod
     def forward_kwargs(cls, param: OperatorParam) -> Dict:
         return {param.name: cls.random_value_for_param(param) for param in param.forward_params}
+
+    @classmethod
+    def random_shape(cls,
+                     rng_shape: random.Random,
+                     dim_min: int,
+                     dim_max: int,
+                     op_size_min: int,
+                     op_size_max: int,
+                     microbatch_size_min: int,
+                     microbatch_size_max: int,
+        ) -> TensorShape:
+        shape = [rng_shape.randint(op_size_min, op_size_max) for _ in range(rng_shape.randint(dim_min - 1, dim_max - 1))]
+        microbatch_size = rng_shape.randint(microbatch_size_min, microbatch_size_max)
+        shape.insert(0, microbatch_size)
+        shape = tuple(shape)
+
+        return shape
+
+    @classmethod
+    def random_shape_from_config(cls, randomizer_config: RandomizerConfig, rng_shape: random.Random) -> TensorShape:
+        op_size_min = randomizer_config.op_size_min
+        op_size_max = randomizer_config.op_size_max
+
+        dim_min = randomizer_config.dim_min
+        dim_max = randomizer_config.dim_max
+
+        microbatch_size_min = randomizer_config.microbatch_size_min
+        microbatch_size_max = randomizer_config.microbatch_size_max
+
+        return cls.random_shape(
+            rng_shape,
+            dim_min=dim_min,
+            dim_max=dim_max,
+            op_size_min=op_size_min,
+            op_size_max=op_size_max,
+            microbatch_size_min=microbatch_size_min,
+            microbatch_size_max=microbatch_size_max,
+        )
+
+
+class GraphUtils:
+
+    @classmethod
+    def get_input_shapes(cls, graph: RandomizerGraph) -> List[TensorShape]:
+        input_shapes = [input_node.input_shape for input_node in graph.input_nodes]
+        return input_shapes
+
+    @classmethod
+    def to_ops_str(cls, graph: RandomizerGraph) -> str:
+        ops = [node.get_name() for node in graph.nodes]
+        ops_str = " -> ".join(ops)
+        return ops_str
+
+    @classmethod
+    def short_description(cls, graph: RandomizerGraph):
+        return f"ops: ({cls.to_ops_str(graph)}) input_shapes: {cls.get_input_shapes(graph)}"
+
+    # TODO support serialization/deserialization of RandomizerGraph
+    @classmethod
+    def to_str(cls, graph: RandomizerGraph):
+        graph_dict = asdict(graph)
+        # Serialize dictionary to YAML string
+        yaml_str = yaml.dump(graph_dict)
+        # yaml_str = json.dumps(graph.__dict__)
+        return yaml_str
+
+
+class NodeUtils:
+
+    @staticmethod
+    def is_previous_node(node: RandomizerNode, previous_node: RandomizerNode) -> bool:
+        return node.index == previous_node.index + 1
+
+    @staticmethod
+    def is_open(node: RandomizerNode) -> bool:
+        return (node.inputs is None or len(node.inputs) == 0) or (node.operator.input_num > 1 and len(node.inputs) < node.operator.input_num)
+
+    @classmethod
+    def get_open_nodes(cls, nodes: List[RandomizerNode]) -> List[RandomizerNode]:
+        return [node for node in nodes if cls.is_open(node)]

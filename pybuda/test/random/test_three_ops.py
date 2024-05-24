@@ -58,12 +58,12 @@ def test_three_ops(test_index, random_seeds, test_device, randomizer_config):
     random_seed = random_seeds[test_index]
     rng = random.Random(random_seed)
 
-    min_op_size = randomizer_config.min_op_size
-    max_op_size = randomizer_config.max_op_size
+    op_size_min = randomizer_config.op_size_min
+    op_size_max = randomizer_config.op_size_max
     
-    rows = rng.randint(min_op_size, max_op_size)
-    cols1 = rng.randint(min_op_size, max_op_size)
-    cols2 = rng.randint(min_op_size, max_op_size)
+    rows = rng.randint(op_size_min, op_size_max)
+    cols1 = rng.randint(op_size_min, op_size_max)
+    cols2 = rng.randint(op_size_min, op_size_max)
     microbatch_size = rng.randint(1, 8)
 
     model = ThreeOpModel(rng, cols1, cols2)

@@ -12,11 +12,11 @@ import os
 
 from pybuda import PyBudaModule
 from pybuda.verify import verify_module, VerifyConfig
-from pybuda.op_repo import OperatorDefinition, OperatorRepository
+from pybuda.op_repo import OperatorRepository
 from test.conftest import TestDevice
 from .datatypes import RandomizerNode, RandomizerGraph, RandomizerParameters, RandomizerConfig, ExecutionContext
 from .datatypes import RandomizerTestContext
-from .utils import RandomUtils, StrUtils
+from .utils import RandomUtils, StrUtils, GraphUtils
 
 
 class GraphBuilder:
@@ -27,15 +27,12 @@ class GraphBuilder:
     def __init__(self, randomizer_config: RandomizerConfig):
         self.randomizer_config = randomizer_config
 
-    def build_graph(self, parameters: RandomizerParameters) -> RandomizerGraph:
+    def build_graph(self, test_context: RandomizerTestContext) -> None:
         """
         Generate test graph with input shape needed for validation.
 
         Args:
-            parameters (RandomizerParameters): The parameters for the randomizer.
-
-        Returns:
-            RandomizerGraph: The randomized graph model with input shape.
+            test_context (RandomizerTestContext): The context for the randomizer test.
 
         Raises:
             Exception: This method is not implemented.
@@ -74,7 +71,7 @@ class RandomizerCodeGenerator:
         return StrUtils.kwargs_str(**constructor_kwargs)
 
     def forward_args(self, node: RandomizerNode) -> str:
-        args_str = ",".join([f"inputs[{i}]" for i in range(node.operator.input_num)])
+        args_str = ", ".join([f"inputs[{i}]" for i in range(node.operator.input_num)])
         return args_str
     
     def forward_kwargs(self, node: RandomizerNode) -> str:
@@ -108,7 +105,6 @@ class RandomizerCodeGenerator:
             test_index = parameters.test_index,
             random_seed = parameters.random_seed,
             graph=test_context.graph,
-            nodes=test_context.graph.nodes,
             build_layer=self.build_layer,
             # call_operator=self.call_operator,
             constructor_kwargs=self.constructor_kwargs,
@@ -163,6 +159,7 @@ class RandomizerModelProviderFromSourceCode:
         return GeneratedTestModel
 
 
+# TODO move RandomizerRunner and process_test to runner.py
 class RandomizerRunner:
     """
     The RandomizerRunner class is used for processing randomized tests.
@@ -180,55 +177,6 @@ class RandomizerRunner:
         self.code_generator = RandomizerCodeGenerator(f"pybuda/test/random/rgg/{test_context.parameters.framework_name.lower()}")
         self.model_provider = RandomizerModelProviderFromSourceCode(self.code_generator, modelBuilder)
 
-    def init_nodes(self, graph: RandomizerGraph):
-        """
-        Initializes the nodes for generating tests. 
-
-        This method does three main things:
-        1. Sets the index for each node.
-        2. Stores output values if they are needed as explicit input for a later operator.
-        3. Validates the input configuration.
-
-        Args:
-            graph (RandomizerGraph): The model configuration for generating tests.
-
-        Raises:
-            Exception: If the number of inputs for a node does not match the configured input number.
-            Exception: If the node operator is not of type RandomizerOperator.
-
-        Returns:
-            None
-        """
-        nodes = graph.nodes
-
-        # Setting node.index
-        op_index_cnt = 0
-        for node in nodes:
-            op_index_cnt += 1
-            node.index = op_index_cnt
-
-        # Storing output values if needed as explicit input for later operator
-        for node in nodes:
-            if node.inputs:
-                for input_node in node.inputs:
-                    input_node: RandomizerNode = input_node
-                    input_node.out_value = input_node.operator_name()
-                    logger.trace(f"Set out_value = {input_node.out_value}")
-
-        # Validation of input configuration
-        for node in nodes:
-            if node.operator.input_num and node.operator.input_num > 1:
-                if len(node.inputs) != node.operator.input_num:
-                    raise Exception(f"Expected {node.operator.input_num} number of inputs but configured {node.inputs}")
-
-        # Validation of operator and layer types
-        for node in nodes:
-            if node.operator and not isinstance(node.operator, OperatorDefinition):
-                raise Exception(f"Step operator is wrong type {node.node_info()} expected RandomizerOperator got {type(node.operator)}")
-
-        nodes_str = "\n".join([f"    {node}" for node in nodes])
-        logger.debug(f"Nodes: \n{nodes_str}")
-
     def generate_code(self) -> str:
         """
         Generates a test source code with test function for the randomized graph.
@@ -237,6 +185,10 @@ class RandomizerRunner:
             str: The generated code.
         """
         return self.code_generator.generate_code(self.test_context, test_format=True)
+
+    def build_graph(self, graph_builder: GraphBuilder) -> None:
+        self.test_context.graph = RandomizerGraph()
+        graph_builder.build_graph(self.test_context)
 
     def build_model(self) -> PyBudaModule:
         model = self.model_provider.build_model(self.test_context)
@@ -256,10 +208,10 @@ class RandomizerRunner:
         """
 
         parameters = self.test_context.parameters
-        input_shape = self.test_context.graph.input_shape
+        input_shapes = GraphUtils.get_input_shapes(self.test_context.graph)
 
         # verify PyBuda model
-        verify_module(model, [input_shape],
+        verify_module(model, input_shapes,
                       VerifyConfig(devtype=parameters.test_device.devtype, arch=parameters.test_device.arch))
 
     def save_test(self, test_code_str: str):
@@ -291,14 +243,12 @@ class RandomizerRunner:
         logger.debug(f"Parameters test_index: {parameters.test_index} random_seed: {parameters.random_seed} test_device: {parameters.test_device}")
 
         # build random graph for the specified parameters
-        graph = graph_builder.build_graph(parameters)
-        self.test_context.graph = graph
-        # initialize nodes attributes
-        self.init_nodes(graph)
-        logger.debug(f"Generating graph model {graph.short_description()}")
+        self.build_graph(graph_builder)
+        graph = self.test_context.graph
+        logger.debug(f"Generating graph model {GraphUtils.short_description(graph)}")
         if randomizer_config.print_graph:
             # printing generated graph to console for debugging purposes
-            logger.debug(f"Graph config:\n{graph.to_str()}")
+            logger.debug(f"Graph config:\n{StrUtils.to_str(graph)}")
 
         # generate test source code with test function
         test_code_str = self.generate_code()

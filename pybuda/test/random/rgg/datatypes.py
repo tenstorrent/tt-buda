@@ -5,12 +5,20 @@
 
 
 from typing import Dict, List, Optional, Tuple
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, field
 import torch
-import yaml
 
 from pybuda.op_repo import OperatorDefinition
 from test.conftest import TestDevice
+
+
+# Defining a type for tensor shape
+TensorShape = Tuple[int, ...]
+
+@dataclass
+class RandomizerInputNode:
+    out_value: Optional[str] = None
+    input_shape: Optional[TensorShape] = None  # will be set by the graph_builder.init_shapes later
 
 
 @dataclass
@@ -20,7 +28,7 @@ class RandomizerNode:
     operator: Optional[OperatorDefinition] = None
     in_features: Optional[int] = None
     out_features: Optional[int] = None
-    inputs: Optional[List] = None
+    inputs: List['RandomizerNode'] = field(default_factory=list)
 
     def operator_name(self):
         return f"op{self.index}"
@@ -59,25 +67,9 @@ class RandomizerParameters:
 @dataclass
 class RandomizerGraph:
     # parameters: RandomizerParameters
-    nodes: List[RandomizerNode]
-    input_shape: Optional[Tuple[int, ...]] = None  # will be set by the graph_builder later
+    nodes: List[RandomizerNode] = field(default_factory=list)
+    input_nodes: List[RandomizerInputNode] = field(default_factory=list)
     # graph_builder: Optional[str] = None
-
-    def to_ops_str(self):
-        ops = [node.get_name() for node in self.nodes]
-        ops_str = " -> ".join(ops)
-        return ops_str
-
-    def short_description(self):
-        return f"ops: ({self.to_ops_str()}) input_shape: {self.input_shape}"
-
-    # TODO support serialization/deserialization of RandomizerGraph
-    def to_str(self):
-        graph_dict = asdict(self)
-        # Serialize dictionary to YAML string
-        yaml_str = yaml.dump(graph_dict)
-        # yaml_str = json.dumps(graph.__dict__)
-        return yaml_str
 
 
 @dataclass
@@ -89,8 +81,12 @@ class RandomizerConfig:
     test_dir:str = "pybuda/test/random_tests"
     save_tests: bool = False
     # build_model_from_code: bool = False  # TODO remove obsoleted
-    min_op_size: int = 16
-    max_op_size: int = 512
+    dim_min: int = 3
+    dim_max: int = 4
+    op_size_min: int = 16
+    op_size_max: int = 512
+    microbatch_size_min: int = 1
+    microbatch_size_max: int = 8
     num_of_nodes: int = 10
 
 
