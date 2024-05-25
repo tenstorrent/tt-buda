@@ -926,18 +926,6 @@ bool is_candidate_better_than_current(
         return candidate.grid_shape.r < current.grid_shape.r;
     }
 
-    bool candidate_prologue_ok = prologue_ok(candidate);
-    bool current_prologue_ok = prologue_ok(current);
-
-    if (candidate_prologue_ok > current_prologue_ok)
-    {
-        return true;
-    }
-    else if (candidate_prologue_ok < current_prologue_ok)
-    {
-        return false;
-    }
-
     int current_cycles = get_limiter_cycles(current, graph, balancer_config, graph_solver_selected_op_models);
     int candidate_cycles = get_limiter_cycles(candidate, graph, balancer_config, graph_solver_selected_op_models);
 
