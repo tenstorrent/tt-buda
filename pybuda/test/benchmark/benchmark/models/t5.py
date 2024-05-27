@@ -33,10 +33,7 @@ def t5(training: bool, config: str, microbatch: int, devtype: str, arch: str, da
     # Determine model variant
     if config == "base":
         variant = "t5-base"
-        if available_devices and available_devices[0] == BackendDevice.Grayskull:
-            # Hang, this piece of code should be removed when we consume the budabackend fix
-            # https://yyz-gitlab.local.tenstorrent.com/tenstorrent/budabackend/-/merge_requests/1684
-            return
+
     elif config == "large":
         variant = "t5-large"
     else:
