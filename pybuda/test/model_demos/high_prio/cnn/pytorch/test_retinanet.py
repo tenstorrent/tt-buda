@@ -16,6 +16,8 @@ import sys
 sys.path.append("third_party/confidential_customer_models/cv_demos/retinanet/model/")
 from model_implementation import Model
 from pybuda._C.backend_api import BackendDevice
+import zipfile
+import shutil
 
 
 def img_preprocess():
@@ -135,10 +137,25 @@ def test_retinanet(variant, test_device):
             )
 
     # Prepare model
+    url = f"https://github.com/NVIDIA/retinanet-examples/releases/download/19.04/{variant}.zip"
+    local_zip_path = f"{variant}.zip"
 
-    checkpoint_path = (
-        f"third_party/confidential_customer_models/cv_demos/retinanet/weights/{variant}.pth"
-    )
+    response = requests.get(url)
+    with open(local_zip_path, "wb") as f:
+        f.write(response.content)
+
+    # Unzip the file
+    with zipfile.ZipFile(local_zip_path, "r") as zip_ref:
+        zip_ref.extractall(".")
+
+    # Find the path of the .pth file
+    extracted_path = f"{variant}"
+    checkpoint_path = ""
+    for root, dirs, files in os.walk(extracted_path):
+        for file in files:
+            if file.endswith(".pth"):
+                checkpoint_path = os.path.join(root, file)
+
     model = Model.load(checkpoint_path)
     model.eval()
     tt_model = pybuda.PyTorchModule(f"pt_{variant}", model)
@@ -158,3 +175,7 @@ def test_retinanet(variant, test_device):
             test_kind=TestKind.INFERENCE,
         ),
     )
+
+    # Delete the extracted folder and the zip file
+    shutil.rmtree(extracted_path)
+    os.remove(local_zip_path)
