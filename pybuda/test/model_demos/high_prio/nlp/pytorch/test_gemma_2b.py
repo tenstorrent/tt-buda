@@ -20,6 +20,7 @@ from pybuda.pybudaglobal import TILE_DIM
 from pybuda.verify.config import TestKind
 from pybuda._C import DataFormat, MathFidelity
 from pybuda._C.backend_api import BackendDevice
+from pybuda._C.backend_api import BackendType
 from pybuda.verify.backend import verify_module
 from pybuda.transformers.pipeline import pipeline as pybuda_pipeline
 
@@ -497,7 +498,7 @@ def test_gemma_2b_1x1_gen(test_device, variant):
 
     compiler_cfg = pybuda.config._get_global_compiler_config()
     
-    if "CI_PROJECT_DIR" in os.environ:
+    if test_device.devtype == BackendType.Silicon and "CI_PROJECT_DIR" in os.environ: 
         pytest.skip("Failing on CI with Read 0xffffffff from ARC scratch[6]: you should reset the board")
 
     # Configurations
