@@ -64,7 +64,7 @@ def test_mistral(variant, test_device):
     configuration.use_cache = False
     configuration.return_dict = False
 
-    pybuda.set_configuration_options(default_df_override=pybuda.DataFormat.Float16_b)
+    pybuda.set_configuration_options(default_df_override=pybuda.DataFormat.Float16_b, balancer_policy='Ribbon')
 
     # configuration for all ops that are not matmul
     pybuda.config.configure_mixed_precision(
@@ -120,7 +120,7 @@ def test_mistral_decode(variant, test_device):
     configuration.use_cache = False
     configuration.return_dict = False
 
-    pybuda.set_configuration_options(default_df_override=pybuda.DataFormat.Float16_b)
+    pybuda.set_configuration_options(default_df_override=pybuda.DataFormat.Float16_b, balancer_policy='Ribbon')
 
     # configuration for all ops that are not matmul
     pybuda.config.configure_mixed_precision(
@@ -198,7 +198,7 @@ def test_mistral_kv_cache(variant, test_device):
     configuration.return_dict = False
 
     max_new_tokens = 10
-    pybuda.set_configuration_options(default_df_override=pybuda.DataFormat.Float16_b)
+    pybuda.set_configuration_options(default_df_override=pybuda.DataFormat.Float16_b, balancer_policy='Ribbon')
 
     # configuration for all ops that are not matmul
     pybuda.config.configure_mixed_precision(
