@@ -656,8 +656,7 @@ void BackendModule(py::module &m_backend) {
 
     py::class_<tt_overlay_compile_result, tt_base_compile_result>(m_backend, "BackendOverlayCompileResult")
         .def(py::init<>())
-        .def_readwrite("failed_compile_results_per_epoch", &tt_overlay_compile_result::failed_compile_results_per_epoch)
-        .def_readwrite("blob_usage_per_epoch_per_core", &tt_overlay_compile_result::blob_usage_per_epoch_per_core);
+        .def_readwrite("failed_compile_results_per_epoch", &tt_overlay_compile_result::failed_compile_results_per_epoch);
 
     py::class_<tt_compile_result, tt_base_compile_result>(m_backend, "BackendCompileResult")
         .def(py::init<>())

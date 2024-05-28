@@ -69,7 +69,7 @@ std::shared_ptr<Workload> compile(TTDevice& device, CompileRequest const& compil
     device.backend = tt_backend::create(compile_request.netlist_path, compile_request.backend_config);
 
     if (device.backend->initialize(&result) != DEVICE_STATUS_CODE::Success)
-        log_fatal(LogTTDevice, "Backend compile failed: {}", tt::get_string(result));
+        log_fatal(LogTTDevice, "Backend compile failed: {}", result.get_string());
 
     device.initialized = true;
 
