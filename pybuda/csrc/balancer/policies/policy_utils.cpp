@@ -1967,7 +1967,8 @@ OpCycleEstimates get_op_cycles_estimates(
         const bool estimates_supported_for_op_type =
             !op_model.buda_op_node->is_embedding() && !op_model.buda_op_node->is_tilize();
         const bool can_run_dram_bw_estimations = producer_is_queue && selected_op_models && !input_is_prologue &&
-                                                 !input_is_host_queue && estimates_supported_for_op_type;
+                                                 !input_is_kb && !input_is_host_queue &&
+                                                 estimates_supported_for_op_type;
 
         if (use_dram_bw_estimates && can_run_dram_bw_estimations)
         {
@@ -2042,11 +2043,11 @@ OpCycleEstimates get_op_cycles_estimates(
                     //
                     TT_ASSERT(!input_is_prologue);
 
-                    input_bw_estimates[input_idx] = edge_dram_bw * graph->get_microbatch();
+                    input_bw_estimates[input_idx] = dram_prologue_bw * graph->get_microbatch();
                     memory_read_cycles[input_idx] = static_cast<int>(
                         (op_model.input_buffers[edge.consumer_input_port_id].kernel_broadcast_tiles *
                          tile_size_bytes(op_model.input_buffers[edge.consumer_input_port_id].data_format)) /
-                        edge_dram_bw / graph->get_microbatch());
+                        dram_prologue_bw / graph->get_microbatch());
                 }
                 else if (input_is_prologue)
                 {
