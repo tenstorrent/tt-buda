@@ -272,7 +272,7 @@ Node *recover_missing_dest(graphlib::Graph *graph, Node *src, std::uint32_t fork
     auto edges = graph->user_data_edges(src);
     for (const Edge &e : edges)
     {
-        if (e.producer_node_id == fork_id)
+        if (e.producer_output_port_id == fork_id)
         {
             return graph->node_by_id(e.consumer_node_id);
         }
@@ -609,7 +609,7 @@ std::pair<Node *, Node *> InsertionInstruction::is_instruction_still_valid(graph
         {
             log_error("User constructed Nop Instruction constructed with invalid dest-nop: {}", this->dest);
         }
-        TT_ASSERT(this->input_id.has_value(), "Nop Instruction missing fork_id attribute populated.");
+        TT_ASSERT(this->fork_id.has_value(), "Nop Instruction missing fork_id attribute populated.");
         dest = recover_missing_dest(graph, src, this->fork_id.value());
     }
 
@@ -1877,12 +1877,12 @@ void add_buffering_on_path(
                 {
                     if (e.consumer_node_id == dest->id())
                     {
-                        InsInstructionUniqueId key = InsInstructionUniqueId(
+                        InsInstructionUniqueId key = InsertionInstruction::create_unique_id(
                             src->name(),
                             dest->name(),
                             e.consumer_input_port_id,
                             e.producer_output_port_id,
-                            merge_nops,
+                            false, /* user_defined */
                             true /* is_fj_buffering */);
 
                         if (instructions.count(key) > 0)
@@ -2131,12 +2131,16 @@ InsertionInstructionMap merge_with_prev_instr(
                 std::get<1>(id) = current_op->name();
                 std::get<2>(id) = last_edge.consumer_input_port_id;
 
+                log_trace(LogGraphCompiler, "Looking for instruction with id: {}", id);
+
                 if (combined_instructions.count(id) != 0)
                 {
                     log_trace(LogGraphCompiler, "Merging with previous instruction: {}", combined_instructions[id]);
                     combined_instructions[id] = merge_instructions(combined_instructions[id], instr);
                     continue;
                 }
+
+                log_trace(LogGraphCompiler, "Instruction not found in previous instructions.");
             }
 
             // if combined instructions doesn't contain current key

@@ -113,7 +113,7 @@ struct InsertionInstruction
 
     InsInstructionUniqueId unique_id() const
     {
-        return std::make_tuple(
+        return create_unique_id(
             this->src,
             this->dest,
             this->input_id.value_or(-1),
@@ -132,6 +132,17 @@ struct InsertionInstruction
                ", input_id: " + (input_id.has_value() ? std::to_string(input_id.value()) : "nullopt") +
                ", fork_id: " + (fork_id.has_value() ? std::to_string(fork_id.value()) : "nullopt") +
                ", user_defined: " + std::to_string(user_defined);
+    }
+
+    static InsInstructionUniqueId create_unique_id(
+        const std::string &src,
+        const std::string &dest,
+        std::optional<std::uint32_t> input_id,
+        std::optional<std::uint32_t> fork_id,
+        bool user_defined,
+        bool is_fj_buffering)
+    {
+        return std::make_tuple(src, dest, input_id.value_or(-1), fork_id.value_or(-1), user_defined, is_fj_buffering);
     }
 };
 

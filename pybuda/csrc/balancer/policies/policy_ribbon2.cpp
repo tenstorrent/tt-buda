@@ -1349,6 +1349,7 @@ BalancerPolicySolution run_policy_ribbon2(
                     epoch_breaks_added = false;
                 }
 
+                prev_inst.clear();
                 epoch_complete = true;
             }
         }

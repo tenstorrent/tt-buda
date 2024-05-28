@@ -786,6 +786,7 @@ std::tuple<BudaOpNode*, Edge, Edge> insert_nop_on_edge(Graph *graph, Edge &edge,
         graph->get_subgraph_id_for_node(src->id()));
     nop->set_shape(src->shape());
     nop->set_buffering_op(is_buffering);
+    nop->as<TaggedNode>()->tag("fj_buffering_nop", is_buffering);
 
     nop->set_epoch_type(dest->get_epoch_type());
     nop->set_output_df(src->output_df());
