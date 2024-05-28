@@ -521,6 +521,15 @@ struct SparseBUDA
         Layout layout = Layout::Default,
         std::string const& visualize_sparse_path = "") const;
 
+    std::tuple<std::vector<int>, std::vector<int>>
+    collect_sparse_matmul_serialization_info(
+        int grid_r,
+        int t_factor_r,
+        int t_factor_c,
+        int u_rt,
+        int u_kt,
+        Layout layout) const;
+
     // Returns a map with keys of legal t parallelizations and values of legal u_kts
     static std::unordered_map<int, std::vector<int>> get_par_t_values(
         int grid_r,

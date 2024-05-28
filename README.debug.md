@@ -136,3 +136,4 @@
 * PYBUDA\_TEMP\_FIX\_2351: Controls the fix for bug #2351 - fork-join can end up adding buffering nops and queues on same path, this control flag fixes it.
 * PYBUDA\_TEMP\_RIBBON2\_LEGACY\_UTIL\_EVAL: Use legacy util evaluation in Ribbon2 balancing policy. (default: 0/False)
 * PYBUDA\_TEMP\_DISABLE\_MODEL\_KB\_PROLOGUE\_BW: Disables bandwidth modelling for kernel broadcasted and prologued inputs.
+* PYBUDA\_TEMP\_ENABLE\_SPARSE\_MM\_SERIALIZATION\_FACTOR: If enabled, accounts for serialization in sparse matmuls due to sparse tensors starting at different `m_k`s across cores.

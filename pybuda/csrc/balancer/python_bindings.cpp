@@ -15,6 +15,7 @@
 #include "placer/placer.hpp"
 #include "passes/fuse_ops.hpp"
 
+#include "shared_utils/sparse_matmul_utils.hpp"
 #include "third_party/json/json.hpp"
 
 using namespace tt::balancer;
@@ -523,6 +524,38 @@ std::pair<int, int> get_parallelization(Graph const* graph, OpNode const* node)
     return pybuda_parallelization(op_shape).cast<std::pair<int, int>>();
 }
 
+double calculate_sparse_mm_serialization_factor(OpModel const& op_model)
+{
+    auto layout =
+        sparse::SparseBUDA::create_layout(op_model.t_stream_factor.dir.z_major());
+
+    if (op_model.grid_shape.r == 1 or layout != sparse::SparseBUDA::Layout::ZMajorDataflow)
+    {
+        return 1;
+    }
+
+    const sparse::SparseBUDA& sparse_buda = *op_model.sparse_buda;
+
+    int u_rt = op_model.output_buffers[0].block_shape.ublock.rt;
+    int u_kt = op_model.input_buffers[1].block_shape.ublock.rt;
+    int m_k = op_model.op_shape.inputs[1].rt / u_kt;
+
+    auto [min_strip_indices, max_strip_indices] =
+        sparse_buda.collect_sparse_matmul_serialization_info(
+            op_model.grid_shape.r,
+            op_model.t_stream_factor.r,
+            op_model.t_stream_factor.c,
+            u_rt,
+            u_kt,
+            layout);
+
+    int distance_from_start = *std::max_element(min_strip_indices.begin(), min_strip_indices.end());
+    int distance_from_end =
+        abs((m_k - 1) - (*std::min_element(max_strip_indices.begin(), max_strip_indices.end())));
+
+    return 1 + (std::max(distance_from_start, distance_from_end) / static_cast<double>(m_k));
+}
+
 int get_execution_cycles(std::string const& arch_name, OpModel const& op_model, bool theoretical, std::vector<FusedSubOpModel> const& sub_op_models)
 {
     auto eval_module = py::module_::import("pybuda.op.eval.buda");
@@ -531,7 +564,19 @@ int get_execution_cycles(std::string const& arch_name, OpModel const& op_model, 
     if (op_model.buda_op_node->op_type() == "matmul")
     {
         // Theoretical execution cycles are only applicable to matmuls
-        return pybuda_op_execution_cycles(arch_name, op_model, theoretical).cast<int>();
+        //
+        int cycles = pybuda_op_execution_cycles(arch_name, op_model, theoretical).cast<int>();
+
+        // If sparse matmul, account for serialization factor
+        //
+        if (op_model.is_sparse_matmul and env_as<bool>("PYBUDA_TEMP_ENABLE_SPARSE_MM_SERIALIZATION_FACTOR"))
+        {
+            double serialization_factor = calculate_sparse_mm_serialization_factor(op_model);
+
+            cycles *= serialization_factor;
+        }
+
+        return cycles;
     }
 
     if (op_model.fused_op() != nullptr)

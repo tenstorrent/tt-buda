@@ -1029,6 +1029,71 @@ SparseBUDA::get_sparse_tiles_and_encodings(
     return std::make_tuple<>(sparse_tiles, buda_indices, sparse_shape, encodings_shape, num_strips_per_row);
 }
 
+
+// Calculate the number of misaligned strips across cores, which contribute to serialized execution of the op
+//
+std::tuple<std::vector<int>, std::vector<int>>
+SparseBUDA::collect_sparse_matmul_serialization_info(
+    int grid_r,
+    int t_factor_r,
+    int t_factor_c,
+    int u_rt,
+    int u_kt,
+    Layout layout) const
+{
+    TT_ASSERT(layout == Layout::ZMajorDataflow, "Expected ZMajorDataflow layout");
+    TT_ASSERT(t_factor_c == 1, "Expected t_factor_c to be 1");
+
+    std::function<bool(tt::sparse::SparseIndex const&, tt::sparse::SparseIndex const&)> sp_indices_cmp_fn =
+        [u_rt, u_kt](SparseIndex const& a, SparseIndex const& b) { return comp_zcr_ublocked(a, b, u_rt, u_kt); };
+
+    int zdim = this->sparse_zs.size();
+
+    SparseTiles sparse_tiles;
+    EncodingTiles buda_indices;
+    std::vector<int> num_strips_per_row;
+
+    std::vector<SparseCOO> slice_ztr;  // |z * t * r * b|
+    slice_ztr.reserve(zdim * t_factor_r * grid_r * ((layout == Layout::Default) ? 1 : bcast_factor));
+    for (int z = 0; z < zdim; z++)
+    {
+        auto sparse = sparse_zs[z];
+        sparse.sort(SparseCOO::SortOrder::ROW_MAJOR);
+
+        std::vector<SparseCOO> slices = vslice_layout(sparse, grid_r, t_factor_r, bcast_factor, layout);
+        TT_ASSERT(not slices.empty());
+        slice_ztr.insert(slice_ztr.end(), slices.begin(), slices.end());
+    }
+
+    std::vector<int> min_strip_indices(grid_r, INT_MAX);
+    std::vector<int> max_strip_indices(grid_r, -1);
+
+    for (int g_r = 0; g_r < grid_r; g_r++)
+    {
+        std::vector<SparseCOO> curr_slice_ts;
+        for (size_t idx = g_r; idx < slice_ztr.size(); idx += grid_r)
+        {
+            curr_slice_ts.push_back(slice_ztr[idx]);
+        }
+
+        auto [curr_sparse_indices, curr_tiles] = compress_unique_tiles(curr_slice_ts);
+        std::sort(curr_sparse_indices.begin(), curr_sparse_indices.end(), sp_indices_cmp_fn);
+
+        std::int64_t kt = (curr_slice_ts[0].shape[1] + TILE_DIM - 1) / TILE_DIM;
+        std::int64_t m_k = kt / u_kt;
+        for (size_t q = 0; q < curr_sparse_indices.size(); q++)
+        {
+            int curr_strip_index = m_k * (curr_sparse_indices[q].z / t_factor_r) + curr_sparse_indices[q].ubc_idx(u_kt);
+
+            min_strip_indices[g_r] = std::min(curr_strip_index, min_strip_indices[g_r]);
+            max_strip_indices[g_r] = std::max(curr_strip_index, max_strip_indices[g_r]);
+        }
+    }
+
+    return std::make_tuple(min_strip_indices, max_strip_indices);
+}
+
+
 int SparseBUDA::get_encoding_tiles_per_core_estimate(int grid_r, int t_factor_r, int u_rt, int u_kt) const
 {
     // strip index (with last_* bits)   4b
