@@ -96,7 +96,7 @@ void BalancerModule(py::module &m_balancer) {
                     p.output_buffer_multiplier);
             },
             [](py::tuple t) {  // __setstate__
-                if (t.size() != 8)
+                if (t.size() != 7)
                 {
                     throw std::runtime_error("OpOverride: Invalid state!");
                 }
