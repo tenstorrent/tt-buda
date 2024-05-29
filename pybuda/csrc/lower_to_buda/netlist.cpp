@@ -3,9 +3,18 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "lower_to_buda/netlist.hpp"
 
+#include <cstddef>
+#include <exception>
+#include <memory>
 #include <sstream>
+#include <vector>
 
+#include "balancer/balancer_utils.hpp"
+#include "balancer/data_movement_backend_constants.hpp"
+#include "balancer/data_movement_bw_estimation.hpp"
+#include "balancer/types.hpp"
 #include "buda_passes.hpp"
+#include "graph_lib/defines.hpp"
 #include "graph_lib/graph.hpp"
 #include "graph_lib/node.hpp"
 #include "graph_lib/node_types.hpp"
@@ -1214,10 +1223,27 @@ std::vector<program::Program> create_programs(
     return programs;
 }
 
+static balancer::OpModel const &get_input_queue_op_model(
+    Graph const *graph, Node const *node, std::shared_ptr<balancer::BalancerSolution> balancer_solution)
+{
+    if (node->node_type() == tt::graphlib::NodeType::kQueue)
+    {
+        std::vector<Node *> operands = graph->data_operands(node);
+        TT_ASSERT(operands.size() == 1);
+        return balancer_solution->op_models.at(operands[0]->name());
+    }
+    else
+    {
+        TT_ASSERT(balancer_solution->op_models.count(node->name()));
+        return balancer_solution->op_models.at(node->name());
+    }
+}
+
 static std::vector<std::size_t> get_input_dram_io_buf_size_tiles(
     Graph const *graph,
     DeviceConfig const &device_config,
     placer::PlacerSolution const &placer_solution,
+    std::shared_ptr<balancer::BalancerSolution> balancer_solution,
     Node const *node,
     balancer::OpModel const &op_model)
 {
@@ -1240,51 +1266,117 @@ static std::vector<std::size_t> get_input_dram_io_buf_size_tiles(
     std::size_t num_dram_readers = 0;
     auto operands = graph->data_operands(node);
     std::vector<std::size_t> input_dram_io_buf_size_tiles(operands.size(), 0);
-    int input_idx = 0;
-    for (Node *operand : operands)
+    for (std::size_t input_idx = 0; input_idx < operands.size(); ++input_idx)
     {
+        Node *operand = operands[input_idx];
         bool is_prologue = bool(op_model.parameter_buffers[input_idx]);
         num_dram_readers += int(dram_io_queue_node(operand) and not is_prologue);
-        ++input_idx;
     }
 
     if (num_dram_readers == 0 or env_as<bool>("PYBUDA_DISABLE_EXPLICIT_DRAM_IO"))
+    {
         return input_dram_io_buf_size_tiles;
+    }
 
     // DRAM IO buffer sizing
     TT_ASSERT(op_model.get_l1_memory_usage() <= device_config.get_l1_usable_size());
+    const int free_l1_space = device_config.get_l1_usable_size() - op_model.get_l1_memory_usage();
 
-    // We can reclaim the default pipegen carve out space for DRAM io get_l1_dram_io_backend_reserved_size
-    std::size_t l1_per_input_dram_prefetch_buffer_size =
-        device_config.get_l1_dram_io_backend_reserved_size() / num_dram_readers;
-
-    input_idx = 0;
-    for (Node *operand : operands)
+    if (env_as<bool>("PYBUDA_USE_LEGACY_EXPLICIT_DRAM_IO"))
     {
-        bool is_prologue = bool(op_model.parameter_buffers[input_idx]);
-        if (dram_io_queue_node(operand) and not is_prologue)
+        const int dram_io_space_per_input = device_config.get_l1_dram_io_backend_reserved_size() / num_dram_readers;
+        for (std::size_t input_idx = 0; input_idx < operands.size(); ++input_idx)
         {
-            std::size_t input_buffer_bytes = op_model.input_buffers[input_idx].single_buffered_size_bytes();
-            std::size_t multiplier = l1_per_input_dram_prefetch_buffer_size / input_buffer_bytes;
+            Node *operand = operands[input_idx];
 
-            if (multiplier > 0)
+            bool is_prologue = bool(op_model.parameter_buffers[input_idx]);
+            if (dram_io_queue_node(operand) and not is_prologue)
             {
-                // If we can fit > 0 additional multiplier of the input buffer,
-                // then we try to fit some multiple of the input buffer
-                std::size_t input_buffer_tiles = op_model.input_buffers[input_idx].single_buffered_size_tiles();
-                input_dram_io_buf_size_tiles[input_idx] = input_buffer_tiles * multiplier;
-            }
-            else
-            {
-                // If we can't fit any multiplier input buffers, then we just
-                // allocate as many tiles as we can into this region
-                std::size_t input_buffer_tiles =
-                    l1_per_input_dram_prefetch_buffer_size /
-                    balancer::tile_size_bytes(op_model.input_buffers[input_idx].data_format);
-                input_dram_io_buf_size_tiles[input_idx] = input_buffer_tiles;
+                std::size_t input_buffer_bytes = op_model.input_buffers[input_idx].single_buffered_size_bytes();
+                std::size_t multiplier = dram_io_space_per_input / input_buffer_bytes;
+
+                if (multiplier > 0)
+                {
+                    // If we can fit > 0 additional multiplier of the input buffer,
+                    // then we try to fit some multiple of the input buffer
+                    std::size_t input_buffer_tiles = op_model.input_buffers[input_idx].single_buffered_size_tiles();
+                    input_dram_io_buf_size_tiles[input_idx] = input_buffer_tiles * multiplier;
+                }
+                else
+                {
+                    // If we can't fit any multiplier input buffers, then we just
+                    // allocate as many tiles as we can into this region
+                    std::size_t input_buffer_tiles =
+                        dram_io_space_per_input /
+                        balancer::tile_size_bytes(op_model.input_buffers[input_idx].data_format);
+                    input_dram_io_buf_size_tiles[input_idx] = input_buffer_tiles;
+                }
             }
         }
-        ++input_idx;
+
+        return input_dram_io_buf_size_tiles;
+    }
+
+    // We can reclaim the default pipegen carve out space for DRAM io get_l1_dram_io_backend_reserved_size
+    const int pipegen_available_dram_io_space_per_stream =
+        static_cast<int>((free_l1_space + device_config.get_l1_dram_io_backend_reserved_size()) / num_dram_readers);
+    int current_stream_available_dram_io_space = pipegen_available_dram_io_space_per_stream;
+
+    std::vector<Edge> operand_edges = graph->operand_data_edges(op_model.buda_op_node);
+    for (std::size_t input_idx = 0; input_idx < operands.size(); ++input_idx)
+    {
+        Node *operand = operands[input_idx];
+        const Edge &edge = operand_edges[input_idx];
+        TT_ASSERT(edge.producer_node_id == operand->id());
+
+        bool is_prologue = bool(op_model.parameter_buffers[input_idx]);
+        if (!dram_io_queue_node(operand) || is_prologue)
+        {
+            continue;
+        }
+
+        const int tile_size_in_bytes =
+            static_cast<int>(balancer::tile_size_bytes(op_model.input_buffers[input_idx].data_format));
+        const int dram_io_input_space_tiles = current_stream_available_dram_io_space / tile_size_in_bytes;
+
+        // Skip calculating dram read pipe HW configuration if the dram io available space is small, since pipegen
+        // won't be able to increase perf by a whole lot in this case.
+        if (current_stream_available_dram_io_space <= balancer::c_max_dram_pending_read_bytes)
+        {
+            input_dram_io_buf_size_tiles[input_idx] = dram_io_input_space_tiles;
+            continue;
+        }
+
+        const balancer::OpModel &queue_op_model = get_input_queue_op_model(graph, operand, balancer_solution);
+
+        try
+        {
+            balancer::DramReadPipeHWConfiguration dram_read_pipe_hw_config =
+                balancer::get_dram_read_pipe_hw_configuration(
+                    graph, edge, queue_op_model, op_model, current_stream_available_dram_io_space);
+
+            TT_ASSERT(dram_read_pipe_hw_config.dram_receiving_stream_buffer_size_tiles <= dram_io_input_space_tiles);
+            input_dram_io_buf_size_tiles[input_idx] = dram_read_pipe_hw_config.dram_receiving_stream_buffer_size_tiles;
+
+            // Allow next inputs to use more space, if the current input doesn't need all the space allocated for
+            // it.
+            current_stream_available_dram_io_space +=
+                (pipegen_available_dram_io_space_per_stream -
+                 dram_read_pipe_hw_config.dram_receiving_stream_buffer_size_tiles * tile_size_in_bytes);
+        }
+        catch (const std::exception &e)
+        {
+            // This error can occur if the current pybuda data movement estimation API is missing implementation of
+            // all possible dram read types that BBE supports.
+            log_trace(
+                LogLowerToBuda,
+                "Failed to compute dram read pipe HW configuration for pipe {} -> {}. Falling back to default dram "
+                "io "
+                "size parameter value",
+                operand->name(),
+                node->name());
+            input_dram_io_buf_size_tiles[input_idx] = dram_io_input_space_tiles;
+        }
     }
 
     return input_dram_io_buf_size_tiles;
@@ -1359,8 +1451,8 @@ BudaNetlist lower_to_buda_netlist(
                 placer::OpPlacement placement = placer_solution.name_to_op_placement.at(node->name());
                 BudaOpAttrs buda_attrs = node->as<graphlib::BudaOpNode>()->op_type().buda_attrs;
                 bool ignore_tms = false;
-                std::vector<std::size_t> input_dram_io_buf_size_tiles =
-                    get_input_dram_io_buf_size_tiles(graph, device_config, placer_solution, node, op_model);
+                std::vector<std::size_t> input_dram_io_buf_size_tiles = get_input_dram_io_buf_size_tiles(
+                    graph, device_config, placer_solution, balancer_solution, node, op_model);
 
                 BudaOp op = create_op(
                     graph,

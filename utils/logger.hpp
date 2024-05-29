@@ -48,6 +48,7 @@ constexpr LoggerABI kLoggerABI = LoggerABI::CXX11;
     X(Autograd)        \
     X(Netlist)         \
     X(Balancer)        \
+    X(LowerToBuda)     \
     X(KernelBroadcast) \
     X(Padding)         \
     X(GraphSolver)     \

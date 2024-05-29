@@ -23,6 +23,16 @@ namespace tt
 namespace balancer
 {
 
+class OpToOpConnectionModel;
+
+// Class which models HW configuration of dram read pipe.
+struct DramReadPipeHWConfiguration
+{
+    int dram_scatter_chunk_size_tiles;
+    int dram_buf_read_chunk_size_tiles;
+    int dram_receiving_stream_buffer_size_tiles;
+};
+
 //----------------------------------------------------------------------------------------------------------------------
 
 // Returns bandwidth estimation for a given edge between two ops given by their models.
@@ -33,6 +43,24 @@ BandwidthBucket get_bandwidth_estimation(
     const OpModel& consumer_op_model,
     bool is_queue,
     bool decompose_t_stream);
+
+// Returns HW configuration of dram read pipe.
+DramReadPipeHWConfiguration get_dram_read_pipe_hw_configuration(
+    const Graph* graph,
+    const Edge& edge,
+    const OpModel& producer_op_model,
+    const OpModel& consumer_op_model,
+    const int dram_io_available_space_bytes);
+
+DramReadPipeHWConfiguration get_dram_read_pipe_hw_configuration(
+    const int scatter_granularity,
+    const int kernel_clear_granularity,
+    const int producer_tiles_per_input,
+    const int consumer_tiles_per_input,
+    const bool is_consumer_multicast,
+    const int unpacker_buffer_size_bytes,
+    const int tile_size,
+    const int dram_io_available_space_bytes);
 
 // Scales dram read BW based on the number of readers of the dram buffer.
 float scale_dram_read_bandwidth_wrt_fork_factor(const float bw_without_fork, const float fork_factor);
@@ -46,6 +74,7 @@ enum class InputType
     MatmulColumn,
 };
 
+// Returns the type of the producer -> consumer edge.
 InputType get_input_type(const Graph* graph, const Edge& edge);
 
 // Helper functions to carve out necessary information from the graph and op models.
@@ -92,7 +121,11 @@ int get_consumer_fanin_from_tile_maps(
     const GridShape& producer_grid_shape, const consumer_to_producer_tile_map& consumer_tile_map);
 
 // Returns tile map object for the given producer.
-three_d_array_tile_src_map prepare_tile_map(const TileLayout& producer_tile_layout, const int producer_out_buf_mb);
+three_d_array_tile_src_map prepare_tile_map(
+    const TileLayout& producer_layout,
+    const int producer_out_buf_mb,
+    const std::string& producer_name,
+    const std::string& consumer_name);
 
 // Applies the tms to the tile map.
 void apply_pybuda_tms_to_tile_map(three_d_array_tile_src_map& tile_map, const std::vector<OpType>& tms);
@@ -113,17 +146,24 @@ class OpToOpConnectionModel
         Unknown
     };
 
-    OpToOpConnectionModel() {}
+    OpToOpConnectionModel(TileLayout&& producer_layout, TileLayout&& consumer_layout) :
+        producer_layout_(std::move(producer_layout)), consumer_layout_(std::move(consumer_layout))
+    {
+    }
 
     // Implementation using tile maps lib from net2pipe.
     static OpToOpConnectionModel create_op_to_op_connection_model(
-        const TileLayout& producer,
-        const TileLayout& consumer,
+        TileLayout&& producer,
+        TileLayout&& consumer,
+        const Graph* graph,
+        const Edge& edge,
         const int producer_out_buf_mb,
         const int kernel_broadcast_tiles,
+        const int kernel_clear_granularity,
         const std::vector<OpType>& tms,
         const InputType input_type,
-        const bool is_producer_queue);
+        const bool is_producer_queue,
+        const bool is_multicast);
 
     ConnectionType get_connection_type() const;
 
@@ -136,6 +176,9 @@ class OpToOpConnectionModel
     bool is_consumer_multicast() const { return consumer_multicast_; }
     int get_consumer_tiles_per_input() const { return consumer_tiles_per_input_; }
     int get_consumer_fanin() const { return consumer_fanin_; }
+    int get_kernel_clear_granularity() const { return kernel_clear_granularity_; }
+    const TileLayout& get_producer_tile_layout() const { return producer_layout_; }
+    const TileLayout& get_consumer_tile_layout() const { return consumer_layout_; }
 
     void set_scatter_granularity(int val) { scatter_granularity_ = val; }
     void set_producer_tiles_per_input(int val) { producer_tiles_per_input_ = val; }
@@ -146,9 +189,11 @@ class OpToOpConnectionModel
     void set_consumer_multicast(bool val) { consumer_multicast_ = val; }
     void set_consumer_tiles_per_input(int val) { consumer_tiles_per_input_ = val; }
     void set_consumer_fanin(int val) { consumer_fanin_ = val; }
+    void set_kernel_clear_granularity(int val) { kernel_clear_granularity_ = val; }
 
    private:
     // Producer side fields.
+    TileLayout producer_layout_;
     int scatter_granularity_;
     int producer_tiles_per_input_;
     int is_producer_scatter_;
@@ -157,10 +202,32 @@ class OpToOpConnectionModel
     bool is_producer_queue_;
 
     // Consumer side fields.
+    TileLayout consumer_layout_;
     bool consumer_multicast_;
     int consumer_tiles_per_input_;
     int consumer_fanin_;
+    int kernel_clear_granularity_;
 };
+
+// Creates a connection model between producer and consumer nodes.
+OpToOpConnectionModel get_producer_consumer_connection_model(
+    const Graph* graph,
+    const Edge& edge,
+    const OpModel& producer_op_model,
+    const OpModel& consumer_op_model,
+    bool is_queue,
+    bool decompose_t_stream);
+
+// Returns a consumer tile map w.r.t. to the given producer.
+consumer_to_producer_tile_map get_consumer_tile_map(
+    const TileLayout& producer,
+    const TileLayout& consumer,
+    const Graph* graph,
+    const Edge& edge,
+    const int producer_out_buf_mb,
+    const int kernel_broadcast_tiles,
+    const std::vector<graphlib::OpType>& tms,
+    const InputType input_type);
 
 //----------------------------------------------------------------------------------------------------------------------
 

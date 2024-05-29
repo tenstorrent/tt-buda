@@ -10,10 +10,13 @@
 #include "balancer/balancer_utils.hpp"
 #include "balancer/bandwidth_bucket.hpp"
 #include "balancer/bandwidth_estimator_impl.hpp"
+#include "balancer/data_movement_backend_constants.hpp"
 #include "balancer/dram_read_estimator_internal.hpp"
 #include "balancer/python_interface.hpp"
 #include "balancer/types.hpp"
+#include "graph_lib/node_types.hpp"
 #include "passes/t_stream.hpp"
+#include "src/net2pipe/inc/tile_maps.h"
 #include "utils/assert.hpp"
 
 namespace tt
@@ -93,11 +96,15 @@ InputType get_input_type(const Graph* graph, const Edge& edge)
     return InputType::Eltwise;
 }
 
-three_d_array_tile_src_map prepare_tile_map(const TileLayout& producer_layout, const int producer_out_buf_mb)
+three_d_array_tile_src_map prepare_tile_map(
+    const TileLayout& producer_layout,
+    const int producer_out_buf_mb,
+    const std::string& producer_name,
+    const std::string& consumer_name)
 {
     return three_d_array_tile_src_map(
-        "producer",
-        "consumer",
+        producer_name,
+        consumer_name,
         producer_layout.t(),
         producer_layout.block_shape.ublock.rt,
         producer_layout.block_shape.ublock.ct,
@@ -272,16 +279,21 @@ int calculate_buf_space_available_ack_thr(const int unpacker_buf_size_tiles, con
     }
 }
 
-OpToOpConnectionModel OpToOpConnectionModel::create_op_to_op_connection_model(
+consumer_to_producer_tile_map get_consumer_tile_map(
     const TileLayout& producer,
     const TileLayout& consumer,
+    const Graph* graph,
+    const Edge& edge,
     const int producer_out_buf_mb,
     const int kernel_broadcast_tiles,
     const std::vector<graphlib::OpType>& tms,
-    const InputType input_type,
-    const bool is_producer_queue)
+    const InputType input_type)
 {
-    three_d_array_tile_src_map tile_map = prepare_tile_map(producer, producer_out_buf_mb);
+    three_d_array_tile_src_map tile_map = prepare_tile_map(
+        producer,
+        producer_out_buf_mb,
+        graph->node_by_id(edge.producer_node_id)->name(),
+        graph->node_by_id(edge.consumer_node_id)->name());
 
     apply_pybuda_tms_to_tile_map(tile_map, tms);
 
@@ -327,10 +339,30 @@ OpToOpConnectionModel OpToOpConnectionModel::create_op_to_op_connection_model(
             consumer.grid_shape.c);
     }
 
-    OpToOpConnectionModel result;
-    result.set_consumer_multicast(false);
+    return consumer_tile_map;
+}
+
+OpToOpConnectionModel OpToOpConnectionModel::create_op_to_op_connection_model(
+    TileLayout&& producer,
+    TileLayout&& consumer,
+    const Graph* graph,
+    const Edge& edge,
+    const int producer_out_buf_mb,
+    const int kernel_broadcast_tiles,
+    const int kernel_clear_granularity,
+    const std::vector<graphlib::OpType>& tms,
+    const InputType input_type,
+    const bool is_producer_queue,
+    const bool is_multicast)
+{
+    consumer_to_producer_tile_map consumer_tile_map = get_consumer_tile_map(
+        producer, consumer, graph, edge, producer_out_buf_mb, kernel_broadcast_tiles, tms, input_type);
+
+    OpToOpConnectionModel result(std::move(producer), std::move(consumer));
+    result.set_consumer_multicast(is_multicast);
     result.set_consumer_tiles_per_input(consumer.block_shape.volume());
     result.set_consumer_fanin(get_consumer_fanin_from_tile_maps(producer.grid_shape, consumer_tile_map));
+    result.set_kernel_clear_granularity(kernel_clear_granularity);
 
     result.set_scatter_granularity(consumer_tile_map.scatter_granularity);
     result.set_producer_tiles_per_input(producer.block_shape.volume());
@@ -480,54 +512,23 @@ BandwidthBucket ForkAndGatherComboEstimator::estimate_bandwidth_impl() const
 
 BandwidthBucket DramReadEstimator::estimate_bandwidth_impl() const
 {
-    const int dram_scatter_chunk_size_tiles = dram_read_estimator_internal::compute_dram_pipe_scatter_chunk_size_tiles(
+    const DramReadPipeHWConfiguration dram_read_pipe_hw_config = get_dram_read_pipe_hw_configuration(
         features_.get_scatter_gather_num_tiles(),
-        features_.get_unpacker_buffer_size_bytes(),
-        features_.get_tile_size());
-
-    const int dram_buf_read_chunk_size_tiles = dram_read_estimator_internal::compute_dram_buf_read_chunk_size_tiles(
-        dram_scatter_chunk_size_tiles,
         features_.get_kernel_clear_granularity(),
+        features_.get_producer_tiles_per_input(),
         features_.get_consumer_tiles_per_input(),
-        features_.get_tile_size());
-
-    int dram_receiving_stream_buffer_size;
-
-    if (features_.is_consumer_multicast())
-    {
-        const int unpacker_max_num_tiles_per_phase = dram_read_estimator_internal::compute_max_num_tiles_per_phase(
-            1 /* start_divisor */,
-            features_.get_producer_tiles_per_input(),
-            features_.get_consumer_tiles_per_input(),
-            features_.get_kernel_clear_granularity());
-
-        dram_receiving_stream_buffer_size = dram_read_estimator_internal::compute_unpacker_stream_buffer_size_bytes(
-            unpacker_max_num_tiles_per_phase, dram_buf_read_chunk_size_tiles, features_.get_tile_size());
-    }
-    else
-    {
-        const int dram_max_num_tiles_per_phase = dram_read_estimator_internal::compute_max_num_tiles_per_phase(
-            1 /* start_divisor */,
-            features_.get_producer_tiles_per_input(),
-            dram_scatter_chunk_size_tiles,
-            features_.get_kernel_clear_granularity());
-
-        dram_receiving_stream_buffer_size = dram_read_estimator_internal::compute_unpacker_stream_buffer_size_bytes(
-            dram_max_num_tiles_per_phase,
-            dram_buf_read_chunk_size_tiles,
-            features_.get_unpacker_buffer_size_bytes(),
-            features_.get_consumer_tiles_per_input(),
-            features_.get_producer_tiles_per_input(),
-            features_.get_tile_size());
-    }
+        features_.is_consumer_multicast(),
+        features_.get_unpacker_buffer_size_bytes(),
+        features_.get_tile_size(),
+        0 /* dram_io_available_space_bytes */);
 
     const BandwidthBucket dram_read_bw_bucket = estimate_dram_read_connection(
         features_.get_consumer_epoch_tiles(),
         features_.get_tile_size(),
         features_.get_kernel_clear_granularity(),
-        dram_receiving_stream_buffer_size,
-        dram_buf_read_chunk_size_tiles,
-        dram_scatter_chunk_size_tiles);
+        dram_read_pipe_hw_config.dram_receiving_stream_buffer_size_tiles,
+        dram_read_pipe_hw_config.dram_buf_read_chunk_size_tiles,
+        dram_read_pipe_hw_config.dram_scatter_chunk_size_tiles);
 
     const float scaled_dram_read_bw = scale_dram_read_bandwidth_wrt_fork_factor(
         dram_read_bw_bucket.get_bandwidth(), features_.get_producer_fan_out());
@@ -537,7 +538,7 @@ BandwidthBucket DramReadEstimator::estimate_bandwidth_impl() const
 
 //----------------------------------------------------------------------------------------------------------------------
 
-BandwidthBucket get_bandwidth_estimation(
+OpToOpConnectionModel get_producer_consumer_connection_model(
     const Graph* graph,
     const Edge& edge,
     const OpModel& producer_op_model,
@@ -556,12 +557,7 @@ BandwidthBucket get_bandwidth_estimation(
     TileLayout producer_layout = get_producer_tile_layout(graph, edge, producer_op_model);
     TileLayout consumer_layout = get_consumer_tile_layout(graph, edge, consumer_op_model, input_type);
 
-    DataFormat data_format = consumer_op_model.input_buffers[edge.consumer_input_port_id].data_format;
-
-    const int tile_size_in_bytes = tile_size_bytes(data_format);
-
     const int producer_out_buf_mb = get_producer_out_buf_mb(is_queue, producer_op_model.output_buffers[0]);
-
     const int kernel_broadcast_tiles =
         consumer_op_model.input_buffers[edge.consumer_input_port_id].kernel_broadcast_tiles;
 
@@ -572,48 +568,145 @@ BandwidthBucket get_bandwidth_estimation(
         edge.consumer_input_port_id,
         kernel_broadcast_tiles);
 
-    const int unpacker_buffer_size_bytes =
-        calculate_unpacker_buffer_size_bytes(kernel_clear_granularity, tile_size_in_bytes);
+    return OpToOpConnectionModel::create_op_to_op_connection_model(
+        std::move(producer_layout),
+        std::move(consumer_layout),
+        graph,
+        edge,
+        producer_out_buf_mb,
+        kernel_broadcast_tiles,
+        kernel_clear_granularity,
+        tms,
+        input_type,
+        is_queue,
+        is_multicast);
+}
 
-    OpToOpConnectionModel op_to_op_connection_model;
+Estimator::Features get_estimator_features(
+    const Graph* graph,
+    const Edge& edge,
+    const OpModel& producer_op_model,
+    const OpModel& consumer_op_model,
+    const OpToOpConnectionModel& op_to_op_connection_model)
+{
+    const int tile_size_in_bytes =
+        tile_size_bytes(consumer_op_model.input_buffers[edge.consumer_input_port_id].data_format);
+    const int unpacker_buffer_size_bytes = calculate_unpacker_buffer_size_bytes(
+        op_to_op_connection_model.get_kernel_clear_granularity(), tile_size_in_bytes);
 
+    Estimator::Features features = Estimator::Features::from_connection_model(op_to_op_connection_model);
+
+    features.set_producer_epoch_tiles(features.get_producer_tiles_per_input() * graph->get_microbatch());
+    features.set_producer_buffer_size_bytes(
+        op_to_op_connection_model.get_producer_tile_layout().block_shape.buffer_tiles(
+            producer_op_model.output_buffers[0].buffer_factor) *
+        tile_size_in_bytes);
+
+    features.set_unpacker_buffer_size_bytes(unpacker_buffer_size_bytes);
+    features.set_kernel_clear_granularity(op_to_op_connection_model.get_kernel_clear_granularity());
+    features.set_buf_space_available_ack_thr(calculate_buf_space_available_ack_thr(
+        unpacker_buffer_size_bytes / tile_size_in_bytes, features.get_consumer_tiles_per_input()));
+
+    features.set_consumer_multicast(op_to_op_connection_model.is_consumer_multicast());
+    features.set_consumer_epoch_tiles(features.get_consumer_tiles_per_input() * graph->get_microbatch());
+
+    features.set_tile_size(tile_size_in_bytes);
+
+    return features;
+}
+
+BandwidthBucket get_bandwidth_estimation(
+    const Graph* graph,
+    const Edge& edge,
+    const OpModel& producer_op_model,
+    const OpModel& consumer_op_model,
+    bool is_queue,
+    bool decompose_t_stream)
+{
     // There are cases where the connection model cannot be created, e.g. when the producer and consumer shapes are
     // incompatible. In such cases, we return the lowest bandwidth bucket.
     // TODO: check why these models even exist after legalizer.
     try
     {
-        op_to_op_connection_model = OpToOpConnectionModel::create_op_to_op_connection_model(
-            producer_layout, consumer_layout, producer_out_buf_mb, kernel_broadcast_tiles, tms, input_type, is_queue);
+        OpToOpConnectionModel op_to_op_connection_model = get_producer_consumer_connection_model(
+            graph, edge, producer_op_model, consumer_op_model, is_queue, decompose_t_stream);
+
+        Estimator::Features features =
+            get_estimator_features(graph, edge, producer_op_model, consumer_op_model, op_to_op_connection_model);
+
+        std::unique_ptr<Estimator> estimator =
+            EstimatorFactory().get_estimator(op_to_op_connection_model.get_connection_type(), features);
+
+        return estimator->estimate_bandwidth();
     }
     catch (const std::runtime_error& e)
     {
         log_debug(LogBalancer, "Failed to create Op to Op connection model because of: '{}'.", e.what());
         return BandwidthBucket(BandwidthBucket::BucketIndex::k0to4);
     }
+}
 
-    EstimatorFactory factory;
-    Estimator::Features features = Estimator::Features::from_connection_model(op_to_op_connection_model);
+DramReadPipeHWConfiguration get_dram_read_pipe_hw_configuration(
+    const int scatter_granularity,
+    const int kernel_clear_granularity,
+    const int producer_tiles_per_input,
+    const int consumer_tiles_per_input,
+    const bool is_consumer_multicast,
+    const int unpacker_buffer_size_bytes,
+    const int tile_size,
+    const int dram_io_available_space_bytes)
+{
+    const int dram_scatter_chunk_size_tiles = dram_read_estimator_internal::compute_dram_pipe_scatter_chunk_size_tiles(
+        scatter_granularity, unpacker_buffer_size_bytes, tile_size);
 
-    features.set_producer_epoch_tiles(features.get_producer_tiles_per_input() * graph->get_microbatch());
-    features.set_producer_buffer_size_bytes(
-        producer_layout.block_shape.buffer_tiles(producer_op_model.output_buffers[0].buffer_factor) *
-        tile_size_in_bytes);
+    const int dram_buf_read_chunk_size_tiles = dram_read_estimator_internal::compute_dram_buf_read_chunk_size_tiles(
+        dram_scatter_chunk_size_tiles,
+        kernel_clear_granularity,
+        consumer_tiles_per_input,
+        tile_size,
+        dram_io_available_space_bytes);
 
-    features.set_unpacker_buffer_size_bytes(unpacker_buffer_size_bytes);
-    features.set_kernel_clear_granularity(kernel_clear_granularity);
-    features.set_buf_space_available_ack_thr(calculate_buf_space_available_ack_thr(
-        unpacker_buffer_size_bytes / tile_size_in_bytes, features.get_consumer_tiles_per_input()));
+    const int dram_receiving_stream_buffer_size_bytes =
+        dram_read_estimator_internal::get_dram_receiving_stream_buffer_size_bytes(
+            dram_scatter_chunk_size_tiles,
+            dram_buf_read_chunk_size_tiles,
+            kernel_clear_granularity,
+            producer_tiles_per_input,
+            consumer_tiles_per_input,
+            unpacker_buffer_size_bytes,
+            tile_size,
+            is_consumer_multicast,
+            dram_io_available_space_bytes);
 
-    // TODO move multicast feature to OpToOpConnectionModel.
-    features.set_consumer_multicast(is_multicast);
-    features.set_consumer_epoch_tiles(features.get_consumer_tiles_per_input() * graph->get_microbatch());
+    return DramReadPipeHWConfiguration{
+        .dram_scatter_chunk_size_tiles = dram_scatter_chunk_size_tiles,
+        .dram_buf_read_chunk_size_tiles = dram_buf_read_chunk_size_tiles,
+        .dram_receiving_stream_buffer_size_tiles = dram_receiving_stream_buffer_size_bytes / tile_size};
+}
 
-    features.set_tile_size(tile_size_in_bytes);
+DramReadPipeHWConfiguration get_dram_read_pipe_hw_configuration(
+    const Graph* graph,
+    const Edge& edge,
+    const OpModel& producer_op_model,
+    const OpModel& consumer_op_model,
+    const int dram_io_available_space_bytes)
+{
+    OpToOpConnectionModel op_to_op_connection_model = get_producer_consumer_connection_model(
+        graph, edge, producer_op_model, consumer_op_model, true /* is_queue */, false /* decompose_t_stream */);
 
-    std::unique_ptr<Estimator> estimator =
-        factory.get_estimator(op_to_op_connection_model.get_connection_type(), features);
+    const int tile_size = tile_size_bytes(consumer_op_model.input_buffers[edge.consumer_input_port_id].data_format);
+    const int unpacker_buffer_size_bytes =
+        calculate_unpacker_buffer_size_bytes(op_to_op_connection_model.get_kernel_clear_granularity(), tile_size);
 
-    return estimator->estimate_bandwidth();
+    return get_dram_read_pipe_hw_configuration(
+        op_to_op_connection_model.get_scatter_granularity(),
+        op_to_op_connection_model.get_kernel_clear_granularity(),
+        op_to_op_connection_model.get_producer_tiles_per_input(),
+        op_to_op_connection_model.get_consumer_tiles_per_input(),
+        op_to_op_connection_model.is_consumer_multicast(),
+        unpacker_buffer_size_bytes,
+        tile_size,
+        dram_io_available_space_bytes);
 }
 
 float scale_dram_read_bandwidth_wrt_fork_factor(const float bw_without_fork, const float fork_factor)

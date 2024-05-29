@@ -45,6 +45,8 @@ def bert(training: bool, config: str, microbatch: int, devtype: str, arch: str, 
 
     compiler_cfg = _get_global_compiler_config()
 
+    os.environ["PYBUDA_USE_LEGACY_EXPLICIT_DRAM_IO"] = "1"
+
     if config == "tiny":
         model_name = "prajjwal1/bert-tiny"
         seq_len = 128
