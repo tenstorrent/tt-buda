@@ -104,6 +104,7 @@ def test_whisper_enc_dec(test_device, variant):
 
         if variant == "openai/whisper-small":
             os.environ["PYBUDA_DISABLE_SELF_CUT_FOR_SUBGRAPHS"] = "1, 2"
+            compiler_cfg.enable_auto_fusing = False
 
         if variant == "openai/whisper-medium":
             os.environ["PYBUDA_GRAPHSOLVER_SELF_CUT_TYPE"] = "None"
@@ -114,13 +115,14 @@ def test_whisper_enc_dec(test_device, variant):
         if variant == "openai/whisper-large":
             os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "0"
             os.environ["PYBUDA_TEMP_ELT_UNARY_ESTIMATES_LEGACY"] = "1"
+            compiler_cfg.enable_auto_fusing = False
 
     elif test_device.arch == BackendDevice.Grayskull:
         compiler_cfg.enable_auto_fusing = False
         if "large" in variant:
-            compiler_cfg.place_on_new_epoch("matmul_2805")
+            compiler_cfg.place_on_new_epoch("matmul_2818")
         if "medium" in variant:
-            compiler_cfg.place_on_new_epoch("matmul_3295")
+            compiler_cfg.place_on_new_epoch("matmul_3308")
         if variant == "openai/whisper-base":
             compiler_cfg.amp_level = 1
         else:

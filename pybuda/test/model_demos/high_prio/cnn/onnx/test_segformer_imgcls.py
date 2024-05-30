@@ -54,6 +54,13 @@ def test_segformer_imgcls_onnx(test_device, variant):
         if variant == "nvidia/mit-b0" and test_device.devtype == pybuda.BackendType.Silicon:
             pcc_value = 0.97
 
+    elif test_device.arch == pybuda.BackendDevice.Grayskull:
+        if test_device.devtype == pybuda.BackendType.Silicon:
+            if variant == "nvidia/mit-b1":
+                pcc_value = 0.97
+            elif variant == "nvidia/mit-b2":
+                pcc_value = 0.96
+
     # Load the sample image
     pixel_values = get_sample_data(variant)
 

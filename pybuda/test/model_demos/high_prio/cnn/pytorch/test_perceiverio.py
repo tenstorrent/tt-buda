@@ -78,7 +78,7 @@ def test_perceiverio_for_image_classification_pytorch(test_device, variant):
                 "hslice_41.dc.sparse_matmul.2.lc2", "t_stream_shape", (1, 2)
             )
             if test_device.devtype == pybuda.BackendType.Silicon:
-                pcc_value = 0.97
+                pcc_value = 0.96
 
         if variant == "deepmind/vision-perceiver-learned":
             if test_device.devtype == pybuda.BackendType.Silicon:

@@ -13,7 +13,6 @@ from pybuda.utils import align_up_tile
 import requests
 import os
 import torch.nn as nn
-
 import pybuda
 import torch
 from PIL import Image
@@ -27,6 +26,7 @@ from transformers import (
     LogitsProcessorList
 )
 from transformers.modeling_attn_mask_utils import _prepare_4d_causal_attention_mask
+from transformers.cache_utils import DynamicCache
 
 def generate_fuyu_embedding(model, input_ids, image_patches, image_patches_indices):
     inputs_embeds = model.language_model.get_input_embeddings()(input_ids)
@@ -90,22 +90,27 @@ class FuyuModelImgDecoderWrapper(nn.Module):
         position_ids = torch.arange(seq_length, dtype=torch.long)
         position_ids = position_ids.unsqueeze(0).view(-1, seq_length)
         hidden_states = inputs_embeds
+        past_key_value = DynamicCache.from_legacy_cache()
 
-        presents = []
         for idx, decoder_layer in enumerate(self.fuyu_model.language_model.model.layers):
             layer_outputs = decoder_layer(
                 hidden_states,
                 attention_mask=attention_mask,
                 position_ids=position_ids,
+                past_key_value=past_key_value,
                 output_attentions=False,
-                use_cache=True,
             )
 
-            hidden_states = layer_outputs[0] 
-            presents.append(layer_outputs[1])
-            
+            hidden_states = layer_outputs[0]
+
+        presents = past_key_value.to_legacy_cache()
+
         hidden_states = self.fuyu_model.language_model.model.final_layernorm(hidden_states)
-        return hidden_states, *presents
+        model_output = list()
+        for key_state, value_state in presents:
+            model_output.append(key_state)
+            model_output.append(value_state)
+        return hidden_states, *model_output
 
    
 class FuyuModelTxtDecoderWrapper(nn.Module):
@@ -121,26 +126,35 @@ class FuyuModelTxtDecoderWrapper(nn.Module):
         )
         position_ids = position_ids.unsqueeze(0).view(-1, seq_length)
         hidden_states = inputs_embeds
- 
+
+        past_key_value_list = list()
+        for idx in range(len(self.fuyu_model.language_model.model.layers)):
+            pkv = tuple([past_key_values[(idx * 2) + j] for j in range(2)])
+            past_key_value_list.append(pkv)
+
+        past_key_value = DynamicCache.from_legacy_cache(tuple(past_key_value_list))
+
         presents = []
         for idx, decoder_layer in enumerate(self.fuyu_model.language_model.model.layers):
-            pkv = tuple([past_key_values[(idx * 2) + j] for j in range(2)])
-
             layer_outputs = decoder_layer(
                 hidden_states,
                 attention_mask=attention_mask,
                 position_ids=position_ids,
-                past_key_value=pkv,
+                past_key_value=past_key_value,
                 output_attentions=False,
-                use_cache=True,
             )
 
-            hidden_states = layer_outputs[0] 
-            presents.append(layer_outputs[1])
-            
-        hidden_states = self.fuyu_model.language_model.model.final_layernorm(hidden_states)
-        return hidden_states, *presents
+            hidden_states = layer_outputs[0]
 
+        presents = past_key_value.to_legacy_cache()
+
+        hidden_states = self.fuyu_model.language_model.model.final_layernorm(hidden_states)
+        model_output = list()
+        for key_state, value_state in presents:
+            model_output.append(key_state)
+            model_output.append(value_state)
+
+        return hidden_states, *model_output
 
 def test_fuyu8b(test_device):
     pytest.skip("Already past-cache version is up")
@@ -194,7 +208,6 @@ def test_fuyu8b(test_device):
             verify_post_placer=False, 
         )
     )
-
 
 def test_fuyu8b_past_cache(test_device):
     if test_device.arch == BackendDevice.Grayskull:

@@ -148,17 +148,17 @@ def test_gpt2():
 def test_opt():
     
     compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.enable_tvm_constant_prop = True 
 
     configuration = OPTConfig()
     configuration.num_hidden_layers = 1
     model = TFOPTModel(configuration)
+    input_shape = (1, 768)
+    model.build(input_shape)
 
     mod = TFModule("OPT_tf", model)
     
     const_propped = [t.numpy() for t in model.weights]
 
-    input_shape = (1, 768)
     inputs = [tf.random.uniform(input_shape, maxval=input_shape[-1], dtype=tf.int32)]
     buda_mods, _, buda_inputs = generate_pybuda_module(mod, inputs)
 

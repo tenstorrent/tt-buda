@@ -24,8 +24,13 @@ def test_trocr_reduced_size(test_kind, test_device):
     # os.environ["PYBUDA_LEGALIZER_DETAILED_DEBUGGING"] = "1"
     # os.environ["PYBUDA_RELOAD_GENERATED_MODULES"] = "1"
     
-    if test_kind.is_training():
-        pytest.skip()
+    # In transformers version update from 4.35.2 to 4.41.0
+    # torch.full operation with bool type fill value is introduced
+    # in MaxLengthCriteria class (used by .generate function)
+    # which results in Jit trace failure
+    # Issue link - https://yyz-gitlab.local.tenstorrent.com/tenstorrent/pybuda/-/issues/2728
+
+    pytest.skip("Skipped due to jit trace issue in FULL op")
 
     class Module(torch.nn.Module):
         def __init__(self, model):

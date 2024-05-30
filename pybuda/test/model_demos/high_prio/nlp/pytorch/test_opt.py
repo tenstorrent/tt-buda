@@ -7,11 +7,14 @@ from pybuda.verify.backend import verify_module
 from pybuda import VerifyConfig
 from pybuda._C.backend_api import BackendType, BackendDevice
 from pybuda.verify.config import TestKind, DataFormat, NebulaGalaxy
-
 import os
 import pybuda
 from pybuda.transformers.pipeline import pipeline as pybuda_pipeline
 from transformers import AutoTokenizer, OPTForCausalLM, OPTConfig, OPTForQuestionAnswering, OPTForSequenceClassification
+
+# Masked fill kernal produced invalid results in Silicon BackendType
+# So Disabling the verification in BBE for Silicon BackendType
+# Issue link - https://yyz-gitlab.local.tenstorrent.com/tenstorrent/pybuda/-/issues/2712
 
 variants = ["facebook/opt-125m", "facebook/opt-350m", "facebook/opt-1.3b"]
 @pytest.mark.parametrize("variant", variants, ids=variants)
@@ -35,6 +38,7 @@ def test_opt_causal_lm(variant, test_device):
     config_dict['use_cache'] = False
     config = OPTConfig(**config_dict)
     model = download_model(OPTForCausalLM.from_pretrained, variant, config=config)
+    model.eval()
     tokenizer = download_model(AutoTokenizer.from_pretrained, variant)
     tokenizer.pad_token = tokenizer.eos_token
 
@@ -59,6 +63,7 @@ def test_opt_causal_lm(variant, test_device):
             test_kind=TestKind.INFERENCE,
             pcc=0.7,
             chip_ids=NebulaGalaxy.chip_ids if "PYBUDA_NEB_GALAXY_CI" in os.environ and int(os.environ.get("PYBUDA_NEB_GALAXY_CI"))==1 else [0],
+            enabled = False if test_device.devtype == pybuda.BackendType.Silicon else True,
         )
     )
 
@@ -74,10 +79,17 @@ def test_opt_qa(variant, test_device):
     if variant == "facebook/opt-1.3b":
         compiler_cfg.default_df_override = DataFormat.Float16
 
+    config = OPTConfig.from_pretrained(variant)
+    config_dict = config.to_dict()
+    config_dict['return_dict'] = False
+    config_dict['use_cache'] = False
+    config = OPTConfig(**config_dict)
+
     tokenizer = download_model(AutoTokenizer.from_pretrained, variant)
     model = download_model(OPTForQuestionAnswering.from_pretrained,
-        variant, torchscript=True
+        variant, config = config
     )
+    model.eval()
 
     # Load data sample
     question, context = "Who was Jim Henson?", "Jim Henson was a nice puppet"
@@ -103,6 +115,8 @@ def test_opt_qa(variant, test_device):
             test_kind=TestKind.INFERENCE,
             pcc=0.7,
             chip_ids=NebulaGalaxy.chip_ids if "PYBUDA_NEB_GALAXY_CI" in os.environ and int(os.environ.get("PYBUDA_NEB_GALAXY_CI"))==1 else [0],
+            enabled = False if test_device.devtype == pybuda.BackendType.Silicon else True,
+
         )
     )
 
@@ -119,11 +133,18 @@ def test_opt_sequence_classification(variant, test_device):
     # Variants: "facebook/opt-125m", "facebook/opt-350m", "facebook/opt-1.3b"
     # NOTE: These model variants are pre-trined only. They need to be fine-tuned
     # on a downstream task. Code is for demonstration purposes only.
+    
+    config = download_model(OPTConfig.from_pretrained, variant)
+    config_dict = config.to_dict()
+    config_dict["return_dict"] = False
+    config_dict["use_cache"] = False
+    config = OPTConfig(**config_dict)
 
     tokenizer = download_model(AutoTokenizer.from_pretrained, variant)
     model = download_model(OPTForSequenceClassification.from_pretrained,
-        variant, torchscript=True
+        variant, config=config
     )
+    model.eval()
 
     # Load data sample
     review = "the movie was great!"
@@ -148,5 +169,7 @@ def test_opt_sequence_classification(variant, test_device):
             test_kind=TestKind.INFERENCE,
             pcc=0.93,
             chip_ids=NebulaGalaxy.chip_ids if "PYBUDA_NEB_GALAXY_CI" in os.environ and int(os.environ.get("PYBUDA_NEB_GALAXY_CI"))==1 else [0],
+            enabled = False if test_device.devtype == pybuda.BackendType.Silicon else True,
+
         )
     )

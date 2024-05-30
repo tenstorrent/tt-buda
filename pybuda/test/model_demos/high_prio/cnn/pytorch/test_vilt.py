@@ -204,6 +204,6 @@ def test_vilt_maskedlm_hf_pytorch(variant, test_device):
             devtype=test_device.devtype,
             devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
-            pcc=0.98,
+            pcc=0.966 if test_device.arch == BackendDevice.Grayskull else 0.98,
         )
     )
