@@ -1,0 +1,416 @@
+
+.confidential-weekly-models-golden:
+  stage: weekly-run
+  timeout: 6h
+  tags:
+    - 8-core
+  retry:
+    max: 1
+    when:
+      - runner_system_failure
+      - api_failure
+  variables:
+    # Configure default pytest arguments for all tests
+    PYTEST_ADDOPTS: "-svv --no-silicon --durations=10 --durations-min=10 --junitxml=$CI_PROJECT_DIR/test-results/report.xml"
+    # Compiler configurations
+    PYBUDA_DEVMODE: 1
+    PYBUDA_EMULATE_SILICON_DEVICE: 1
+    PYBUDA_VERIFY_POST_AUTOGRAD_PASSES: 1
+    PYBUDA_VERIFY_POST_PLACER: 1
+    PYBUDA_VERIFY_NET2PIPE: 3
+  artifacts:
+    paths:
+    - $PYBUDA_CI_DIR/*
+    expire_in: 2 days
+    when: always
+    reports:
+      junit: test-results/*xml
+  script:
+    - env
+    - env | { grep PYBUDA_ || true; }
+    - env | { grep TT_BACKEND_ || true; }
+    - !reference [.common_prep, script]
+    - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+    - cd third_party/confidential_customer_models
+
+.confidential-weekly-models-gs-e150-golden:
+  extends: .confidential-weekly-models-golden
+  rules:
+    - if: ($CI_PIPELINE_SOURCE == "schedule" && $CI_JOB_DESCRIPTION == "weekly-models-pipeline")
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS_GS)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS_GOLDEN_ONLY)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS_GOLDEN_ONLY_GS_E150)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_CONFIDENTIAL_MODELS_GOLDEN_ONLY)
+  variables:
+    PYBUDA_FORCE_EMULATE_HARVESTED: 1
+    ARCH_NAME: "grayskull"
+  script:
+    - !reference [.confidential-weekly-models-golden, script]
+  needs:
+    - !reference [.common_deps, needs]
+    - pybuda-gs-wheel
+
+.confidential-weekly-models-gs-e300-golden:
+  extends: .confidential-weekly-models-golden
+  rules:
+    - if: ($CI_PIPELINE_SOURCE == "schedule" && $CI_JOB_DESCRIPTION == "weekly-models-pipeline")
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS_GS)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS_GOLDEN_ONLY)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS_GOLDEN_ONLY_GS_E300)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_CONFIDENTIAL_MODELS_GOLDEN_ONLY)
+  variables:
+    ARCH_NAME: "grayskull"
+  script:
+    - !reference [.confidential-weekly-models-golden, script]
+  needs:
+    - !reference [.common_deps, needs]
+    - pybuda-gs-wheel
+    
+.confidential-weekly-models-wh-b0-n150-golden:
+  extends: .confidential-weekly-models-golden
+  rules:
+    - if: ($CI_PIPELINE_SOURCE == "schedule" && $CI_JOB_DESCRIPTION == "weekly-models-pipeline")
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS_WH)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS_GOLDEN_ONLY)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS_GOLDEN_ONLY_WH_N150)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_CONFIDENTIAL_MODELS_GOLDEN_ONLY)
+  variables:
+    PYBUDA_FORCE_EMULATE_HARVESTED: 1
+    GOLDEN_WORMHOLE_B0: 1
+    ARCH_NAME: "wormhole_b0"
+  script:
+    - !reference [.confidential-weekly-models-golden, script]
+  needs:
+    - !reference [.common_deps, needs]
+    - pybuda-wh-b0-wheel
+
+.confidential-weekly-models-wh-b0-n300-golden:
+  extends: .confidential-weekly-models-golden
+  rules:
+    - if: ($CI_PIPELINE_SOURCE == "schedule" && $CI_JOB_DESCRIPTION == "weekly-models-pipeline-n300")
+    # - if: ($CI_PIPELINE_SOURCE == "schedule" && $CI_JOB_DESCRIPTION == "weekly-models-pipeline")
+    # - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS)
+    # - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS_WH)
+    # - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS_GOLDEN_ONLY)
+    # - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS_GOLDEN_ONLY_WH_N300)
+    # - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_CONFIDENTIAL_MODELS_GOLDEN_ONLY)
+  variables:
+    GOLDEN_WORMHOLE_B0: 1
+    ARCH_NAME: "wormhole_b0"
+  script:
+    - !reference [.confidential-weekly-models-golden, script]
+  needs:
+    - !reference [.common_deps, needs]
+    - pybuda-wh-b0-wheel
+    
+.confidential-weekly-models-silicon:
+  stage: weekly-run
+  timeout: 6h
+  tags:
+    - 8-core
+  retry:
+    max: 1
+    when:
+      - runner_system_failure
+      - api_failure
+  variables:
+    # Configure default pytest arguments for all tests
+    PYTEST_ADDOPTS: "-svv --silicon-only --durations=10 --durations-min=10 --junitxml=$CI_PROJECT_DIR/test-results/report.xml"
+  artifacts:
+    paths:
+    - $PYBUDA_CI_DIR/*
+    expire_in: 2 days
+    when: always
+    reports:
+      junit: test-results/*xml
+  script:
+    - env
+    - env | { grep PYBUDA_ || true; }
+    - env | { grep TT_BACKEND_ || true; }
+    - !reference [.common_prep, script]
+    - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+    - cd third_party/confidential_customer_models
+    
+.confidential-weekly-models-gs-e150-silicon:
+  extends: .confidential-weekly-models-silicon
+  tags:
+    - nightly
+    - e150
+  rules:
+    - if: ($CI_PIPELINE_SOURCE == "schedule" && $CI_JOB_DESCRIPTION == "weekly-models-pipeline")
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS_GS)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS_SILICON_ONLY)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS_SILICON_ONLY_GS_E150)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_CONFIDENTIAL_MODELS_SILICON_ONLY)
+  variables:
+    BACKEND_ARCH_NAME: "grayskull"
+    ARCH_NAME: "grayskull"
+  script:
+    - !reference [.confidential-weekly-models-silicon, script]
+  needs:
+    - !reference [.common_deps, needs]
+    - pybuda-gs-wheel
+
+.confidential-weekly-models-gs-e300-silicon:
+  extends: .confidential-weekly-models-silicon
+  tags:
+    - nightly
+    - e300
+  rules:
+    - if: ($CI_PIPELINE_SOURCE == "schedule" && $CI_JOB_DESCRIPTION == "weekly-models-pipeline")
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS_GS)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS_SILICON_ONLY)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS_SILICON_ONLY_GS_E300)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_CONFIDENTIAL_MODELS_SILICON_ONLY)
+  variables:
+    BACKEND_ARCH_NAME: "grayskull"
+    ARCH_NAME: "grayskull"
+  script:
+    - !reference [.confidential-weekly-models-silicon, script]
+  needs:
+    - !reference [.common_deps, needs]
+    - pybuda-gs-wheel
+    
+.confidential-weekly-models-wh-b0-n150-silicon:
+  extends: .confidential-weekly-models-silicon
+  tags:
+    - nightly
+    - n150
+  rules:
+    - if: ($CI_PIPELINE_SOURCE == "schedule" && $CI_JOB_DESCRIPTION == "weekly-models-pipeline")
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS_WH)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS_SILICON_ONLY)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS_SILICON_ONLY_WH_N150)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_CONFIDENTIAL_MODELS_SILICON_ONLY)
+  variables:
+    BACKEND_ARCH_NAME: "wormhole_b0"
+    ARCH_NAME: "wormhole_b0"
+  script:
+    - !reference [.confidential-weekly-models-silicon, script]
+  needs:
+    - !reference [.common_deps, needs]
+    - pybuda-wh-b0-wheel
+
+.confidential-weekly-models-wh-b0-n300-silicon:
+  extends: .confidential-weekly-models-silicon
+  tags:
+    - nightly
+    - n300
+  rules:
+    - if: ($CI_PIPELINE_SOURCE == "schedule" && $CI_JOB_DESCRIPTION == "weekly-models-pipeline-n300")
+    # - if: ($CI_PIPELINE_SOURCE == "schedule" && $CI_JOB_DESCRIPTION == "weekly-models-pipeline")
+    # - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS)
+    # - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS_WH)
+    # - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS_SILICON_ONLY)
+    # - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_MODELS_SILICON_ONLY_WH_N300)
+    # - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_WEEKLY_CONFIDENTIAL_MODELS_SILICON_ONLY)
+  variables:
+    BACKEND_ARCH_NAME: "wormhole_b0"
+    ARCH_NAME: "wormhole_b0"
+  script:
+    - !reference [.confidential-weekly-models-silicon, script]
+  needs:
+    - !reference [.common_deps, needs]
+    - pybuda-wh-b0-wheel
+
+confidential-group-0-wh-b0-n300-golden:
+  stage: weekly-confidential-models-wh-b0-n300-golden-0
+  extends: .confidential-weekly-models-wh-b0-n300-golden
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-golden, script]
+  - pytest -svv tests/group_0/
+
+confidential-group-0-wh-b0-n300-silicon:
+  stage: weekly-confidential-models-wh-b0-n300-silicon-0
+  extends: .confidential-weekly-models-wh-b0-n300-silicon
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-silicon, script]
+  - pytest -svv tests/group_0/
+
+confidential-group-1-wh-b0-n300-golden:
+  stage: weekly-confidential-models-wh-b0-n300-golden-0
+  extends: .confidential-weekly-models-wh-b0-n300-golden
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-golden, script]
+  - pytest -svv tests/group_1/
+
+confidential-group-1-wh-b0-n300-silicon:
+  stage: weekly-confidential-models-wh-b0-n300-silicon-0
+  extends: .confidential-weekly-models-wh-b0-n300-silicon
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-silicon, script]
+  - pytest -svv tests/group_1/
+
+confidential-group-10-wh-b0-n300-golden:
+  stage: weekly-confidential-models-wh-b0-n300-golden-0
+  extends: .confidential-weekly-models-wh-b0-n300-golden
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-golden, script]
+  - pytest -svv tests/group_10/
+
+confidential-group-10-wh-b0-n300-silicon:
+  stage: weekly-confidential-models-wh-b0-n300-silicon-0
+  extends: .confidential-weekly-models-wh-b0-n300-silicon
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-silicon, script]
+  - pytest -svv tests/group_10/
+
+confidential-group-11-wh-b0-n300-golden:
+  stage: weekly-confidential-models-wh-b0-n300-golden-0
+  extends: .confidential-weekly-models-wh-b0-n300-golden
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-golden, script]
+  - pytest -svv tests/group_11/
+
+confidential-group-11-wh-b0-n300-silicon:
+  stage: weekly-confidential-models-wh-b0-n300-silicon-0
+  extends: .confidential-weekly-models-wh-b0-n300-silicon
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-silicon, script]
+  - pytest -svv tests/group_11/
+
+confidential-group-12-wh-b0-n300-golden:
+  stage: weekly-confidential-models-wh-b0-n300-golden-0
+  extends: .confidential-weekly-models-wh-b0-n300-golden
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-golden, script]
+  - pytest -svv tests/group_12/
+
+confidential-group-12-wh-b0-n300-silicon:
+  stage: weekly-confidential-models-wh-b0-n300-silicon-0
+  extends: .confidential-weekly-models-wh-b0-n300-silicon
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-silicon, script]
+  - pytest -svv tests/group_12/
+
+confidential-group-13-wh-b0-n300-golden:
+  stage: weekly-confidential-models-wh-b0-n300-golden-0
+  extends: .confidential-weekly-models-wh-b0-n300-golden
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-golden, script]
+  - pytest -svv tests/group_13/
+
+confidential-group-13-wh-b0-n300-silicon:
+  stage: weekly-confidential-models-wh-b0-n300-silicon-0
+  extends: .confidential-weekly-models-wh-b0-n300-silicon
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-silicon, script]
+  - pytest -svv tests/group_13/
+
+confidential-group-2-wh-b0-n300-golden:
+  stage: weekly-confidential-models-wh-b0-n300-golden-0
+  extends: .confidential-weekly-models-wh-b0-n300-golden
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-golden, script]
+  - pytest -svv tests/group_2/
+
+confidential-group-2-wh-b0-n300-silicon:
+  stage: weekly-confidential-models-wh-b0-n300-silicon-0
+  extends: .confidential-weekly-models-wh-b0-n300-silicon
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-silicon, script]
+  - pytest -svv tests/group_2/
+
+confidential-group-3-wh-b0-n300-golden:
+  stage: weekly-confidential-models-wh-b0-n300-golden-0
+  extends: .confidential-weekly-models-wh-b0-n300-golden
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-golden, script]
+  - pytest -svv tests/group_3/
+
+confidential-group-3-wh-b0-n300-silicon:
+  stage: weekly-confidential-models-wh-b0-n300-silicon-0
+  extends: .confidential-weekly-models-wh-b0-n300-silicon
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-silicon, script]
+  - pytest -svv tests/group_3/
+
+confidential-group-4-wh-b0-n300-golden:
+  stage: weekly-confidential-models-wh-b0-n300-golden-0
+  extends: .confidential-weekly-models-wh-b0-n300-golden
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-golden, script]
+  - pytest -svv tests/group_4/
+
+confidential-group-4-wh-b0-n300-silicon:
+  stage: weekly-confidential-models-wh-b0-n300-silicon-0
+  extends: .confidential-weekly-models-wh-b0-n300-silicon
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-silicon, script]
+  - pytest -svv tests/group_4/
+
+confidential-group-5-wh-b0-n300-golden:
+  stage: weekly-confidential-models-wh-b0-n300-golden-0
+  extends: .confidential-weekly-models-wh-b0-n300-golden
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-golden, script]
+  - pytest -svv tests/group_5/
+
+confidential-group-5-wh-b0-n300-silicon:
+  stage: weekly-confidential-models-wh-b0-n300-silicon-0
+  extends: .confidential-weekly-models-wh-b0-n300-silicon
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-silicon, script]
+  - pytest -svv tests/group_5/
+
+confidential-group-6-wh-b0-n300-golden:
+  stage: weekly-confidential-models-wh-b0-n300-golden-0
+  extends: .confidential-weekly-models-wh-b0-n300-golden
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-golden, script]
+  - pytest -svv tests/group_6/
+
+confidential-group-6-wh-b0-n300-silicon:
+  stage: weekly-confidential-models-wh-b0-n300-silicon-0
+  extends: .confidential-weekly-models-wh-b0-n300-silicon
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-silicon, script]
+  - pytest -svv tests/group_6/
+
+confidential-group-7-wh-b0-n300-golden:
+  stage: weekly-confidential-models-wh-b0-n300-golden-0
+  extends: .confidential-weekly-models-wh-b0-n300-golden
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-golden, script]
+  - pytest -svv tests/group_7/
+
+confidential-group-7-wh-b0-n300-silicon:
+  stage: weekly-confidential-models-wh-b0-n300-silicon-0
+  extends: .confidential-weekly-models-wh-b0-n300-silicon
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-silicon, script]
+  - pytest -svv tests/group_7/
+
+confidential-group-8-wh-b0-n300-golden:
+  stage: weekly-confidential-models-wh-b0-n300-golden-0
+  extends: .confidential-weekly-models-wh-b0-n300-golden
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-golden, script]
+  - pytest -svv tests/group_8/
+
+confidential-group-8-wh-b0-n300-silicon:
+  stage: weekly-confidential-models-wh-b0-n300-silicon-0
+  extends: .confidential-weekly-models-wh-b0-n300-silicon
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-silicon, script]
+  - pytest -svv tests/group_8/
+
+confidential-group-9-wh-b0-n300-golden:
+  stage: weekly-confidential-models-wh-b0-n300-golden-0
+  extends: .confidential-weekly-models-wh-b0-n300-golden
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-golden, script]
+  - pytest -svv tests/group_9/
+
+confidential-group-9-wh-b0-n300-silicon:
+  stage: weekly-confidential-models-wh-b0-n300-silicon-0
+  extends: .confidential-weekly-models-wh-b0-n300-silicon
+  script:
+  - !reference [.confidential-weekly-models-wh-b0-n300-silicon, script]
+  - pytest -svv tests/group_9/

@@ -1,0 +1,2980 @@
+
+.compile-nightly-models:
+  stage: nightly-compile
+  tags:
+    - 8-core
+  timeout: 6h
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - api_failure
+  variables:
+    # Configure default pytest arguments for all tests
+    PYTEST_ADDOPTS: "-svv --compile-only --durations=10 --durations-min=10 --junitxml=$CI_PROJECT_DIR/test-results/report.xml"
+    # Compiler configurations
+    PYBUDA_DEVMODE: 1
+    PYBUDA_VERIFY_GOLDEN: 1
+    PYBUDA_EMULATE_SILICON_DEVICE: 1
+    PYBUDA_VERIFY_POST_AUTOGRAD_PASSES: 1
+    PYBUDA_VERIFY_POST_PLACER: 1
+  artifacts:
+    paths:
+    - device_images/*
+    expire_in: 2 days
+    when: always
+    reports:
+      junit: compile-results/* 
+  cache:
+    - key: "$CI_PROJECT_PATH_SLUG-huggingface"
+      paths:
+        - .cache/huggingface
+      policy: pull
+    - key: "$CI_PROJECT_PATH_SLUG-torch"
+      paths:
+        - .cache/torch
+      policy: pull
+  script:
+    - env
+    - env | { grep PYBUDA_ || true; }
+    - env | { grep TT_BACKEND_ || true; }
+
+.compile-nightly-models-gs-e150:
+  extends: .compile-nightly-models
+  rules:
+    - if: ($CI_PIPELINE_SOURCE == "schedule" && $CI_JOB_DESCRIPTION == "nightly-models-pipeline")
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_NIGHTLY_MODELS)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_NIGHTLY_MODELS_GS)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_NIGHTLY_MODELS_COMPILE_ONLY)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_NIGHTLY_MODELS_COMPILE_ONLY_GS_E150)
+  variables:
+    ARCH_NAME: "grayskull"
+  script:
+    - !reference [.compile-nightly-models, script]
+  needs:
+    - !reference [.common_deps, needs]
+    - pybuda-gs-wheel
+    
+.compile-nightly-models-gs-e300:
+  extends: .compile-nightly-models
+  rules:
+    - if: ($CI_PIPELINE_SOURCE == "schedule" && $CI_JOB_DESCRIPTION == "nightly-models-pipeline")
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_NIGHTLY_MODELS)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_NIGHTLY_MODELS_GS)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_NIGHTLY_MODELS_COMPILE_ONLY)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_NIGHTLY_MODELS_COMPILE_ONLY_GS_E300)
+  variables:
+    PYTEST_ADDOPTS: "-svv --no-silicon --durations=10 --durations-min=10 --junitxml=$CI_PROJECT_DIR/test-results/report.xml"
+    PYBUDA_FORCE_EMULATE_HARVESTED: 1
+    ARCH_NAME: "grayskull"
+  script:
+    - !reference [.compile-nightly-models, script]
+  needs:
+    - !reference [.common_deps, needs]
+    - pybuda-gs-wheel
+
+.compile-nightly-models-wh-b0-n150:
+  extends: .compile-nightly-models
+  rules:
+    - if: ($CI_PIPELINE_SOURCE == "schedule" && $CI_JOB_DESCRIPTION == "nightly-models-pipeline")
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_NIGHTLY_MODELS)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_NIGHTLY_MODELS_WH)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_NIGHTLY_MODELS_COMPILE_ONLY)
+    - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_NIGHTLY_MODELS_COMPILE_ONLY_WH_N150)
+  variables:
+    GOLDEN_WORMHOLE_B0: 1
+    PYBUDA_FORCE_EMULATE_HARVESTED: 1
+    ARCH_NAME: "wormhole_b0"
+  script:
+    - !reference [.compile-nightly-models, script]
+  needs:
+    - !reference [.common_deps, needs]
+    - pybuda-wh-b0-wheel
+
+.compile-nightly-models-wh-b0-n300:
+  extends: .compile-nightly-models
+  rules:
+    - if: ($CI_PIPELINE_SOURCE == "schedule" && $CI_JOB_DESCRIPTION == "nightly-models-pipeline-n300")
+    # - if: ($CI_PIPELINE_SOURCE == "schedule" && $CI_JOB_DESCRIPTION == "nightly-models-pipeline")
+    # - if: ($CI_PIPELINE_SOURCE == "schedule" && $CI_JOB_DESCRIPTION == "nightly-models-pipeline" && $TODO_REMOVE_THIS_N300_LINE)
+    # - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_NIGHTLY_MODELS)
+    # - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_NIGHTLY_MODELS_WH)
+    # - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_NIGHTLY_MODELS_COMPILE_ONLY)
+    # - if: ($CI_PIPELINE_SOURCE == "push" && $RUN_NIGHTLY_MODELS_COMPILE_ONLY_WH_N300)
+  variables:
+    GOLDEN_WORMHOLE_B0: 1
+    ARCH_NAME: "wormhole_b0"
+  script:
+    - !reference [.compile-nightly-models, script]
+  needs:
+    - !reference [.common_deps, needs]
+    - pybuda-wh-b0-wheel
+compile-cnn-onnx-ddrnet-ddrnet-ddrnet23s-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_ddrnet.py::test_ddrnet[Wormhole_B0-ddrnet23s] --device-config wh_n300
+
+compile-cnn-onnx-ddrnet-ddrnet-ddrnet23-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_ddrnet.py::test_ddrnet[Wormhole_B0-ddrnet23] --device-config wh_n300
+
+compile-cnn-onnx-ddrnet-ddrnet-ddrnet39-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_ddrnet.py::test_ddrnet[Wormhole_B0-ddrnet39] --device-config wh_n300
+
+compile-cnn-onnx-ddrnet-ddrnet-semantic-segmentation-onnx-ddrnet-23-slim-1024-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_ddrnet.py::test_ddrnet_semantic_segmentation_onnx[Wormhole_B0-ddrnet_23_slim_1024] --device-config wh_n300
+
+compile-cnn-onnx-dla-dla-onnx-dla34-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_dla.py::test_dla_onnx[Wormhole_B0-dla34] --device-config wh_n300
+
+compile-cnn-onnx-dla-dla-onnx-dla46-c-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_dla.py::test_dla_onnx[Wormhole_B0-dla46_c] --device-config wh_n300
+
+compile-cnn-onnx-dla-dla-onnx-dla46x-c-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_dla.py::test_dla_onnx[Wormhole_B0-dla46x_c] --device-config wh_n300
+
+compile-cnn-onnx-dla-dla-onnx-dla60x-c-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_dla.py::test_dla_onnx[Wormhole_B0-dla60x_c] --device-config wh_n300
+
+compile-cnn-onnx-dla-dla-onnx-dla60-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_dla.py::test_dla_onnx[Wormhole_B0-dla60] --device-config wh_n300
+
+compile-cnn-onnx-dla-dla-onnx-dla60x-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_dla.py::test_dla_onnx[Wormhole_B0-dla60x] --device-config wh_n300
+
+compile-cnn-onnx-dla-dla-onnx-dla102-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_dla.py::test_dla_onnx[Wormhole_B0-dla102] --device-config wh_n300
+
+compile-cnn-onnx-dla-dla-onnx-dla102x-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_dla.py::test_dla_onnx[Wormhole_B0-dla102x] --device-config wh_n300
+
+compile-cnn-onnx-dla-dla-onnx-dla102x2-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_dla.py::test_dla_onnx[Wormhole_B0-dla102x2] --device-config wh_n300
+
+compile-cnn-onnx-dla-dla-onnx-dla169-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_dla.py::test_dla_onnx[Wormhole_B0-dla169] --device-config wh_n300
+
+compile-cnn-onnx-fpn-fpn-onnx-inference-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_fpn.py::test_fpn_onnx[inference-Wormhole_B0] --device-config wh_n300
+
+compile-cnn-onnx-hardnet-hardnet-onnx-hardnet68-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_hardnet.py::test_hardnet_onnx[Wormhole_B0-hardnet68] --device-config wh_n300
+
+compile-cnn-onnx-hardnet-hardnet-onnx-hardnet85-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_hardnet.py::test_hardnet_onnx[Wormhole_B0-hardnet85] --device-config wh_n300
+
+compile-cnn-onnx-hardnet-hardnet-onnx-hardnet68ds-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_hardnet.py::test_hardnet_onnx[Wormhole_B0-hardnet68ds] --device-config wh_n300
+
+compile-cnn-onnx-hardnet-hardnet-onnx-hardnet39ds-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_hardnet.py::test_hardnet_onnx[Wormhole_B0-hardnet39ds] --device-config wh_n300
+
+compile-cnn-onnx-lstm-genom-lstm-genom-onnx-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_lstm_genom.py::test_lstm_genom_onnx[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-onnx-lstm-valence-lstm-valence-onnx-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_lstm_valence.py::test_lstm_valence_onnx[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-onnx-perceiverio-perceiver-for-image-classification-onnx-deepmind-vision-perceiver-conv-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_perceiverio.py::test_perceiver_for_image_classification_onnx[Wormhole_B0-deepmind/vision-perceiver-conv] --device-config wh_n300
+
+compile-cnn-onnx-perceiverio-perceiver-for-image-classification-onnx-deepmind-vision-perceiver-learned-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_perceiverio.py::test_perceiver_for_image_classification_onnx[Wormhole_B0-deepmind/vision-perceiver-learned] --device-config wh_n300
+
+compile-cnn-onnx-perceiverio-perceiver-for-image-classification-onnx-deepmind-vision-perceiver-fourier-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_perceiverio.py::test_perceiver_for_image_classification_onnx[Wormhole_B0-deepmind/vision-perceiver-fourier] --device-config wh_n300
+
+compile-cnn-onnx-retinanet-retinanet-r101-640x480-onnx-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_retinanet.py::test_retinanet_r101_640x480_onnx[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-onnx-retinanet-retinanet-onnx-retinanet-rn18fpn-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_retinanet.py::test_retinanet_onnx[Wormhole_B0-retinanet_rn18fpn] --device-config wh_n300
+
+compile-cnn-onnx-retinanet-retinanet-onnx-retinanet-rn34fpn-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_retinanet.py::test_retinanet_onnx[Wormhole_B0-retinanet_rn34fpn] --device-config wh_n300
+
+compile-cnn-onnx-retinanet-retinanet-onnx-retinanet-rn50fpn-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_retinanet.py::test_retinanet_onnx[Wormhole_B0-retinanet_rn50fpn] --device-config wh_n300
+
+compile-cnn-onnx-retinanet-retinanet-onnx-retinanet-rn152fpn-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_retinanet.py::test_retinanet_onnx[Wormhole_B0-retinanet_rn152fpn] --device-config wh_n300
+
+compile-cnn-onnx-segformer-imgcls-segformer-image-classification-onnx-nvidia-mit-b0-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_image_classification_onnx[Wormhole_B0-nvidia/mit-b0] --device-config wh_n300
+
+compile-cnn-onnx-segformer-imgcls-segformer-image-classification-onnx-nvidia-mit-b1-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_image_classification_onnx[Wormhole_B0-nvidia/mit-b1] --device-config wh_n300
+
+compile-cnn-onnx-segformer-imgcls-segformer-image-classification-onnx-nvidia-mit-b2-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_image_classification_onnx[Wormhole_B0-nvidia/mit-b2] --device-config wh_n300
+
+compile-cnn-onnx-segformer-imgcls-segformer-image-classification-onnx-nvidia-mit-b3-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_image_classification_onnx[Wormhole_B0-nvidia/mit-b3] --device-config wh_n300
+
+compile-cnn-onnx-segformer-imgcls-segformer-image-classification-onnx-nvidia-mit-b4-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_image_classification_onnx[Wormhole_B0-nvidia/mit-b4] --device-config wh_n300
+
+compile-cnn-onnx-segformer-imgcls-segformer-image-classification-onnx-nvidia-mit-b5-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_image_classification_onnx[Wormhole_B0-nvidia/mit-b5] --device-config wh_n300
+
+? compile-cnn-onnx-segformer-semseg-segformer-semantic-segmentation-onnx-nvidia-segformer-b0-finetuned-ade-512-512-wh-b0-n300
+
+: stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_semseg.py::test_segformer_semantic_segmentation_onnx[Wormhole_B0-nvidia/segformer-b0-finetuned-ade-512-512] --device-config wh_n300
+
+? compile-cnn-onnx-segformer-semseg-segformer-semantic-segmentation-onnx-nvidia-segformer-b1-finetuned-ade-512-512-wh-b0-n300
+
+: stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_semseg.py::test_segformer_semantic_segmentation_onnx[Wormhole_B0-nvidia/segformer-b1-finetuned-ade-512-512] --device-config wh_n300
+
+? compile-cnn-onnx-segformer-semseg-segformer-semantic-segmentation-onnx-nvidia-segformer-b2-finetuned-ade-512-512-wh-b0-n300
+
+: stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_semseg.py::test_segformer_semantic_segmentation_onnx[Wormhole_B0-nvidia/segformer-b2-finetuned-ade-512-512] --device-config wh_n300
+
+? compile-cnn-onnx-segformer-semseg-segformer-semantic-segmentation-onnx-nvidia-segformer-b3-finetuned-ade-512-512-wh-b0-n300
+
+: stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_semseg.py::test_segformer_semantic_segmentation_onnx[Wormhole_B0-nvidia/segformer-b3-finetuned-ade-512-512] --device-config wh_n300
+
+? compile-cnn-onnx-segformer-semseg-segformer-semantic-segmentation-onnx-nvidia-segformer-b4-finetuned-ade-512-512-wh-b0-n300
+
+: stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_semseg.py::test_segformer_semantic_segmentation_onnx[Wormhole_B0-nvidia/segformer-b4-finetuned-ade-512-512] --device-config wh_n300
+
+compile-cnn-onnx-yolo-v5-yolo-v5-320x320-onnx-yolov5n-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_yolo_v5.py::test_yolo_v5_320x320_onnx[Wormhole_B0-yolov5n] --device-config wh_n300
+
+compile-cnn-onnx-yolo-v5-yolo-v5-320x320-onnx-yolov5s-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_yolo_v5.py::test_yolo_v5_320x320_onnx[Wormhole_B0-yolov5s] --device-config wh_n300
+
+compile-cnn-onnx-yolo-v5-yolo-v5-320x320-onnx-yolov5m-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_yolo_v5.py::test_yolo_v5_320x320_onnx[Wormhole_B0-yolov5m] --device-config wh_n300
+
+compile-cnn-onnx-yolo-v5-yolo-v5-320x320-onnx-yolov5l-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_yolo_v5.py::test_yolo_v5_320x320_onnx[Wormhole_B0-yolov5l] --device-config wh_n300
+
+compile-cnn-onnx-yolo-v5-yolo-v5-320x320-onnx-yolov5x-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_yolo_v5.py::test_yolo_v5_320x320_onnx[Wormhole_B0-yolov5x] --device-config wh_n300
+
+compile-cnn-onnx-yolo-v5-yolo-v5-480x480-onnx-yolov5n-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_yolo_v5.py::test_yolo_v5_480x480_onnx[Wormhole_B0-yolov5n] --device-config wh_n300
+
+compile-cnn-onnx-yolo-v5-yolo-v5-480x480-onnx-yolov5s-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_yolo_v5.py::test_yolo_v5_480x480_onnx[Wormhole_B0-yolov5s] --device-config wh_n300
+
+compile-cnn-onnx-yolo-v5-yolo-v5-480x480-onnx-yolov5m-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_yolo_v5.py::test_yolo_v5_480x480_onnx[Wormhole_B0-yolov5m] --device-config wh_n300
+
+compile-cnn-onnx-yolo-v5-yolo-v5-480x480-onnx-yolov5l-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_yolo_v5.py::test_yolo_v5_480x480_onnx[Wormhole_B0-yolov5l] --device-config wh_n300
+
+compile-cnn-onnx-yolo-v5-yolo-v5-480x480-onnx-yolov5x-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_yolo_v5.py::test_yolo_v5_480x480_onnx[Wormhole_B0-yolov5x] --device-config wh_n300
+
+compile-cnn-onnx-yolo-v5-yolo-v5-640x640-onnx-yolov5n-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_yolo_v5.py::test_yolo_v5_640x640_onnx[Wormhole_B0-yolov5n] --device-config wh_n300
+
+compile-cnn-onnx-yolo-v5-yolo-v5-640x640-onnx-yolov5s-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_yolo_v5.py::test_yolo_v5_640x640_onnx[Wormhole_B0-yolov5s] --device-config wh_n300
+
+compile-cnn-onnx-yolo-v5-yolo-v5-640x640-onnx-yolov5m-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_yolo_v5.py::test_yolo_v5_640x640_onnx[Wormhole_B0-yolov5m] --device-config wh_n300
+
+compile-cnn-onnx-yolo-v5-yolo-v5-640x640-onnx-yolov5l-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_yolo_v5.py::test_yolo_v5_640x640_onnx[Wormhole_B0-yolov5l] --device-config wh_n300
+
+compile-cnn-onnx-yolo-v5-yolo-v5-640x640-onnx-yolov5x-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_yolo_v5.py::test_yolo_v5_640x640_onnx[Wormhole_B0-yolov5x] --device-config wh_n300
+
+compile-cnn-onnx-yolo-x-yolox-onnx-yolox-nano-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_yolo_x.py::test_yolox_onnx[Wormhole_B0-yolox_nano] --device-config wh_n300
+
+compile-cnn-onnx-yolo-x-yolox-onnx-yolox-tiny-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_yolo_x.py::test_yolox_onnx[Wormhole_B0-yolox_tiny] --device-config wh_n300
+
+compile-cnn-onnx-yolo-x-yolox-onnx-yolox-s-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_yolo_x.py::test_yolox_onnx[Wormhole_B0-yolox_s] --device-config wh_n300
+
+compile-cnn-onnx-yolo-x-yolox-onnx-yolox-m-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_yolo_x.py::test_yolox_onnx[Wormhole_B0-yolox_m] --device-config wh_n300
+
+compile-cnn-onnx-yolo-x-yolox-onnx-yolox-l-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_yolo_x.py::test_yolox_onnx[Wormhole_B0-yolox_l] --device-config wh_n300
+
+compile-cnn-onnx-yolo-x-yolox-onnx-yolox-darknet-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_yolo_x.py::test_yolox_onnx[Wormhole_B0-yolox_darknet] --device-config wh_n300
+
+compile-cnn-onnx-yolo-x-yolox-onnx-yolox-x-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_yolo_x.py::test_yolox_onnx[Wormhole_B0-yolox_x] --device-config wh_n300
+
+compile-cnn-pytorch-autoencoder-conv-ae-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_autoencoder.py::test_conv_ae_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-autoencoder-linear-ae-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_autoencoder.py::test_linear_ae_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-blazepose-blaze-palm-pytorch-1x1-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_blazepose.py::test_blaze_palm_pytorch_1x1[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-blazepose-blaze-hand-pytorch-1x1-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_blazepose.py::test_blaze_hand_pytorch_1x1[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-clip-clip-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype golden pybuda/test/model_demos/high_prio/cnn/pytorch/test_clip.py::test_clip_pytorch[Golden]
+
+compile-cnn-pytorch-ddrnet-ddrnet-pytorch-ddrnet23s-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_ddrnet.py::test_ddrnet_pytorch[Wormhole_B0-ddrnet23s] --device-config wh_n300
+
+compile-cnn-pytorch-ddrnet-ddrnet-pytorch-ddrnet23-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_ddrnet.py::test_ddrnet_pytorch[Wormhole_B0-ddrnet23] --device-config wh_n300
+
+compile-cnn-pytorch-ddrnet-ddrnet-pytorch-ddrnet39-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_ddrnet.py::test_ddrnet_pytorch[Wormhole_B0-ddrnet39] --device-config wh_n300
+
+compile-cnn-pytorch-ddrnet-ddrnet-semantic-segmentation-pytorch-ddrnet23s-cityscapes-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_ddrnet.py::test_ddrnet_semantic_segmentation_pytorch[Wormhole_B0-ddrnet23s_cityscapes] --device-config wh_n300
+
+compile-cnn-pytorch-ddrnet-ddrnet-semantic-segmentation-pytorch-ddrnet23-cityscapes-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_ddrnet.py::test_ddrnet_semantic_segmentation_pytorch[Wormhole_B0-ddrnet23_cityscapes] --device-config wh_n300
+
+compile-cnn-pytorch-deit-vit-base-classify-224-hf-pytorch-facebook-deit-base-patch16-224-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_deit.py::test_vit_base_classify_224_hf_pytorch[Wormhole_B0-facebook/deit-base-patch16-224] --device-config wh_n300
+
+compile-cnn-pytorch-deit-vit-base-classify-224-hf-pytorch-facebook-deit-base-distilled-patch16-224-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_deit.py::test_vit_base_classify_224_hf_pytorch[Wormhole_B0-facebook/deit-base-distilled-patch16-224] --device-config wh_n300
+
+compile-cnn-pytorch-deit-vit-base-classify-224-hf-pytorch-facebook-deit-small-patch16-224-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_deit.py::test_vit_base_classify_224_hf_pytorch[Wormhole_B0-facebook/deit-small-patch16-224] --device-config wh_n300
+
+compile-cnn-pytorch-deit-vit-base-classify-224-hf-pytorch-facebook-deit-tiny-patch16-224-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_deit.py::test_vit_base_classify_224_hf_pytorch[Wormhole_B0-facebook/deit-tiny-patch16-224] --device-config wh_n300
+
+compile-cnn-pytorch-densenet-densenet-121-pytorch-densenet121-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_densenet.py::test_densenet_121_pytorch[Wormhole_B0-densenet121] --device-config wh_n300
+
+compile-cnn-pytorch-densenet-densenet-121-pytorch-densenet121-hf-xray-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_densenet.py::test_densenet_121_pytorch[Wormhole_B0-densenet121_hf_xray] --device-config wh_n300
+
+compile-cnn-pytorch-densenet-densenet-161-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_densenet.py::test_densenet_161_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-densenet-densenet-169-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_densenet.py::test_densenet_169_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-densenet-densenet-201-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_densenet.py::test_densenet_201_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-dla-dla-pytorch-dla34-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_dla.py::test_dla_pytorch[Wormhole_B0-dla34] --device-config wh_n300
+
+compile-cnn-pytorch-dla-dla-pytorch-dla46-c-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_dla.py::test_dla_pytorch[Wormhole_B0-dla46_c] --device-config wh_n300
+
+compile-cnn-pytorch-dla-dla-pytorch-dla46x-c-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_dla.py::test_dla_pytorch[Wormhole_B0-dla46x_c] --device-config wh_n300
+
+compile-cnn-pytorch-dla-dla-pytorch-dla60x-c-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_dla.py::test_dla_pytorch[Wormhole_B0-dla60x_c] --device-config wh_n300
+
+compile-cnn-pytorch-dla-dla-pytorch-dla60-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_dla.py::test_dla_pytorch[Wormhole_B0-dla60] --device-config wh_n300
+
+compile-cnn-pytorch-dla-dla-pytorch-dla60x-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_dla.py::test_dla_pytorch[Wormhole_B0-dla60x] --device-config wh_n300
+
+compile-cnn-pytorch-dla-dla-pytorch-dla102-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_dla.py::test_dla_pytorch[Wormhole_B0-dla102] --device-config wh_n300
+
+compile-cnn-pytorch-dla-dla-pytorch-dla102x-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_dla.py::test_dla_pytorch[Wormhole_B0-dla102x] --device-config wh_n300
+
+compile-cnn-pytorch-dla-dla-pytorch-dla102x2-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_dla.py::test_dla_pytorch[Wormhole_B0-dla102x2] --device-config wh_n300
+
+compile-cnn-pytorch-dla-dla-pytorch-dla169-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_dla.py::test_dla_pytorch[Wormhole_B0-dla169] --device-config wh_n300
+
+compile-cnn-pytorch-efficientnet-efficientnet-timm-efficientnet-b0-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_efficientnet.py::test_efficientnet_timm[Wormhole_B0-efficientnet_b0] --device-config wh_n300
+
+compile-cnn-pytorch-efficientnet-efficientnet-timm-efficientnet-b4-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_efficientnet.py::test_efficientnet_timm[Wormhole_B0-efficientnet_b4] --device-config wh_n300
+
+compile-cnn-pytorch-efficientnet-efficientnet-torchvision-efficientnet-b0-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_efficientnet.py::test_efficientnet_torchvision[Wormhole_B0-efficientnet_b0] --device-config wh_n300
+
+compile-cnn-pytorch-efficientnet-efficientnet-torchvision-efficientnet-b4-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_efficientnet.py::test_efficientnet_torchvision[Wormhole_B0-efficientnet_b4] --device-config wh_n300
+
+compile-cnn-pytorch-efficientnet-lite-efficientnet-lite-0-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_efficientnet_lite.py::test_efficientnet_lite_0_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-efficientnet-lite-efficientnet-lite-1-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_efficientnet_lite.py::test_efficientnet_lite_1_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-efficientnet-lite-efficientnet-lite-2-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_efficientnet_lite.py::test_efficientnet_lite_2_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-efficientnet-lite-efficientnet-lite-3-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_efficientnet_lite.py::test_efficientnet_lite_3_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-efficientnet-lite-efficientnet-lite-4-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_efficientnet_lite.py::test_efficientnet_lite_4_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-fpn-fpn-pytorch-inference-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_fpn.py::test_fpn_pytorch[inference-Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-ghostnet-ghostnet-timm-ghostnet-050-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_ghostnet.py::test_ghostnet_timm[Wormhole_B0-ghostnet_050] --device-config wh_n300
+
+compile-cnn-pytorch-ghostnet-ghostnet-timm-ghostnet-100-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_ghostnet.py::test_ghostnet_timm[Wormhole_B0-ghostnet_100] --device-config wh_n300
+
+compile-cnn-pytorch-ghostnet-100-ghostnet-timm-ghostnet-100-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_ghostnet_100.py::test_ghostnet_timm[Wormhole_B0-ghostnet_100] --device-config wh_n300
+
+compile-cnn-pytorch-googlenet-googlenet-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_googlenet.py::test_googlenet_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-hardnet-hardnet-pytorch-hardnet68-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_hardnet.py::test_hardnet_pytorch[Wormhole_B0-hardnet68] --device-config wh_n300
+
+compile-cnn-pytorch-hardnet-hardnet-pytorch-hardnet85-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_hardnet.py::test_hardnet_pytorch[Wormhole_B0-hardnet85] --device-config wh_n300
+
+compile-cnn-pytorch-hardnet-hardnet-pytorch-hardnet68ds-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_hardnet.py::test_hardnet_pytorch[Wormhole_B0-hardnet68ds] --device-config wh_n300
+
+compile-cnn-pytorch-hardnet-hardnet-pytorch-hardnet39ds-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_hardnet.py::test_hardnet_pytorch[Wormhole_B0-hardnet39ds] --device-config wh_n300
+
+compile-cnn-pytorch-hrnet-hrnet-osmr-pytorch-hrnet-w18-small-v1-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_hrnet.py::test_hrnet_osmr_pytorch[Wormhole_B0-hrnet_w18_small_v1] --device-config wh_n300
+
+compile-cnn-pytorch-hrnet-hrnet-osmr-pytorch-hrnet-w18-small-v2-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_hrnet.py::test_hrnet_osmr_pytorch[Wormhole_B0-hrnet_w18_small_v2] --device-config wh_n300
+
+compile-cnn-pytorch-hrnet-hrnet-osmr-pytorch-hrnetv2-w18-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_hrnet.py::test_hrnet_osmr_pytorch[Wormhole_B0-hrnetv2_w18] --device-config wh_n300
+
+compile-cnn-pytorch-hrnet-hrnet-osmr-pytorch-hrnetv2-w30-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_hrnet.py::test_hrnet_osmr_pytorch[Wormhole_B0-hrnetv2_w30] --device-config wh_n300
+
+compile-cnn-pytorch-hrnet-hrnet-osmr-pytorch-hrnetv2-w32-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_hrnet.py::test_hrnet_osmr_pytorch[Wormhole_B0-hrnetv2_w32] --device-config wh_n300
+
+compile-cnn-pytorch-hrnet-hrnet-osmr-pytorch-hrnetv2-w40-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_hrnet.py::test_hrnet_osmr_pytorch[Wormhole_B0-hrnetv2_w40] --device-config wh_n300
+
+compile-cnn-pytorch-hrnet-hrnet-osmr-pytorch-hrnetv2-w44-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_hrnet.py::test_hrnet_osmr_pytorch[Wormhole_B0-hrnetv2_w44] --device-config wh_n300
+
+compile-cnn-pytorch-hrnet-hrnet-osmr-pytorch-hrnetv2-w48-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_hrnet.py::test_hrnet_osmr_pytorch[Wormhole_B0-hrnetv2_w48] --device-config wh_n300
+
+compile-cnn-pytorch-hrnet-hrnet-osmr-pytorch-hrnetv2-w64-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_hrnet.py::test_hrnet_osmr_pytorch[Wormhole_B0-hrnetv2_w64] --device-config wh_n300
+
+compile-cnn-pytorch-hrnet-hrnet-timm-pytorch-hrnet-w18-small-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_hrnet.py::test_hrnet_timm_pytorch[Wormhole_B0-hrnet_w18_small] --device-config wh_n300
+
+compile-cnn-pytorch-hrnet-hrnet-timm-pytorch-hrnet-w18-small-v2-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_hrnet.py::test_hrnet_timm_pytorch[Wormhole_B0-hrnet_w18_small_v2] --device-config wh_n300
+
+compile-cnn-pytorch-hrnet-hrnet-timm-pytorch-hrnet-w18-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_hrnet.py::test_hrnet_timm_pytorch[Wormhole_B0-hrnet_w18] --device-config wh_n300
+
+compile-cnn-pytorch-hrnet-hrnet-timm-pytorch-hrnet-w30-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_hrnet.py::test_hrnet_timm_pytorch[Wormhole_B0-hrnet_w30] --device-config wh_n300
+
+compile-cnn-pytorch-hrnet-hrnet-timm-pytorch-hrnet-w32-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_hrnet.py::test_hrnet_timm_pytorch[Wormhole_B0-hrnet_w32] --device-config wh_n300
+
+compile-cnn-pytorch-hrnet-hrnet-timm-pytorch-hrnet-w40-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_hrnet.py::test_hrnet_timm_pytorch[Wormhole_B0-hrnet_w40] --device-config wh_n300
+
+compile-cnn-pytorch-hrnet-hrnet-timm-pytorch-hrnet-w44-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_hrnet.py::test_hrnet_timm_pytorch[Wormhole_B0-hrnet_w44] --device-config wh_n300
+
+compile-cnn-pytorch-hrnet-hrnet-timm-pytorch-hrnet-w48-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_hrnet.py::test_hrnet_timm_pytorch[Wormhole_B0-hrnet_w48] --device-config wh_n300
+
+compile-cnn-pytorch-hrnet-hrnet-timm-pytorch-hrnet-w64-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_hrnet.py::test_hrnet_timm_pytorch[Wormhole_B0-hrnet_w64] --device-config wh_n300
+
+compile-cnn-pytorch-inception-v4-inception-v4-osmr-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_inception_v4.py::test_inception_v4_osmr_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-inception-v4-inception-v4-timm-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_inception_v4.py::test_inception_v4_timm_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-mlp-mixer-mlp-mixer-timm-pytorch-mixer-b16-224-miil-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_mlp_mixer.py::test_mlp_mixer_timm_pytorch[Wormhole_B0-mixer_b16_224_miil] --device-config wh_n300
+
+compile-cnn-pytorch-mlp-mixer-mlp-mixer-timm-pytorch-mixer-l32-224-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_mlp_mixer.py::test_mlp_mixer_timm_pytorch[Wormhole_B0-mixer_l32_224] --device-config wh_n300
+
+compile-cnn-pytorch-mlp-mixer-mlp-mixer-timm-pytorch-mixer-s16-224-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_mlp_mixer.py::test_mlp_mixer_timm_pytorch[Wormhole_B0-mixer_s16_224] --device-config wh_n300
+
+compile-cnn-pytorch-mobilenet-v1-mobilenetv1-basic-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_mobilenet_v1.py::test_mobilenetv1_basic[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-mobilenet-v1-mobilenetv1-192-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_mobilenet_v1.py::test_mobilenetv1_192[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-mobilenet-v1-mobilenetv1-224-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_mobilenet_v1.py::test_mobilenetv1_224[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-mobilenet-v1-ssd-mobilenet-v1-ssd-pytorch-1x1-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_mobilenet_v1_ssd.py::test_mobilenet_v1_ssd_pytorch_1x1[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-mobilenet-v2-mobilenetv2-basic-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_mobilenet_v2.py::test_mobilenetv2_basic[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-mobilenet-v2-mobilenetv2-96-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_mobilenet_v2.py::test_mobilenetv2_96[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-mobilenet-v2-mobilenetv2-160-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_mobilenet_v2.py::test_mobilenetv2_160[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-mobilenet-v2-mobilenetv2-224-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_mobilenet_v2.py::test_mobilenetv2_224[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-mobilenet-v2-mobilenetv2-timm-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_mobilenet_v2.py::test_mobilenetv2_timm[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-mobilenet-v2-mobilenetv2-deeplabv3-google-deeplabv3-mobilenet-v2-1-0-513-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_mobilenet_v2.py::test_mobilenetv2_deeplabv3[Wormhole_B0-google/deeplabv3_mobilenet_v2_1.0_513] --device-config wh_n300
+
+compile-cnn-pytorch-mobilenet-v3-mobilenetv3-basic-mobilenet-v3-large-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_mobilenet_v3.py::test_mobilenetv3_basic[Wormhole_B0-mobilenet_v3_large] --device-config wh_n300
+
+compile-cnn-pytorch-mobilenet-v3-mobilenetv3-basic-mobilenet-v3-small-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_mobilenet_v3.py::test_mobilenetv3_basic[Wormhole_B0-mobilenet_v3_small] --device-config wh_n300
+
+compile-cnn-pytorch-mobilenet-v3-mobilenetv3-timm-mobilenetv3-large-100-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_mobilenet_v3.py::test_mobilenetv3_timm[Wormhole_B0-mobilenetv3_large_100] --device-config wh_n300
+
+compile-cnn-pytorch-mobilenet-v3-mobilenetv3-timm-mobilenetv3-small-100-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_mobilenet_v3.py::test_mobilenetv3_timm[Wormhole_B0-mobilenetv3_small_100] --device-config wh_n300
+
+compile-cnn-pytorch-openpose-openpose-osmr-lwopenpose2d-mobilenet-cmupan-coco-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_openpose.py::test_openpose_osmr[Wormhole_B0-lwopenpose2d_mobilenet_cmupan_coco] --device-config wh_n300
+
+compile-cnn-pytorch-openpose-openpose-osmr-lwopenpose3d-mobilenet-cmupan-coco-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_openpose.py::test_openpose_osmr[Wormhole_B0-lwopenpose3d_mobilenet_cmupan_coco] --device-config wh_n300
+
+compile-cnn-pytorch-perceiverio-perceiverio-for-image-classification-pytorch-deepmind-vision-perceiver-conv-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_perceiverio.py::test_perceiverio_for_image_classification_pytorch[Wormhole_B0-deepmind/vision-perceiver-conv] --device-config wh_n300
+
+compile-cnn-pytorch-perceiverio-perceiverio-for-image-classification-pytorch-deepmind-vision-perceiver-learned-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_perceiverio.py::test_perceiverio_for_image_classification_pytorch[Wormhole_B0-deepmind/vision-perceiver-learned] --device-config wh_n300
+
+compile-cnn-pytorch-perceiverio-perceiverio-for-image-classification-pytorch-deepmind-vision-perceiver-fourier-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_perceiverio.py::test_perceiverio_for_image_classification_pytorch[Wormhole_B0-deepmind/vision-perceiver-fourier] --device-config wh_n300
+
+compile-cnn-pytorch-rcnn-rcnn-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_rcnn.py::test_rcnn_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-resnet-resnet-True-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_resnet.py::test_resnet[Wormhole_B0-True] --device-config wh_n300
+
+compile-cnn-pytorch-resnet-resnet-False-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_resnet.py::test_resnet[Wormhole_B0-False] --device-config wh_n300
+
+compile-cnn-pytorch-resnet-resnet-timm-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_resnet.py::test_resnet_timm[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-resnext-resnext-50-torchhub-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_resnext.py::test_resnext_50_torchhub_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-resnext-resnext-101-torchhub-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_resnext.py::test_resnext_101_torchhub_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-resnext-resnext-101-32x8d-fb-wsl-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_resnext.py::test_resnext_101_32x8d_fb_wsl_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-resnext-resnext-14-osmr-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_resnext.py::test_resnext_14_osmr_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-resnext-resnext-26-osmr-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_resnext.py::test_resnext_26_osmr_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-resnext-resnext-50-osmr-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_resnext.py::test_resnext_50_osmr_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-resnext-resnext-101-osmr-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_resnext.py::test_resnext_101_osmr_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-retinanet-retinanet-retinanet-rn18fpn-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_retinanet.py::test_retinanet[Wormhole_B0-retinanet_rn18fpn] --device-config wh_n300
+
+compile-cnn-pytorch-retinanet-retinanet-retinanet-rn34fpn-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_retinanet.py::test_retinanet[Wormhole_B0-retinanet_rn34fpn] --device-config wh_n300
+
+compile-cnn-pytorch-retinanet-retinanet-retinanet-rn50fpn-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_retinanet.py::test_retinanet[Wormhole_B0-retinanet_rn50fpn] --device-config wh_n300
+
+compile-cnn-pytorch-retinanet-retinanet-retinanet-rn101fpn-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_retinanet.py::test_retinanet[Wormhole_B0-retinanet_rn101fpn] --device-config wh_n300
+
+compile-cnn-pytorch-retinanet-retinanet-retinanet-rn152fpn-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_retinanet.py::test_retinanet[Wormhole_B0-retinanet_rn152fpn] --device-config wh_n300
+
+compile-cnn-pytorch-segformer-imgcls-segformer-image-classification-pytorch-nvidia-mit-b0-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_image_classification_pytorch[Wormhole_B0-nvidia/mit-b0] --device-config wh_n300
+
+compile-cnn-pytorch-segformer-imgcls-segformer-image-classification-pytorch-nvidia-mit-b1-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_image_classification_pytorch[Wormhole_B0-nvidia/mit-b1] --device-config wh_n300
+
+compile-cnn-pytorch-segformer-imgcls-segformer-image-classification-pytorch-nvidia-mit-b2-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_image_classification_pytorch[Wormhole_B0-nvidia/mit-b2] --device-config wh_n300
+
+compile-cnn-pytorch-segformer-imgcls-segformer-image-classification-pytorch-nvidia-mit-b3-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_image_classification_pytorch[Wormhole_B0-nvidia/mit-b3] --device-config wh_n300
+
+compile-cnn-pytorch-segformer-imgcls-segformer-image-classification-pytorch-nvidia-mit-b4-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_image_classification_pytorch[Wormhole_B0-nvidia/mit-b4] --device-config wh_n300
+
+compile-cnn-pytorch-segformer-imgcls-segformer-image-classification-pytorch-nvidia-mit-b5-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_image_classification_pytorch[Wormhole_B0-nvidia/mit-b5] --device-config wh_n300
+
+? compile-cnn-pytorch-segformer-semseg-segformer-semantic-segmentation-pytorch-nvidia-segformer-b0-finetuned-ade-512-512-wh-b0-n300
+
+: stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_semseg.py::test_segformer_semantic_segmentation_pytorch[Wormhole_B0-nvidia/segformer-b0-finetuned-ade-512-512] --device-config wh_n300
+
+? compile-cnn-pytorch-segformer-semseg-segformer-semantic-segmentation-pytorch-nvidia-segformer-b1-finetuned-ade-512-512-wh-b0-n300
+
+: stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_semseg.py::test_segformer_semantic_segmentation_pytorch[Wormhole_B0-nvidia/segformer-b1-finetuned-ade-512-512] --device-config wh_n300
+
+? compile-cnn-pytorch-segformer-semseg-segformer-semantic-segmentation-pytorch-nvidia-segformer-b2-finetuned-ade-512-512-wh-b0-n300
+
+: stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_semseg.py::test_segformer_semantic_segmentation_pytorch[Wormhole_B0-nvidia/segformer-b2-finetuned-ade-512-512] --device-config wh_n300
+
+? compile-cnn-pytorch-segformer-semseg-segformer-semantic-segmentation-pytorch-nvidia-segformer-b3-finetuned-ade-512-512-wh-b0-n300
+
+: stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_semseg.py::test_segformer_semantic_segmentation_pytorch[Wormhole_B0-nvidia/segformer-b3-finetuned-ade-512-512] --device-config wh_n300
+
+? compile-cnn-pytorch-segformer-semseg-segformer-semantic-segmentation-pytorch-nvidia-segformer-b4-finetuned-ade-512-512-wh-b0-n300
+
+: stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_semseg.py::test_segformer_semantic_segmentation_pytorch[Wormhole_B0-nvidia/segformer-b4-finetuned-ade-512-512] --device-config wh_n300
+
+compile-cnn-pytorch-ssd300-resnet50-pytorch-ssd300-resnet50-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_ssd300_resnet50.py::test_pytorch_ssd300_resnet50[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-tri-basic-2-tri-basic-2-sematic-segmentation-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_tri_basic_2.py::test_tri_basic_2_sematic_segmentation_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-unet-unet-osmr-cityscape-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_unet.py::test_unet_osmr_cityscape_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-unet-unet-qubvel-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_unet.py::test_unet_qubvel_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-unet-unet-torchhub-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_unet.py::test_unet_torchhub_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-vgg-vgg-osmr-pytorch-vgg11-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_vgg.py::test_vgg_osmr_pytorch[Wormhole_B0-vgg11] --device-config wh_n300
+
+compile-cnn-pytorch-vgg-vgg-osmr-pytorch-vgg13-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_vgg.py::test_vgg_osmr_pytorch[Wormhole_B0-vgg13] --device-config wh_n300
+
+compile-cnn-pytorch-vgg-vgg-osmr-pytorch-vgg16-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_vgg.py::test_vgg_osmr_pytorch[Wormhole_B0-vgg16] --device-config wh_n300
+
+compile-cnn-pytorch-vgg-vgg-osmr-pytorch-vgg19-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_vgg.py::test_vgg_osmr_pytorch[Wormhole_B0-vgg19] --device-config wh_n300
+
+compile-cnn-pytorch-vgg-vgg-osmr-pytorch-bn-vgg19-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_vgg.py::test_vgg_osmr_pytorch[Wormhole_B0-bn_vgg19] --device-config wh_n300
+
+compile-cnn-pytorch-vgg-vgg-osmr-pytorch-bn-vgg19b-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_vgg.py::test_vgg_osmr_pytorch[Wormhole_B0-bn_vgg19b] --device-config wh_n300
+
+compile-cnn-pytorch-vgg-vgg-19-hf-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_vgg.py::test_vgg_19_hf_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-vgg-vgg-bn19-timm-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_vgg.py::test_vgg_bn19_timm_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-vgg-vgg-bn19-torchhub-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_vgg.py::test_vgg_bn19_torchhub_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-vilt-vilt-question-answering-hf-pytorch-dandelin-vilt-b32-finetuned-vqa-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_vilt.py::test_vilt_question_answering_hf_pytorch[Wormhole_B0-dandelin/vilt-b32-finetuned-vqa] --device-config wh_n300
+
+compile-cnn-pytorch-vilt-vilt-maskedlm-hf-pytorch-dandelin-vilt-b32-mlm-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_vilt.py::test_vilt_maskedlm_hf_pytorch[Wormhole_B0-dandelin/vilt-b32-mlm] --device-config wh_n300
+
+compile-cnn-pytorch-vit-vit-classify-224-hf-pytorch-google-vit-base-patch16-224-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_vit.py::test_vit_classify_224_hf_pytorch[Wormhole_B0-google/vit-base-patch16-224] --device-config wh_n300
+
+compile-cnn-pytorch-vit-vit-classify-224-hf-pytorch-google-vit-large-patch16-224-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_vit.py::test_vit_classify_224_hf_pytorch[Wormhole_B0-google/vit-large-patch16-224] --device-config wh_n300
+
+compile-cnn-pytorch-vit-vit-classification-1x1-demo-google-vit-base-patch16-224-verify-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_vit.py::test_vit_classification_1x1_demo[Wormhole_B0-google/vit-base-patch16-224-verify] --device-config wh_n300
+
+compile-cnn-pytorch-vit-vit-classification-1x1-demo-google-vit-base-patch16-224-demo-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_vit.py::test_vit_classification_1x1_demo[Wormhole_B0-google/vit-base-patch16-224-demo] --device-config wh_n300
+
+compile-cnn-pytorch-vit-vit-classification-1x1-demo-google-vit-large-patch16-224-verify-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_vit.py::test_vit_classification_1x1_demo[Wormhole_B0-google/vit-large-patch16-224-verify] --device-config wh_n300
+
+compile-cnn-pytorch-vit-vit-classification-1x1-demo-google-vit-large-patch16-224-demo-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_vit.py::test_vit_classification_1x1_demo[Wormhole_B0-google/vit-large-patch16-224-demo] --device-config wh_n300
+
+compile-cnn-pytorch-vovnet-vovnet-osmr-pytorch-vovnet27s-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_vovnet.py::test_vovnet_osmr_pytorch[Wormhole_B0-vovnet27s] --device-config wh_n300
+
+compile-cnn-pytorch-vovnet-vovnet-osmr-pytorch-vovnet39-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_vovnet.py::test_vovnet_osmr_pytorch[Wormhole_B0-vovnet39] --device-config wh_n300
+
+compile-cnn-pytorch-vovnet-vovnet-osmr-pytorch-vovnet57-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_vovnet.py::test_vovnet_osmr_pytorch[Wormhole_B0-vovnet57] --device-config wh_n300
+
+compile-cnn-pytorch-vovnet-vovnet-v1-39-stigma-pytorch-True-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_vovnet.py::test_vovnet_v1_39_stigma_pytorch[Wormhole_B0-True] --device-config wh_n300
+
+compile-cnn-pytorch-vovnet-vovnet-v1-39-stigma-pytorch-False-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_vovnet.py::test_vovnet_v1_39_stigma_pytorch[Wormhole_B0-False] --device-config wh_n300
+
+compile-cnn-pytorch-vovnet-vovnet-v1-57-stigma-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_vovnet.py::test_vovnet_v1_57_stigma_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-vovnet-vovnet-timm-pytorch-ese-vovnet19b-dw-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_vovnet.py::test_vovnet_timm_pytorch[Wormhole_B0-ese_vovnet19b_dw] --device-config wh_n300
+
+compile-cnn-pytorch-vovnet-vovnet-timm-pytorch-ese-vovnet39b-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_vovnet.py::test_vovnet_timm_pytorch[Wormhole_B0-ese_vovnet39b] --device-config wh_n300
+
+compile-cnn-pytorch-vovnet-vovnet-timm-pytorch-ese-vovnet99b-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_vovnet.py::test_vovnet_timm_pytorch[Wormhole_B0-ese_vovnet99b] --device-config wh_n300
+
+compile-cnn-pytorch-wideresnet-wideresnet-pytorch-wide-resnet50-2-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_wideresnet.py::test_wideresnet_pytorch[Wormhole_B0-wide_resnet50_2] --device-config wh_n300
+
+compile-cnn-pytorch-wideresnet-wideresnet-pytorch-wide-resnet101-2-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_wideresnet.py::test_wideresnet_pytorch[Wormhole_B0-wide_resnet101_2] --device-config wh_n300
+
+compile-cnn-pytorch-wideresnet-wideresnet-timm-wide-resnet50-2-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_wideresnet.py::test_wideresnet_timm[Wormhole_B0-wide_resnet50_2] --device-config wh_n300
+
+compile-cnn-pytorch-wideresnet-wideresnet-timm-wide-resnet101-2-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_wideresnet.py::test_wideresnet_timm[Wormhole_B0-wide_resnet101_2] --device-config wh_n300
+
+compile-cnn-pytorch-xception-xception-timm-xception-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_xception.py::test_xception_timm[Wormhole_B0-xception] --device-config wh_n300
+
+compile-cnn-pytorch-xception-xception-timm-xception41-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_xception.py::test_xception_timm[Wormhole_B0-xception41] --device-config wh_n300
+
+compile-cnn-pytorch-xception-xception-timm-xception65-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_xception.py::test_xception_timm[Wormhole_B0-xception65] --device-config wh_n300
+
+compile-cnn-pytorch-xception-xception-timm-xception71-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_xception.py::test_xception_timm[Wormhole_B0-xception71] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-v3-yolov3-tiny-holli-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_v3.py::test_yolov3_tiny_holli_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-v3-yolov3-holli-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_v3.py::test_yolov3_holli_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-v3-yolov3-holli-pytorch-1x1-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_v3.py::test_yolov3_holli_pytorch_1x1[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-v5-yolov5-320x320-yolov5n-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_v5.py::test_yolov5_320x320[Wormhole_B0-yolov5n] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-v5-yolov5-320x320-yolov5s-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_v5.py::test_yolov5_320x320[Wormhole_B0-yolov5s] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-v5-yolov5-320x320-yolov5m-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_v5.py::test_yolov5_320x320[Wormhole_B0-yolov5m] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-v5-yolov5-320x320-yolov5l-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_v5.py::test_yolov5_320x320[Wormhole_B0-yolov5l] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-v5-yolov5-320x320-yolov5x-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_v5.py::test_yolov5_320x320[Wormhole_B0-yolov5x] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-v5-yolov5-640x640-yolov5n-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_v5.py::test_yolov5_640x640[Wormhole_B0-yolov5n] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-v5-yolov5-640x640-yolov5s-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_v5.py::test_yolov5_640x640[Wormhole_B0-yolov5s] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-v5-yolov5-640x640-yolov5m-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_v5.py::test_yolov5_640x640[Wormhole_B0-yolov5m] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-v5-yolov5-640x640-yolov5l-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_v5.py::test_yolov5_640x640[Wormhole_B0-yolov5l] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-v5-yolov5-640x640-yolov5x-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_v5.py::test_yolov5_640x640[Wormhole_B0-yolov5x] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-v5-yolov5-480x480-yolov5n-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_v5.py::test_yolov5_480x480[Wormhole_B0-yolov5n] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-v5-yolov5-480x480-yolov5s-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_v5.py::test_yolov5_480x480[Wormhole_B0-yolov5s] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-v5-yolov5-480x480-yolov5m-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_v5.py::test_yolov5_480x480[Wormhole_B0-yolov5m] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-v5-yolov5-480x480-yolov5l-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_v5.py::test_yolov5_480x480[Wormhole_B0-yolov5l] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-v5-yolov5-480x480-yolov5x-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_v5.py::test_yolov5_480x480[Wormhole_B0-yolov5x] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-v6-yolo-v6-pytorch-yolov6n-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_v6.py::test_yolo_v6_pytorch[Wormhole_B0-yolov6n] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-v6-yolo-v6-pytorch-yolov6s-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_v6.py::test_yolo_v6_pytorch[Wormhole_B0-yolov6s] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-v6-yolo-v6-pytorch-yolov6m-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_v6.py::test_yolo_v6_pytorch[Wormhole_B0-yolov6m] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-v6-yolo-v6-pytorch-yolov6l-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_v6.py::test_yolo_v6_pytorch[Wormhole_B0-yolov6l] --device-config wh_n300
+
+compile-cnn-tflite-efficientnet-lite-efficientnet-lite0-1x1-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/tflite/test_efficientnet_lite.py::test_efficientnet_lite0_1x1[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-tflite-efficientnet-lite-efficientnet-lite4-1x1-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/tflite/test_efficientnet_lite.py::test_efficientnet_lite4_1x1[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-tflite-hand-landmarker-hand-landmark-lite-1x1-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/tflite/test_hand_landmarker.py::test_hand_landmark_lite_1x1[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-tflite-hand-landmarker-palm-detection-lite-1x1-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/tflite/test_hand_landmarker.py::test_palm_detection_lite_1x1[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-tflite-mobilenet-ssd-mobilenet-ssd-1x1-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/tflite/test_mobilenet_ssd.py::test_mobilenet_ssd_1x1[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-tflite-pose-landmark-pose-landmark-lite-1x1-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/tflite/test_pose_landmark.py::test_pose_landmark_lite_1x1[Wormhole_B0] --device-config wh_n300
+
+compile-cnn-tflite-pose-landmark-pose-landmark-heavy-1x1-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/tflite/test_pose_landmark.py::test_pose_landmark_heavy_1x1[Wormhole_B0] --device-config wh_n300
+
+compile-nlp-pytorch-albert-albert-masked-lm-pytorch-base-v1-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_albert.py::test_albert_masked_lm_pytorch[Wormhole_B0-base-v1] --device-config wh_n300
+
+compile-nlp-pytorch-albert-albert-masked-lm-pytorch-base-v2-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_albert.py::test_albert_masked_lm_pytorch[Wormhole_B0-base-v2] --device-config wh_n300
+
+compile-nlp-pytorch-albert-albert-masked-lm-pytorch-large-v1-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_albert.py::test_albert_masked_lm_pytorch[Wormhole_B0-large-v1] --device-config wh_n300
+
+compile-nlp-pytorch-albert-albert-masked-lm-pytorch-large-v2-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_albert.py::test_albert_masked_lm_pytorch[Wormhole_B0-large-v2] --device-config wh_n300
+
+compile-nlp-pytorch-albert-albert-masked-lm-pytorch-xlarge-v1-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_albert.py::test_albert_masked_lm_pytorch[Wormhole_B0-xlarge-v1] --device-config wh_n300
+
+compile-nlp-pytorch-albert-albert-masked-lm-pytorch-xlarge-v2-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_albert.py::test_albert_masked_lm_pytorch[Wormhole_B0-xlarge-v2] --device-config wh_n300
+
+compile-nlp-pytorch-albert-albert-masked-lm-pytorch-xxlarge-v1-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_albert.py::test_albert_masked_lm_pytorch[Wormhole_B0-xxlarge-v1] --device-config wh_n300
+
+compile-nlp-pytorch-albert-albert-masked-lm-pytorch-xxlarge-v2-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_albert.py::test_albert_masked_lm_pytorch[Wormhole_B0-xxlarge-v2] --device-config wh_n300
+
+compile-nlp-pytorch-albert-albert-token-classification-pytorch-base-v1-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_albert.py::test_albert_token_classification_pytorch[Wormhole_B0-base-v1] --device-config wh_n300
+
+compile-nlp-pytorch-albert-albert-token-classification-pytorch-base-v2-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_albert.py::test_albert_token_classification_pytorch[Wormhole_B0-base-v2] --device-config wh_n300
+
+compile-nlp-pytorch-albert-albert-token-classification-pytorch-large-v1-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_albert.py::test_albert_token_classification_pytorch[Wormhole_B0-large-v1] --device-config wh_n300
+
+compile-nlp-pytorch-albert-albert-token-classification-pytorch-large-v2-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_albert.py::test_albert_token_classification_pytorch[Wormhole_B0-large-v2] --device-config wh_n300
+
+compile-nlp-pytorch-albert-albert-token-classification-pytorch-xlarge-v1-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_albert.py::test_albert_token_classification_pytorch[Wormhole_B0-xlarge-v1] --device-config wh_n300
+
+compile-nlp-pytorch-albert-albert-token-classification-pytorch-xlarge-v2-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_albert.py::test_albert_token_classification_pytorch[Wormhole_B0-xlarge-v2] --device-config wh_n300
+
+compile-nlp-pytorch-albert-albert-token-classification-pytorch-xxlarge-v1-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_albert.py::test_albert_token_classification_pytorch[Wormhole_B0-xxlarge-v1] --device-config wh_n300
+
+compile-nlp-pytorch-albert-albert-token-classification-pytorch-xxlarge-v2-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_albert.py::test_albert_token_classification_pytorch[Wormhole_B0-xxlarge-v2] --device-config wh_n300
+
+compile-nlp-pytorch-bert-bert-masked-lm-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_bert.py::test_bert_masked_lm_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-nlp-pytorch-bert-bert-question-answering-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_bert.py::test_bert_question_answering_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-nlp-pytorch-bert-bert-sequence-classification-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_bert.py::test_bert_sequence_classification_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-nlp-pytorch-bert-bert-token-classification-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_bert.py::test_bert_token_classification_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-nlp-pytorch-codegen-codegen-Salesforce-codegen-350M-mono-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_codegen.py::test_codegen[Wormhole_B0-Salesforce/codegen-350M-mono] --device-config wh_n300
+
+compile-nlp-pytorch-distilbert-distilbert-masked-lm-pytorch-distilbert-base-uncased-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_distilbert.py::test_distilbert_masked_lm_pytorch[Wormhole_B0-distilbert-base-uncased] --device-config wh_n300
+
+compile-nlp-pytorch-distilbert-distilbert-masked-lm-pytorch-distilbert-base-cased-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_distilbert.py::test_distilbert_masked_lm_pytorch[Wormhole_B0-distilbert-base-cased] --device-config wh_n300
+
+compile-nlp-pytorch-distilbert-distilbert-masked-lm-pytorch-distilbert-base-multilingual-cased-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_distilbert.py::test_distilbert_masked_lm_pytorch[Wormhole_B0-distilbert-base-multilingual-cased] --device-config wh_n300
+
+compile-nlp-pytorch-distilbert-distilbert-question-answering-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_distilbert.py::test_distilbert_question_answering_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-nlp-pytorch-distilbert-distilbert-sequence-classification-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_distilbert.py::test_distilbert_sequence_classification_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-nlp-pytorch-distilbert-distilbert-token-classification-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_distilbert.py::test_distilbert_token_classification_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-nlp-pytorch-dpr-dpr-context-encoder-pytorch-facebook-dpr-ctx-encoder-single-nq-base-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_dpr.py::test_dpr_context_encoder_pytorch[Wormhole_B0-facebook/dpr-ctx_encoder-single-nq-base] --device-config wh_n300
+
+compile-nlp-pytorch-dpr-dpr-context-encoder-pytorch-facebook-dpr-ctx-encoder-multiset-base-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_dpr.py::test_dpr_context_encoder_pytorch[Wormhole_B0-facebook/dpr-ctx_encoder-multiset-base] --device-config wh_n300
+
+compile-nlp-pytorch-dpr-dpr-question-encoder-pytorch-facebook-dpr-question-encoder-single-nq-base-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_dpr.py::test_dpr_question_encoder_pytorch[Wormhole_B0-facebook/dpr-question_encoder-single-nq-base] --device-config wh_n300
+
+compile-nlp-pytorch-dpr-dpr-question-encoder-pytorch-facebook-dpr-question-encoder-multiset-base-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_dpr.py::test_dpr_question_encoder_pytorch[Wormhole_B0-facebook/dpr-question_encoder-multiset-base] --device-config wh_n300
+
+compile-nlp-pytorch-dpr-dpr-reader-pytorch-facebook-dpr-reader-single-nq-base-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_dpr.py::test_dpr_reader_pytorch[Wormhole_B0-facebook/dpr-reader-single-nq-base] --device-config wh_n300
+
+compile-nlp-pytorch-dpr-dpr-reader-pytorch-facebook-dpr-reader-multiset-base-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_dpr.py::test_dpr_reader_pytorch[Wormhole_B0-facebook/dpr-reader-multiset-base] --device-config wh_n300
+
+compile-nlp-pytorch-fuyu-8b-fuyu8b-past-cache-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_fuyu_8b.py::test_fuyu8b_past_cache[Wormhole_B0] --device-config wh_n300
+
+compile-nlp-pytorch-gpt2-gpt2-text-gen-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_gpt2.py::test_gpt2_text_gen[Wormhole_B0] --device-config wh_n300
+
+compile-nlp-pytorch-gptneo-gptneo-causal-lm-EleutherAI-gpt-neo-125M-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_gptneo.py::test_gptneo_causal_lm[Wormhole_B0-EleutherAI/gpt-neo-125M] --device-config wh_n300
+
+compile-nlp-pytorch-gptneo-gptneo-causal-lm-EleutherAI-gpt-neo-1-3B-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_gptneo.py::test_gptneo_causal_lm[Wormhole_B0-EleutherAI/gpt-neo-1.3B] --device-config wh_n300
+
+compile-nlp-pytorch-gptneo-gptneo-causal-lm-EleutherAI-gpt-neo-2-7B-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_gptneo.py::test_gptneo_causal_lm[Wormhole_B0-EleutherAI/gpt-neo-2.7B] --device-config wh_n300
+
+compile-nlp-pytorch-gptneo-gptneo-sequence-classification-EleutherAI-gpt-neo-125M-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_gptneo.py::test_gptneo_sequence_classification[Wormhole_B0-EleutherAI/gpt-neo-125M] --device-config wh_n300
+
+compile-nlp-pytorch-gptneo-gptneo-sequence-classification-EleutherAI-gpt-neo-1-3B-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_gptneo.py::test_gptneo_sequence_classification[Wormhole_B0-EleutherAI/gpt-neo-1.3B] --device-config wh_n300
+
+compile-nlp-pytorch-gptneo-gptneo-sequence-classification-EleutherAI-gpt-neo-2-7B-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_gptneo.py::test_gptneo_sequence_classification[Wormhole_B0-EleutherAI/gpt-neo-2.7B] --device-config wh_n300
+
+compile-nlp-pytorch-roberta-roberta-masked-lm-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_roberta.py::test_roberta_masked_lm[Wormhole_B0] --device-config wh_n300
+
+compile-nlp-pytorch-roberta-roberta-sentiment-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_roberta.py::test_roberta_sentiment_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-nlp-pytorch-squeezebert-squeezebert-sequence-classification-pytorch-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_squeezebert.py::test_squeezebert_sequence_classification_pytorch[Wormhole_B0] --device-config wh_n300
+
+compile-nlp-pytorch-t5-t5-generation-t5-small-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - !reference [.unset_verify_envvar, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_t5.py::test_t5_generation[Wormhole_B0-t5-small] --device-config wh_n300
+
+compile-nlp-pytorch-t5-t5-generation-t5-base-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - !reference [.unset_verify_envvar, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_t5.py::test_t5_generation[Wormhole_B0-t5-base] --device-config wh_n300
+
+compile-nlp-pytorch-t5-t5-generation-t5-large-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - !reference [.unset_verify_envvar, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_t5.py::test_t5_generation[Wormhole_B0-t5-large] --device-config wh_n300
+
+compile-nlp-pytorch-t5-t5-generation-google-flan-t5-small-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - !reference [.unset_verify_envvar, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_t5.py::test_t5_generation[Wormhole_B0-google/flan-t5-small] --device-config wh_n300
+
+compile-nlp-pytorch-t5-t5-generation-google-flan-t5-base-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - !reference [.unset_verify_envvar, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_t5.py::test_t5_generation[Wormhole_B0-google/flan-t5-base] --device-config wh_n300
+
+compile-nlp-pytorch-t5-t5-generation-google-flan-t5-large-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - !reference [.unset_verify_envvar, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_t5.py::test_t5_generation[Wormhole_B0-google/flan-t5-large] --device-config wh_n300
+
+compile-nlp-pytorch-t5-t5-past-cache-enc-dec-t5-small-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - !reference [.unset_verify_envvar, script]
+  - pytest --devtype golden pybuda/test/model_demos/high_prio/nlp/pytorch/test_t5.py::test_t5_past_cache_enc_dec[Golden-t5-small]
+
+compile-nlp-pytorch-t5-t5-past-cache-enc-dec-t5-base-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - !reference [.unset_verify_envvar, script]
+  - pytest --devtype golden pybuda/test/model_demos/high_prio/nlp/pytorch/test_t5.py::test_t5_past_cache_enc_dec[Golden-t5-base]
+
+compile-nlp-pytorch-t5-t5-past-cache-enc-dec-t5-large-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - !reference [.unset_verify_envvar, script]
+  - pytest --devtype golden pybuda/test/model_demos/high_prio/nlp/pytorch/test_t5.py::test_t5_past_cache_enc_dec[Golden-t5-large]
+
+compile-nlp-pytorch-t5-t5-past-cache-enc-dec-google-flan-t5-small-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - !reference [.unset_verify_envvar, script]
+  - pytest --devtype golden pybuda/test/model_demos/high_prio/nlp/pytorch/test_t5.py::test_t5_past_cache_enc_dec[Golden-google/flan-t5-small]
+
+compile-nlp-pytorch-t5-t5-past-cache-enc-dec-google-flan-t5-base-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - !reference [.unset_verify_envvar, script]
+  - pytest --devtype golden pybuda/test/model_demos/high_prio/nlp/pytorch/test_t5.py::test_t5_past_cache_enc_dec[Golden-google/flan-t5-base]
+
+compile-nlp-pytorch-t5-t5-past-cache-enc-dec-google-flan-t5-large-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - !reference [.unset_verify_envvar, script]
+  - pytest --devtype golden pybuda/test/model_demos/high_prio/nlp/pytorch/test_t5.py::test_t5_past_cache_enc_dec[Golden-google/flan-t5-large]
+
+compile-nlp-pytorch-t5-t5-small-tiny-tile-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_t5.py::test_t5_small_tiny_tile[Wormhole_B0] --device-config wh_n300
+
+compile-nlp-pytorch-whisper-1-whisper-enc-dec-openai-whisper-tiny-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype golden pybuda/test/model_demos/high_prio/nlp/pytorch/test_whisper_1.py::test_whisper_enc_dec[Golden-openai/whisper-tiny]
+
+compile-nlp-pytorch-whisper-1-whisper-enc-dec-openai-whisper-base-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype golden pybuda/test/model_demos/high_prio/nlp/pytorch/test_whisper_1.py::test_whisper_enc_dec[Golden-openai/whisper-base]
+
+compile-nlp-pytorch-whisper-1-whisper-enc-dec-openai-whisper-small-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype golden pybuda/test/model_demos/high_prio/nlp/pytorch/test_whisper_1.py::test_whisper_enc_dec[Golden-openai/whisper-small]
+
+compile-nlp-pytorch-whisper-1-whisper-enc-dec-openai-whisper-medium-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype golden pybuda/test/model_demos/high_prio/nlp/pytorch/test_whisper_1.py::test_whisper_enc_dec[Golden-openai/whisper-medium]
+
+compile-nlp-pytorch-whisper-1-whisper-enc-dec-openai-whisper-large-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype golden pybuda/test/model_demos/high_prio/nlp/pytorch/test_whisper_1.py::test_whisper_enc_dec[Golden-openai/whisper-large]
+
+compile-nlp-pytorch-xglm-xglm-causal-lm-facebook-xglm-564M-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_xglm.py::test_xglm_causal_lm[Wormhole_B0-facebook/xglm-564M] --device-config wh_n300
+
+compile-nlp-pytorch-xglm-xglm-causal-lm-facebook-xglm-1-7B-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_xglm.py::test_xglm_causal_lm[Wormhole_B0-facebook/xglm-1.7B] --device-config wh_n300
+
+compile-model_0-pybuda-group_0-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_0 --device-config wh_n300
+
+compile-model_0-pybuda-group_1-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_1 --device-config wh_n300
+
+compile-model_0-pybuda-group_10-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_10 --device-config wh_n300
+
+compile-model_0-pybuda-group_11-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_11 --device-config wh_n300
+
+compile-model_0-pybuda-group_12-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_12 --device-config wh_n300
+
+compile-model_0-pybuda-group_13-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_13 --device-config wh_n300
+
+compile-model_0-pybuda-group_14-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_14 --device-config wh_n300
+
+compile-model_0-pybuda-group_15-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_15 --device-config wh_n300
+
+compile-model_0-pybuda-group_16-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_16 --device-config wh_n300
+
+compile-model_0-pybuda-group_17-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_17 --device-config wh_n300
+
+compile-model_0-pybuda-group_18-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_18 --device-config wh_n300
+
+compile-model_0-pybuda-group_19-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_19 --device-config wh_n300
+
+compile-model_0-pybuda-group_2-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_2 --device-config wh_n300
+
+compile-model_0-pybuda-group_20-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_20 --device-config wh_n300
+
+compile-model_0-pybuda-group_21-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_21 --device-config wh_n300
+
+compile-model_0-pybuda-group_3-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_3 --device-config wh_n300
+
+compile-model_0-pybuda-group_4-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_4 --device-config wh_n300
+
+compile-model_0-pybuda-group_5-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_5 --device-config wh_n300
+
+compile-model_0-pybuda-group_6-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_6 --device-config wh_n300
+
+compile-model_0-pybuda-group_7-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_7 --device-config wh_n300
+
+compile-model_0-pybuda-group_8-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_8 --device-config wh_n300
+
+compile-model_0-pybuda-group_9-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_9 --device-config wh_n300
+
+compile-pybuda-onnx-quantized-mlp-gelu-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/quantized/test_onnx_quantized.py::test_onnx_quantized_mlp_gelu[Wormhole_B0] --device-config wh_n300
+
+compile-pybuda-onnx-quantized-mlp-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/quantized/test_onnx_quantized.py::test_onnx_quantized_mlp[Wormhole_B0] --device-config wh_n300
+
+compile-pybuda-onnx-quantized-conv-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/quantized/test_onnx_quantized.py::test_onnx_quantized_conv[Wormhole_B0] --device-config wh_n300
+
+compile-pybuda-onnx-quantized-mm-int8-no-bias-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/quantized/test_onnx_quantized.py::test_onnx_quantized_mm_int8_no_bias[Wormhole_B0] --device-config wh_n300
+
+compile-pybuda-onnx-quantized-mm-int8-bias-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/quantized/test_onnx_quantized.py::test_onnx_quantized_mm_int8_bias[Wormhole_B0] --device-config wh_n300
+
+compile-pybuda-onnx-quantized-mm-uint8-no-bias-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/quantized/test_onnx_quantized.py::test_onnx_quantized_mm_uint8_no_bias[Wormhole_B0] --device-config wh_n300
+
+compile-pybuda-onnx-quantized-mobilenet-onnx-quantized-mb-v2-depth-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/quantized/test_onnx_quantized_mobilenet.py::test_onnx_quantized_mb_v2_depth[Wormhole_B0] --device-config wh_n300
+
+compile-pybuda-onnx-quantized-mobilenet-onnx-quantized-mb-v2-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/quantized/test_onnx_quantized_mobilenet.py::test_onnx_quantized_mb_v2[Wormhole_B0] --device-config wh_n300
+
+compile-pybuda-onnx-quantized-resnet-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/quantized/test_onnx_quantized_resnet.py::test_onnx_quantized_resnet[Wormhole_B0] --device-config wh_n300
+
+compile-pybuda-onnx-quantized-vit-int8-onnx-vit-calibrated-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/quantized/test_onnx_quantized_vit.py::test_int8_onnx_vit_calibrated[Wormhole_B0] --device-config wh_n300
