@@ -7,7 +7,9 @@ import pytest
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, MistralConfig
 
+import os
 import pybuda
+import numpy as np
 from pybuda import VerifyConfig
 from pybuda import PyTorchModule
 from pybuda._C.backend_api import BackendDevice, DeviceMode
@@ -55,33 +57,8 @@ def test_mistral_decoder_layer(variant, test_device):
 variants = ['mistralai/Mistral-7B-v0.1']
 @pytest.mark.parametrize("variant", variants, ids=variants)
 def test_mistral(variant, test_device):
-    if test_device.arch != BackendDevice.Wormhole_B0:
-        pytest.skip("Currently only supported on Wormhole B0 N150 device")
-
-    configuration = MistralConfig()
-
-    configuration.sliding_window = None
-    configuration.use_cache = False
-    configuration.return_dict = False
-
-    pybuda.set_configuration_options(default_df_override=pybuda.DataFormat.Float16_b, balancer_policy='Ribbon')
-
-    # configuration for all ops that are not matmul
-    pybuda.config.configure_mixed_precision(
-        op_type='^((?!matmul).)*$',
-        math_fidelity=MathFidelity.HiFi4,
-        accumulate_df=DataFormat.Float16_b
-    )
-
-    # configuration for all matmul ops
-    # when inputs to matmuls are Bfp8_b, the whole model can fit to single chip
-    pybuda.config.configure_mixed_precision(
-        op_type='matmul',
-        math_fidelity=MathFidelity.HiFi4,
-        input_df={0:[DataFormat.Bfp8_b, False], 1:[DataFormat.Bfp8_b, False]},
-        accumulate_df=DataFormat.Float16_b
-    )
-
+    configuration = configure_mistral(test_device)
+    
     module = AutoModelForCausalLM.from_pretrained(variant, device_map="auto", config = configuration)
     tokenizer = AutoTokenizer.from_pretrained(variant)
     
@@ -112,32 +89,7 @@ variants = ['mistralai/Mistral-7B-v0.1']
 @pytest.mark.parametrize("variant", variants, ids=variants)
 @pytest.mark.skip(reason="This test currently serves the same purpose as test_mistral")
 def test_mistral_decode(variant, test_device):
-    if test_device.arch != BackendDevice.Wormhole_B0:
-        pytest.skip("Currently only supported on Wormhole B0 N150 device")
-
-    configuration = MistralConfig()
-    configuration.sliding_window = None
-    configuration.use_cache = False
-    configuration.return_dict = False
-
-    pybuda.set_configuration_options(default_df_override=pybuda.DataFormat.Float16_b, balancer_policy='Ribbon')
-
-    # configuration for all ops that are not matmul
-    pybuda.config.configure_mixed_precision(
-        op_type='^((?!matmul).)*$',
-        math_fidelity=MathFidelity.HiFi4,
-        accumulate_df=DataFormat.Float16_b
-    )
-
-    # configuration for all matmul ops
-    # when inputs to matmuls are Bfp8_b, the whole model can fit to single chip
-    pybuda.config.configure_mixed_precision(
-        op_type='matmul',
-        math_fidelity=MathFidelity.HiFi4,
-        input_df={0:[DataFormat.Bfp8_b, False], 1:[DataFormat.Bfp8_b, False]},
-        accumulate_df=DataFormat.Float16_b
-    )
-
+    configuration = configure_mistral(test_device)
     pytorch_model = AutoModelForCausalLM.from_pretrained(variant, device_map="auto", config = configuration)
     tokenizer = AutoTokenizer.from_pretrained(variant)
 
@@ -189,32 +141,8 @@ def test_mistral_decode(variant, test_device):
 variants = ['mistralai/Mistral-7B-v0.1']
 @pytest.mark.parametrize("variant", variants, ids=variants)
 def test_mistral_kv_cache(variant, test_device):
-    if test_device.arch != BackendDevice.Wormhole_B0:
-        pytest.skip("Currently only supported on Wormhole B0 N150 device")
-
-    configuration = MistralConfig()
-    configuration.sliding_window = None
-    configuration.use_cache = True
-    configuration.return_dict = False
-
+    configuration = configure_mistral(test_device)
     max_new_tokens = 10
-    pybuda.set_configuration_options(default_df_override=pybuda.DataFormat.Float16_b, balancer_policy='Ribbon')
-
-    # configuration for all ops that are not matmul
-    pybuda.config.configure_mixed_precision(
-        op_type='^((?!matmul).)*$',
-        math_fidelity=MathFidelity.HiFi4,
-        accumulate_df=DataFormat.Float16_b
-    )
-
-    # configuration for all matmul ops
-    # when inputs to matmuls are Bfp8_b, the whole model can fit to single chip
-    pybuda.config.configure_mixed_precision(
-        op_type='matmul',
-        math_fidelity=MathFidelity.HiFi4,
-        input_df={0:[DataFormat.Bfp8_b, False], 1:[DataFormat.Bfp8_b, False]},
-        accumulate_df=DataFormat.Float16_b
-    )
 
     model = AutoModelForCausalLM.from_pretrained(variant, device_map="auto", config = configuration)
     tokenizer = AutoTokenizer.from_pretrained(variant)
@@ -238,7 +166,7 @@ def test_mistral_kv_cache(variant, test_device):
     # perform prefill with torch model on cpu
     logits, past_key_values = model(*inputs)
 
-    tt1 = pybuda.TTDevice("tt1", devtype=test_device.devtype, arch=test_device.arch, module=PyTorchModule("mistral_model_base", BaseModelWrapper(model)))
+    tt1 = pybuda.TTDevice("tt1", devtype=test_device.devtype, arch=test_device.arch, module=PyTorchModule("mistral7b_decode", DecodeModelWrapper(model)))
 
     next_token = sample(logits)
     output_ids = torch.cat([output_ids, next_token], axis=1)
@@ -279,7 +207,51 @@ def test_mistral_kv_cache(variant, test_device):
     print(f'Tokens per second: {tokens_per_second}')
 
 
-class BaseModelWrapper(torch.nn.Module):
+variants = ['mistralai/Mistral-7B-v0.1']
+@pytest.mark.parametrize("variant", variants, ids=variants)
+def test_mistral_prefill(variant, test_device):
+    configuration = configure_mistral(test_device)
+    required_pcc_val = 0.99
+
+    model = AutoModelForCausalLM.from_pretrained(variant, device_map="auto", config = configuration)
+    tokenizer = AutoTokenizer.from_pretrained(variant)
+    
+    model.eval()
+    for param in model.parameters():
+        param.requires_grad = False
+
+
+    prompt = "Of course, fancy writing doesn't just conceal ideas. It can also conceal the lack of them. That's why some people write that way, to conceal the fact that they have nothing to say. Whereas writing simply keeps"
+    
+    tokenizer.pad_token = tokenizer.eos_token
+    inputs = tokenizer(prompt, return_tensors='pt', max_length=32, padding='max_length', truncation=True)
+
+    tt1 = pybuda.TTDevice("tt1", devtype=test_device.devtype, arch=test_device.arch, module=PyTorchModule("mistral_model_base", PrefillModelWrapper(model)))
+    input_ids = inputs['input_ids']
+    inputs = (input_ids, )    
+
+    output_q = pybuda.initialize_pipeline(training=False, sample_inputs=inputs, _sequential=True, _device_mode = DeviceMode.CompileAndRun)
+
+    start_time = time.time()
+    tt1.push_to_inputs(inputs)
+    pybuda.run_forward(input_count=1, _sequential=True)
+
+    outputs = output_q.get()
+
+    torch_outputs = model(input_ids)
+    
+    buda_output = np.stack([out.value().to(dtype=torch.float16).detach().numpy() for out in outputs])
+    torch_output = np.stack([out.cpu().detach().numpy() for sublist in torch_outputs[1] for out in sublist])
+
+    pcc_val = np.min(np.ma.corrcoef(np.ma.masked_invalid(buda_output.flatten()), np.ma.masked_invalid(torch_output.flatten())))
+
+    if pcc_val < required_pcc_val:
+        raise Exception(f"Tensor mismatch between generated Buda KV cache and ground truth torch KV cache. Required pcc value: {required_pcc_val}, Current pcc value: {pcc_val}")
+    duration = time.time() - start_time
+
+    print(f'Duration {duration}')
+
+class DecodeModelWrapper(torch.nn.Module):
     def __init__(self, model: torch.nn.Module) -> None:
         super().__init__()
         self.model = model
@@ -300,6 +272,52 @@ class BaseModelWrapper(torch.nn.Module):
         # flattening past key values because TT compiler expects flattened output in format tuple(torch.Tensor,  ..., torch.Tensor)
         outputs = [outputs[0]] + [el for subl in outputs[1] for el in subl]
         return tuple(outputs)
+    
+
+class PrefillModelWrapper(torch.nn.Module):
+    def __init__(self, model: torch.nn.Module) -> None:
+        super().__init__()
+        self.model = model
+
+    def forward(self,input_ids: torch.Tensor):
+        """
+        input_ids: Shape [bs, seqlen]
+        """
+        outputs = self.model(input_ids)
+        # flattening past key values because TT compiler expects flattened output in format tuple(torch.Tensor,  ..., torch.Tensor)
+        outputs = [el for subl in outputs[1] for el in subl] # we only need to return KV cache
+        return tuple(outputs)
+
+
+def configure_mistral(test_device) -> MistralConfig:
+    if test_device.arch != BackendDevice.Wormhole_B0:
+        pytest.skip("Currently only supported on Wormhole B0 N150 device")
+
+    configuration = MistralConfig()
+
+    configuration.sliding_window = None
+    configuration.use_cache = True
+    configuration.return_dict = False
+
+    os.environ["PYBUDA_RIBBON2"] = "1"
+    pybuda.set_configuration_options(default_df_override=pybuda.DataFormat.Float16_b, balancer_policy='Ribbon')
+
+    # configuration for all ops that are not matmul
+    pybuda.config.configure_mixed_precision(
+        op_type='^((?!matmul).)*$',
+        math_fidelity=MathFidelity.HiFi4,
+        accumulate_df=DataFormat.Float16_b
+    )
+
+    # configuration for all matmul ops
+    # when inputs to matmuls are Bfp8_b, the whole model can fit to single chip
+    pybuda.config.configure_mixed_precision(
+        op_type='matmul',
+        math_fidelity=MathFidelity.HiFi4,
+        input_df={0:[DataFormat.Bfp8_b, False], 1:[DataFormat.Bfp8_b, False]},
+        accumulate_df=DataFormat.Float16_b
+    )
+    return configuration
             
 
 def multinomial_sample_one_no_sync(probs_sort):
