@@ -360,98 +360,104 @@ compile-cnn-onnx-retinanet-retinanet-onnx-retinanet-rn152fpn-wh-b0-n300:
   - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
   - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_retinanet.py::test_retinanet_onnx[Wormhole_B0-retinanet_rn152fpn] --device-config wh_n300
 
-compile-cnn-onnx-segformer-imgcls-segformer-image-classification-onnx-nvidia-mit-b0-wh-b0-n300:
+compile-cnn-onnx-segformer-imgcls-segformer-imgcls-onnx-nvidia-mit-b0-wh-b0-n300:
   stage: nightly-compile-wh-b0-n300-0
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
   - !reference [.common_prep, script]
-  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_image_classification_onnx[Wormhole_B0-nvidia/mit-b0] --device-config wh_n300
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_imgcls_onnx[Wormhole_B0-nvidia/mit-b0] --device-config wh_n300
 
-compile-cnn-onnx-segformer-imgcls-segformer-image-classification-onnx-nvidia-mit-b1-wh-b0-n300:
+compile-cnn-onnx-segformer-imgcls-segformer-imgcls-onnx-nvidia-mit-b1-wh-b0-n300:
   stage: nightly-compile-wh-b0-n300-0
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
   - !reference [.common_prep, script]
-  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_image_classification_onnx[Wormhole_B0-nvidia/mit-b1] --device-config wh_n300
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_imgcls_onnx[Wormhole_B0-nvidia/mit-b1] --device-config wh_n300
 
-compile-cnn-onnx-segformer-imgcls-segformer-image-classification-onnx-nvidia-mit-b2-wh-b0-n300:
+compile-cnn-onnx-segformer-imgcls-segformer-imgcls-onnx-nvidia-mit-b2-wh-b0-n300:
   stage: nightly-compile-wh-b0-n300-0
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
   - !reference [.common_prep, script]
-  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_image_classification_onnx[Wormhole_B0-nvidia/mit-b2] --device-config wh_n300
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_imgcls_onnx[Wormhole_B0-nvidia/mit-b2] --device-config wh_n300
 
-compile-cnn-onnx-segformer-imgcls-segformer-image-classification-onnx-nvidia-mit-b3-wh-b0-n300:
+compile-cnn-onnx-segformer-imgcls-segformer-imgcls-onnx-nvidia-mit-b3-wh-b0-n300:
   stage: nightly-compile-wh-b0-n300-0
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
   - !reference [.common_prep, script]
-  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_image_classification_onnx[Wormhole_B0-nvidia/mit-b3] --device-config wh_n300
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_imgcls_onnx[Wormhole_B0-nvidia/mit-b3] --device-config wh_n300
 
-compile-cnn-onnx-segformer-imgcls-segformer-image-classification-onnx-nvidia-mit-b4-wh-b0-n300:
+compile-cnn-onnx-segformer-imgcls-segformer-imgcls-onnx-nvidia-mit-b4-wh-b0-n300:
   stage: nightly-compile-wh-b0-n300-0
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
   - !reference [.common_prep, script]
-  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_image_classification_onnx[Wormhole_B0-nvidia/mit-b4] --device-config wh_n300
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_imgcls_onnx[Wormhole_B0-nvidia/mit-b4] --device-config wh_n300
 
-compile-cnn-onnx-segformer-imgcls-segformer-image-classification-onnx-nvidia-mit-b5-wh-b0-n300:
+compile-cnn-onnx-segformer-imgcls-segformer-imgcls-onnx-nvidia-mit-b5-wh-b0-n300:
   stage: nightly-compile-wh-b0-n300-0
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
   - !reference [.common_prep, script]
-  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_image_classification_onnx[Wormhole_B0-nvidia/mit-b5] --device-config wh_n300
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_imgcls_onnx[Wormhole_B0-nvidia/mit-b5] --device-config wh_n300
 
-? compile-cnn-onnx-segformer-semseg-segformer-semantic-segmentation-onnx-nvidia-segformer-b0-finetuned-ade-512-512-wh-b0-n300
-
-: stage: nightly-compile-wh-b0-n300-0
+compile-cnn-onnx-segformer-seg-segformer-semseg-onnx-nvidia-segformer-b0-finetuned-ade-512-512-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
   - !reference [.common_prep, script]
-  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_semseg.py::test_segformer_semantic_segmentation_onnx[Wormhole_B0-nvidia/segformer-b0-finetuned-ade-512-512] --device-config wh_n300
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_seg.py::test_segformer_semseg_onnx[Wormhole_B0-nvidia/segformer-b0-finetuned-ade-512-512] --device-config wh_n300
 
-? compile-cnn-onnx-segformer-semseg-segformer-semantic-segmentation-onnx-nvidia-segformer-b1-finetuned-ade-512-512-wh-b0-n300
-
-: stage: nightly-compile-wh-b0-n300-0
+compile-cnn-onnx-segformer-seg-segformer-semseg-onnx-nvidia-segformer-b1-finetuned-ade-512-512-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
   - !reference [.common_prep, script]
-  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_semseg.py::test_segformer_semantic_segmentation_onnx[Wormhole_B0-nvidia/segformer-b1-finetuned-ade-512-512] --device-config wh_n300
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_seg.py::test_segformer_semseg_onnx[Wormhole_B0-nvidia/segformer-b1-finetuned-ade-512-512] --device-config wh_n300
 
-? compile-cnn-onnx-segformer-semseg-segformer-semantic-segmentation-onnx-nvidia-segformer-b2-finetuned-ade-512-512-wh-b0-n300
-
-: stage: nightly-compile-wh-b0-n300-0
+compile-cnn-onnx-segformer-seg-segformer-semseg-onnx-nvidia-segformer-b2-finetuned-ade-512-512-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
   - !reference [.common_prep, script]
-  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_semseg.py::test_segformer_semantic_segmentation_onnx[Wormhole_B0-nvidia/segformer-b2-finetuned-ade-512-512] --device-config wh_n300
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_seg.py::test_segformer_semseg_onnx[Wormhole_B0-nvidia/segformer-b2-finetuned-ade-512-512] --device-config wh_n300
 
-? compile-cnn-onnx-segformer-semseg-segformer-semantic-segmentation-onnx-nvidia-segformer-b3-finetuned-ade-512-512-wh-b0-n300
-
-: stage: nightly-compile-wh-b0-n300-0
+compile-cnn-onnx-segformer-seg-segformer-semseg-onnx-nvidia-segformer-b3-finetuned-ade-512-512-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
   - !reference [.common_prep, script]
-  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_semseg.py::test_segformer_semantic_segmentation_onnx[Wormhole_B0-nvidia/segformer-b3-finetuned-ade-512-512] --device-config wh_n300
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_seg.py::test_segformer_semseg_onnx[Wormhole_B0-nvidia/segformer-b3-finetuned-ade-512-512] --device-config wh_n300
 
-? compile-cnn-onnx-segformer-semseg-segformer-semantic-segmentation-onnx-nvidia-segformer-b4-finetuned-ade-512-512-wh-b0-n300
-
-: stage: nightly-compile-wh-b0-n300-0
+compile-cnn-onnx-segformer-seg-segformer-semseg-onnx-nvidia-segformer-b4-finetuned-ade-512-512-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-0
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
   - !reference [.common_prep, script]
-  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_semseg.py::test_segformer_semantic_segmentation_onnx[Wormhole_B0-nvidia/segformer-b4-finetuned-ade-512-512] --device-config wh_n300
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_seg.py::test_segformer_semseg_onnx[Wormhole_B0-nvidia/segformer-b4-finetuned-ade-512-512] --device-config wh_n300
 
 compile-cnn-onnx-yolo-v5-yolo-v5-320x320-onnx-yolov5n-wh-b0-n300:
   stage: nightly-compile-wh-b0-n300-0
@@ -1382,6 +1388,33 @@ compile-cnn-pytorch-perceiverio-perceiverio-for-image-classification-pytorch-dee
   - !reference [.common_prep, script]
   - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_perceiverio.py::test_perceiverio_for_image_classification_pytorch[Wormhole_B0-deepmind/vision-perceiver-fourier] --device-config wh_n300
 
+compile-cnn-pytorch-pidnet-pidnet-pytorch-pidnet-s-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_pidnet.py::test_pidnet_pytorch[Wormhole_B0-pidnet_s] --device-config wh_n300
+
+compile-cnn-pytorch-pidnet-pidnet-pytorch-pidnet-m-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_pidnet.py::test_pidnet_pytorch[Wormhole_B0-pidnet_m] --device-config wh_n300
+
+compile-cnn-pytorch-pidnet-pidnet-pytorch-pidnet-l-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_pidnet.py::test_pidnet_pytorch[Wormhole_B0-pidnet_l] --device-config wh_n300
+
 compile-cnn-pytorch-rcnn-rcnn-pytorch-wh-b0-n300:
   stage: nightly-compile-wh-b0-n300-1
   extends: .compile-nightly-models-wh-b0-n300
@@ -1510,101 +1543,96 @@ compile-cnn-pytorch-retinanet-retinanet-retinanet-rn152fpn-wh-b0-n300:
   - !reference [.common_prep, script]
   - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_retinanet.py::test_retinanet[Wormhole_B0-retinanet_rn152fpn] --device-config wh_n300
 
-compile-cnn-pytorch-segformer-imgcls-segformer-image-classification-pytorch-nvidia-mit-b0-wh-b0-n300:
+compile-cnn-pytorch-segformer-imgcls-segformer-imgcls-pytorch-nvidia-mit-b0-wh-b0-n300:
   stage: nightly-compile-wh-b0-n300-1
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
   - !reference [.common_prep, script]
-  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_image_classification_pytorch[Wormhole_B0-nvidia/mit-b0] --device-config wh_n300
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_imgcls_pytorch[Wormhole_B0-nvidia/mit-b0] --device-config wh_n300
 
-compile-cnn-pytorch-segformer-imgcls-segformer-image-classification-pytorch-nvidia-mit-b1-wh-b0-n300:
+compile-cnn-pytorch-segformer-imgcls-segformer-imgcls-pytorch-nvidia-mit-b1-wh-b0-n300:
   stage: nightly-compile-wh-b0-n300-1
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
   - !reference [.common_prep, script]
-  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_image_classification_pytorch[Wormhole_B0-nvidia/mit-b1] --device-config wh_n300
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_imgcls_pytorch[Wormhole_B0-nvidia/mit-b1] --device-config wh_n300
 
-compile-cnn-pytorch-segformer-imgcls-segformer-image-classification-pytorch-nvidia-mit-b2-wh-b0-n300:
+compile-cnn-pytorch-segformer-imgcls-segformer-imgcls-pytorch-nvidia-mit-b2-wh-b0-n300:
   stage: nightly-compile-wh-b0-n300-1
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
   - !reference [.common_prep, script]
-  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_image_classification_pytorch[Wormhole_B0-nvidia/mit-b2] --device-config wh_n300
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_imgcls_pytorch[Wormhole_B0-nvidia/mit-b2] --device-config wh_n300
 
-compile-cnn-pytorch-segformer-imgcls-segformer-image-classification-pytorch-nvidia-mit-b3-wh-b0-n300:
+compile-cnn-pytorch-segformer-imgcls-segformer-imgcls-pytorch-nvidia-mit-b3-wh-b0-n300:
   stage: nightly-compile-wh-b0-n300-1
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
   - !reference [.common_prep, script]
-  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_image_classification_pytorch[Wormhole_B0-nvidia/mit-b3] --device-config wh_n300
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_imgcls_pytorch[Wormhole_B0-nvidia/mit-b3] --device-config wh_n300
 
-compile-cnn-pytorch-segformer-imgcls-segformer-image-classification-pytorch-nvidia-mit-b4-wh-b0-n300:
+compile-cnn-pytorch-segformer-imgcls-segformer-imgcls-pytorch-nvidia-mit-b4-wh-b0-n300:
   stage: nightly-compile-wh-b0-n300-1
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
   - !reference [.common_prep, script]
-  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_image_classification_pytorch[Wormhole_B0-nvidia/mit-b4] --device-config wh_n300
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_imgcls_pytorch[Wormhole_B0-nvidia/mit-b4] --device-config wh_n300
 
-compile-cnn-pytorch-segformer-imgcls-segformer-image-classification-pytorch-nvidia-mit-b5-wh-b0-n300:
+compile-cnn-pytorch-segformer-imgcls-segformer-imgcls-pytorch-nvidia-mit-b5-wh-b0-n300:
   stage: nightly-compile-wh-b0-n300-1
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
   - !reference [.common_prep, script]
-  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_image_classification_pytorch[Wormhole_B0-nvidia/mit-b5] --device-config wh_n300
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_imgcls_pytorch[Wormhole_B0-nvidia/mit-b5] --device-config wh_n300
 
-? compile-cnn-pytorch-segformer-semseg-segformer-semantic-segmentation-pytorch-nvidia-segformer-b0-finetuned-ade-512-512-wh-b0-n300
-
-: stage: nightly-compile-wh-b0-n300-1
+compile-cnn-pytorch-segformer-semseg-segformer-semseg-pytorch-nvidia-segformer-b0-finetuned-ade-512-512-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
   - !reference [.common_prep, script]
-  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_semseg.py::test_segformer_semantic_segmentation_pytorch[Wormhole_B0-nvidia/segformer-b0-finetuned-ade-512-512] --device-config wh_n300
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_semseg.py::test_segformer_semseg_pytorch[Wormhole_B0-nvidia/segformer-b0-finetuned-ade-512-512] --device-config wh_n300
 
-? compile-cnn-pytorch-segformer-semseg-segformer-semantic-segmentation-pytorch-nvidia-segformer-b1-finetuned-ade-512-512-wh-b0-n300
-
-: stage: nightly-compile-wh-b0-n300-1
+compile-cnn-pytorch-segformer-semseg-segformer-semseg-pytorch-nvidia-segformer-b1-finetuned-ade-512-512-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
   - !reference [.common_prep, script]
-  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_semseg.py::test_segformer_semantic_segmentation_pytorch[Wormhole_B0-nvidia/segformer-b1-finetuned-ade-512-512] --device-config wh_n300
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_semseg.py::test_segformer_semseg_pytorch[Wormhole_B0-nvidia/segformer-b1-finetuned-ade-512-512] --device-config wh_n300
 
-? compile-cnn-pytorch-segformer-semseg-segformer-semantic-segmentation-pytorch-nvidia-segformer-b2-finetuned-ade-512-512-wh-b0-n300
-
-: stage: nightly-compile-wh-b0-n300-1
+compile-cnn-pytorch-segformer-semseg-segformer-semseg-pytorch-nvidia-segformer-b2-finetuned-ade-512-512-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
   - !reference [.common_prep, script]
-  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_semseg.py::test_segformer_semantic_segmentation_pytorch[Wormhole_B0-nvidia/segformer-b2-finetuned-ade-512-512] --device-config wh_n300
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_semseg.py::test_segformer_semseg_pytorch[Wormhole_B0-nvidia/segformer-b2-finetuned-ade-512-512] --device-config wh_n300
 
-? compile-cnn-pytorch-segformer-semseg-segformer-semantic-segmentation-pytorch-nvidia-segformer-b3-finetuned-ade-512-512-wh-b0-n300
-
-: stage: nightly-compile-wh-b0-n300-1
+compile-cnn-pytorch-segformer-semseg-segformer-semseg-pytorch-nvidia-segformer-b3-finetuned-ade-512-512-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-1
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
   - !reference [.common_prep, script]
-  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_semseg.py::test_segformer_semantic_segmentation_pytorch[Wormhole_B0-nvidia/segformer-b3-finetuned-ade-512-512] --device-config wh_n300
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_semseg.py::test_segformer_semseg_pytorch[Wormhole_B0-nvidia/segformer-b3-finetuned-ade-512-512] --device-config wh_n300
 
-? compile-cnn-pytorch-segformer-semseg-segformer-semantic-segmentation-pytorch-nvidia-segformer-b4-finetuned-ade-512-512-wh-b0-n300
-
-: stage: nightly-compile-wh-b0-n300-1
+compile-cnn-pytorch-segformer-semseg-segformer-semseg-pytorch-nvidia-segformer-b4-finetuned-ade-512-512-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
   - !reference [.common_prep, script]
-  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_semseg.py::test_segformer_semantic_segmentation_pytorch[Wormhole_B0-nvidia/segformer-b4-finetuned-ade-512-512] --device-config wh_n300
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_semseg.py::test_segformer_semseg_pytorch[Wormhole_B0-nvidia/segformer-b4-finetuned-ade-512-512] --device-config wh_n300
 
 compile-cnn-pytorch-ssd300-resnet50-pytorch-ssd300-resnet50-wh-b0-n300:
-  stage: nightly-compile-wh-b0-n300-1
+  stage: nightly-compile-wh-b0-n300-2
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
@@ -1612,7 +1640,7 @@ compile-cnn-pytorch-ssd300-resnet50-pytorch-ssd300-resnet50-wh-b0-n300:
   - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_ssd300_resnet50.py::test_pytorch_ssd300_resnet50[Wormhole_B0] --device-config wh_n300
 
 compile-cnn-pytorch-tri-basic-2-tri-basic-2-sematic-segmentation-pytorch-wh-b0-n300:
-  stage: nightly-compile-wh-b0-n300-1
+  stage: nightly-compile-wh-b0-n300-2
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
@@ -2336,7 +2364,7 @@ compile-nlp-pytorch-codegen-codegen-Salesforce-codegen-350M-mono-wh-b0-n300:
   - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_codegen.py::test_codegen[Wormhole_B0-Salesforce/codegen-350M-mono] --device-config wh_n300
 
 compile-nlp-pytorch-distilbert-distilbert-masked-lm-pytorch-distilbert-base-uncased-wh-b0-n300:
-  stage: nightly-compile-wh-b0-n300-2
+  stage: nightly-compile-wh-b0-n300-3
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
@@ -2344,7 +2372,7 @@ compile-nlp-pytorch-distilbert-distilbert-masked-lm-pytorch-distilbert-base-unca
   - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_distilbert.py::test_distilbert_masked_lm_pytorch[Wormhole_B0-distilbert-base-uncased] --device-config wh_n300
 
 compile-nlp-pytorch-distilbert-distilbert-masked-lm-pytorch-distilbert-base-cased-wh-b0-n300:
-  stage: nightly-compile-wh-b0-n300-2
+  stage: nightly-compile-wh-b0-n300-3
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
@@ -2352,7 +2380,7 @@ compile-nlp-pytorch-distilbert-distilbert-masked-lm-pytorch-distilbert-base-case
   - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_distilbert.py::test_distilbert_masked_lm_pytorch[Wormhole_B0-distilbert-base-cased] --device-config wh_n300
 
 compile-nlp-pytorch-distilbert-distilbert-masked-lm-pytorch-distilbert-base-multilingual-cased-wh-b0-n300:
-  stage: nightly-compile-wh-b0-n300-2
+  stage: nightly-compile-wh-b0-n300-3
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]

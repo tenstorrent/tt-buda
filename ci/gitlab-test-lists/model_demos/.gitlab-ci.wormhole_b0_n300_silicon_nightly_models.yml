@@ -263,51 +263,53 @@ silicon-cnn-onnx-segformer-imgcls-wh-b0-n300:
   extends: .silicon-nightly-models-wh-b0-n300
   script:
   - !reference [.silicon-nightly-models-wh-b0-n300, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
   - !reference [.retry_on_hang_wh, script]
-  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_0.xml pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_image_classification_onnx[Wormhole_B0-nvidia/mit-b0]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_0.xml pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_imgcls_onnx[Wormhole_B0-nvidia/mit-b0]
   - !reference [.retry_on_hang_wh, script]
-  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_1.xml pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_image_classification_onnx[Wormhole_B0-nvidia/mit-b1]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_1.xml pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_imgcls_onnx[Wormhole_B0-nvidia/mit-b1]
   - !reference [.retry_on_hang_wh, script]
-  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_2.xml pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_image_classification_onnx[Wormhole_B0-nvidia/mit-b2]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_2.xml pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_imgcls_onnx[Wormhole_B0-nvidia/mit-b2]
   - !reference [.retry_on_hang_wh, script]
-  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_3.xml pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_image_classification_onnx[Wormhole_B0-nvidia/mit-b3]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_3.xml pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_imgcls_onnx[Wormhole_B0-nvidia/mit-b3]
   - !reference [.retry_on_hang_wh, script]
-  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_4.xml pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_image_classification_onnx[Wormhole_B0-nvidia/mit-b4]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_4.xml pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_imgcls_onnx[Wormhole_B0-nvidia/mit-b4]
   - !reference [.retry_on_hang_wh, script]
-  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_5.xml pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_image_classification_onnx[Wormhole_B0-nvidia/mit-b5]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_5.xml pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_imgcls.py::test_segformer_imgcls_onnx[Wormhole_B0-nvidia/mit-b5]
   needs:
   - pybuda-wh-b0-wheel
   - !reference [.common_deps, needs]
-  - compile-cnn-onnx-segformer-imgcls-segformer-image-classification-onnx-nvidia-mit-b0-wh-b0-n300
-  - compile-cnn-onnx-segformer-imgcls-segformer-image-classification-onnx-nvidia-mit-b1-wh-b0-n300
-  - compile-cnn-onnx-segformer-imgcls-segformer-image-classification-onnx-nvidia-mit-b2-wh-b0-n300
-  - compile-cnn-onnx-segformer-imgcls-segformer-image-classification-onnx-nvidia-mit-b3-wh-b0-n300
-  - compile-cnn-onnx-segformer-imgcls-segformer-image-classification-onnx-nvidia-mit-b4-wh-b0-n300
-  - compile-cnn-onnx-segformer-imgcls-segformer-image-classification-onnx-nvidia-mit-b5-wh-b0-n300
+  - compile-cnn-onnx-segformer-imgcls-segformer-imgcls-onnx-nvidia-mit-b0-wh-b0-n300
+  - compile-cnn-onnx-segformer-imgcls-segformer-imgcls-onnx-nvidia-mit-b1-wh-b0-n300
+  - compile-cnn-onnx-segformer-imgcls-segformer-imgcls-onnx-nvidia-mit-b2-wh-b0-n300
+  - compile-cnn-onnx-segformer-imgcls-segformer-imgcls-onnx-nvidia-mit-b3-wh-b0-n300
+  - compile-cnn-onnx-segformer-imgcls-segformer-imgcls-onnx-nvidia-mit-b4-wh-b0-n300
+  - compile-cnn-onnx-segformer-imgcls-segformer-imgcls-onnx-nvidia-mit-b5-wh-b0-n300
 
-silicon-cnn-onnx-segformer-semseg-wh-b0-n300:
+silicon-cnn-onnx-segformer-seg-wh-b0-n300:
   stage: nightly-silicon-wh-b0-n300-0
   extends: .silicon-nightly-models-wh-b0-n300
   script:
   - !reference [.silicon-nightly-models-wh-b0-n300, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
   - !reference [.retry_on_hang_wh, script]
-  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_0.xml pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_semseg.py::test_segformer_semantic_segmentation_onnx[Wormhole_B0-nvidia/segformer-b0-finetuned-ade-512-512]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_0.xml pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_seg.py::test_segformer_semseg_onnx[Wormhole_B0-nvidia/segformer-b0-finetuned-ade-512-512]
   - !reference [.retry_on_hang_wh, script]
-  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_1.xml pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_semseg.py::test_segformer_semantic_segmentation_onnx[Wormhole_B0-nvidia/segformer-b1-finetuned-ade-512-512]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_1.xml pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_seg.py::test_segformer_semseg_onnx[Wormhole_B0-nvidia/segformer-b1-finetuned-ade-512-512]
   - !reference [.retry_on_hang_wh, script]
-  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_2.xml pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_semseg.py::test_segformer_semantic_segmentation_onnx[Wormhole_B0-nvidia/segformer-b2-finetuned-ade-512-512]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_2.xml pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_seg.py::test_segformer_semseg_onnx[Wormhole_B0-nvidia/segformer-b2-finetuned-ade-512-512]
   - !reference [.retry_on_hang_wh, script]
-  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_3.xml pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_semseg.py::test_segformer_semantic_segmentation_onnx[Wormhole_B0-nvidia/segformer-b3-finetuned-ade-512-512]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_3.xml pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_seg.py::test_segformer_semseg_onnx[Wormhole_B0-nvidia/segformer-b3-finetuned-ade-512-512]
   - !reference [.retry_on_hang_wh, script]
-  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_4.xml pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_semseg.py::test_segformer_semantic_segmentation_onnx[Wormhole_B0-nvidia/segformer-b4-finetuned-ade-512-512]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_4.xml pybuda/test/model_demos/high_prio/cnn/onnx/test_segformer_seg.py::test_segformer_semseg_onnx[Wormhole_B0-nvidia/segformer-b4-finetuned-ade-512-512]
   needs:
   - pybuda-wh-b0-wheel
   - !reference [.common_deps, needs]
-  - compile-cnn-onnx-segformer-semseg-segformer-semantic-segmentation-onnx-nvidia-segformer-b0-finetuned-ade-512-512-wh-b0-n300
-  - compile-cnn-onnx-segformer-semseg-segformer-semantic-segmentation-onnx-nvidia-segformer-b1-finetuned-ade-512-512-wh-b0-n300
-  - compile-cnn-onnx-segformer-semseg-segformer-semantic-segmentation-onnx-nvidia-segformer-b2-finetuned-ade-512-512-wh-b0-n300
-  - compile-cnn-onnx-segformer-semseg-segformer-semantic-segmentation-onnx-nvidia-segformer-b3-finetuned-ade-512-512-wh-b0-n300
-  - compile-cnn-onnx-segformer-semseg-segformer-semantic-segmentation-onnx-nvidia-segformer-b4-finetuned-ade-512-512-wh-b0-n300
+  - compile-cnn-onnx-segformer-seg-segformer-semseg-onnx-nvidia-segformer-b0-finetuned-ade-512-512-wh-b0-n300
+  - compile-cnn-onnx-segformer-seg-segformer-semseg-onnx-nvidia-segformer-b1-finetuned-ade-512-512-wh-b0-n300
+  - compile-cnn-onnx-segformer-seg-segformer-semseg-onnx-nvidia-segformer-b2-finetuned-ade-512-512-wh-b0-n300
+  - compile-cnn-onnx-segformer-seg-segformer-semseg-onnx-nvidia-segformer-b3-finetuned-ade-512-512-wh-b0-n300
+  - compile-cnn-onnx-segformer-seg-segformer-semseg-onnx-nvidia-segformer-b4-finetuned-ade-512-512-wh-b0-n300
 
 silicon-cnn-onnx-yolo-v5-yolo-v5-320x320-onnx-yolov5n-wh-b0-n300:
   stage: nightly-silicon-wh-b0-n300-0
@@ -1183,6 +1185,25 @@ silicon-cnn-pytorch-perceiverio-wh-b0-n300:
   - compile-cnn-pytorch-perceiverio-perceiverio-for-image-classification-pytorch-deepmind-vision-perceiver-learned-wh-b0-n300
   - compile-cnn-pytorch-perceiverio-perceiverio-for-image-classification-pytorch-deepmind-vision-perceiver-fourier-wh-b0-n300
 
+silicon-cnn-pytorch-pidnet-wh-b0-n300:
+  stage: nightly-silicon-wh-b0-n300-0
+  extends: .silicon-nightly-models-wh-b0-n300
+  script:
+  - !reference [.silicon-nightly-models-wh-b0-n300, script]
+  - git submodule update --init --checkout --depth 1 -f third_party/confidential_customer_models
+  - !reference [.retry_on_hang_wh, script]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_0.xml pybuda/test/model_demos/high_prio/cnn/pytorch/test_pidnet.py::test_pidnet_pytorch[Wormhole_B0-pidnet_s]
+  - !reference [.retry_on_hang_wh, script]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_1.xml pybuda/test/model_demos/high_prio/cnn/pytorch/test_pidnet.py::test_pidnet_pytorch[Wormhole_B0-pidnet_m]
+  - !reference [.retry_on_hang_wh, script]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_2.xml pybuda/test/model_demos/high_prio/cnn/pytorch/test_pidnet.py::test_pidnet_pytorch[Wormhole_B0-pidnet_l]
+  needs:
+  - pybuda-wh-b0-wheel
+  - !reference [.common_deps, needs]
+  - compile-cnn-pytorch-pidnet-pidnet-pytorch-pidnet-s-wh-b0-n300
+  - compile-cnn-pytorch-pidnet-pidnet-pytorch-pidnet-m-wh-b0-n300
+  - compile-cnn-pytorch-pidnet-pidnet-pytorch-pidnet-l-wh-b0-n300
+
 silicon-cnn-pytorch-rcnn-wh-b0-n300:
   stage: nightly-silicon-wh-b0-n300-0
   extends: .silicon-nightly-models-wh-b0-n300
@@ -1272,26 +1293,26 @@ silicon-cnn-pytorch-segformer-imgcls-wh-b0-n300:
   script:
   - !reference [.silicon-nightly-models-wh-b0-n300, script]
   - !reference [.retry_on_hang_wh, script]
-  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_0.xml pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_image_classification_pytorch[Wormhole_B0-nvidia/mit-b0]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_0.xml pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_imgcls_pytorch[Wormhole_B0-nvidia/mit-b0]
   - !reference [.retry_on_hang_wh, script]
-  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_1.xml pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_image_classification_pytorch[Wormhole_B0-nvidia/mit-b1]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_1.xml pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_imgcls_pytorch[Wormhole_B0-nvidia/mit-b1]
   - !reference [.retry_on_hang_wh, script]
-  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_2.xml pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_image_classification_pytorch[Wormhole_B0-nvidia/mit-b2]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_2.xml pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_imgcls_pytorch[Wormhole_B0-nvidia/mit-b2]
   - !reference [.retry_on_hang_wh, script]
-  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_3.xml pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_image_classification_pytorch[Wormhole_B0-nvidia/mit-b3]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_3.xml pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_imgcls_pytorch[Wormhole_B0-nvidia/mit-b3]
   - !reference [.retry_on_hang_wh, script]
-  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_4.xml pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_image_classification_pytorch[Wormhole_B0-nvidia/mit-b4]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_4.xml pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_imgcls_pytorch[Wormhole_B0-nvidia/mit-b4]
   - !reference [.retry_on_hang_wh, script]
-  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_5.xml pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_image_classification_pytorch[Wormhole_B0-nvidia/mit-b5]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_5.xml pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_imgcls.py::test_segformer_imgcls_pytorch[Wormhole_B0-nvidia/mit-b5]
   needs:
   - pybuda-wh-b0-wheel
   - !reference [.common_deps, needs]
-  - compile-cnn-pytorch-segformer-imgcls-segformer-image-classification-pytorch-nvidia-mit-b0-wh-b0-n300
-  - compile-cnn-pytorch-segformer-imgcls-segformer-image-classification-pytorch-nvidia-mit-b1-wh-b0-n300
-  - compile-cnn-pytorch-segformer-imgcls-segformer-image-classification-pytorch-nvidia-mit-b2-wh-b0-n300
-  - compile-cnn-pytorch-segformer-imgcls-segformer-image-classification-pytorch-nvidia-mit-b3-wh-b0-n300
-  - compile-cnn-pytorch-segformer-imgcls-segformer-image-classification-pytorch-nvidia-mit-b4-wh-b0-n300
-  - compile-cnn-pytorch-segformer-imgcls-segformer-image-classification-pytorch-nvidia-mit-b5-wh-b0-n300
+  - compile-cnn-pytorch-segformer-imgcls-segformer-imgcls-pytorch-nvidia-mit-b0-wh-b0-n300
+  - compile-cnn-pytorch-segformer-imgcls-segformer-imgcls-pytorch-nvidia-mit-b1-wh-b0-n300
+  - compile-cnn-pytorch-segformer-imgcls-segformer-imgcls-pytorch-nvidia-mit-b2-wh-b0-n300
+  - compile-cnn-pytorch-segformer-imgcls-segformer-imgcls-pytorch-nvidia-mit-b3-wh-b0-n300
+  - compile-cnn-pytorch-segformer-imgcls-segformer-imgcls-pytorch-nvidia-mit-b4-wh-b0-n300
+  - compile-cnn-pytorch-segformer-imgcls-segformer-imgcls-pytorch-nvidia-mit-b5-wh-b0-n300
 
 silicon-cnn-pytorch-segformer-semseg-wh-b0-n300:
   stage: nightly-silicon-wh-b0-n300-0
@@ -1299,23 +1320,23 @@ silicon-cnn-pytorch-segformer-semseg-wh-b0-n300:
   script:
   - !reference [.silicon-nightly-models-wh-b0-n300, script]
   - !reference [.retry_on_hang_wh, script]
-  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_0.xml pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_semseg.py::test_segformer_semantic_segmentation_pytorch[Wormhole_B0-nvidia/segformer-b0-finetuned-ade-512-512]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_0.xml pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_semseg.py::test_segformer_semseg_pytorch[Wormhole_B0-nvidia/segformer-b0-finetuned-ade-512-512]
   - !reference [.retry_on_hang_wh, script]
-  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_1.xml pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_semseg.py::test_segformer_semantic_segmentation_pytorch[Wormhole_B0-nvidia/segformer-b1-finetuned-ade-512-512]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_1.xml pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_semseg.py::test_segformer_semseg_pytorch[Wormhole_B0-nvidia/segformer-b1-finetuned-ade-512-512]
   - !reference [.retry_on_hang_wh, script]
-  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_2.xml pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_semseg.py::test_segformer_semantic_segmentation_pytorch[Wormhole_B0-nvidia/segformer-b2-finetuned-ade-512-512]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_2.xml pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_semseg.py::test_segformer_semseg_pytorch[Wormhole_B0-nvidia/segformer-b2-finetuned-ade-512-512]
   - !reference [.retry_on_hang_wh, script]
-  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_3.xml pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_semseg.py::test_segformer_semantic_segmentation_pytorch[Wormhole_B0-nvidia/segformer-b3-finetuned-ade-512-512]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_3.xml pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_semseg.py::test_segformer_semseg_pytorch[Wormhole_B0-nvidia/segformer-b3-finetuned-ade-512-512]
   - !reference [.retry_on_hang_wh, script]
-  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_4.xml pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_semseg.py::test_segformer_semantic_segmentation_pytorch[Wormhole_B0-nvidia/segformer-b4-finetuned-ade-512-512]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_4.xml pybuda/test/model_demos/high_prio/cnn/pytorch/test_segformer_semseg.py::test_segformer_semseg_pytorch[Wormhole_B0-nvidia/segformer-b4-finetuned-ade-512-512]
   needs:
   - pybuda-wh-b0-wheel
   - !reference [.common_deps, needs]
-  - compile-cnn-pytorch-segformer-semseg-segformer-semantic-segmentation-pytorch-nvidia-segformer-b0-finetuned-ade-512-512-wh-b0-n300
-  - compile-cnn-pytorch-segformer-semseg-segformer-semantic-segmentation-pytorch-nvidia-segformer-b1-finetuned-ade-512-512-wh-b0-n300
-  - compile-cnn-pytorch-segformer-semseg-segformer-semantic-segmentation-pytorch-nvidia-segformer-b2-finetuned-ade-512-512-wh-b0-n300
-  - compile-cnn-pytorch-segformer-semseg-segformer-semantic-segmentation-pytorch-nvidia-segformer-b3-finetuned-ade-512-512-wh-b0-n300
-  - compile-cnn-pytorch-segformer-semseg-segformer-semantic-segmentation-pytorch-nvidia-segformer-b4-finetuned-ade-512-512-wh-b0-n300
+  - compile-cnn-pytorch-segformer-semseg-segformer-semseg-pytorch-nvidia-segformer-b0-finetuned-ade-512-512-wh-b0-n300
+  - compile-cnn-pytorch-segformer-semseg-segformer-semseg-pytorch-nvidia-segformer-b1-finetuned-ade-512-512-wh-b0-n300
+  - compile-cnn-pytorch-segformer-semseg-segformer-semseg-pytorch-nvidia-segformer-b2-finetuned-ade-512-512-wh-b0-n300
+  - compile-cnn-pytorch-segformer-semseg-segformer-semseg-pytorch-nvidia-segformer-b3-finetuned-ade-512-512-wh-b0-n300
+  - compile-cnn-pytorch-segformer-semseg-segformer-semseg-pytorch-nvidia-segformer-b4-finetuned-ade-512-512-wh-b0-n300
 
 silicon-cnn-pytorch-ssd300-resnet50-pytorch-ssd300-resnet50-wh-b0-n300:
   stage: nightly-silicon-wh-b0-n300-0
@@ -1540,7 +1561,7 @@ silicon-cnn-pytorch-yolo-v3-yolov3-holli-pytorch-wh-b0-n300:
   - compile-cnn-pytorch-yolo-v3-yolov3-holli-pytorch-wh-b0-n300
 
 silicon-cnn-pytorch-yolo-v3-yolov3-holli-pytorch-1x1-wh-b0-n300:
-  stage: nightly-silicon-wh-b0-n300-0
+  stage: nightly-silicon-wh-b0-n300-1
   extends: .silicon-nightly-models-wh-b0-n300
   script:
   - !reference [.silicon-nightly-models-wh-b0-n300, script]
@@ -2076,6 +2097,8 @@ silicon-nlp-pytorch-mistral-wh-b0-n300:
   - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_0.xml pybuda/test/model_demos/high_prio/nlp/pytorch/test_mistral.py::test_mistral[Wormhole_B0-mistralai/Mistral-7B-v0.1]
   - !reference [.retry_on_hang_wh, script]
   - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_1.xml pybuda/test/model_demos/high_prio/nlp/pytorch/test_mistral.py::test_mistral_kv_cache[Wormhole_B0-mistralai/Mistral-7B-v0.1]
+  - !reference [.retry_on_hang_wh, script]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_2.xml pybuda/test/model_demos/high_prio/nlp/pytorch/test_mistral.py::test_mistral_prefill[Wormhole_B0-mistralai/Mistral-7B-v0.1]
   needs:
   - pybuda-wh-b0-wheel
   - !reference [.common_deps, needs]
@@ -2680,7 +2703,7 @@ silicon-model_0-pybuda-group_8-wh-b0-n300:
   - compile-model_0-pybuda-group_8-wh-b0-n300
 
 silicon-model_0-pybuda-group_9-wh-b0-n300:
-  stage: nightly-silicon-wh-b0-n300-1
+  stage: nightly-silicon-wh-b0-n300-2
   extends: .silicon-nightly-models-wh-b0-n300
   script:
   - !reference [.silicon-nightly-models-wh-b0-n300, script]
