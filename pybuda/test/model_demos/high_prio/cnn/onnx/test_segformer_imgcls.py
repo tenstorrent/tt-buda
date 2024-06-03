@@ -30,7 +30,7 @@ variants_img_classification = [
 
 
 @pytest.mark.parametrize("variant", variants_img_classification)
-def test_segformer_image_classification_onnx(test_device, variant):
+def test_segformer_imgcls_onnx(test_device, variant):
 
     # Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()

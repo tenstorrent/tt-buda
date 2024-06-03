@@ -29,7 +29,7 @@ variants_semseg = [
 
 
 @pytest.mark.parametrize("variant", variants_semseg)
-def test_segformer_semantic_segmentation_onnx(test_device, variant):
+def test_segformer_semseg_onnx(test_device, variant):
 
     # Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()
