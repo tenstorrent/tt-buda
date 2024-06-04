@@ -84,6 +84,8 @@ from test.test_sanity import get_device_intermediates
 
 from pybuda.op.eval.common import compare_tensor_to_golden
 
+from test.operators.utils import netlist_utils
+
 from .models import generic
 from .models import custom
 from .models import special_cases
@@ -234,7 +236,8 @@ def test_matmul_according_to_pytorch_docs(
 
 def get_input_shapes(microbatch_size1=1, microbatch_size2=1):
                                               # Here we cover interesting combinations of input shapes:
-    return [(microbatch_size1, microbatch_size2, 3, 4),         # 3.1 Full tensor (i.e. full expected shape)
+    return [
+            (microbatch_size1, microbatch_size2, 3, 4),         # 3.1 Full tensor (i.e. full expected shape)
             (microbatch_size1, microbatch_size2, 45, 17),        # 3.1 Full tensor (i.e. full expected shape)
             (microbatch_size1, microbatch_size2, 1, 23),        # 3.2 Tensor reduce on one or more dims to 1
             (microbatch_size1, microbatch_size2, 64, 1),        # 3.2 Tensor reduce on one or more dims to 1
@@ -265,7 +268,7 @@ def get_input_shapes(microbatch_size1=1, microbatch_size2=1):
 
 # test matmul in all cases according to test plan
 @pytest.mark.parametrize("model", [item.split(".")[0] for item in os.listdir(MODELS_TEST_PLAN_PATH) if "model" in item])
-@pytest.mark.parametrize("input_shape", get_input_shapes(microbatch_size1=1))
+@pytest.mark.parametrize("input_shape", get_input_shapes())
 def test_matmul_according_to_test_plan(
     model,
     input_shape,
@@ -273,6 +276,8 @@ def test_matmul_according_to_test_plan(
     input_params=[], 
     math_fidelity=None
 ):
+    if(model == "model_op_src_const_inputs2" and math_fidelity == None):
+        pytest.skip() # this model has its own test: test_matmul_dram_prologued
 
     #BUG: when input shape is (1, 1, 10000, 1) - extreme ratios between height/width; it works for input shape when one dimension is 9920 or less, everything above(like 10000) throws error
     if (input_shape == (1, 1, 10000, 1) or input_shape == (1, 10000, 1)) and model in (
@@ -326,10 +331,14 @@ def test_matmul_according_to_test_plan(
 
     match model:
         case "model_op_src_from_dram1":
+            input_shape = (1,) + input_shape[1:]
             architecture = f'test_plan.{model}.BudaMatmulTest({input_shape})'
         case "model_op_src_const_inputs1": 
+            input_shape = (1,) + input_shape[1:]
+            tr = (1,) + tr[1:]
             architecture = f'test_plan.{model}.BudaMatmulTest({input_shape}, {tr})'
         case "model_op_src_const_inputs2":
+            input_shape = (1,) + input_shape[1:]
             architecture = f'test_plan.{model}.BudaMatmulTest({input_shape})'
         case _:
             architecture = f'test_plan.{model}.BudaMatmulTest()'
@@ -358,6 +367,111 @@ def test_matmul_according_to_test_plan(
         input_params=[input_params],
     )
 
+    file_path = pybuda.pybudaglobal.get_devices()[0]._compile_output.netlist_filename
+    match model:
+        case "model_op_src_from_dram2":
+            assert netlist_utils.read_netlist_value(file_path, "/queues/x1/loc") == 'dram'
+            assert netlist_utils.read_netlist_value(file_path, "/queues/x2/loc") == 'dram'
+        case "model_op_src_const_inputs1":
+            d = netlist_utils.read_netlist_value(file_path, "/graphs/fwd_0_0_temporal_epoch_0")
+            for key in d.keys():
+                assert "Matmul" not in key
+
+
+
+def get_input_shapes_prologued():
+                                              # Here we cover interesting combinations of input shapes:
+    return [
+            ((2, 3, 4),         True, False),  #0        # 3.1 Full tensor (i.e. full expected shape)
+            ((2, 3, 4),         False, True),  #1        # 3.1 Full tensor (i.e. full expected shape)
+            ((2, 3, 4),         None, True),   #2        # 3.1 Full tensor (i.e. full expected shape)
+            ((1, 3, 4),         True, False),  #3        # 3.1 Full tensor (i.e. full expected shape)
+            ((1, 3, 4),         False, True),  #4        # 3.1 Full tensor (i.e. full expected shape)
+            ((1, 3, 4),         None, True),   #5        # 3.1 Full tensor (i.e. full expected shape) ! not working as described in docs
+            ((2, 45, 17),       None, True),   #6        # 3.1 Full tensor (i.e. full expected shape)
+            ((2, 1, 23),        None, True),   #7        # 3.2 Tensor reduce on one or more dims to 1
+            ((2, 64, 1),        None, True),   #8        # 3.2 Tensor reduce on one or more dims to 1
+            ((2, 100, 100),     None, True),   #9        # 4.3 Very large (thousands, 10s of thousands)
+            ((2, 1000, 100),    None, True),   #10       # 4.3 Very large (thousands, 10s of thousands)
+            ((2, 10, 1000),     None, True),   #11       # 4.4 Extreme ratios between height/width
+            ((2, 9920, 1),      None, True),   #12       # 4.4 Extreme ratios between height/width
+            ((2, 10000, 1),     None, False),  #13       # 4.4 Extreme ratios between height/width
+            ((2, 32, 64),       None, True),   #14       # 4.1 Divisible by 32
+            ((2, 160, 96),      None, True),   #15       # 4.1 Divisible by 32
+            ((2, 17, 41),       None, True),   #16       # 4.2 Prime numbers
+            ((2, 89, 3),        None, True),   #17       # 4.2 Prime numbers
+
+            ((2, 1, 3, 4),      True, False),  #18       # 3.1 Full tensor (i.e. full expected shape)
+            ((2, 1, 3, 4),      False, True),  #19       # 3.1 Full tensor (i.e. full expected shape)
+            ((2, 1, 3, 4),      None, True) ,  #20       # 3.1 Full tensor (i.e. full expected shape)
+            ((1, 1, 3, 4),      True, False),  #21       # 3.1 Full tensor (i.e. full expected shape)
+            ((1, 1, 3, 4),      False, True),  #22       # 3.1 Full tensor (i.e. full expected shape)
+            ((1, 1, 3, 4),      None, True),   #23       # 3.1 Full tensor (i.e. full expected shape) ! not working as described in docs
+            ((2, 1, 45, 17),    None, True) ,  #24       # 3.1 Full tensor (i.e. full expected shape)
+            ((2, 1, 1, 23),     None, True) ,  #25       # 3.2 Tensor reduce on one or more dims to 1
+            ((2, 1, 64, 1),     None, True) ,  #26       # 3.2 Tensor reduce on one or more dims to 1
+            ((2, 1, 100, 100),  None, True) ,  #27       # 4.3 Very large (thousands, 10s of thousands)
+            ((2, 1, 1000, 100), None, True) ,  #28       # 4.3 Very large (thousands, 10s of thousands)
+            ((2, 1, 10, 1000),  None, True) ,  #29       # 4.4 Extreme ratios between height/width
+            ((2, 1, 9920, 1),   None, True) ,  #30       # 4.4 Extreme ratios between height/width 
+            ((2, 1, 10000, 1),  None, True) ,  #31       # 4.4 Extreme ratios between height/width   
+            ((2, 1, 32, 64),    None, True) ,  #32       # 4.1 Divisible by 32
+            ((2, 1, 160, 96),   None, True) ,  #33       # 4.1 Divisible by 32
+            ((2, 1, 17, 41),    None, True) ,  #34       # 4.2 Prime numbers
+            ((2, 1, 89, 3),     None, True) ,  #35       # 4.2 Prime numbers
+            ]
+
+@pytest.mark.parametrize("input_shape, default_dram_params, prologue", get_input_shapes_prologued())
+def test_matmul_dram_prologued(
+    input_shape,
+    default_dram_params,
+    prologue,
+    test_device,
+):
+    model = "model_op_src_const_inputs2"
+    #BUG: when input shape is (2, 1, 10000, 1) or (2, 10000, 1) - extreme ratios between height/width; it works for input shape when one dimension is 9920 or less, everything above(like 10000) throws error
+    if (input_shape == (2, 1, 10000, 1) or input_shape == (2, 10000, 1)) and model == "model_op_src_const_inputs2":
+        pytest.xfail("Error for input shape (1, 1, 10000, 1). Error message: RuntimeError: TT_ASSERT @ pybuda/csrc/placer/lower_to_placer.cpp:245:")
+   
+    # generate input shapes
+    opernad_num = 0
+    tr_operand_num = 1
+    if(len(input_shape) == 3):
+        tr = (input_shape[0],input_shape[2],input_shape[1])
+    else:
+        tr = (input_shape[0],input_shape[1],input_shape[3],input_shape[2])
+    input_shapes = list([input_shape for _ in range(opernad_num)])
+    for _ in range(tr_operand_num):
+        input_shapes.append(tr) 
+    input_shapes = tuple(input_shapes)
+
+    input_shape = (1,) + input_shape[1:]
+
+    architecture = f'test_plan.{model}.BudaMatmulTest({input_shape})'
+    model_eval = eval(architecture)
+
+    # set compiler config file
+    compiler_cfg = _get_global_compiler_config()
+    compiler_cfg.enable_training = False
+    compiler_cfg.input_queues_on_host = False
+    compiler_cfg.default_dram_parameters = default_dram_params
+    
+    verify_module(
+        model_eval,
+        input_shapes=input_shapes,
+        verify_cfg=VerifyConfig(
+            test_kind=TestKind.INFERENCE,
+            devtype=test_device.devtype,
+            arch=test_device.arch,
+        ),
+    )
+
+    file_path = pybuda.pybudaglobal.get_devices()[0]._compile_output.netlist_filename
+    d = netlist_utils.read_netlist_value(file_path, "/programs/0/run_fwd_0/4/execute/queue_settings/input_0_mm1")
+    if prologue:
+        assert d['prologue']
+    else:
+        assert not d['prologue']
 
 
 def get_input_shape(microbatch_size1=1, microbatch_size2=1):
