@@ -12,9 +12,7 @@ from pybuda.verify.backend import verify_module
 from pybuda.verify.config import TestKind
 from pybuda import VerifyConfig
 import sys
-
-sys.path.append("third_party/confidential_customer_models/cv_demos/retinanet/model/")
-from model_implementation import Model
+from test.model_demos.models.retinanet.model_implementation import Model
 from pybuda._C.backend_api import BackendDevice
 import zipfile
 import shutil
