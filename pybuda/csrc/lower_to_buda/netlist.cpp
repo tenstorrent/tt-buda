@@ -3,12 +3,17 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "lower_to_buda/netlist.hpp"
 
+#include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <exception>
 #include <memory>
 #include <sstream>
+#include <string>
 #include <vector>
 
+#include "backend_api/device_config.hpp"
+#include "balancer/balancer.hpp"
 #include "balancer/balancer_utils.hpp"
 #include "balancer/data_movement_backend_constants.hpp"
 #include "balancer/data_movement_bw_estimation.hpp"
@@ -27,6 +32,7 @@
 #include "passes/fuse_ops.hpp"
 #include "placer/utils.hpp"
 #include "utils/assert.hpp"
+#include "utils/env.hpp"
 #include "utils/logger.hpp"
 
 namespace tt
@@ -216,6 +222,105 @@ void validate_op_grid_size(BudaOp const &op)
     TT_ASSERT(op.grid.grid_size_c > 0 && op.grid.grid_size_r > 0, "Op {} has a 0 in grid size", op.name);
 }
 
+static balancer::OpModel const &get_input_queue_op_model(
+    Graph const *graph, Node const *node, std::shared_ptr<balancer::BalancerSolution> balancer_solution)
+{
+    if (node->node_type() == tt::graphlib::NodeType::kQueue)
+    {
+        std::vector<Node *> operands = graph->data_operands(node);
+        TT_ASSERT(operands.size() == 1);
+        return balancer_solution->op_models.at(operands[0]->name());
+    }
+    else
+    {
+        TT_ASSERT(balancer_solution->op_models.count(node->name()));
+        return balancer_solution->op_models.at(node->name());
+    }
+}
+
+static int get_op_l1_usage(
+    balancer::OpModel const &op_model,
+    std::vector<Edge> const &operand_edges,
+    std::vector<std::size_t> const &input_dram_io_buf_size_tiles)
+{
+    int dram_io_allocated_bytes = 0;
+    for (std::size_t input_idx = 0; input_idx < operand_edges.size(); ++input_idx)
+    {
+        dram_io_allocated_bytes += input_dram_io_buf_size_tiles[input_idx] *
+                                   balancer::tile_size_bytes(op_model.input_buffers[input_idx].data_format);
+    }
+
+    return op_model.get_l1_memory_usage() + dram_io_allocated_bytes;
+}
+
+static int get_op_l1_free_space(
+    balancer::OpModel const &op_model,
+    std::vector<Edge> const &operand_edges,
+    std::vector<std::size_t> const &input_dram_io_buf_size_tiles,
+    DeviceConfig const &device_config)
+{
+    const int available_l1_space =
+        device_config.get_l1_usable_size() + device_config.get_l1_dram_io_backend_reserved_size();
+
+    const int used_l1_space = get_op_l1_usage(op_model, operand_edges, input_dram_io_buf_size_tiles);
+
+    return available_l1_space - used_l1_space;
+}
+
+static bool optimize_op_noc_inputs(
+    std::vector<std::uint32_t> &input_buf_min_size_tiles,
+    Graph const *graph,
+    balancer::OpModel const &op_model,
+    std::vector<Edge> const &operand_edges,
+    DeviceConfig const &device_config,
+    std::vector<std::size_t> const &input_dram_io_buf_size_tiles)
+{
+    std::size_t num_noc_readers = 0;
+    for (std::size_t input_idx = 0; input_idx < operand_edges.size(); ++input_idx)
+    {
+        Node *producer_node = graph->node_by_id(operand_edges[input_idx].producer_node_id);
+        num_noc_readers += int(producer_node->node_type() == NodeType::kBudaOp);
+    }
+
+    bool input_buf_overrides = false;
+
+    const int free_l1_space =
+        get_op_l1_free_space(op_model, operand_edges, input_dram_io_buf_size_tiles, device_config);
+    if (num_noc_readers > 0 && free_l1_space > 0)
+    {
+        const std::size_t space_per_op_input = free_l1_space / num_noc_readers;
+
+        for (std::size_t input_idx = 0; input_idx < operand_edges.size(); ++input_idx)
+        {
+            const bool is_input_coming_from_noc =
+                graph->node_by_id(operand_edges[input_idx].producer_node_id)->node_type() == NodeType::kBudaOp;
+            const bool has_buf_size_override_for_input = input_buf_min_size_tiles[input_idx] > 0;
+            if (!is_input_coming_from_noc || has_buf_size_override_for_input)
+            {
+                continue;
+            }
+
+            const std::size_t kernel_clear_granularity = op_model.input_buffers[input_idx].single_buffered_size_tiles();
+            const std::size_t kernel_clear_bytes = op_model.input_buffers[input_idx].single_buffered_size_bytes();
+
+            const std::size_t input_buf_multiplier = space_per_op_input / kernel_clear_bytes;
+            if (input_buf_multiplier > 1)
+            {
+                // We always need to allocate space at least for double buffering, and there is no point in allocating a
+                // buffer larger than the twice (since in BBE it is assumed that input buffers are always double
+                // buffered) the epoch tiles
+                const std::size_t input_epoch_tiles = balancer::get_op_input_epoch_tiles(graph, op_model, input_idx);
+
+                input_buf_min_size_tiles[input_idx] =
+                    std::min((2 + input_buf_multiplier) * kernel_clear_granularity, 2 * input_epoch_tiles);
+                input_buf_overrides = true;
+            }
+        }
+    }
+
+    return input_buf_overrides;
+}
+
 static BudaOp create_op(
     Graph *graph,
     graphlib::BudaOpNode *node,
@@ -229,6 +334,7 @@ static BudaOp create_op(
     std::string const &arch_name,
     std::vector<std::size_t> const &input_dram_io_buf_size_tiles,
     const std::vector<graphlib::Edge> &forked_dram_edges,
+    DeviceConfig const &device_config,
     bool ignore_tms = false)
 {
     BudaOp op;
@@ -352,6 +458,13 @@ static BudaOp create_op(
                     op.attrs["min_buffer_input"] = (int)i;
                     break;
                 }
+        }
+
+        // Optimize input_buf_min_size_tiles for noc readers
+        if (!env_as<bool>("PYBUDA_DISABLE_INPUT_BUFFER_SCALING_FOR_NOC_READERS", false))
+        {
+            input_buf_overrides |= optimize_op_noc_inputs(
+                input_buf_min_size_tiles, graph, op_model, operand_edges, device_config, input_dram_io_buf_size_tiles);
         }
 
         if (input_buf_overrides)
@@ -1223,22 +1336,6 @@ std::vector<program::Program> create_programs(
     return programs;
 }
 
-static balancer::OpModel const &get_input_queue_op_model(
-    Graph const *graph, Node const *node, std::shared_ptr<balancer::BalancerSolution> balancer_solution)
-{
-    if (node->node_type() == tt::graphlib::NodeType::kQueue)
-    {
-        std::vector<Node *> operands = graph->data_operands(node);
-        TT_ASSERT(operands.size() == 1);
-        return balancer_solution->op_models.at(operands[0]->name());
-    }
-    else
-    {
-        TT_ASSERT(balancer_solution->op_models.count(node->name()));
-        return balancer_solution->op_models.at(node->name());
-    }
-}
-
 static std::vector<std::size_t> get_input_dram_io_buf_size_tiles(
     Graph const *graph,
     DeviceConfig const &device_config,
@@ -1280,10 +1377,10 @@ static std::vector<std::size_t> get_input_dram_io_buf_size_tiles(
 
     // DRAM IO buffer sizing
     TT_ASSERT(op_model.get_l1_memory_usage() <= device_config.get_l1_usable_size());
-    const int free_l1_space = device_config.get_l1_usable_size() - op_model.get_l1_memory_usage();
 
     if (env_as<bool>("PYBUDA_USE_LEGACY_EXPLICIT_DRAM_IO"))
     {
+        // We can reclaim the default pipegen carve out space for DRAM io get_l1_dram_io_backend_reserved_size
         const int dram_io_space_per_input = device_config.get_l1_dram_io_backend_reserved_size() / num_dram_readers;
         for (std::size_t input_idx = 0; input_idx < operands.size(); ++input_idx)
         {
@@ -1317,12 +1414,18 @@ static std::vector<std::size_t> get_input_dram_io_buf_size_tiles(
         return input_dram_io_buf_size_tiles;
     }
 
-    // We can reclaim the default pipegen carve out space for DRAM io get_l1_dram_io_backend_reserved_size
-    const int pipegen_available_dram_io_space_per_stream =
-        static_cast<int>((free_l1_space + device_config.get_l1_dram_io_backend_reserved_size()) / num_dram_readers);
+    std::vector<Edge> operand_edges = graph->operand_data_edges(op_model.buda_op_node);
+    const int free_l1_space =
+        get_op_l1_free_space(op_model, operand_edges, input_dram_io_buf_size_tiles, device_config);
+
+    if (free_l1_space < 0)
+    {
+        return input_dram_io_buf_size_tiles;
+    }
+
+    const int pipegen_available_dram_io_space_per_stream = free_l1_space / num_dram_readers;
     int current_stream_available_dram_io_space = pipegen_available_dram_io_space_per_stream;
 
-    std::vector<Edge> operand_edges = graph->operand_data_edges(op_model.buda_op_node);
     for (std::size_t input_idx = 0; input_idx < operands.size(); ++input_idx)
     {
         Node *operand = operands[input_idx];
@@ -1467,6 +1570,7 @@ BudaNetlist lower_to_buda_netlist(
                     arch_string,
                     input_dram_io_buf_size_tiles,
                     forked_dram_edges,
+                    device_config,
                     ignore_tms);
 
                 if (node->as<graphlib::BudaOpNode>()->is_fused_op())

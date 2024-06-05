@@ -732,6 +732,16 @@ float scale_dram_read_bandwidth_wrt_fork_factor(const float bw_without_fork, con
     return fork_bw;
 }
 
+int get_op_input_tiles_per_input(const OpModel& op_model, const int input_index)
+{
+    return op_model.input_buffers[input_index].block_shape.canonical().volume();
+}
+
+int get_op_input_epoch_tiles(const Graph* graph, const OpModel& op_model, const int input_index)
+{
+    return graph->get_microbatch() * get_op_input_tiles_per_input(op_model, input_index);
+}
+
 //----------------------------------------------------------------------------------------------------------------------
 
 }  // namespace balancer

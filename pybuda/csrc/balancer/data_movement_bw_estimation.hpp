@@ -65,6 +65,12 @@ DramReadPipeHWConfiguration get_dram_read_pipe_hw_configuration(
 // Scales dram read BW based on the number of readers of the dram buffer.
 float scale_dram_read_bandwidth_wrt_fork_factor(const float bw_without_fork, const float fork_factor);
 
+// Returns total number fo tiles that flow through the input buffer of the consumer node perf input in a graph.
+int get_op_input_tiles_per_input(const OpModel& op_model, const int input_index);
+
+// Returns total number of tiles that flow through the input buffer of the consumer op in an entire epoch.
+int get_op_input_epoch_tiles(const Graph* graph, const OpModel& op_model, const int input_index);
+
 //----------------------------------------------------------------------------------------------------------------------
 
 enum class InputType
