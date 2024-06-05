@@ -10,7 +10,7 @@ from .transpose import TransposeTM
 from .nop import Nop
 
 from ..common import to_torch_operands
-from ..sparse_utils import create_nearest_neighbor_upsample_picker_matrix, create_bilinear_upsample_picker_matrix, create_nearest_neighbor_downsample_picker_matrix
+from ..sparse_utils import check_sparse_tensor_unique_tiles, create_nearest_neighbor_upsample_picker_matrix, create_bilinear_upsample_picker_matrix, create_nearest_neighbor_downsample_picker_matrix
 
 import os
 
@@ -212,7 +212,7 @@ def decompose_upsample_2d(attr, dc, inputs, resize_method):
                 dd.append(create_bilinear_upsample_picker_matrix(scale_factor, shape, align_corners=attr[-2], channel_last=channel_last, split_idx=s, split_factor=split_factor))
 
         # Choose whether to use sparse or dense matmul based on sparsity of dident
-        if torch.count_nonzero(dident_dense) > (torch.numel(dident_dense) // 2) or int(os.environ.get('PYBUDA_FORCE_RESIZE_DENSE_MM', '0')):
+        if not check_sparse_tensor_unique_tiles(dident_dense) or int(os.environ.get('PYBUDA_FORCE_RESIZE_DENSE_MM', '0')):
             dident_tensor = dc.tensor(dident_dense)
             result = dc.op("matmul", [dident_tensor, activations])
         else:

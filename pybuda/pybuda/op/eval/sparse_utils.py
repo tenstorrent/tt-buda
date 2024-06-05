@@ -5,6 +5,7 @@ import math
 import numpy as np
 import os
 import torch
+import torch.nn.functional;
 from loguru import logger
 import pybuda
 from pybuda.utils import align_up_tile, align_up, round_up_div, clamp
@@ -1553,3 +1554,65 @@ def conv3d_out_shape(type, attr, ops):
         else:
             return (activations[0], weights[0], z, y, x), []
 
+def pad_to_fit_dile_dims(tensor):
+    """
+    Pads the input tensor to ensure its height and width are divisible by TILE_DIM.
+
+    Parameters
+    ----------
+    tensor: torch.Tensor
+        The input tensor of shape (B, C, H, W)
+
+    Returns
+    -------
+    torch.Tensor - The padded tensor with shape (B, C, H + pad_height, W + pad_width).
+    """
+
+    height, width = tensor.shape[-2:]
+
+    pad_height = (TILE_DIM - height % TILE_DIM) % TILE_DIM
+    pad_width = (TILE_DIM - width % TILE_DIM) % TILE_DIM
+
+    return torch.nn.functional.pad(tensor, (0, pad_width, 0, pad_height))
+
+def count_unique_tiles(tensor):
+    """
+    Counts the number of unique tiles in the tensor.
+
+    Parameters:
+    tensor: (torch.Tensor)
+        The input tensor of shape (B, C, H, W)
+
+    Returns:
+    int: The number of unique tiles in the tensor.
+    """
+
+    padded_tensor = pad_to_fit_dile_dims(tensor)
+
+    height, width = padded_tensor.shape[-2:]
+    assert height % TILE_DIM == 0 and width % TILE_DIM == 0, f"Dimensions must be divisible by {TILE_DIM}"
+
+    # Shape: (B, C, H_tiles, W_tiles, TILE_DIM, TILE_DIM)
+    unfolded = padded_tensor.unfold(2, TILE_DIM, TILE_DIM).unfold(3, TILE_DIM, TILE_DIM)
+
+    # Shape: (B * C * H_tiles * W_tiles, TILE_DIM, TILE_DIM)
+    tiles = unfolded.reshape(-1, TILE_DIM, TILE_DIM)
+
+    unique_tiles = torch.unique(tiles, dim=0)
+    return unique_tiles.size(0)
+
+def check_sparse_tensor_unique_tiles(tensor):
+    """
+    Checks if the number of unique tiles in the sparse tensor does not exceed the maximum allowed limit.
+
+    Parameters:
+    tensor: (torch.Tensor)
+        The input tensor of shape (B, C, H, W)
+
+    Returns:
+    bool: True if the number of unique tiles is less than or equal to max_unique_tiles, False otherwise.
+    """
+    
+    max_unique_tiles = 4096
+
+    return count_unique_tiles(tensor) <= max_unique_tiles
