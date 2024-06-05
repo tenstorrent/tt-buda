@@ -2438,16 +2438,13 @@ static std::pair<OpModel, OpModelFailureReason> calculate_op_model_impl(
     if (op_model.input_buffers.empty())
         return std::make_pair(op_model, InputBufferAllocationFailure);
 
-    if (!env_as<bool>("PYBUDA_DISABLE_UNROLLED_PARAMETERS", false)) 
-    {
-        // Try to use the remaining l1 memory to change prefetch type of some parameter buffers to Post-TM.
-        // It means that TMs / reblocking on prologue parameter inputs will be pre-evaluated and fully unrolled in 
-        // l1 if space permits.
-        // This can have beneficial performance implications because it trivializes the kernel read pattern,
-        // i.e. all data is exactly in order.
-        //
-        try_promote_post_tm_parameter_prefetch(op_model, operands, l1_usable_size, force_dram_parameters);
-    }
+    // Try to use the remaining l1 memory to change prefetch type of some parameter buffers to Post-TM.
+    // It means that TMs / reblocking on prologue parameter inputs will be pre-evaluated and fully unrolled in 
+    // l1 if space permits.
+    // This can have beneficial performance implications because it trivializes the kernel read pattern,
+    // i.e. all data is exactly in order.
+    //
+    try_promote_post_tm_parameter_prefetch(op_model, operands, l1_usable_size, force_dram_parameters);
 
     if (env_as<bool>("PYBUDA_ENABLE_OUTPUT_BUFFER_UPSIZING"))
     {
