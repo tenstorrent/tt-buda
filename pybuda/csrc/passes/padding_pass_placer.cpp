@@ -81,6 +81,7 @@ bool insert_queue_instead_of_nop(
         name_ss << "queue_replacement_for_" << nop_node->name();
 
     graphlib::QueueNode *queue_node = graphlib::create_buffering_queue(graph, producer_node, name_ss.str(), graph->get_microbatch());
+    queue_node->as<graphlib::TaggedNode>()->add_tags({ { "padding_queue", true } });
     log_debug(LogPadding, "\tCreating dram buffering queue node {} to replace nop {} ", name_ss.str(), nop_node->name());
     // After we have made queue_node, we now replace nop with it.
     replace_node(graph, /*original_node*/ nop_node, /*new_node*/ queue_node, /*skip_operands*/ false);
@@ -104,6 +105,34 @@ bool check_if_queue_fixes_failures(
         tt::graphlib::bypass_node(graph, queue, true /*remove_queue*/);
     }
     return queue_fixes_failures;
+}
+
+// Checks if node has any padding queue among its users or operands.
+bool node_has_padding_queue(
+    Graph *graph,
+    Node *node
+)
+{
+    // check for queues among users of the node.
+    for (Edge user_edge : graph->user_data_edges(node))
+    {
+        Node* consumer_node = graph->node_by_id(user_edge.consumer_node_id);
+        if (consumer_node->node_type() == NodeType::kQueue && consumer_node->as<graphlib::TaggedNode>()->has_tag("padding_queue"))
+        {
+            return true;
+        }
+    }
+
+    // check for queues among operands of the node.
+    for (Edge operand_edge : graph->operand_data_edges(node))
+    {
+        Node* producer_node = graph->node_by_id(operand_edge.producer_node_id);
+        if (producer_node->node_type() == NodeType::kQueue && producer_node->as<graphlib::TaggedNode>()->has_tag("padding_queue"))
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 bool pad_pass_placer(
@@ -168,9 +197,11 @@ bool pad_pass_placer(
         bool queue_fixes_failures =
             check_if_queue_fixes_failures(graph, node, balancer_config, balancer_cache_collection);
         log_trace(LogPadding, "For node {}, queue after node fixes failures: {}", node->name(), queue_fixes_failures);
-
-        while (padding_try_it++ < PADDING_TRY_MAX && buffer_alloc_cnt > 0)
+        // allow padding loop at least once
+        bool first = true;
+        while (padding_try_it++ < PADDING_TRY_MAX && ( buffer_alloc_cnt > 0 || first ))
         {
+            first = false;
             if (padding_try_it > 0)
             {
                 // If we have tried to pad the node, but it failed, we remove padding and try again.
@@ -206,7 +237,8 @@ bool pad_pass_placer(
                     log_debug(LogPadding, "Node {} is legal after padding: lhs_rt {} lhs_ct: {} rhs_ct: {}", node->name(), padding.pad_lhs_rt, padding.pad_lhs_ct, padding.pad_rhs_ct);
                     // If we added queue and also padded the node, we want to check if only adding the queue had solved
                     // the failures (queue_fixes_failures). If it did, we remove padding and keep the queue.
-                    if (padding.added_queue && queue_fixes_failures)
+                    bool has_padding_queue = node_has_padding_queue(graph, node);
+                    if (has_padding_queue && queue_fixes_failures)
                     {
                         remove_padding(graph, node, padding);
                         insert_queue(graph, node);
@@ -1178,9 +1210,7 @@ void insert_unpad(
             // Original shape C dimension
             orig_c
         );
-
-        padding.added_queue = true;
-        insert_serialized_dram_queue_between_ops(
+        std::tuple<Edge, graphlib::Node*, Edge> new_queue_info = insert_serialized_dram_queue_between_ops(
             // graph
             graph,
             // producer name
@@ -1189,10 +1219,10 @@ void insert_unpad(
             outgoing_node->name(),
             // operand index is always zero,
             // because vstack has only one operand
-            (PortId) edge.consumer_input_port_id
-        );
+            (PortId)edge.consumer_input_port_id);
+        std::get<1>(new_queue_info)->as<TaggedNode>()->add_tags({ { "padding_queue", true } });
     }
-    else if (padding.added_nop)
+    else if (padding.added_nop.find(edge.consumer_node_id) != padding.added_nop.end())
     {
         insert_unpad_buda(
             graph,
@@ -1208,8 +1238,7 @@ void insert_unpad(
             orig_c
         );
 
-        padding.added_queue = true;
-        insert_serialized_dram_queue_between_ops(
+        std::tuple<Edge, graphlib::Node*, Edge> new_queue_info = insert_serialized_dram_queue_between_ops(
             // graph
             graph,
             // producer name
@@ -1218,8 +1247,8 @@ void insert_unpad(
             outgoing_node->name(),
             // operand index is always zero,
             // because vstack has only one operand
-            (PortId) edge.consumer_input_port_id
-        );
+            (PortId)edge.consumer_input_port_id);
+        std::get<1>(new_queue_info)->as<TaggedNode>()->add_tags({ { "padding_queue", true } });
     }
     else
     {
@@ -1244,7 +1273,7 @@ void insert_unpad(
         );
 
         // Set the NOP indicator.
-        padding.added_nop = true;
+        padding.added_nop.insert(outgoing_node->id());
     }
 
 }

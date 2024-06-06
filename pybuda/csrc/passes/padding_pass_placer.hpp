@@ -43,10 +43,8 @@ struct Padding
     std::uint32_t pad_lhs_ct = 0;
     std::uint32_t pad_rhs_ct = 0;
 
-    // Flag that indicates NOP insertion.
-    bool added_nop = false;
-    // Flag that indicates queue insertion.
-    bool added_queue = false;
+    // If we have added nop input edge of the node with NodeId map will hold true for that NodeId.
+    std::unordered_set<tt::graphlib::NodeId> added_nop;
 };
 
 // Padding criterion says how we want to compute
