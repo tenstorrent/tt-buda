@@ -80,4 +80,16 @@ void insert_t_stream_tms(
 // of op_models.
 //
 void insert_t_stream_tms(Graph* graph, balancer::OpModelMap const& op_models);
+
+// Layout dataflow reorders the output buffer of sparse matmul in a way
+// such that each row of cores between a sparse/consumer pair has a 1to1
+// mapping of tiles and avoids inefficient gathers.  This function erases
+// the existing TMs along this path and replaces them with "per row core"
+// equivalent set of TMs. This often results in more complicated TMs, but
+// much simpler pipes.
+void insert_sparse_dataflow_tms(
+    graphlib::Graph const* graph, graphlib::Node const* node, balancer::OpModel const& op_model);
+
+void insert_sparse_dataflow_tms(std::vector<graphlib::OpType>& edge_tms, balancer::OpModel const& op_model);
+
 }  // namespace tt

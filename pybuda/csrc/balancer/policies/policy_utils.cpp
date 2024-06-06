@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "balancer/policies/policy_utils.hpp"
 
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <ostream>
@@ -24,6 +25,7 @@
 #include "shared_utils/pretty_table.hpp"
 #include "utils/assert.hpp"
 #include "utils/env.hpp"
+#include "utils/logger.hpp"
 #include "utils/yaml_utils.hpp"
 
 using Graph = tt::graphlib::Graph;
@@ -1955,10 +1957,12 @@ OpCycleEstimates get_op_cycles_estimates(
         {
             TT_ASSERT(selected_op_models->count(producer_node) > 0);
             OpModel const &producer_op_model = selected_op_models->at(producer_node);
-            noc_bw = static_cast<float>(
-                get_bandwidth_estimation(
-                    graph, edge, producer_op_model, op_model, false /* is_queue */, decompose_t_stream)
-                    .get_bandwidth());
+            noc_bw = std::min(
+                noc_bw,
+                static_cast<float>(
+                    get_bandwidth_estimation(
+                        graph, edge, producer_op_model, op_model, false /* is_queue */, decompose_t_stream)
+                        .get_bandwidth()));
         }
 
         float edge_dram_bw = dram_bw;
@@ -2409,6 +2413,12 @@ void EpochSolution::log_epoch_op_estimates_info(std::ostream &epoch_log_file, co
 
     WRITE_YAML_LINE(epoch_log_file, 4, op_model.buda_op_node->name() + ":");
 
+    std::string grid_shape_str =
+        "[" + std::to_string(op_model.grid_shape.r) + ", " + std::to_string(op_model.grid_shape.c) + "]";
+
+    // grid shape
+    WRITE_YAML_LINE(epoch_log_file, 8, YAML_KV_PAIR("grid_shape", grid_shape_str));
+
     // Limiter cycles
     WRITE_YAML_LINE(epoch_log_file, 8, YAML_KV_PAIR("limiter_cycles", std::to_string(limiter_cycles)));
 
@@ -2427,7 +2437,6 @@ void EpochSolution::log_epoch_op_estimates_info(std::ostream &epoch_log_file, co
                 "input_" << std::to_string(i) << "_bandwidth_estimate",
                 std::to_string(op_cycle_estimates.input_bw_estimates[i])));
     }
-
     // Output bandwidth estimates
     WRITE_YAML_LINE(epoch_log_file, 8, "output_bandwidth_estimates:");
     for (unsigned int i = 0; i < op_cycle_estimates.output_bw_estimates.size(); ++i)
@@ -2443,6 +2452,11 @@ void EpochSolution::log_epoch_op_estimates_info(std::ostream &epoch_log_file, co
 
 void EpochSolution::print() const
 {
+    if (!Logger<kLoggerABI>::get().trace_enabled())
+    {
+        return;
+    }
+
     for (const auto &op_model : selected_op_models)
     {
         log_trace(

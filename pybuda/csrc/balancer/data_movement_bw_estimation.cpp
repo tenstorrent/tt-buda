@@ -16,6 +16,7 @@
 #include "balancer/types.hpp"
 #include "graph_lib/node_types.hpp"
 #include "passes/t_stream.hpp"
+#include "shared_utils/sparse_matmul_utils.hpp"
 #include "src/net2pipe/inc/tile_maps.h"
 #include "utils/assert.hpp"
 
@@ -72,17 +73,27 @@ vector<OpType> get_tms_on_graph_edge(
     graphlib::OpNode const* consumer_node = dynamic_cast<OpNode const*>(graph->node_by_id(edge.consumer_node_id));
     auto edge_attr = graph->get_edge_attributes(edge);
     vector<OpType> tms = edge_attr->get_tms();
-
-    if (decompose_t_stream)
+    if (!decompose_t_stream)
     {
-        insert_t_stream_tms(
-            consumer_node,
-            tms,
-            consumer_op_model.t_stream_factor,
-            producer_op_model.t_stream_factor,
-            edge.consumer_input_port_id,
-            is_queue);
+        return tms;
     }
+
+    insert_t_stream_tms(
+        consumer_node,
+        tms,
+        consumer_op_model.t_stream_factor,
+        producer_op_model.t_stream_factor,
+        edge.consumer_input_port_id,
+        is_queue);
+
+    sparse::SparseBUDA::Layout layout =
+        sparse::SparseBUDA::create_layout(producer_op_model.t_stream_factor.dir.z_major());
+
+    if (layout == sparse::SparseBUDA::Layout::ZMajorDataflow)
+    {
+        insert_sparse_dataflow_tms(tms, producer_op_model);
+    }
+
     return tms;
 }
 

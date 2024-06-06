@@ -5,6 +5,9 @@
 
 #include "autograd/binding.hpp"
 #include "graph_lib/node_types.hpp"
+#include "passes_utils.hpp"
+#include "shared_utils/sparse_matmul_utils.hpp"
+#include "utils/assert.hpp"
 
 namespace tt
 {
@@ -509,4 +512,75 @@ void insert_t_stream_tms(Graph* graph, balancer::OpModelMap const& op_models)
             after_transpose);
     }
 }
+
+void insert_sparse_dataflow_tms(
+    graphlib::Graph const* graph, graphlib::Node const* node, OpModel const& op_model)
+{
+    for (Edge user : graph->user_data_edges(node))
+    {
+        auto& tms = graph->get_edge_attributes(user)->get_tms();
+        insert_sparse_dataflow_tms(tms, op_model);
+    }
+}
+
+void insert_sparse_dataflow_tms(std::vector<graphlib::OpType>& edge_tms, OpModel const& op_model)
+{
+    TT_ASSERT(edge_tms.size() >= 1 and edge_tms.size() <= 3);
+
+    sparse::SparseBUDA::Layout layout = sparse::SparseBUDA::create_layout(op_model.t_stream_factor.dir.z_major());
+    TT_ASSERT(op_model.is_sparse_matmul && layout == sparse::SparseBUDA::Layout::ZMajorDataflow);
+
+    bool needs_stack = false;
+    int row_slice = op_model.grid_shape.r * op_model.block_shape().rt();
+    bool backwards = edge_tms.front().op == "transpose";
+    int factor = 0;
+
+    if (backwards)
+    {
+        TT_ASSERT(edge_tms.size() >= 2);
+        TT_ASSERT(edge_tms[1].op == "hslice");
+        factor = std::get<int>(edge_tms[1].attr[0]);
+        if (edge_tms.size() > 2)
+        {
+            TT_ASSERT(edge_tms[2].op == "vstack");
+            TT_ASSERT(factor == std::get<int>(edge_tms[2].attr[0]));
+            needs_stack = true;
+        }
+    }
+    else
+    {
+        TT_ASSERT(edge_tms[0].op == "vslice");
+        factor = std::get<int>(edge_tms[0].attr[0]);
+        if (edge_tms.size() > 1)
+        {
+            TT_ASSERT(edge_tms[1].op == "hstack");
+            TT_ASSERT(factor == std::get<int>(edge_tms[1].attr[0]));
+            needs_stack = true;
+        }
+    }
+    TT_ASSERT(factor > 1);
+    TT_ASSERT(row_slice > 1);
+
+    edge_tms.clear();
+
+    if (backwards)
+    {
+        edge_tms.push_back(graphlib::OpType("transpose", {}, {}, {{"dim0", 2}, {"dim1", 3}, {"z_dim_slice", -1}}));
+        edge_tms.push_back(graphlib::OpType("hslice", {row_slice}, {}));
+        edge_tms.push_back(graphlib::OpType("vstack", {factor}, {}));
+        edge_tms.push_back(graphlib::OpType("hstack", {row_slice / factor}, {}));
+        if (not needs_stack)
+            edge_tms.push_back(graphlib::OpType("vslice", {factor}, {}));
+    }
+    else
+    {
+        edge_tms.push_back(graphlib::OpType("vslice", {row_slice}, {}));
+        edge_tms.push_back(graphlib::OpType("hstack", {factor}, {}));
+        edge_tms.push_back(graphlib::OpType("vstack", {row_slice / factor}, {}));
+        if (not needs_stack)
+            edge_tms.push_back(graphlib::OpType("hslice", {factor}, {}));
+    }
+    optimize_tms(edge_tms);
+}
+
 }  // namespace tt

@@ -19,6 +19,7 @@
 #include "passes/passes_utils.hpp"
 #include "placer/placer.hpp"
 #include "python_bindings_common.hpp"
+#include "passes/t_stream.hpp"
 
 using NodeType = tt::graphlib::NodeType;
 
@@ -131,74 +132,6 @@ static void add_broadcasts_for_sparse_inputs_0_2(
 
     input0_edge_attrs->set_tms(input0_edge_tms);
     input2_edge_attrs->set_tms(input2_edge_tms);
-}
-
-// Layout dataflow reorders the output buffer of sparse matmul in a way
-// such that each row of cores between a sparse/consumer pair has a 1to1
-// mapping of tiles and avoids inefficient gathers.  This function erases
-// the existing TMs along this path and replaces them with "per row core"
-// equivalent set of TMs.  This often results in more complicated TMs, but
-// much simpler pipes
-static void insert_sparse_dataflow_tms(
-    graphlib::Graph const* graph, graphlib::Node const* node, OpModel const& op_model)
-{
-    for (Edge user : graph->user_data_edges(node))
-    {
-        auto& tms = graph->get_edge_attributes(user)->get_tms();
-        TT_ASSERT(tms.size() >= 1 and tms.size() <= 3);
-
-        bool needs_stack = false;
-        int row_slice = op_model.grid_shape.r * op_model.block_shape().rt();
-        bool backwards = tms.front().op == "transpose";
-        int factor = 0;
-
-        if (backwards)
-        {
-            TT_ASSERT(tms.size() >= 2);
-            TT_ASSERT(tms[1].op == "hslice");
-            factor = std::get<int>(tms[1].attr[0]);
-            if (tms.size() > 2)
-            {
-                TT_ASSERT(tms[2].op == "vstack");
-                TT_ASSERT(factor == std::get<int>(tms[2].attr[0]));
-                needs_stack = true;
-            }
-        }
-        else
-        {
-            TT_ASSERT(tms[0].op == "vslice");
-            factor = std::get<int>(tms[0].attr[0]);
-            if (tms.size() > 1)
-            {
-                TT_ASSERT(tms[1].op == "hstack");
-                TT_ASSERT(factor == std::get<int>(tms[1].attr[0]));
-                needs_stack = true;
-            }
-        }
-        TT_ASSERT(factor > 1);
-        TT_ASSERT(row_slice > 1);
-
-        tms.clear();
-
-        if (backwards)
-        {
-            tms.push_back(graphlib::OpType("transpose", {}, {}, {{"dim0", 2}, {"dim1", 3}, {"z_dim_slice", -1}}));
-            tms.push_back(graphlib::OpType("hslice", {row_slice}, {}));
-            tms.push_back(graphlib::OpType("vstack", {factor}, {}));
-            tms.push_back(graphlib::OpType("hstack", {row_slice / factor}, {}));
-            if (not needs_stack)
-                tms.push_back(graphlib::OpType("vslice", {factor}, {}));
-        }
-        else
-        {
-            tms.push_back(graphlib::OpType("vslice", {row_slice}, {}));
-            tms.push_back(graphlib::OpType("hstack", {factor}, {}));
-            tms.push_back(graphlib::OpType("vstack", {row_slice / factor}, {}));
-            if (not needs_stack)
-                tms.push_back(graphlib::OpType("hslice", {factor}, {}));
-        }
-        optimize_tms(tms);
-    }
 }
 
 void print_perf_input_data(
