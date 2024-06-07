@@ -49,6 +49,10 @@ def whisper(training: bool, config: str, microbatch: int, devtype: str, arch: st
         raise RuntimeError("Unknown config")
     
     from pybuda._C.backend_api import BackendDevice
+
+    if data_type == "Fp16_b" and pybuda.detect_available_devices()[0] == BackendDevice.Wormhole_B0:
+        os.environ["PYBUDA_ENABLE_DRAM_IO_BUFFER_SCALING"] = "1"
+        os.environ["PYBUDA_ENABLE_INPUT_BUFFER_SCALING_FOR_NOC_READERS"] = "1"
     
     available_devices = pybuda.detect_available_devices()
     if available_devices:

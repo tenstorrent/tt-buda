@@ -4,8 +4,8 @@ unset PYBUDA_CI_DIR
 
 # TTI Save
 pybuda/test/benchmark/benchmark.py -m bert -c tiny -opt 4 -o perf.json --env "PYBUDA_EXP_APPROX=1 PYBUDA_DISABLE_DYNAMIC_DRAM=1 PYBUDA_FORCE_INTERMED_TO_OUTPUT_DF=1" --auto_transpose --save_tti device_images/bert_tiny.tti
-pybuda/test/benchmark/benchmark.py -m mobilenet_v1 -c 224 -opt 4 --loop_count 32 -mb 64 -bp Ribbon -df Fp16_b -mf HiFi2 --env "PYBUDA_RIBBON2=1 PYBUDA_DISABLE_INPUT_BUFFER_SCALING_FOR_NOC_READERS=1 PYBUDA_LEGACY_UBLOCK_SHAPE=1 PYBUDA_MAXIMIZE_SPARSE_UBLOCK=1 PYBUDA_ENABLE_L1_ACCUMULATE=1 PYBUDA_EXTRA_L1_MARGIN=65536 PYBUDA_FUSED_OP_MULTIPLIER=20 PYBUDA_ENABLE_DEPTHWISE=1" -o perf.json --auto_transpose --save_tti device_images/mobilenet_v1.tti
+pybuda/test/benchmark/benchmark.py -m mobilenet_v1 -c 224 -opt 4 --loop_count 32 -mb 64 -bp Ribbon -df Fp16_b -mf HiFi2 --env "PYBUDA_RIBBON2=1 PYBUDA_LEGACY_UBLOCK_SHAPE=1 PYBUDA_MAXIMIZE_SPARSE_UBLOCK=1 PYBUDA_ENABLE_L1_ACCUMULATE=1 PYBUDA_EXTRA_L1_MARGIN=65536 PYBUDA_FUSED_OP_MULTIPLIER=20 PYBUDA_ENABLE_DEPTHWISE=1" -o perf.json --auto_transpose --save_tti device_images/mobilenet_v1.tti
 
 # TTI Load
 pybuda/test/benchmark/benchmark.py -m bert -c tiny -opt 4 -o perf.json --env "PYBUDA_EXP_APPROX=1 PYBUDA_DISABLE_DYNAMIC_DRAM=1 PYBUDA_FORCE_INTERMED_TO_OUTPUT_DF=1" --auto_transpose --load_tti device_images/bert_tiny.tti
-pybuda/test/benchmark/benchmark.py -m mobilenet_v1 -c 224 -opt 4 --loop_count 32 -mb 64 -bp Ribbon -df Fp16_b -mf HiFi2 --env "PYBUDA_RIBBON2=1 PYBUDA_DISABLE_INPUT_BUFFER_SCALING_FOR_NOC_READERS=1 PYBUDA_LEGACY_UBLOCK_SHAPE=1 PYBUDA_MAXIMIZE_SPARSE_UBLOCK=1 PYBUDA_ENABLE_L1_ACCUMULATE=1 PYBUDA_EXTRA_L1_MARGIN=65536 PYBUDA_FUSED_OP_MULTIPLIER=20 PYBUDA_ENABLE_DEPTHWISE=1" -o perf.json --auto_transpose --load_tti device_images/mobilenet_v1.tti
+pybuda/test/benchmark/benchmark.py -m mobilenet_v1 -c 224 -opt 4 --loop_count 32 -mb 64 -bp Ribbon -df Fp16_b -mf HiFi2 --env "PYBUDA_RIBBON2=1 PYBUDA_LEGACY_UBLOCK_SHAPE=1 PYBUDA_MAXIMIZE_SPARSE_UBLOCK=1 PYBUDA_ENABLE_L1_ACCUMULATE=1 PYBUDA_EXTRA_L1_MARGIN=65536 PYBUDA_FUSED_OP_MULTIPLIER=20 PYBUDA_ENABLE_DEPTHWISE=1" -o perf.json --auto_transpose --load_tti device_images/mobilenet_v1.tti

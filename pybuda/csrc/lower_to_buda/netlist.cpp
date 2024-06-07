@@ -461,7 +461,7 @@ static BudaOp create_op(
         }
 
         // Optimize input_buf_min_size_tiles for noc readers
-        if (!env_as<bool>("PYBUDA_DISABLE_INPUT_BUFFER_SCALING_FOR_NOC_READERS", false))
+        if (env_as<bool>("PYBUDA_ENABLE_INPUT_BUFFER_SCALING_FOR_NOC_READERS", false))
         {
             input_buf_overrides |= optimize_op_noc_inputs(
                 input_buf_min_size_tiles, graph, op_model, operand_edges, device_config, input_dram_io_buf_size_tiles);
@@ -1378,7 +1378,79 @@ static std::vector<std::size_t> get_input_dram_io_buf_size_tiles(
     // DRAM IO buffer sizing
     TT_ASSERT(op_model.get_l1_memory_usage() <= device_config.get_l1_usable_size());
 
-    if (env_as<bool>("PYBUDA_USE_LEGACY_EXPLICIT_DRAM_IO"))
+    if (env_as<bool>("PYBUDA_ENABLE_DRAM_IO_BUFFER_SCALING"))
+    {
+        std::vector<Edge> operand_edges = graph->operand_data_edges(op_model.buda_op_node);
+        const int free_l1_space =
+            get_op_l1_free_space(op_model, operand_edges, input_dram_io_buf_size_tiles, device_config);
+
+        if (free_l1_space < 0)
+        {
+            return input_dram_io_buf_size_tiles;
+        }
+
+        const int pipegen_available_dram_io_space_per_stream = free_l1_space / num_dram_readers;
+        int current_stream_available_dram_io_space = pipegen_available_dram_io_space_per_stream;
+
+        for (std::size_t input_idx = 0; input_idx < operands.size(); ++input_idx)
+        {
+            Node *operand = operands[input_idx];
+            const Edge &edge = operand_edges[input_idx];
+            TT_ASSERT(edge.producer_node_id == operand->id());
+
+            bool is_prologue = bool(op_model.parameter_buffers[input_idx]);
+            if (!dram_io_queue_node(operand) || is_prologue)
+            {
+                continue;
+            }
+
+            const int tile_size_in_bytes =
+                static_cast<int>(balancer::tile_size_bytes(op_model.input_buffers[input_idx].data_format));
+            const int dram_io_input_space_tiles = current_stream_available_dram_io_space / tile_size_in_bytes;
+
+            // Skip calculating dram read pipe HW configuration if the dram io available space is small, since pipegen
+            // won't be able to increase perf by a whole lot in this case.
+            if (current_stream_available_dram_io_space <= balancer::c_max_dram_pending_read_bytes)
+            {
+                input_dram_io_buf_size_tiles[input_idx] = dram_io_input_space_tiles;
+                continue;
+            }
+
+            const balancer::OpModel &queue_op_model = get_input_queue_op_model(graph, operand, balancer_solution);
+
+            try
+            {
+                balancer::DramReadPipeHWConfiguration dram_read_pipe_hw_config =
+                    balancer::get_dram_read_pipe_hw_configuration(
+                        graph, edge, queue_op_model, op_model, current_stream_available_dram_io_space);
+
+                TT_ASSERT(
+                    dram_read_pipe_hw_config.dram_receiving_stream_buffer_size_tiles <= dram_io_input_space_tiles);
+                input_dram_io_buf_size_tiles[input_idx] =
+                    dram_read_pipe_hw_config.dram_receiving_stream_buffer_size_tiles;
+
+                // Allow next inputs to use more space, if the current input doesn't need all the space allocated for
+                // it.
+                current_stream_available_dram_io_space +=
+                    (pipegen_available_dram_io_space_per_stream -
+                     dram_read_pipe_hw_config.dram_receiving_stream_buffer_size_tiles * tile_size_in_bytes);
+            }
+            catch (const std::exception &e)
+            {
+                // This error can occur if the current pybuda data movement estimation API is missing implementation of
+                // all possible dram read types that BBE supports.
+                log_trace(
+                    LogLowerToBuda,
+                    "Failed to compute dram read pipe HW configuration for pipe {} -> {}. Falling back to default dram "
+                    "io "
+                    "size parameter value",
+                    operand->name(),
+                    node->name());
+                input_dram_io_buf_size_tiles[input_idx] = dram_io_input_space_tiles;
+            }
+        }
+    }
+    else
     {
         // We can reclaim the default pipegen carve out space for DRAM io get_l1_dram_io_backend_reserved_size
         const int dram_io_space_per_input = device_config.get_l1_dram_io_backend_reserved_size() / num_dram_readers;
@@ -1412,74 +1484,6 @@ static std::vector<std::size_t> get_input_dram_io_buf_size_tiles(
         }
 
         return input_dram_io_buf_size_tiles;
-    }
-
-    std::vector<Edge> operand_edges = graph->operand_data_edges(op_model.buda_op_node);
-    const int free_l1_space =
-        get_op_l1_free_space(op_model, operand_edges, input_dram_io_buf_size_tiles, device_config);
-
-    if (free_l1_space < 0)
-    {
-        return input_dram_io_buf_size_tiles;
-    }
-
-    const int pipegen_available_dram_io_space_per_stream = free_l1_space / num_dram_readers;
-    int current_stream_available_dram_io_space = pipegen_available_dram_io_space_per_stream;
-
-    for (std::size_t input_idx = 0; input_idx < operands.size(); ++input_idx)
-    {
-        Node *operand = operands[input_idx];
-        const Edge &edge = operand_edges[input_idx];
-        TT_ASSERT(edge.producer_node_id == operand->id());
-
-        bool is_prologue = bool(op_model.parameter_buffers[input_idx]);
-        if (!dram_io_queue_node(operand) || is_prologue)
-        {
-            continue;
-        }
-
-        const int tile_size_in_bytes =
-            static_cast<int>(balancer::tile_size_bytes(op_model.input_buffers[input_idx].data_format));
-        const int dram_io_input_space_tiles = current_stream_available_dram_io_space / tile_size_in_bytes;
-
-        // Skip calculating dram read pipe HW configuration if the dram io available space is small, since pipegen
-        // won't be able to increase perf by a whole lot in this case.
-        if (current_stream_available_dram_io_space <= balancer::c_max_dram_pending_read_bytes)
-        {
-            input_dram_io_buf_size_tiles[input_idx] = dram_io_input_space_tiles;
-            continue;
-        }
-
-        const balancer::OpModel &queue_op_model = get_input_queue_op_model(graph, operand, balancer_solution);
-
-        try
-        {
-            balancer::DramReadPipeHWConfiguration dram_read_pipe_hw_config =
-                balancer::get_dram_read_pipe_hw_configuration(
-                    graph, edge, queue_op_model, op_model, current_stream_available_dram_io_space);
-
-            TT_ASSERT(dram_read_pipe_hw_config.dram_receiving_stream_buffer_size_tiles <= dram_io_input_space_tiles);
-            input_dram_io_buf_size_tiles[input_idx] = dram_read_pipe_hw_config.dram_receiving_stream_buffer_size_tiles;
-
-            // Allow next inputs to use more space, if the current input doesn't need all the space allocated for
-            // it.
-            current_stream_available_dram_io_space +=
-                (pipegen_available_dram_io_space_per_stream -
-                 dram_read_pipe_hw_config.dram_receiving_stream_buffer_size_tiles * tile_size_in_bytes);
-        }
-        catch (const std::exception &e)
-        {
-            // This error can occur if the current pybuda data movement estimation API is missing implementation of
-            // all possible dram read types that BBE supports.
-            log_trace(
-                LogLowerToBuda,
-                "Failed to compute dram read pipe HW configuration for pipe {} -> {}. Falling back to default dram "
-                "io "
-                "size parameter value",
-                operand->name(),
-                node->name());
-            input_dram_io_buf_size_tiles[input_idx] = dram_io_input_space_tiles;
-        }
     }
 
     return input_dram_io_buf_size_tiles;

@@ -13,11 +13,17 @@ from pybuda.config import _get_global_compiler_config
 @benchmark_model(configs=["base", "large"])
 def t5(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str):
 
+    from pybuda._C.backend_api import BackendDevice
+
     compiler_cfg = _get_global_compiler_config()
 
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"
         os.environ["PYBUDA_RIBBON2"] = "1"
+
+    if data_type == "Fp16_b" and pybuda.detect_available_devices()[0] == BackendDevice.Wormhole_B0:
+        os.environ["PYBUDA_ENABLE_DRAM_IO_BUFFER_SCALING"] = "1"
+        os.environ["PYBUDA_ENABLE_INPUT_BUFFER_SCALING_FOR_NOC_READERS"] = "1"
 
     # These are about to be enabled by default.
     #
@@ -53,11 +59,17 @@ def t5(training: bool, config: str, microbatch: int, devtype: str, arch: str, da
 @benchmark_model(configs=["base", "large"])
 def flan_t5(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str):
 
+    from pybuda._C.backend_api import BackendDevice
+
     compiler_cfg = _get_global_compiler_config()
 
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"
         os.environ["PYBUDA_RIBBON2"] = "1"
+
+    if data_type == "Fp16_b" and pybuda.detect_available_devices()[0] == BackendDevice.Wormhole_B0:
+        os.environ["PYBUDA_ENABLE_DRAM_IO_BUFFER_SCALING"] = "1"
+        os.environ["PYBUDA_ENABLE_INPUT_BUFFER_SCALING_FOR_NOC_READERS"] = "1"
 
     # These are about to be enabled by default.
     #

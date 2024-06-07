@@ -45,7 +45,8 @@ def bert(training: bool, config: str, microbatch: int, devtype: str, arch: str, 
 
     compiler_cfg = _get_global_compiler_config()
 
-    os.environ["PYBUDA_USE_LEGACY_EXPLICIT_DRAM_IO"] = "1"
+    if data_type == "Bfp8_b" and pybuda.detect_available_devices()[0] == BackendDevice.Wormhole_B0:
+        os.environ["PYBUDA_ENABLE_INPUT_BUFFER_SCALING_FOR_NOC_READERS"] = "1"
 
     if config == "tiny":
         model_name = "prajjwal1/bert-tiny"

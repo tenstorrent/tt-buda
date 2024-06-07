@@ -16,6 +16,8 @@ from transformers import ResNetForImageClassification
 @benchmark_model(configs=["resnet18", "resnet50"])
 def resnet(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str):
 
+    from pybuda._C.backend_api import BackendDevice
+
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_auto_transposing_placement = True
 
@@ -25,6 +27,10 @@ def resnet(training: bool, config: str, microbatch: int, devtype: str, arch: str
 
     os.environ["PYBUDA_ENABLE_HOST_INPUT_NOP_BUFFERING"] = "1"
     os.environ["PYBUDA_ALLOW_MULTICOLUMN_SPARSE_MATMUL"] = "1"
+
+    if data_type == "Bfp8_b" and pybuda.detect_available_devices()[0] == BackendDevice.Wormhole_B0:
+        os.environ["PYBUDA_ENABLE_DRAM_IO_BUFFER_SCALING"] = "1"
+        os.environ["PYBUDA_ENABLE_INPUT_BUFFER_SCALING_FOR_NOC_READERS"] = "1"
 
     # These are about to be enabled by default.
     #
@@ -62,6 +68,8 @@ def resnet(training: bool, config: str, microbatch: int, devtype: str, arch: str
 @benchmark_model(configs=["resnet50"])
 def resnet_quant(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str):
 
+    from pybuda._C.backend_api import BackendDevice
+
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.enable_auto_fusing = False
@@ -70,6 +78,10 @@ def resnet_quant(training: bool, config: str, microbatch: int, devtype: str, arc
     os.environ["PYBUDA_DISABLE_CONV_MULTI_OP_FRACTURE"] = "1"
     os.environ["PYBUDA_DISABLE_FUSE_OPS"] = "1"
     os.environ["PYBUDA_RIBBON2"] = "1"
+
+    if data_type == "Fp32" and pybuda.detect_available_devices()[0] == BackendDevice.Wormhole_B0:
+        os.environ["PYBUDA_ENABLE_DRAM_IO_BUFFER_SCALING"] = "1"
+        os.environ["PYBUDA_ENABLE_INPUT_BUFFER_SCALING_FOR_NOC_READERS"] = "1"
 
     # Set model parameters based on chosen task and model configuration
     if config == "resnet50":

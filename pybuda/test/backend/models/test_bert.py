@@ -515,7 +515,6 @@ def test_pt_encoder(test_kind, test_device, size, encoder_count, num_chips):
 
     if test_kind.is_training() and size == "large":
         os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{77*1024}"
-        os.environ["PYBUDA_DISABLE_INPUT_BUFFER_SCALING_FOR_NOC_READERS"] = "1"
 
     waive_gradient_errors = {"attention.self.key.bias"}
     verify_module(encoder, [(microbatch, seq_len, config.hidden_size), (microbatch, 1, seq_len, seq_len)],

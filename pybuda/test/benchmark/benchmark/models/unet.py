@@ -11,6 +11,9 @@ from pybuda.config import _get_global_compiler_config
 
 @benchmark_model(configs=["256"])
 def unet(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str):
+
+    from pybuda._C.backend_api import BackendDevice
+
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_tvm_constant_prop = True
     compiler_cfg.enable_auto_transposing_placement = True
@@ -18,6 +21,10 @@ def unet(training: bool, config: str, microbatch: int, devtype: str, arch: str, 
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"
         os.environ["PYBUDA_RIBBON2"] = "1"
+
+    if data_type == "Bfp8_b" and pybuda.detect_available_devices()[0] == BackendDevice.Wormhole_B0:
+        os.environ["PYBUDA_ENABLE_DRAM_IO_BUFFER_SCALING"] = "1"
+        os.environ["PYBUDA_ENABLE_INPUT_BUFFER_SCALING_FOR_NOC_READERS"] = "1"
 
     # Manually enable amp light for Ribbon
     if compiler_cfg.balancer_policy == "Ribbon":

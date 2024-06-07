@@ -12,6 +12,9 @@ from pytorchcv.model_provider import get_model as ptcv_get_model
 
 @benchmark_model(configs=["2d", "3d"])
 def openpose_osmr_body(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str):
+
+    from pybuda._C.backend_api import BackendDevice
+
     # Configurations
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.enable_auto_transposing_placement = True
@@ -19,6 +22,10 @@ def openpose_osmr_body(training: bool, config: str, microbatch: int, devtype: st
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"
         os.environ["PYBUDA_RIBBON2"] = "1" 
+
+    if data_type == "Fp16" and pybuda.detect_available_devices()[0] == BackendDevice.Wormhole_B0:
+        os.environ["PYBUDA_ENABLE_DRAM_IO_BUFFER_SCALING"] = "1"
+        os.environ["PYBUDA_ENABLE_INPUT_BUFFER_SCALING_FOR_NOC_READERS"] = "1"
 
     os.environ["PYBUDA_SUPRESS_T_FACTOR_MM"] = "13"
     os.environ["PYBUDA_ENABLE_HOST_INPUT_NOP_BUFFERING"] = "1"

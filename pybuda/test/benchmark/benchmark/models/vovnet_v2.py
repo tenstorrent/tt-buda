@@ -18,6 +18,10 @@ def vovnet_v2(training: bool, config: str, microbatch: int, devtype: str, arch: 
     available_devices = pybuda.detect_available_devices()
     if available_devices[0] != BackendDevice.Grayskull:
         compiler_cfg.enable_auto_transposing_placement = True
+        
+    if data_type == "Bfp8_b" and pybuda.detect_available_devices()[0] == BackendDevice.Wormhole_B0:
+        os.environ["PYBUDA_ENABLE_DRAM_IO_BUFFER_SCALING"] = "1"
+        os.environ["PYBUDA_ENABLE_INPUT_BUFFER_SCALING_FOR_NOC_READERS"] = "1"
 
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"

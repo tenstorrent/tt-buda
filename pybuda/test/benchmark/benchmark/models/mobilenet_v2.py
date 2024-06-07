@@ -12,6 +12,8 @@ from transformers import AutoModelForImageClassification
 
 @benchmark_model(configs=["224", "160", "96"])
 def mobilenet_v2(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str):
+
+    from pybuda._C.backend_api import BackendDevice
     
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_auto_transposing_placement = True
@@ -19,6 +21,10 @@ def mobilenet_v2(training: bool, config: str, microbatch: int, devtype: str, arc
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"
         os.environ["PYBUDA_RIBBON2"] = "1"
+
+    if data_type == "Bfp8_b" and pybuda.detect_available_devices()[0] == BackendDevice.Wormhole_B0:
+        os.environ["PYBUDA_ENABLE_DRAM_IO_BUFFER_SCALING"] = "1"
+        os.environ["PYBUDA_ENABLE_INPUT_BUFFER_SCALING_FOR_NOC_READERS"] = "1"
 
     os.environ["PYBUDA_ENABLE_HOST_INPUT_NOP_BUFFERING"] = "1"
 
