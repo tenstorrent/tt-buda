@@ -392,6 +392,7 @@ void PolicyManager::start_new_epoch(graphlib::NodeEpochType epoch_type)
     cut_graph_solver_epoch(graph, interactive_placer, *graph_solver_main);
     current_epoch_type = epoch_type;
     interactive_placer.next_epoch(current_epoch_type);
+    bool op_index_decrement = current_epoch_ops.count(current_op_node) == 0;
     if (use_interactive_fj_buffering or ribbon_policy)
     {
         // Starting new epoch, make graph solver snapshot, record processed nodes,
@@ -427,8 +428,9 @@ void PolicyManager::start_new_epoch(graphlib::NodeEpochType epoch_type)
         }
     }
 
-    op_index--;
-
+    if (op_index_decrement) {
+        op_index--;
+    }
     // Start new epoch, place op again.
     //
     log_debug(LogBalancer, "Starting new epoch");

@@ -4,6 +4,7 @@
 #include "balancer/policies/policies.hpp"
 
 #include "balancer/balancer.hpp"
+#include "balancer/policies/policy_single_op_per_epoch.hpp"
 #include "balancer/policies/policy_cnn.hpp"
 #include "balancer/policies/policy_maximize_t_minimize_grid.hpp"
 #include "balancer/policies/policy_minimize_grid.hpp"
@@ -92,6 +93,17 @@ BalancerPolicySolution run_policy(
             }
             break;
         }
+        case PolicyType::SingleOpPerEpoch:
+        {
+            if (!config.use_interactive_placer)
+            {
+                TT_THROW(
+                    "SingleOpPerEpoch policy has to use interactive placer! Enable interactive placer or switch to other "
+                    "balancing policy.");
+            }
+            balancer_policy_solution = run_policy_single_op_per_epoch(graph, config, graph_solver);
+            break;
+        }
         default:
         {
             log_fatal("Unsupported policy_type {}", config.policy_type);
@@ -120,7 +132,8 @@ bool can_use_interactive_placer(PolicyType policy_type)
 
         case PolicyType::Random:
         case PolicyType::NLP:
-        case PolicyType::Ribbon: return true;
+        case PolicyType::Ribbon: 
+        case PolicyType::SingleOpPerEpoch: return true;
 
         default: TT_ASSERT("Undefined interactive placer usage for policy!");
     }

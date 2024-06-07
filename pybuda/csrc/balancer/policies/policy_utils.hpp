@@ -200,6 +200,8 @@ inline PolicyType policy_from_string(std::string const& s)
         return PolicyType::CNN;
     else if (s == "Ribbon")
         return PolicyType::Ribbon;
+    else if (s == "SingleOpPerEpoch")
+        return PolicyType::SingleOpPerEpoch;
     else if (s == "default")  // default policy
         return PolicyType::NLP;
 
@@ -218,6 +220,7 @@ inline std::string policy_to_string(PolicyType p)
         case PolicyType::NLP: return "NLP";
         case PolicyType::CNN: return "CNN";
         case PolicyType::Ribbon: return "Ribbon";
+        case PolicyType::SingleOpPerEpoch: return "SingleOpPerEpoch";
         default: break;
     }
     return "Unknown";

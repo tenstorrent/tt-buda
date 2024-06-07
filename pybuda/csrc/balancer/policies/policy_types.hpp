@@ -15,7 +15,8 @@ enum class PolicyType
     Random,
     NLP,
     CNN,
-    Ribbon
+    Ribbon,
+    SingleOpPerEpoch
 };
 
 bool can_use_interactive_placer(PolicyType policy_type);

@@ -59,6 +59,7 @@ void BalancerModule(py::module &m_balancer) {
         .value("NLP", PolicyType::NLP)
         .value("CNN", PolicyType::CNN)
         .value("Ribbon", PolicyType::Ribbon)
+        .value("SingleOpPerEpoch", PolicyType::SingleOpPerEpoch)
         .export_values();
 
     py::class_<GridShape>(m_balancer, "GridShape")

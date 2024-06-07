@@ -36,6 +36,7 @@ std::ostream& operator<<(std::ostream& stream, PolicyType policy_type)
         case PolicyType::NLP: stream << "PolicyType::NLP"; break;
         case PolicyType::CNN: stream << "PolicyType::CNN"; break;
         case PolicyType::Ribbon: stream << "PolicyType::Ribbon"; break;
+        case PolicyType::SingleOpPerEpoch: stream << "PolicyType::SingleOpPerEpoch"; break;
         default: stream << "PolicyType::Unknown"; break;
     }
     return stream;
