@@ -323,8 +323,20 @@ class TTIArchive:
         if device_img_path_override:
             device_img_path = device_img_path_override
         else:
+            # Calculate device image path based on the current test
+            img_path_to_hash = get_current_pytest()
+            # TT images are different for different device configurations, hence try
+            # to get device-config argument to incorporate it as a part of the hash
+            if "PYTEST_CURRENT_TEST" in os.environ:
+                cnt = 0
+                for argv in sys.argv:
+                    if argv.startswith("--device-config"):
+                        img_path_to_hash = f"{img_path_to_hash}_{sys.argv[cnt+1]}"
+                        break
+                    cnt = cnt + 1
+
             DEFAULT_DEVICE_PATH = (
-                f"device_images/tt_{generate_hash(get_current_pytest())}.tti"
+                f"device_images/tt_{generate_hash(img_path_to_hash)}.tti"
             )
             device_img_path = DEFAULT_DEVICE_PATH
         return device_img_path
