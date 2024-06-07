@@ -79,6 +79,9 @@ def calculate_conv2d_output_dimensions(
         stride = [stride] * 2
 
     assert len(padding) == 4 and all(isinstance(x, int) for x in padding), "Padding should be list of four ints"
+    
+    if dilation != 1:
+        logger.warning("Dilation values other than 1 are not supported for kernel fracturing.")
 
     # Pooling layers (max, avg)
     if isinstance(kernel_size, int):
