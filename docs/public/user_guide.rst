@@ -17,28 +17,30 @@ Compiling and running a PyBuda workload is as easy as:
   import pybuda
   import torch
   from transformers import BertModel, BertConfig
-  
-  # Download the model from huggingface
-  model = BertModel.from_pretrained("bert-base-uncased")
-  
-  # Wrap the pytorch model in a PyBuda module wrapper
-  module = pybuda.PyTorchModule("bert_encoder", model.encoder)
-  
-  # Create a tenstorrent device
-  tt0 = pybuda.TTDevice(
-      "tt0",
-      module=module,
-      arch=pybuda.BackendDevice.Wormhole_B0,
-      devtype=pybuda.BackendType.Silicon,
-  )
-  
-  # Create an input tensor
-  seq_len = 128
-  input = torch.randn(1, seq_len, model.config.hidden_size)
-  
-  # Compile and run inference
-  output_queue = pybuda.run_inference(inputs=[input])
-  print(output_queue.get())
+
+  # Guard in the main module to avoid creating subprocesses recursively.
+  if __name__ == "__main__":
+      # Download the model from huggingface
+      model = BertModel.from_pretrained("bert-base-uncased")
+
+      # Wrap the pytorch model in a PyBuda module wrapper
+      module = pybuda.PyTorchModule("bert_encoder", model.encoder)
+
+      # Create a tenstorrent device
+      tt0 = pybuda.TTDevice(
+          "tt0",
+          module=module,
+          arch=pybuda.BackendDevice.Wormhole_B0,
+          devtype=pybuda.BackendType.Silicon,
+      )
+
+      # Create an input tensor
+      seq_len = 128
+      input = torch.randn(1, seq_len, model.config.hidden_size)
+
+      # Compile and run inference
+      output_queue = pybuda.run_inference(inputs=[input])
+      print(output_queue.get())
 
 
 Framework Support
@@ -623,20 +625,22 @@ Here is a simple example to (1) tag operations of interest and (2) fetch interme
            matmul2 = pybuda.op.Matmul("matmul2", matmul1_gelu, self.weights2)
            return matmul2
 
-   # Configure Pybuda compilation options to include a list of operations to collect intermediate tensors
-   tagged_operations = ["matmul1", "gelu"]
-   pybuda.set_configuration_options(op_intermediates_to_save=tagged_operations)
+   # Guard in the main module to avoid creating subprocesses recursively.
+   if __name__ == "__main__":
+       # Configure Pybuda compilation options to include a list of operations to collect intermediate tensors
+       tagged_operations = ["matmul1", "gelu"]
+       pybuda.set_configuration_options(op_intermediates_to_save=tagged_operations)
 
-   # Invoke the run_inference API to create device, compile and run module on device:
-   output_q = pybuda.run_inference(PyBudaTestModule("test_module"), inputs=[torch.randn(1, 32, 32)])
+       # Invoke the run_inference API to create device, compile and run module on device:
+       output_q = pybuda.run_inference(PyBudaTestModule("test_module"), inputs=[torch.randn(1, 32, 32)])
 
-   # After running inference, the intermediates queue will contain the ordered list of tagged intermediates
-   intermediates_queue = pybuda.get_intermediates_queue()
-   matmul1_tensor, gelu_tensor = intermediates_queue.get()
+       # After running inference, the intermediates queue will contain the ordered list of tagged intermediates
+       intermediates_queue = pybuda.get_intermediates_queue()
+       matmul1_tensor, gelu_tensor = intermediates_queue.get()
 
-   # Print tensor values recorded from device inference
-   print(matmul1_tensor)
-   print(gelu_tensor)
+       # Print tensor values recorded from device inference
+       print(matmul1_tensor)
+       print(gelu_tensor)
 
 
 Multiple Devices
@@ -765,7 +769,7 @@ The following Python code generates a Multi-Model TTI in a manner identical to t
 
   model_binary_loc = "device_images_to_merge"
   models_to_merge = ["bert_large", "deit", "hrnet", "inception", "mobilenet_v1", "mobilenet_v2", "mobilenet_v3", "resnet", "unet", "vit"]
-  target_arch = "wormhole_b0
+  target_arch = "wormhole_b0"
   merged_model_location = "multi_model_workload.tti"
 
   # Individual Model Generation Code Goes Here
