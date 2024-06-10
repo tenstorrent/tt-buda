@@ -423,7 +423,6 @@ supported_backend_configurations = {
     "galaxy"       : "tti/runtime_param_yamls/galaxy_syslevel.yaml",
     "gs_e150"      : "tti/runtime_param_yamls/gs_e150_syslevel.yaml",
     "gs_e300"      : "tti/runtime_param_yamls/gs_e300_syslevel.yaml",
-    "bh_test"      : "tti/runtime_param_yamls/bh_syslevel.yaml",
 }
 
 # Global compiler configuration

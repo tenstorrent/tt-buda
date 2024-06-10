@@ -91,10 +91,6 @@ bbe_files = {
         "path": "third_party/tt_llk_wormhole_b0",
         "files": "*"
     },
-    "third_party_blackhole": {
-        "path": "third_party/tt_llk_blackhole",
-        "files": "*"
-    },
     "kernel_gen": {
         "path": "build/src/ckernels/gen/out",
         "files": "*",
@@ -144,7 +140,7 @@ bbe_files = {
     },
 }
 
-if "BACKEND_ARCH_NAME" in os.environ and os.environ["BACKEND_ARCH_NAME"] == "wormhole_b0" or os.environ["BACKEND_ARCH_NAME"] == "blackhole":
+if "BACKEND_ARCH_NAME" in os.environ and os.environ["BACKEND_ARCH_NAME"] == "wormhole_b0":
     bbe_files["firmware_erisc_hex"] = {
         "path": "build/src/firmware/riscv/targets/erisc_app/out",
         "files": [

@@ -174,7 +174,6 @@ DEVICE_CONFIG_TO_BACKEND_DEVICE_TYPE = {
     "wh_n150": BackendDevice.Wormhole_B0,
     "wh_n300": BackendDevice.Wormhole_B0,
     "galaxy": BackendDevice.Wormhole_B0,
-    "bh_test": BackendDevice.Blackhole,
 }
 
 @dataclass
@@ -275,9 +274,6 @@ def pytest_generate_tests(metafunc):
 
     if "training" in metafunc.fixturenames:
         metafunc.parametrize("training", (False, True), ids=["inference", "training"])
-    
-    # Configure backend runtime yaml
-    device_cfg_global = metafunc.config.getoption("--device-config")
 
     if "test_device" in metafunc.fixturenames:
         names = ["Golden", "Model", "Versim", "Emulation", "Grayskull", "Wormhole_B0", "Blackhole"]
@@ -312,6 +308,9 @@ def pytest_generate_tests(metafunc):
         ids = [name for (_, name) in enabled_devices]
         
         metafunc.parametrize("test_device", params, ids=ids)
+
+    # Configure backend runtime yaml
+    device_cfg_global = metafunc.config.getoption("--device-config")
 
 environ_before_test = None
 def pytest_runtest_logreport(report):

@@ -464,7 +464,8 @@ class simple_matmul(PyBudaModule):
             x = pybuda.op.Matmul("", x, self.weights)
             return x
 
-def test_tti_save_load_verify_module(test_device):
+@pytest.mark.parametrize("two_rows_harvested", [True, False])
+def test_tti_save_load_verify_module(test_device, two_rows_harvested):
     if test_device.arch == BackendDevice.Grayskull:
         pytest.skip("Under development")
 
