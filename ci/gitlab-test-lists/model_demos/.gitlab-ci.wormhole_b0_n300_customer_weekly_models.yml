@@ -2108,47 +2108,47 @@ customer-pytorch-opt-opt-sequence-classification-pytorch[facebook/opt-1.3b]-wh-b
   - !reference [.customer-weekly-models-wh-b0-n300-silicon, script]
   - pytest -svv tests/test_pytorch_opt.py::test_opt_sequence_classification_pytorch[facebook/opt-1.3b]
 
-customer-pytorch-perceiverio-perceiverio-pytorch[deepmind/vision-perceiver-conv]-wh-b0-n300-golden:
+customer-pytorch-perceiverio-perceiverio-conv-pytorch-wh-b0-n300-golden:
   stage: weekly-customer-models-wh-b0-n300-golden-1
   extends: .customer-weekly-models-wh-b0-n300-golden
   script:
   - !reference [.customer-weekly-models-wh-b0-n300-golden, script]
-  - pytest -svv tests/test_pytorch_perceiverio.py::test_perceiverio_pytorch[deepmind/vision-perceiver-conv]
+  - pytest -svv tests/test_pytorch_perceiverio.py::test_perceiverio_conv_pytorch
 
-customer-pytorch-perceiverio-perceiverio-pytorch[deepmind/vision-perceiver-conv]-wh-b0-n300-silicon:
+customer-pytorch-perceiverio-perceiverio-conv-pytorch-wh-b0-n300-silicon:
   stage: weekly-customer-models-wh-b0-n300-silicon-1
   extends: .customer-weekly-models-wh-b0-n300-silicon
   script:
   - !reference [.customer-weekly-models-wh-b0-n300-silicon, script]
-  - pytest -svv tests/test_pytorch_perceiverio.py::test_perceiverio_pytorch[deepmind/vision-perceiver-conv]
+  - pytest -svv tests/test_pytorch_perceiverio.py::test_perceiverio_conv_pytorch
 
-customer-pytorch-perceiverio-perceiverio-pytorch[deepmind/vision-perceiver-fourier]-wh-b0-n300-golden:
+customer-pytorch-perceiverio-perceiverio-fourier-pytorch-wh-b0-n300-golden:
   stage: weekly-customer-models-wh-b0-n300-golden-1
   extends: .customer-weekly-models-wh-b0-n300-golden
   script:
   - !reference [.customer-weekly-models-wh-b0-n300-golden, script]
-  - pytest -svv tests/test_pytorch_perceiverio.py::test_perceiverio_pytorch[deepmind/vision-perceiver-fourier]
+  - pytest -svv tests/test_pytorch_perceiverio.py::test_perceiverio_fourier_pytorch
 
-customer-pytorch-perceiverio-perceiverio-pytorch[deepmind/vision-perceiver-fourier]-wh-b0-n300-silicon:
+customer-pytorch-perceiverio-perceiverio-fourier-pytorch-wh-b0-n300-silicon:
   stage: weekly-customer-models-wh-b0-n300-silicon-1
   extends: .customer-weekly-models-wh-b0-n300-silicon
   script:
   - !reference [.customer-weekly-models-wh-b0-n300-silicon, script]
-  - pytest -svv tests/test_pytorch_perceiverio.py::test_perceiverio_pytorch[deepmind/vision-perceiver-fourier]
+  - pytest -svv tests/test_pytorch_perceiverio.py::test_perceiverio_fourier_pytorch
 
-customer-pytorch-perceiverio-perceiverio-pytorch[deepmind/vision-perceiver-learned]-wh-b0-n300-golden:
+customer-pytorch-perceiverio-perceiverio-learned-pytorch-wh-b0-n300-golden:
   stage: weekly-customer-models-wh-b0-n300-golden-1
   extends: .customer-weekly-models-wh-b0-n300-golden
   script:
   - !reference [.customer-weekly-models-wh-b0-n300-golden, script]
-  - pytest -svv tests/test_pytorch_perceiverio.py::test_perceiverio_pytorch[deepmind/vision-perceiver-learned]
+  - pytest -svv tests/test_pytorch_perceiverio.py::test_perceiverio_learned_pytorch
 
-customer-pytorch-perceiverio-perceiverio-pytorch[deepmind/vision-perceiver-learned]-wh-b0-n300-silicon:
+customer-pytorch-perceiverio-perceiverio-learned-pytorch-wh-b0-n300-silicon:
   stage: weekly-customer-models-wh-b0-n300-silicon-1
   extends: .customer-weekly-models-wh-b0-n300-silicon
   script:
   - !reference [.customer-weekly-models-wh-b0-n300-silicon, script]
-  - pytest -svv tests/test_pytorch_perceiverio.py::test_perceiverio_pytorch[deepmind/vision-perceiver-learned]
+  - pytest -svv tests/test_pytorch_perceiverio.py::test_perceiverio_learned_pytorch
 
 customer-pytorch-resnet-resnet-pytorch[microsoft/resnet-18]-wh-b0-n300-golden:
   stage: weekly-customer-models-wh-b0-n300-golden-1
