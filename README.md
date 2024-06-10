@@ -49,4 +49,3 @@ Set `LD_LIBRARY_PATH` to the location of `third_party/budabackend/build/lib` - p
 ## Silicon
 
 See README.silicon.md for details on how to run on silicon.
-
