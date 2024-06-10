@@ -2025,8 +2025,13 @@ std::shared_ptr<InsertionInstruction> merge_instructions(
 
     if (instr->instr_type == InstructionType::QueueInstruction)
     {
-        // Return the new Queue instruction (queues have precedence over nops).
-        return instr;
+        // Return the new queue instruction (queues have precedence over nops),
+        // but update its input_id and dest name to match the previous instruction.
+        std::shared_ptr<QueueInsertionInstruction> merged_instr =
+            std::make_shared<QueueInsertionInstruction>(*static_cast<QueueInsertionInstruction *>(instr.get()));
+        merged_instr->dest = prev_instr->dest;
+        merged_instr->input_id = prev_instr->input_id;
+        return merged_instr;
     }
 
     TT_ASSERT(instr->instr_type == InstructionType::NopInstruction);
@@ -2096,7 +2101,10 @@ InsertionInstructionMap merge_with_prev_instr(
             log_trace(
                 LogGraphCompiler,
                 "Found an existing instruction in prev_instructions with the same key as the new one!");
-            combined_instructions[key] = merge_instructions(combined_instructions[key], instr);
+
+            auto merged_instr = merge_instructions(combined_instructions[key], instr);
+            TT_ASSERT(key == merged_instr->unique_id(), "Unique id of merged instruction should be the same as the one of the previous instruction.");
+            combined_instructions[key] = merged_instr;
         }
         else
         {
@@ -2136,7 +2144,9 @@ InsertionInstructionMap merge_with_prev_instr(
                 if (combined_instructions.count(id) != 0)
                 {
                     log_trace(LogGraphCompiler, "Merging with previous instruction: {}", combined_instructions[id]);
-                    combined_instructions[id] = merge_instructions(combined_instructions[id], instr);
+                    auto merged_instr = merge_instructions(combined_instructions[id], instr);
+                    TT_ASSERT(id == merged_instr->unique_id(), "Unique id of merged instruction should be the same as the one of the previous instruction.");
+                    combined_instructions[id] = merged_instr;
                     continue;
                 }
 

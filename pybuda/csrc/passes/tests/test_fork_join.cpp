@@ -203,6 +203,9 @@ TEST_F(SimpleForkJoin, TestRecoverOriginalInstruction)
     EXPECT_EQ(combined_instructions.size(), 1) << "Expected only one instruction in resulting map. Queue and the NOP should have been merged.";
     EXPECT_EQ(combined_instructions.begin()->second->instr_type, InstructionType::QueueInstruction);
 
+    // Merged instruction should have the same unique_id as the original NOP instruction.
+    EXPECT_EQ(combined_instructions.begin()->second->unique_id(), nop_instruction->unique_id());
+
     // Check the same with NOP instruction.
     auto nop_instruction_2 = create_instruction<NopInsertionInstruction>(src_name, buffer_name, edge.consumer_input_port_id, edge.producer_output_port_id, false, true);
     new_instructions.clear();
@@ -212,6 +215,10 @@ TEST_F(SimpleForkJoin, TestRecoverOriginalInstruction)
     EXPECT_EQ(combined_instructions.size(), 1) << "Expected only one instruction in resulting map. NOPs should have been merged.";
     EXPECT_EQ(combined_instructions.begin()->second->instr_type, InstructionType::NopInstruction);
     auto resulting_instruction = static_cast<NopInsertionInstruction*>(combined_instructions.begin()->second.get());
+
+    // Merged instruction should have the same unique_id as the original NOP instruction.
+    // Additionally, the nop count should be updated.
+    EXPECT_EQ(resulting_instruction->unique_id(), nop_instruction->unique_id());
     EXPECT_EQ(resulting_instruction->nop_count, nop_instruction->nop_count + nop_instruction_2->nop_count);
 }
 
