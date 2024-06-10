@@ -1051,9 +1051,6 @@ def test_consumer_ops_belonging_to_different_chips(test_kind):
 
     arch = backend_devices[os.environ.get("BACKEND_ARCH_NAME", "grayskull")]
 
-    if arch == BackendDevice.Blackhole:
-        pytest.skip("Blackhole doesn't support chip breaks. Skipping until BudaBackend#2650 is fixed.")
-
     compiler_cfg = _get_global_compiler_config()
     # tenstorrent/pybuda#480
     compiler_cfg.use_interactive_placer = False if arch is BackendDevice.Grayskull else True
@@ -1518,9 +1515,6 @@ def test_grad_eltwise_op(test_device):
     """
     shape = (1, 1, 512, 512)
     test_kind = TestKind.TRAINING
-
-    if test_device.arch == pybuda.BackendDevice.Blackhole:
-         pytest.skip("Skip until BudaBackend#2628 is consumed.")
 
     @run(
         verify_cfg=VerifyConfig(

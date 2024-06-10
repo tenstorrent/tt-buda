@@ -120,9 +120,6 @@ def test_tvm_roberta(test_kind, test_device):
     if test_kind == TestKind.TRAINING:
         pytest.skip()
 
-    if test_device.arch == BackendDevice.Blackhole:
-         pytest.skip("Skip until BudaBackend#2628 is consumed.")
-
     input_shape = (1, 256, 256)
     roberta_model = RobertaModel.from_pretrained("arampacha/roberta-tiny", torchscript=True)
     model = roberta_model.encoder

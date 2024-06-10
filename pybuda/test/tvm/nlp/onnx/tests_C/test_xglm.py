@@ -29,9 +29,6 @@ def test_tvm_xglm(test_kind, test_device):
     if test_kind == TestKind.TRAINING:
         pytest.skip()
 
-    if test_device.arch == BackendDevice.Blackhole:
-         pytest.skip("Skip until BudaBackend#2628 is consumed.")
-
     config = XGLMConfig()
     input_shape = (1, 32, 1024)
     config.num_layers = 1
