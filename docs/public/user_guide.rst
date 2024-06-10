@@ -214,7 +214,7 @@ Output queues hold PyBuda tensors. For each PyBuda tensor, user can convert it b
     output_in_tf = output_q[0].to_framework("tensorflow")
 
 Advanced training scenarios sometimes require accumulated gradients to be retrieved and analyzed. For those cases, PyBuda provides an 
-:py::func:`API<pybuda.get_parameter_gradients>` that retrieves a dictionary of all currently accumulated gradients on a device. This can be used to 
+:py:func:`API<pybuda.get_parameter_gradients>` that retrieves a dictionary of all currently accumulated gradients on a device. This can be used to 
 debug or analyze data, or even run a manual optimizer and push new weights onto the device.
 
 Saving and Loading Models
