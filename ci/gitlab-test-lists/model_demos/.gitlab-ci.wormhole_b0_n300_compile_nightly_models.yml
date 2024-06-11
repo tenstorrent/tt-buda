@@ -2132,6 +2132,62 @@ compile-cnn-pytorch-yolo-v6-yolo-v6-pytorch-yolov6l-wh-b0-n300:
   - !reference [.common_prep, script]
   - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_v6.py::test_yolo_v6_pytorch[Wormhole_B0-yolov6l] --device-config wh_n300
 
+compile-cnn-pytorch-yolo-x-yolox-pytorch-yolox-nano-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_x.py::test_yolox_pytorch[Wormhole_B0-yolox_nano] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-x-yolox-pytorch-yolox-tiny-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_x.py::test_yolox_pytorch[Wormhole_B0-yolox_tiny] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-x-yolox-pytorch-yolox-s-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_x.py::test_yolox_pytorch[Wormhole_B0-yolox_s] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-x-yolox-pytorch-yolox-m-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_x.py::test_yolox_pytorch[Wormhole_B0-yolox_m] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-x-yolox-pytorch-yolox-l-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_x.py::test_yolox_pytorch[Wormhole_B0-yolox_l] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-x-yolox-pytorch-yolox-darknet-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_x.py::test_yolox_pytorch[Wormhole_B0-yolox_darknet] --device-config wh_n300
+
+compile-cnn-pytorch-yolo-x-yolox-pytorch-yolox-x-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-2
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_x.py::test_yolox_pytorch[Wormhole_B0-yolox_x] --device-config wh_n300
+
 compile-cnn-tflite-efficientnet-lite-efficientnet-lite0-1x1-wh-b0-n300:
   stage: nightly-compile-wh-b0-n300-2
   extends: .compile-nightly-models-wh-b0-n300
@@ -2308,7 +2364,7 @@ compile-nlp-pytorch-albert-albert-token-classification-pytorch-xlarge-v2-wh-b0-n
   - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_albert.py::test_albert_token_classification_pytorch[Wormhole_B0-xlarge-v2] --device-config wh_n300
 
 compile-nlp-pytorch-albert-albert-token-classification-pytorch-xxlarge-v1-wh-b0-n300:
-  stage: nightly-compile-wh-b0-n300-2
+  stage: nightly-compile-wh-b0-n300-3
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
@@ -2316,7 +2372,7 @@ compile-nlp-pytorch-albert-albert-token-classification-pytorch-xxlarge-v1-wh-b0-
   - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_albert.py::test_albert_token_classification_pytorch[Wormhole_B0-xxlarge-v1] --device-config wh_n300
 
 compile-nlp-pytorch-albert-albert-token-classification-pytorch-xxlarge-v2-wh-b0-n300:
-  stage: nightly-compile-wh-b0-n300-2
+  stage: nightly-compile-wh-b0-n300-3
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
@@ -2324,7 +2380,7 @@ compile-nlp-pytorch-albert-albert-token-classification-pytorch-xxlarge-v2-wh-b0-
   - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_albert.py::test_albert_token_classification_pytorch[Wormhole_B0-xxlarge-v2] --device-config wh_n300
 
 compile-nlp-pytorch-bert-bert-masked-lm-pytorch-wh-b0-n300:
-  stage: nightly-compile-wh-b0-n300-2
+  stage: nightly-compile-wh-b0-n300-3
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
@@ -2332,7 +2388,7 @@ compile-nlp-pytorch-bert-bert-masked-lm-pytorch-wh-b0-n300:
   - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_bert.py::test_bert_masked_lm_pytorch[Wormhole_B0] --device-config wh_n300
 
 compile-nlp-pytorch-bert-bert-question-answering-pytorch-wh-b0-n300:
-  stage: nightly-compile-wh-b0-n300-2
+  stage: nightly-compile-wh-b0-n300-3
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
@@ -2340,7 +2396,7 @@ compile-nlp-pytorch-bert-bert-question-answering-pytorch-wh-b0-n300:
   - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_bert.py::test_bert_question_answering_pytorch[Wormhole_B0] --device-config wh_n300
 
 compile-nlp-pytorch-bert-bert-sequence-classification-pytorch-wh-b0-n300:
-  stage: nightly-compile-wh-b0-n300-2
+  stage: nightly-compile-wh-b0-n300-3
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
@@ -2348,7 +2404,7 @@ compile-nlp-pytorch-bert-bert-sequence-classification-pytorch-wh-b0-n300:
   - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_bert.py::test_bert_sequence_classification_pytorch[Wormhole_B0] --device-config wh_n300
 
 compile-nlp-pytorch-bert-bert-token-classification-pytorch-wh-b0-n300:
-  stage: nightly-compile-wh-b0-n300-2
+  stage: nightly-compile-wh-b0-n300-3
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
@@ -2356,7 +2412,7 @@ compile-nlp-pytorch-bert-bert-token-classification-pytorch-wh-b0-n300:
   - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_bert.py::test_bert_token_classification_pytorch[Wormhole_B0] --device-config wh_n300
 
 compile-nlp-pytorch-codegen-codegen-Salesforce-codegen-350M-mono-wh-b0-n300:
-  stage: nightly-compile-wh-b0-n300-2
+  stage: nightly-compile-wh-b0-n300-3
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
@@ -2466,6 +2522,22 @@ compile-nlp-pytorch-fuyu-8b-fuyu8b-past-cache-wh-b0-n300:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
   - !reference [.common_prep, script]
   - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_fuyu_8b.py::test_fuyu8b_past_cache[Wormhole_B0] --device-config wh_n300
+
+compile-nlp-pytorch-gemma-2b-gemma-2b-gen-google-gemma-2b-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_gemma_2b.py::test_gemma_2b_gen[Wormhole_B0-google/gemma-2b] --device-config wh_n300
+
+compile-nlp-pytorch-gemma-2b-gemma-2b-1x1-gen-google-gemma-2b-wh-b0-n300:
+  stage: nightly-compile-wh-b0-n300-3
+  extends: .compile-nightly-models-wh-b0-n300
+  script:
+  - !reference [.compile-nightly-models-wh-b0-n300, script]
+  - !reference [.common_prep, script]
+  - pytest --devtype silicon pybuda/test/model_demos/high_prio/nlp/pytorch/test_gemma_2b.py::test_gemma_2b_1x1_gen[Wormhole_B0-google/gemma-2b] --device-config wh_n300
 
 compile-nlp-pytorch-gpt2-gpt2-text-gen-wh-b0-n300:
   stage: nightly-compile-wh-b0-n300-3
@@ -2882,7 +2954,7 @@ compile-model_0-pybuda-group_5-wh-b0-n300:
   - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_5 --device-config wh_n300
 
 compile-model_0-pybuda-group_6-wh-b0-n300:
-  stage: nightly-compile-wh-b0-n300-3
+  stage: nightly-compile-wh-b0-n300-4
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
@@ -2891,7 +2963,7 @@ compile-model_0-pybuda-group_6-wh-b0-n300:
   - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_6 --device-config wh_n300
 
 compile-model_0-pybuda-group_7-wh-b0-n300:
-  stage: nightly-compile-wh-b0-n300-3
+  stage: nightly-compile-wh-b0-n300-4
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
@@ -2900,7 +2972,7 @@ compile-model_0-pybuda-group_7-wh-b0-n300:
   - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_7 --device-config wh_n300
 
 compile-model_0-pybuda-group_8-wh-b0-n300:
-  stage: nightly-compile-wh-b0-n300-3
+  stage: nightly-compile-wh-b0-n300-4
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
@@ -2909,7 +2981,7 @@ compile-model_0-pybuda-group_8-wh-b0-n300:
   - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_8 --device-config wh_n300
 
 compile-model_0-pybuda-group_9-wh-b0-n300:
-  stage: nightly-compile-wh-b0-n300-3
+  stage: nightly-compile-wh-b0-n300-4
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
@@ -2918,7 +2990,7 @@ compile-model_0-pybuda-group_9-wh-b0-n300:
   - pytest --devtype silicon third_party/confidential_customer_models/model_0/tests/group_9 --device-config wh_n300
 
 compile-pybuda-onnx-quantized-mlp-gelu-wh-b0-n300:
-  stage: nightly-compile-wh-b0-n300-3
+  stage: nightly-compile-wh-b0-n300-4
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
@@ -2927,7 +2999,7 @@ compile-pybuda-onnx-quantized-mlp-gelu-wh-b0-n300:
   - pytest --devtype silicon pybuda/test/quantized/test_onnx_quantized.py::test_onnx_quantized_mlp_gelu[Wormhole_B0] --device-config wh_n300
 
 compile-pybuda-onnx-quantized-mlp-wh-b0-n300:
-  stage: nightly-compile-wh-b0-n300-3
+  stage: nightly-compile-wh-b0-n300-4
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
@@ -2936,7 +3008,7 @@ compile-pybuda-onnx-quantized-mlp-wh-b0-n300:
   - pytest --devtype silicon pybuda/test/quantized/test_onnx_quantized.py::test_onnx_quantized_mlp[Wormhole_B0] --device-config wh_n300
 
 compile-pybuda-onnx-quantized-conv-wh-b0-n300:
-  stage: nightly-compile-wh-b0-n300-3
+  stage: nightly-compile-wh-b0-n300-4
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
@@ -2945,7 +3017,7 @@ compile-pybuda-onnx-quantized-conv-wh-b0-n300:
   - pytest --devtype silicon pybuda/test/quantized/test_onnx_quantized.py::test_onnx_quantized_conv[Wormhole_B0] --device-config wh_n300
 
 compile-pybuda-onnx-quantized-mm-int8-no-bias-wh-b0-n300:
-  stage: nightly-compile-wh-b0-n300-3
+  stage: nightly-compile-wh-b0-n300-4
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
@@ -2954,7 +3026,7 @@ compile-pybuda-onnx-quantized-mm-int8-no-bias-wh-b0-n300:
   - pytest --devtype silicon pybuda/test/quantized/test_onnx_quantized.py::test_onnx_quantized_mm_int8_no_bias[Wormhole_B0] --device-config wh_n300
 
 compile-pybuda-onnx-quantized-mm-int8-bias-wh-b0-n300:
-  stage: nightly-compile-wh-b0-n300-3
+  stage: nightly-compile-wh-b0-n300-4
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
@@ -2963,7 +3035,7 @@ compile-pybuda-onnx-quantized-mm-int8-bias-wh-b0-n300:
   - pytest --devtype silicon pybuda/test/quantized/test_onnx_quantized.py::test_onnx_quantized_mm_int8_bias[Wormhole_B0] --device-config wh_n300
 
 compile-pybuda-onnx-quantized-mm-uint8-no-bias-wh-b0-n300:
-  stage: nightly-compile-wh-b0-n300-3
+  stage: nightly-compile-wh-b0-n300-4
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
@@ -2972,7 +3044,7 @@ compile-pybuda-onnx-quantized-mm-uint8-no-bias-wh-b0-n300:
   - pytest --devtype silicon pybuda/test/quantized/test_onnx_quantized.py::test_onnx_quantized_mm_uint8_no_bias[Wormhole_B0] --device-config wh_n300
 
 compile-pybuda-onnx-quantized-mobilenet-onnx-quantized-mb-v2-depth-wh-b0-n300:
-  stage: nightly-compile-wh-b0-n300-3
+  stage: nightly-compile-wh-b0-n300-4
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
@@ -2981,7 +3053,7 @@ compile-pybuda-onnx-quantized-mobilenet-onnx-quantized-mb-v2-depth-wh-b0-n300:
   - pytest --devtype silicon pybuda/test/quantized/test_onnx_quantized_mobilenet.py::test_onnx_quantized_mb_v2_depth[Wormhole_B0] --device-config wh_n300
 
 compile-pybuda-onnx-quantized-mobilenet-onnx-quantized-mb-v2-wh-b0-n300:
-  stage: nightly-compile-wh-b0-n300-3
+  stage: nightly-compile-wh-b0-n300-4
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
@@ -2990,7 +3062,7 @@ compile-pybuda-onnx-quantized-mobilenet-onnx-quantized-mb-v2-wh-b0-n300:
   - pytest --devtype silicon pybuda/test/quantized/test_onnx_quantized_mobilenet.py::test_onnx_quantized_mb_v2[Wormhole_B0] --device-config wh_n300
 
 compile-pybuda-onnx-quantized-resnet-wh-b0-n300:
-  stage: nightly-compile-wh-b0-n300-3
+  stage: nightly-compile-wh-b0-n300-4
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]
@@ -2999,7 +3071,7 @@ compile-pybuda-onnx-quantized-resnet-wh-b0-n300:
   - pytest --devtype silicon pybuda/test/quantized/test_onnx_quantized_resnet.py::test_onnx_quantized_resnet[Wormhole_B0] --device-config wh_n300
 
 compile-pybuda-onnx-quantized-vit-int8-onnx-vit-calibrated-wh-b0-n300:
-  stage: nightly-compile-wh-b0-n300-3
+  stage: nightly-compile-wh-b0-n300-4
   extends: .compile-nightly-models-wh-b0-n300
   script:
   - !reference [.compile-nightly-models-wh-b0-n300, script]

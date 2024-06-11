@@ -1781,6 +1781,83 @@ silicon-cnn-pytorch-yolo-v6-yolo-v6-pytorch-yolov6l-wh-b0-n300:
   - !reference [.common_deps, needs]
   - compile-cnn-pytorch-yolo-v6-yolo-v6-pytorch-yolov6l-wh-b0-n300
 
+silicon-cnn-pytorch-yolo-x-yolox-pytorch-yolox-nano-wh-b0-n300:
+  stage: nightly-silicon-wh-b0-n300-1
+  extends: .silicon-nightly-models-wh-b0-n300
+  script:
+  - !reference [.silicon-nightly-models-wh-b0-n300, script]
+  - pytest pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_x.py::test_yolox_pytorch[Wormhole_B0-yolox_nano]
+  needs:
+  - pybuda-wh-b0-wheel
+  - !reference [.common_deps, needs]
+  - compile-cnn-pytorch-yolo-x-yolox-pytorch-yolox-nano-wh-b0-n300
+
+silicon-cnn-pytorch-yolo-x-yolox-pytorch-yolox-tiny-wh-b0-n300:
+  stage: nightly-silicon-wh-b0-n300-1
+  extends: .silicon-nightly-models-wh-b0-n300
+  script:
+  - !reference [.silicon-nightly-models-wh-b0-n300, script]
+  - pytest pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_x.py::test_yolox_pytorch[Wormhole_B0-yolox_tiny]
+  needs:
+  - pybuda-wh-b0-wheel
+  - !reference [.common_deps, needs]
+  - compile-cnn-pytorch-yolo-x-yolox-pytorch-yolox-tiny-wh-b0-n300
+
+silicon-cnn-pytorch-yolo-x-yolox-pytorch-yolox-s-wh-b0-n300:
+  stage: nightly-silicon-wh-b0-n300-1
+  extends: .silicon-nightly-models-wh-b0-n300
+  script:
+  - !reference [.silicon-nightly-models-wh-b0-n300, script]
+  - pytest pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_x.py::test_yolox_pytorch[Wormhole_B0-yolox_s]
+  needs:
+  - pybuda-wh-b0-wheel
+  - !reference [.common_deps, needs]
+  - compile-cnn-pytorch-yolo-x-yolox-pytorch-yolox-s-wh-b0-n300
+
+silicon-cnn-pytorch-yolo-x-yolox-pytorch-yolox-m-wh-b0-n300:
+  stage: nightly-silicon-wh-b0-n300-1
+  extends: .silicon-nightly-models-wh-b0-n300
+  script:
+  - !reference [.silicon-nightly-models-wh-b0-n300, script]
+  - pytest pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_x.py::test_yolox_pytorch[Wormhole_B0-yolox_m]
+  needs:
+  - pybuda-wh-b0-wheel
+  - !reference [.common_deps, needs]
+  - compile-cnn-pytorch-yolo-x-yolox-pytorch-yolox-m-wh-b0-n300
+
+silicon-cnn-pytorch-yolo-x-yolox-pytorch-yolox-l-wh-b0-n300:
+  stage: nightly-silicon-wh-b0-n300-1
+  extends: .silicon-nightly-models-wh-b0-n300
+  script:
+  - !reference [.silicon-nightly-models-wh-b0-n300, script]
+  - pytest pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_x.py::test_yolox_pytorch[Wormhole_B0-yolox_l]
+  needs:
+  - pybuda-wh-b0-wheel
+  - !reference [.common_deps, needs]
+  - compile-cnn-pytorch-yolo-x-yolox-pytorch-yolox-l-wh-b0-n300
+
+silicon-cnn-pytorch-yolo-x-yolox-pytorch-yolox-darknet-wh-b0-n300:
+  stage: nightly-silicon-wh-b0-n300-1
+  extends: .silicon-nightly-models-wh-b0-n300
+  script:
+  - !reference [.silicon-nightly-models-wh-b0-n300, script]
+  - pytest pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_x.py::test_yolox_pytorch[Wormhole_B0-yolox_darknet]
+  needs:
+  - pybuda-wh-b0-wheel
+  - !reference [.common_deps, needs]
+  - compile-cnn-pytorch-yolo-x-yolox-pytorch-yolox-darknet-wh-b0-n300
+
+silicon-cnn-pytorch-yolo-x-yolox-pytorch-yolox-x-wh-b0-n300:
+  stage: nightly-silicon-wh-b0-n300-1
+  extends: .silicon-nightly-models-wh-b0-n300
+  script:
+  - !reference [.silicon-nightly-models-wh-b0-n300, script]
+  - pytest pybuda/test/model_demos/high_prio/cnn/pytorch/test_yolo_x.py::test_yolox_pytorch[Wormhole_B0-yolox_x]
+  needs:
+  - pybuda-wh-b0-wheel
+  - !reference [.common_deps, needs]
+  - compile-cnn-pytorch-yolo-x-yolox-pytorch-yolox-x-wh-b0-n300
+
 silicon-cnn-tflite-efficientnet-lite-wh-b0-n300:
   stage: nightly-silicon-wh-b0-n300-1
   extends: .silicon-nightly-models-wh-b0-n300
@@ -2007,6 +2084,21 @@ silicon-nlp-pytorch-fuyu-8b-wh-b0-n300:
   - pybuda-wh-b0-wheel
   - !reference [.common_deps, needs]
   - compile-nlp-pytorch-fuyu-8b-fuyu8b-past-cache-wh-b0-n300
+
+silicon-nlp-pytorch-gemma-2b-wh-b0-n300:
+  stage: nightly-silicon-wh-b0-n300-1
+  extends: .silicon-nightly-models-wh-b0-n300
+  script:
+  - !reference [.silicon-nightly-models-wh-b0-n300, script]
+  - !reference [.retry_on_hang_wh, script]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_0.xml pybuda/test/model_demos/high_prio/nlp/pytorch/test_gemma_2b.py::test_gemma_2b_gen[Wormhole_B0-google/gemma-2b]
+  - !reference [.retry_on_hang_wh, script]
+  - pytest --junitxml=$CI_PROJECT_DIR/test-results/report_1.xml pybuda/test/model_demos/high_prio/nlp/pytorch/test_gemma_2b.py::test_gemma_2b_1x1_gen[Wormhole_B0-google/gemma-2b]
+  needs:
+  - pybuda-wh-b0-wheel
+  - !reference [.common_deps, needs]
+  - compile-nlp-pytorch-gemma-2b-gemma-2b-gen-google-gemma-2b-wh-b0-n300
+  - compile-nlp-pytorch-gemma-2b-gemma-2b-1x1-gen-google-gemma-2b-wh-b0-n300
 
 silicon-nlp-pytorch-gpt2-wh-b0-n300:
   stage: nightly-silicon-wh-b0-n300-1
@@ -2607,7 +2699,7 @@ silicon-model_0-pybuda-group_2-wh-b0-n300:
   - compile-model_0-pybuda-group_2-wh-b0-n300
 
 silicon-model_0-pybuda-group_20-wh-b0-n300:
-  stage: nightly-silicon-wh-b0-n300-1
+  stage: nightly-silicon-wh-b0-n300-2
   extends: .silicon-nightly-models-wh-b0-n300
   script:
   - !reference [.silicon-nightly-models-wh-b0-n300, script]
@@ -2619,7 +2711,7 @@ silicon-model_0-pybuda-group_20-wh-b0-n300:
   - compile-model_0-pybuda-group_20-wh-b0-n300
 
 silicon-model_0-pybuda-group_21-wh-b0-n300:
-  stage: nightly-silicon-wh-b0-n300-1
+  stage: nightly-silicon-wh-b0-n300-2
   extends: .silicon-nightly-models-wh-b0-n300
   script:
   - !reference [.silicon-nightly-models-wh-b0-n300, script]
@@ -2631,7 +2723,7 @@ silicon-model_0-pybuda-group_21-wh-b0-n300:
   - compile-model_0-pybuda-group_21-wh-b0-n300
 
 silicon-model_0-pybuda-group_3-wh-b0-n300:
-  stage: nightly-silicon-wh-b0-n300-1
+  stage: nightly-silicon-wh-b0-n300-2
   extends: .silicon-nightly-models-wh-b0-n300
   script:
   - !reference [.silicon-nightly-models-wh-b0-n300, script]
@@ -2643,7 +2735,7 @@ silicon-model_0-pybuda-group_3-wh-b0-n300:
   - compile-model_0-pybuda-group_3-wh-b0-n300
 
 silicon-model_0-pybuda-group_4-wh-b0-n300:
-  stage: nightly-silicon-wh-b0-n300-1
+  stage: nightly-silicon-wh-b0-n300-2
   extends: .silicon-nightly-models-wh-b0-n300
   script:
   - !reference [.silicon-nightly-models-wh-b0-n300, script]
@@ -2655,7 +2747,7 @@ silicon-model_0-pybuda-group_4-wh-b0-n300:
   - compile-model_0-pybuda-group_4-wh-b0-n300
 
 silicon-model_0-pybuda-group_5-wh-b0-n300:
-  stage: nightly-silicon-wh-b0-n300-1
+  stage: nightly-silicon-wh-b0-n300-2
   extends: .silicon-nightly-models-wh-b0-n300
   script:
   - !reference [.silicon-nightly-models-wh-b0-n300, script]
@@ -2667,7 +2759,7 @@ silicon-model_0-pybuda-group_5-wh-b0-n300:
   - compile-model_0-pybuda-group_5-wh-b0-n300
 
 silicon-model_0-pybuda-group_6-wh-b0-n300:
-  stage: nightly-silicon-wh-b0-n300-1
+  stage: nightly-silicon-wh-b0-n300-2
   extends: .silicon-nightly-models-wh-b0-n300
   script:
   - !reference [.silicon-nightly-models-wh-b0-n300, script]
@@ -2679,7 +2771,7 @@ silicon-model_0-pybuda-group_6-wh-b0-n300:
   - compile-model_0-pybuda-group_6-wh-b0-n300
 
 silicon-model_0-pybuda-group_7-wh-b0-n300:
-  stage: nightly-silicon-wh-b0-n300-1
+  stage: nightly-silicon-wh-b0-n300-2
   extends: .silicon-nightly-models-wh-b0-n300
   script:
   - !reference [.silicon-nightly-models-wh-b0-n300, script]
@@ -2691,7 +2783,7 @@ silicon-model_0-pybuda-group_7-wh-b0-n300:
   - compile-model_0-pybuda-group_7-wh-b0-n300
 
 silicon-model_0-pybuda-group_8-wh-b0-n300:
-  stage: nightly-silicon-wh-b0-n300-1
+  stage: nightly-silicon-wh-b0-n300-2
   extends: .silicon-nightly-models-wh-b0-n300
   script:
   - !reference [.silicon-nightly-models-wh-b0-n300, script]
