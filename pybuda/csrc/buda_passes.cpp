@@ -382,8 +382,7 @@ std::pair<std::unique_ptr<graphlib::Graph>, placer::PlacerConfigUpdate> run_pre_
     // data parallel - insert nops and epoch breaks
     if (env_as<bool>("PYBUDA_N300_DATA_PARALLEL"))
     {
-        std::vector<std::string> dp_nops_to_epoch_break = insert_dataparallel_nops(lowered_graph.get());
-        op_names_to_epoch_break.push_back(dp_nops_to_epoch_break);
+        insert_dataparallel_nops(lowered_graph.get());
     }
 
     // At this point, there should be no more graph mutations.
