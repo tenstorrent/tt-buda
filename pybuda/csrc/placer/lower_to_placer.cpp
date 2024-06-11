@@ -289,22 +289,48 @@ static unordered_set<string> tag_ops_for_epoch_or_chip_break(
                     ops_tagged_for_epoch_break.insert(scheduled_op);
                     break;
                 }
-
             }
         }
     }
 
-    // Add epoch breaks between subgraphs
+    // Add epoch breaks between subgraphs.
+    // Add epoch breaks to split data parallel NOPs from other regular OPs.
+    //
     unsigned int prev_subgraph_id = graph->get_subgraph_id_for_node(graph->get_node_by_name(scheduled_ops[0])->id());
-    for (auto op : scheduled_ops)
+    bool in_data_parallel_nop_group = false;
+    for (const string& op : scheduled_ops)
     {
-        unsigned int subgraph_id = graph->get_subgraph_id_for_node(graph->get_node_by_name(op)->id());
+        Node* node = graph->get_node_by_name(op);
+        unsigned int subgraph_id = graph->get_subgraph_id_for_node(node->id());
         TT_ASSERT(subgraph_id >= prev_subgraph_id);
         if (subgraph_id != prev_subgraph_id)
         {
             ops_tagged_for_epoch_break.insert(op);
-            log_debug(LogPlacer, "Epoch break due to subgraph at: {}",op);
+            log_debug(LogPlacer, "Epoch break due to subgraph at: {}", op);
             prev_subgraph_id = subgraph_id;
+        }
+
+        if (node->node_type() == NodeType::kBudaOp)
+        {
+            BudaOpNode* buda_node = static_cast<BudaOpNode*>(node);
+
+            if (buda_node->is_data_parallel_nop())
+            {
+                if (!in_data_parallel_nop_group)
+                {
+                    // Start of data parallel NOP group. Add an epoch break.
+                    //
+                    in_data_parallel_nop_group = true;
+                    ops_tagged_for_epoch_break.insert(op);
+                }
+            }
+            else if (in_data_parallel_nop_group)
+            {
+                // End of data parallel NOP group, add an epoch break.
+                //
+                in_data_parallel_nop_group = false;
+                ops_tagged_for_epoch_break.insert(op);
+            }
         }
     }
     return ops_tagged_for_epoch_break;
