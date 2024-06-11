@@ -1,0 +1,6 @@
+# emulate runs on harvested machines
+export PYBUDA_FORCE_EMULATE_HARVESTED=1
+unset PYBUDA_CI_DIR
+PYBUDA_FORCE_THREADS=1 pybuda/test/benchmark/benchmark.py -m bert -c tiny -opt 4 -o perf.json --env "PYBUDA_EXP_APPROX=1 PYBUDA_DISABLE_DYNAMIC_DRAM=1 PYBUDA_FORCE_INTERMED_TO_OUTPUT_DF=1" --auto_transpose --parallel_tti device_images/
+PYBUDA_FORCE_THREADS=1 pybuda/test/benchmark/benchmark.py -m mobilenet_v1 -c 224 -opt 4 --loop_count 32 -mb 64 -bp Ribbon -df Fp16_b -mf HiFi2 --env "PYBUDA_RIBBON2=1 PYBUDA_LEGACY_UBLOCK_SHAPE=1 PYBUDA_MAXIMIZE_SPARSE_UBLOCK=1 PYBUDA_ENABLE_L1_ACCUMULATE=1 PYBUDA_EXTRA_L1_MARGIN=65536 PYBUDA_FUSED_OP_MULTIPLIER=20 PYBUDA_ENABLE_DEPTHWISE=1" -o perf.json --auto_transpose --parallel_tti device_images/
+PYBUDA_FORCE_THREADS=1 pybuda/test/benchmark/benchmark.py -m flan_t5 -c base --loop_count 1 -mb 1 -mf HiFi2 --single-thread --generative -o perf.json --parallel_tti device_images/

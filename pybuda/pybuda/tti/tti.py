@@ -84,7 +84,7 @@ class TTDeviceImage:
 
         if len(harvested_rows) > 0:
             harvested_rows = [harvested_rows[c_id] for c_id in device.chip_ids] 
-
+        
         return harvested_rows
     
 
@@ -130,9 +130,9 @@ class TTDeviceImage:
         return device_image
 
     @staticmethod
-    def load_from_disk(tti_file_path: str) -> "TTDeviceImage":
+    def load_from_disk(tti_file_path: str, device_id_override: Optional[int] = None) -> "TTDeviceImage":
         from .archive import TTIArchive
-        return TTIArchive.load_from_disk(tti_file_path)
+        return TTIArchive.load_from_disk(tti_file_path, device_id_override)
 
     @staticmethod
     def save_to_disk(
@@ -163,7 +163,7 @@ class TTDeviceImage:
         if runtime_pybuda_commit_hash and image_pybuda_commit_hash and runtime_pybuda_commit_hash != image_pybuda_commit_hash:
             logger.warning(
                 f"Warning: runtime pybuda_commit_hash is {runtime_pybuda_commit_hash} but "
-                  "device_image pybuda_commit_hash is {image_pybuda_commit_hash}"
+                  f"device_image pybuda_commit_hash is {image_pybuda_commit_hash}"
             )
 
         runtime_budabackend_commit_hash = get_budabackend_git_hash()
@@ -171,7 +171,7 @@ class TTDeviceImage:
         if runtime_budabackend_commit_hash and image_budabackend_commit_hash and runtime_budabackend_commit_hash != image_budabackend_commit_hash:
             logger.warning(
                 f"Warning: runtime budabackend_commit_hash is {runtime_budabackend_commit_hash} but "
-                  "device_image budabackend_commit_hash is {image_budabackend_commit_hash}"
+                  f"device_image budabackend_commit_hash is {image_budabackend_commit_hash}"
             )
     
     @staticmethod
@@ -192,7 +192,7 @@ class TTDeviceImage:
         Construct a fully-formed TTDevice back to the user.
         """
         TTDeviceImage.validate_image_version_compatibility(image)
-
+        
         device = TTDevice(
             name=image.device_image_name,
             chip_ids=image.chip_ids,

@@ -44,13 +44,21 @@ import benchmark.models.yolo_v5
 import benchmark.models.custom.custom_resnet_highres
 import benchmark.models.custom.custom_vit_highres
 
+from pybuda.tools.tti_data_parallel import (
+    RunMode,
+    RunResult,
+    ForwardRunInputs,
+    GenerativeRunInputs,
+    split_tensor_batch,
+    run_tti_data_parallel,
+)
 
 def single_thread_generative_model_run(args, first_device, last_device, inputs, targets, output_q, num_tokens_to_generate, first_current_index, pad_token_id, write_index):
     print("Executing in single-threaded generative model mode")
 
     if args.training:
         assert False, "Training currently not supported in single-threaded mode"
-
+    assert num_tokens_to_generate is not None
     from pybuda.pybudaglobal import TILE_DIM
     # input_ids, encoder_attention_mask, input_length, decoder_inpu_ids, decoder_attention_mask,  
     # first_current_index, tokenizer.pad_token_id, 
@@ -114,7 +122,6 @@ def single_thread_generative_model_run(args, first_device, last_device, inputs, 
             decoder_attention_mask[0, first_current_index + (current_token_index % TILE_DIM)] = 1
 
     end_time = time.time()
-
     return start_time, start_time1, end_time
 
 def single_thread_run(args, first_device, last_device, inputs, targets, output_q, num_tokens_to_generate):
@@ -219,7 +226,73 @@ def multi_thread_run(args, first_device, last_device, inputs, targets, output_q,
     end_time = time.time()
     
     return start_time, end_time
+    
+def duplicate_batch(input_data, factor: int):
+    
+    def to_list(data):
+        if isinstance(data, tuple) or isinstance(data, list):
+            return [to_list(item) for item in data]
+        else:
+            return data
+    
+    def duplicate_tensor(data, factor: int):
+        if isinstance(data, torch.Tensor):
+            duplicated_tensor = torch.cat([data] * factor, dim=0)
+            return duplicated_tensor
+        
+        elif isinstance(data, list):
+            for i in range(len(data)):
+                data[i] = duplicate_tensor(data[i], factor)
+                    
+        else:
+            raise TypeError("Input data should contain list or torch tensor only")
+        
+        return data
+    
+    data = to_list(input_data)
+    return duplicate_tensor(data, factor)
 
+def data_parallel_tti_run(
+    arch: BackendDevice,
+    inputs: Union[ForwardRunInputs, GenerativeRunInputs],
+    run_mode: RunMode,
+    loop_count: int, 
+    output_dir: str,
+    # List of mmio mapped device ids
+    device_ids: List[int],
+    tt_device: Optional[pybuda.TTDevice] = None, 
+    precompiled_image_path: Optional[str] = None,
+):
+    print_start_info()
+    assert tt_device or precompiled_image_path, "One of tt_device or precompiled_image_path must be specified"
+    assert not (tt_device and precompiled_image_path), "Specify one of tt_device, precompiled_image_path"
+    num_devices = len(device_ids)
+    
+    compile_inputs = inputs.inputs if run_mode == RunMode.FORWARD else inputs.compile_inputs
+    
+    if tt_device is not None:
+        image_path = os.path.join(output_dir, "parallel_tti_run.tti")
+        single_device_inputs = split_tensor_batch(compile_inputs, num_devices)[0]
+        tt_device.compile_to_image(img_path=image_path, training=False, sample_inputs=single_device_inputs)
+        
+    elif precompiled_image_path is not None:
+        image_path = precompiled_image_path
+
+    pybuda.pybuda_reset()
+    
+    # Don't check outputs here, just care about perf
+    run_result: RunResult = run_tti_data_parallel(
+        arch=arch,
+        device_ids=device_ids,
+        run_mode=run_mode,
+        inputs=inputs, 
+        output_dir=output_dir, 
+        num_loops=loop_count,
+        precompiled_tti_path=image_path,
+        sync_at_run_start=True,
+    )
+    
+    return run_result.get_earliest_start(), run_result.get_latest_end()
 
 def print_start_info():
     print("*****************************************************")
@@ -235,10 +308,9 @@ def run(
         other: Dict[str, object]):
 
     # Emulate runs on harvested machines
-    from pybuda._C.backend_api import BackendDevice
-    available_devices = pybuda.detect_available_devices()
-    if available_devices and not args.galaxy:
-        if available_devices[0] == BackendDevice.Wormhole_B0:
+    device_list = pybuda.detect_available_devices()
+    if device_list and not args.galaxy:
+        if device_list[0] == BackendDevice.Wormhole_B0:
             os.environ["PYBUDA_FORCE_EMULATE_HARVESTED"] = "1"
 
     # Set default configuration type
@@ -262,7 +334,7 @@ def run(
     devtype = BackendType.from_string(args.device.title()) if args.device else None
 
     assert "tt" in duts
-    if args.save_tti:
+    if args.save_tti or (args.parallel_tti and not args.load_tti):
         tt = pybuda.TTDevice("tt0", module=duts["tt"], fp32_fallback=df_from_str(args.dataformat), num_chips=args.chips, arch=arch, devtype=devtype)
     elif args.load_tti:
         img = pybuda.TTDeviceImage.load_from_disk(args.load_tti)
@@ -329,7 +401,7 @@ def run(
         args.loop_count = 1
 
     if args.chips == 0:
-        args.chips = len(pybuda.detect_available_devices())
+        args.chips = pybuda.detect_available_devices()
     if args.chips == 0:
         raise RuntimeError("No tenstorrent devices found.")
 
@@ -343,7 +415,6 @@ def run(
     # TODO: For silicon device runs, it seems that the `tt` from user-side is not
     # the one being used with api calls like pybuda.run_forward(..). We'll fetch
     # the arch from the first device-type available
-    device_list = pybuda.detect_available_devices()
     arch = device_list[0] if len(device_list) > 0 else tt.arch
 
     #
@@ -352,16 +423,54 @@ def run(
     if args.save_tti:
         tt.compile_to_image(img_path=args.save_tti, training=args.training, sample_inputs=compile_inputs, sample_targets=targets)
         exit(0)
-
-    output_q = pybuda.initialize_pipeline(training=args.training, sample_inputs=compile_inputs, microbatch_count=args.microbatch_count, _verify_cfg=pybuda.VerifyConfig.disabled(), sample_targets=targets)
-
-    if args.single_thread:
-        if args.generative:
-            start_time, start_time1, end_time = single_thread_generative_model_run(args, first_device, last_device, inputs, targets, output_q, num_tokens_to_generate, first_current_index, pad_token_id, write_index)
+    elif args.parallel_tti:
+        assert not args.training, "Training not supported in parallel tti run"
+        assert args.chips == 1, "Parallel TTI only supported for single chip models"
+        assert len(device_list) > 0
+        device_ids = list(range(len(device_list)))
+        precompiled_image_path = args.load_tti if args.load_tti else None
+        tt_device = None if args.load_tti else tt
+        
+        if not num_tokens_to_generate:
+            run_mode = RunMode.FORWARD
+            all_inputs = ForwardRunInputs(inputs=inputs)
+            
         else:
-            start_time, end_time = single_thread_run(args, first_device, last_device, inputs, targets, output_q, num_tokens_to_generate)
+            run_mode = RunMode.GENERATIVE
+            # Duplicate the predefined microbatch size (always 1) by the number of devices for generative run
+            inputs = duplicate_batch(inputs, len(device_list))
+            compile_inputs = duplicate_batch(compile_inputs, len(device_list))
+            
+            all_inputs = GenerativeRunInputs(
+                compile_inputs=compile_inputs,
+                run_inputs=inputs,
+                num_tokens_to_generate=num_tokens_to_generate,
+                write_index=write_index,
+                first_current_index=first_current_index,
+                pad_token_id=pad_token_id,
+            )
+            
+        start_time, end_time = data_parallel_tti_run(
+            arch=arch,
+            inputs=all_inputs,
+            run_mode=run_mode,
+            loop_count=args.loop_count,
+            output_dir=args.parallel_tti,
+            device_ids=device_ids,
+            tt_device=tt_device,
+            precompiled_image_path=precompiled_image_path,
+        )
+            
     else:
-        start_time, end_time = multi_thread_run(args, first_device, last_device, inputs, targets, output_q, num_tokens_to_generate)
+        output_q = pybuda.initialize_pipeline(training=args.training, sample_inputs=compile_inputs, microbatch_count=args.microbatch_count, _verify_cfg=pybuda.VerifyConfig.disabled(), sample_targets=targets)
+
+        if args.single_thread:
+            if args.generative:
+                start_time, start_time1, end_time = single_thread_generative_model_run(args, first_device, last_device, inputs, targets, output_q, num_tokens_to_generate, first_current_index, pad_token_id, write_index)
+            else:
+                start_time, end_time = single_thread_run(args, first_device, last_device, inputs, targets, output_q, num_tokens_to_generate)
+        else:
+            start_time, end_time = multi_thread_run(args, first_device, last_device, inputs, targets, output_q, num_tokens_to_generate)
 
     if pybuda.error_raised():
         print("*********************************")
@@ -384,8 +493,10 @@ def run(
     total_time = end_time - start_time
     if num_tokens_to_generate:
         total_samples = args.loop_count * args.microbatch * num_tokens_to_generate
-        print(f" Total time for {num_tokens_to_generate} tokens: {total_time:.4f}")
-        print(f" Tokens/s: {(num_tokens_to_generate / total_time):.1f}")
+        if args.parallel_tti:
+            total_samples *= len(device_list)
+        print(f" Total time for {total_samples} tokens: {total_time:.4f}")
+        print(f" Tokens/s: {(total_samples / total_time):.1f}")
     else:
         total_samples = args.loop_count * args.microbatch
         print(f" Total time for {total_samples} inputs: {total_time:.4f}")
@@ -436,6 +547,7 @@ if __name__ == "__main__":
     parser.add_argument(        '--single-thread', action='store_true', help='Run benchmark models in single thread')
     parser.add_argument(        '--generative', action='store_true', help='Run benchmark models in single thread with targeting generative model')
     parser.add_argument(        '--galaxy', action='store_true', help='Run benchmark models on a neb+galaxy backend')
+    parser.add_argument(        '--parallel_tti', default="", type=str, help='Save compilation for TTDevice into a TTI-archive configured for silicon to file and run it in parallel. (specify directory path to save archive and dump outputs).')
 
     args = parser.parse_args()
 
@@ -472,14 +584,21 @@ if __name__ == "__main__":
         print(models[args.model]["configs"])
         exit(1)
     
-    if args.load_tti and args.save_tti:
-        print("Specify only one of `--load_tti` or `--save-tti`")
+    if sum([bool(args.save_tti), bool(args.parallel_tti)]) > 1:
+        print("Specify only one of `--save_tti`, `--parallel_tti`")
         exit(1)
 
     if args.load_tti:
         print(f"Loading TTDevice from TTI specified at: {args.load_tti}")
+        
     if args.save_tti:
         print(f"Saving TTDevice Image to: {args.save_tti}")
+        
+    if args.parallel_tti:
+        assert not args.training, "Training not supported in parallel tti run"
+        print("Overriding args.chips to 1 since parallel_tti is set")
+        args.chips = 1
+        print(f"Saving TTDevice Image and output artefacts to: {args.parallel_tti}")
     
     pybuda.pybuda_reset()
 

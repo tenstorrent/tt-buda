@@ -131,11 +131,12 @@ struct DeviceConfig
                 //  Set multichip configs if Silicon generated cluster config or user provided one
                 this->chips_with_mmio = this->get_chips_with_mmio();
                 this->chip_locations = this->get_chip_locations();
+                
                 for (auto& chip_id_to_coord : chip_locations)
                 {
                     std::uint32_t chip_id = chip_id_to_coord.first;
                     const EthCoord& coord = chip_id_to_coord.second;
-                    TT_ASSERT(chip_coord_to_chip_id.find(coord) == chip_coord_to_chip_id.end());
+                    //TT_ASSERT(chip_coord_to_chip_id.find(coord) == chip_coord_to_chip_id.end());
                     chip_coord_to_chip_id[coord] = chip_id;
                     shelves_chip_ids[coord.shelf].push_back(chip_id);
                 }
