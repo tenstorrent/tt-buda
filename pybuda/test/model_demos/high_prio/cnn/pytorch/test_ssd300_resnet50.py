@@ -68,7 +68,6 @@ def test_pytorch_ssd300_resnet50(test_device):
     compiler_cfg.amp_level = 1
 
     if test_device.arch == BackendDevice.Grayskull:
-        os.environ["PYBUDA_RIBBON2"] = "1"
         os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "90112"
 
     if test_device.arch == BackendDevice.Wormhole_B0:

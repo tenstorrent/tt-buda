@@ -62,7 +62,6 @@ def test_rcnn_pytorch(test_device):
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda._C.Float16_b
-    os.environ["PYBUDA_RIBBON2"] = "1"
 
     # Pybuda model
     tt_model = pybuda.PyTorchModule("rcnn", model)

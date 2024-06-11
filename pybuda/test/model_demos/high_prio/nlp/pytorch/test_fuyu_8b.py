@@ -223,8 +223,6 @@ def test_fuyu8b_past_cache(test_device):
     compiler_cfg.enable_link_past_cache_ios = True
     compiler_cfg.amp_level = 2
     compiler_cfg.default_dram_parameters = True 
-    os.environ["PYBUDA_GRAPHSOLVER_SELF_CUT_TYPE"] = "FastCut"
-    os.environ["PYBUDA_RIBBON2"] = "1"
     os.environ["PYBUDA_FORCE_SEQUENTIAL"] = "1"
     os.environ["TT_BACKEND_USE_PIPEGEN1"] = "1"
     os.environ["FUYU8B_FULL_LAYERS"] = "1" # flag to run the model wit full-layers, does not affect compile process

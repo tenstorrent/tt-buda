@@ -114,7 +114,6 @@ def big_conv(training: bool, config: str, microbatch: int, devtype: str, arch: s
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    os.environ["PYBUDA_RIBBON2"] = "1"
 
     models = {"tt": mod}
     inputs = [torch.rand(microbatch, cin, input_size[0], input_size[1])]

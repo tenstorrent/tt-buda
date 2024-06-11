@@ -20,7 +20,6 @@ def test_unet_osmr_cityscape_pytorch():
     compiler_cfg.default_dram_parameters = False
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     os.environ["PYBUDA_FORCE_RESIZE_DENSE_MM"] = "1"
-    os.environ["PYBUDA_RIBBON2"] = "1"
     #if test_device.arch == BackendDevice.Wormhole_B0:
     compiler_cfg.balancer_policy = "Ribbon"
     os.environ["PYBUDA_BALANCER_PREPASS_DISABLED"] = "1"

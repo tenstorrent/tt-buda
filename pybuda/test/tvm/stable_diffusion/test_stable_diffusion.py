@@ -46,7 +46,6 @@ def test_unet(test_device):
     # os.environ["PYBUDA_RELOAD_GENERATED_MODULES"] = "1"
     os.environ["PYBUDA_MAX_GRAPH_CUT_RETRY"] = "2000"
     os.environ["PYBUDA_DECOMPOSE_SIGMOID"] = "1"
-    os.environ["PYBUDA_RIBBON2"] = "1"
     os.environ["PYBUDA_PAD_SPARSE_MM_WEIGHT_MM"] = "{10:12, 20:24, 30:32, 40:48, 60:64}"
     os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
     os.environ["PYBUDA_LEGACY_UBLOCK_SHAPE"] = "1"
@@ -351,6 +350,7 @@ def test_unet_down_block(test_device):
     compiler_cfg.enable_tvm_constant_prop = True
     compiler_cfg.enable_auto_fusing = False
     compiler_cfg.balancer_policy = "Ribbon"
+    os.environ["PYBUDA_RIBBON_LEGACY"] = "1"
     compiler_cfg.graph_solver_self_cut_type = "ConsumerOperandDataEdgesFirst"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
 

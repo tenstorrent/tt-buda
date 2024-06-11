@@ -102,7 +102,6 @@ def bert(training: bool, config: str, microbatch: int, devtype: str, arch: str, 
         compiler_cfg.enable_auto_transposing_placement = True
         if compiler_cfg.balancer_policy == "default":
             compiler_cfg.balancer_policy = "Ribbon"
-            os.environ["PYBUDA_RIBBON2"] = "1"
             os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
             os.environ["PYBUDA_ENABLE_HOST_INPUT_NOP_BUFFERING"] = "1"
             if data_type == "Bfp8_b":

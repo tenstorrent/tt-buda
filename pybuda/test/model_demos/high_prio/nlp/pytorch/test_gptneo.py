@@ -38,7 +38,6 @@ def test_gptneo_causal_lm(variant, test_device):
     compiler_cfg = pybuda.config._get_global_compiler_config() 
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
 
-    os.environ["PYBUDA_RIBBON2"] = "1"
     compiler_cfg.balancer_policy = "Ribbon"
 
     if test_device.arch == BackendDevice.Wormhole_B0:

@@ -52,7 +52,6 @@ def test_retinanet(variant, test_device):
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
     os.environ["PYBUDA_DECOMPOSE_SIGMOID"] = "1"
-    os.environ["PYBUDA_RIBBON2"] = "1"
     os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "73728"
 
     if test_device.arch == BackendDevice.Wormhole_B0:

@@ -81,15 +81,14 @@ BalancerPolicySolution run_policy(
                     "balancing policy.");
             }
 
-            // Ribbon2 is not default yet until it's been tested across all models are large blobs are handled.
-            bool use_ribbon2 = env_as<bool>("PYBUDA_RIBBON2", false);
-            if (use_ribbon2)
+            bool use_ribbon_legacy = env_as<bool>("PYBUDA_RIBBON_LEGACY", false);
+            if (!use_ribbon_legacy)
             {
-                balancer_policy_solution = run_policy_ribbon2(graph, config, graph_solver);
+                balancer_policy_solution = run_policy_ribbon(graph, config, graph_solver);
             }
             else
             {
-                balancer_policy_solution = run_policy_ribbon(graph, config, graph_solver);
+                balancer_policy_solution = run_policy_ribbon_legacy(graph, config, graph_solver);
             }
             break;
         }

@@ -28,8 +28,6 @@ def generate_model_mobilenetV3_imgcls_torchhub_pytorch(test_device, variant):
     )  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
-    if test_device.arch == BackendDevice.Grayskull:
-        os.environ["PYBUDA_RIBBON2"] = "1"
 
     # Create PyBuda module from PyTorch model
     model = download_model(torch.hub.load,

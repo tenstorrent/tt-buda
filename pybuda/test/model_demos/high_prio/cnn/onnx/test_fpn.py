@@ -14,7 +14,6 @@ def test_fpn_onnx(test_device, test_kind):
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda._C.Float16_b
 
-    os.environ["PYBUDA_RIBBON2"] = "1"
     os.environ["PYBUDA_FORCE_EMULATE_HARVESTED"] = "1"
 
     # Load FPN model

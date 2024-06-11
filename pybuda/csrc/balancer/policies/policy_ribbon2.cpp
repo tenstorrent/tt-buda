@@ -1122,11 +1122,11 @@ EpochSolution find_solution_for_epoch(
     return best_solution;
 }
 
-BalancerPolicySolution run_policy_ribbon2(
+BalancerPolicySolution run_policy_ribbon(
     graphlib::Graph const *graph, const BalancerConfig &config, legalizer::GraphSolver &graph_solver)
 {
     //
-    // Ribbon2 policy
+    // Ribbon policy
     //
     // Balancer works epoch by epoch, and tries to optimize each epoch for the maximum matmul utilization. It explores
     // all possible ribbon sizes for each epoch to generate an initial set of solutions. Grids are picked based on some
@@ -1182,7 +1182,7 @@ BalancerPolicySolution run_policy_ribbon2(
     //   for some models.
     //
 
-    log_info(LogBalancer, "Starting Ribbon2 balancing");
+    log_info(LogBalancer, "Starting Ribbon balancing");
     BalancerPolicySolution balancer_policy_solution;
     placer::InteractivePlacer interactive_placer(graph, config);
     placer::InteractivePlacer ip_fittment_tester(graph, config);

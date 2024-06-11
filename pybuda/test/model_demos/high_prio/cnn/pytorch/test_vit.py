@@ -121,7 +121,6 @@ def test_vit_classification_1x1_demo(test_device, mode, variant):
     # Configurations
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    os.environ["PYBUDA_RIBBON2"] = "1"
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     compiler_cfg.enable_tvm_cpu_fallback = False
     

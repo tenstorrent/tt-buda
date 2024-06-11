@@ -37,7 +37,6 @@ def custom_resnet_highres(training: bool, config: str, microbatch: int, devtype:
     compiler_cfg.balancer_policy = "Ribbon"
 
     # Overrides
-    os.environ["PYBUDA_RIBBON2"] = "1"
     #os.environ["PYBUDA_RIBBON2_DISABLE_CLEANUP_BUF_NOPS"] = "1"
     #os.environ["PYBUDA_SPARSE_ENABLE_LAYOUT_DATAFLOW"] = "1"
     #os.environ["PYBUDA_MAXMIZE_SPARSE_UBLOCK"] = "1"

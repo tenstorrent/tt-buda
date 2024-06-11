@@ -34,9 +34,6 @@ def custom_vit_highres(training: bool, config: str, microbatch: int, devtype: st
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
 
-    # Overrides
-    os.environ["PYBUDA_RIBBON2"] = "1"
-
     models = {"tt" : pybuda_onnx_model}
     dimension = onnx_model.graph.input[0].type.tensor_type.shape
     input_shape = [d.dim_value for d in dimension.dim]

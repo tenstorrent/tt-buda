@@ -314,7 +314,6 @@ def test_gemma_2b(test_device, variant):
     # Configurations
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    os.environ["PYBUDA_RIBBON2"] = "1"
 
     config = download_model(GemmaConfig.from_pretrained, variant)
     config_dict = config.to_dict()
@@ -367,7 +366,6 @@ def test_gemma_2b_1x1(test_device, variant):
 
     os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "wormhole_b0_1x1.yaml"
     compiler_cfg.balancer_policy = "Ribbon"
-    os.environ["PYBUDA_RIBBON2"] = "1"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
 
     config = download_model(GemmaConfig.from_pretrained, variant)
@@ -416,7 +414,6 @@ def test_gemma_2b_gen(test_device, variant):
     # Configurations
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    os.environ["PYBUDA_RIBBON2"] = "1"
 
     if test_device.arch != BackendDevice.Grayskull:
         compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
@@ -503,7 +500,6 @@ def test_gemma_2b_1x1_gen(test_device, variant):
 
     # Configurations
     compiler_cfg.balancer_policy = "Ribbon"
-    os.environ["PYBUDA_RIBBON2"] = "1"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
     os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "wormhole_b0_1x1.yaml"
 

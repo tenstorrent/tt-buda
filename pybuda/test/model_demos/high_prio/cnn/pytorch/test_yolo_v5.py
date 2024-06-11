@@ -36,7 +36,6 @@ def generate_model_yoloV5I320_imgcls_torchhub_pytorch(test_device, variant, size
     elif test_device.arch == BackendDevice.Wormhole_B0:
         if size == "m":
             os.environ["PYBUDA_FORK_JOIN_SKIP_EXPANDING_BUFFERS"] = "1"
-        os.environ["PYBUDA_RIBBON2"] = "1"
         compiler_cfg.default_df_override = DataFormat.Float16_b
         os.environ["PYBUDA_PAD_SPARSE_MM"] = "{13:16, 3:4}"
         os.environ["PYBUDA_GRAPHSOLVER_SELF_CUT_TYPE"] = "ConsumerOperandDataEdgesFirst"
@@ -107,7 +106,6 @@ def generate_model_yoloV5I640_imgcls_torchhub_pytorch(test_device, variant, size
             compiler_cfg.enable_enumerate_u_kt = True
             os.environ["PYBUDA_INSERT_SLICE_FOR_CONCAT"] = "1"
             os.environ["PYBUDA_CONCAT_SLICE_Y"] = "10"
-            os.environ["PYBUDA_RIBBON2"] = "1"
             if size in ["x"]:
                 compiler_cfg.place_on_new_epoch("conv2d_210.dc.matmul.11")
                 os.environ["PYBUDA_TEMP_BALANCER_DISABLE_TARGET_PROXIMITY"] = "1"
@@ -118,7 +116,6 @@ def generate_model_yoloV5I640_imgcls_torchhub_pytorch(test_device, variant, size
                 os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "0"
                 os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "0"
         if size in ["m"]:
-            os.environ["PYBUDA_RIBBON2"] = "1"
             os.environ["PYBUDA_INSERT_SLICE_FOR_CONCAT"] = "1"
             os.environ["PYBUDA_CONCAT_SLICE_Y"] = "10"
             os.environ["PYBUDA_TEMP_BALANCER_DISABLE_TARGET_PROXIMITY"] = "1"
@@ -153,18 +150,15 @@ def generate_model_yoloV5I640_imgcls_torchhub_pytorch(test_device, variant, size
             compiler_cfg.balancer_op_override("concatenate_19.dc.concatenate.30.dc.concatenate.1.dc.buffer.0", "t_stream_shape", (3,1))
         if size == "m":
             compiler_cfg.balancer_op_override("concatenate_332.dc.concatenate.7", "grid_shape", (1,1))
-            os.environ["PYBUDA_RIBBON2"] = "1"
             os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"]  = f"{112*1024}"
             os.environ["PYBUDA_TEMP_RIBBON2_LEGACY_UTIL_EVAL"] = "1"
         if size == "l":
             compiler_cfg.enable_auto_transposing_placement = True
             compiler_cfg.enable_tm_cpu_fallback = True
-            os.environ["PYBUDA_RIBBON2"] = "1"
             compiler_cfg.balancer_op_override("conv2d_328.dc.matmul.8", "grid_shape", (5,2))
         if size == "x":
             compiler_cfg.balancer_op_override("concatenate_363.dc.concatenate.0", "grid_shape", (1,1))
             compiler_cfg.balancer_op_override("conv2d_41.dc.matmul.8", "t_stream_shape", (1,1))
-            os.environ["PYBUDA_RIBBON2"] = "1"
             compiler_cfg.enable_tm_cpu_fallback = True
             os.environ["PYBUDA_DISABLE_CAP_SPARSE_MM_FIDELITY"] = "0"
             os.environ["PYBUDA_TEMP_BALANCER_DISABLE_TARGET_PROXIMITY"] = "1"
@@ -219,6 +213,7 @@ def generate_model_yoloV5I480_imgcls_torchhub_pytorch(test_device, variant, size
     if test_device.arch == BackendDevice.Grayskull:
         os.environ["PYBUDA_PAD_SPARSE_MM"] = "{113:128}"
         if size == "x":
+            os.environ["PYBUDA_RIBBON_LEGACY"] = "1"
             os.environ["PYBUDA_TEMP_ELT_UNARY_ESTIMATES_LEGACY"] = "1"
             os.environ["PYBUDA_INSERT_SLICE_FOR_CONCAT"] = "1"
             os.environ["PYBUDA_CONCAT_SLICE_Y"] = "10"
@@ -229,6 +224,9 @@ def generate_model_yoloV5I480_imgcls_torchhub_pytorch(test_device, variant, size
             os.environ["PYBUDA_CONCAT_SLICE_Y"] = "10"
             compiler_cfg.balancer_op_override("concatenate_26.dc.concatenate.30.dc.concatenate.1.dc.buffer.0", "t_stream_shape", (6,1))
             os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"]  = f"{32*1024}"
+        elif size == "n":
+            os.environ["PYBUDA_RIBBON_LEGACY"] = "1"
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"]  = f"{16*1024}"
         else:
             os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"]  = f"{16*1024}"
 
@@ -236,7 +234,6 @@ def generate_model_yoloV5I480_imgcls_torchhub_pytorch(test_device, variant, size
         # Add required env vars as per: https://yyz-gitlab.local.tenstorrent.com/tenstorrent/model-demos/-/issues/46
         compiler_cfg.default_df_override = DataFormat.Float16_b
 
-        os.environ["PYBUDA_RIBBON2"] = "1"
         if size != "x":
             os.environ["PYBUDA_PAD_SPARSE_MM"] = "{13:16, 3:4}"
             os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"]  = f"{64*1024}"

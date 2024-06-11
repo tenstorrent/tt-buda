@@ -91,7 +91,6 @@ def test_fuse_tm_sequence_multi_user(test_device):
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
-    os.environ["PYBUDA_RIBBON2"]="1"
 
     tt_model = PtFuseTMMultiUser("fuse_tm_sequence_multi_user")
     

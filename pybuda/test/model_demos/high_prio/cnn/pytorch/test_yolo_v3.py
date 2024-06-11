@@ -70,7 +70,6 @@ def generate_model_yoloV3_imgcls_holli_pytorch(test_device, variant):
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda._C.Float16_b
-    os.environ["PYBUDA_RIBBON2"] = "1"
     model = Yolov3(num_classes=80)
     model.load_state_dict(torch.load('third_party/confidential_customer_models/model_2/pytorch/yolo_v3/weights/yolov3_coco_01.h5', map_location=torch.device('cpu')))
     model.eval()
@@ -120,7 +119,6 @@ def test_yolov3_holli_pytorch_1x1(test_device):
 
     os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "wormhole_b0_1x1.yaml"
     os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
-    os.environ["PYBUDA_RIBBON2"] = "1"
     model, inputs, other = generate_model_yoloV3_imgcls_holli_pytorch(
         test_device, None,
     )

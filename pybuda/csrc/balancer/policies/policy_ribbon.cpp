@@ -27,12 +27,12 @@ bool ok_to_schedule_next(
 }
 */
 
-BalancerPolicySolution run_policy_ribbon(
+BalancerPolicySolution run_policy_ribbon_legacy(
     graphlib::Graph const *graph,
     const BalancerConfig &config,
     legalizer::GraphSolver &graph_solver)
 {
-    log_info(LogBalancer, "Starting Ribbon balancing.");
+    log_info(LogBalancer, "Starting Ribbon legacy balancing.");
     PolicyManager policy_manager(graph, config, graph_solver, true /*ribbon_policy*/);
     if (env_as<bool>("PYBUDA_RIBBON1_PREPASS_ENABLED", false))
     {

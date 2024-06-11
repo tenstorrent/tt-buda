@@ -107,7 +107,6 @@ def test_clip_pytorch(test_device):
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
-    os.environ["PYBUDA_RIBBON2"] = "1"
     
     # Required to patch data-mismatch. Here is followup issue
     # to check this out in more details:

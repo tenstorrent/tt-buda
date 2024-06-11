@@ -54,7 +54,6 @@ def test_tri_basic_2_sematic_segmentation_pytorch(test_device):
             (10, 1),
         )
 
-    os.environ["PYBUDA_RIBBON2"] = "1"
     os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
 
     # Sample Input

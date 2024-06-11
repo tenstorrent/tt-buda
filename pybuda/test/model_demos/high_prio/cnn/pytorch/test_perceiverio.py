@@ -50,7 +50,6 @@ def test_perceiverio_for_image_classification_pytorch(test_device, variant):
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
-    os.environ["PYBUDA_RIBBON2"] = "1"
     verify_enabled = True
     pcc_value = 0.99
 

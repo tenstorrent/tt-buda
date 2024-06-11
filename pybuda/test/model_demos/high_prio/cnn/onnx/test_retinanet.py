@@ -51,7 +51,6 @@ def test_retinanet_r101_640x480_onnx(test_device):
     os.environ["PYBUDA_DECOMPOSE_SIGMOID"] = "1"
     os.environ["PYBUDA_DISABLE_CONV_MULTI_OP_FRACTURE"] = "1"
     os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"]  = f"{76*1024}"
-    os.environ["PYBUDA_RIBBON2"] = "1"
     os.environ["PYBUDA_BALANCER_PREPASS_DISABLED"] = "1"
     os.environ["PYBUDA_LEGACY_UBLOCK_SHAPE"] = "1"
 
@@ -122,7 +121,6 @@ def test_retinanet_onnx(variant, test_device):
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
     os.environ["PYBUDA_DECOMPOSE_SIGMOID"] = "1"
-    os.environ["PYBUDA_RIBBON2"] = "1"
 
     if test_device.arch == BackendDevice.Wormhole_B0:
         os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "73728"

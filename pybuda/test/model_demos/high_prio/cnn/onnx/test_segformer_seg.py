@@ -35,7 +35,6 @@ def test_segformer_semseg_onnx(test_device, variant):
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
-    os.environ["PYBUDA_RIBBON2"] = "1"
     os.environ["PYBUDA_DISABLE_PADDING_PASS"] = "1"
     pcc_value = 0.99
 

@@ -120,7 +120,6 @@ def initialize_compiler_overrides():
     os.environ["PYBUDA_PAD_SPARSE_MM_WEIGHT_MM"] = "{10:12, 20:24, 30:32, 40:48, 60:64}"
     os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
     os.environ["PYBUDA_DECOMPOSE_SIGMOID"] = "1"
-    os.environ["PYBUDA_RIBBON2"] = "1"
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_tvm_constant_prop = True

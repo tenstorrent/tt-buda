@@ -14,12 +14,12 @@ namespace tt::balancer
 struct BalancerConfig;
 struct BalancerPolicySolution;
 
-BalancerPolicySolution run_policy_ribbon(
+BalancerPolicySolution run_policy_ribbon_legacy(
     graphlib::Graph const *graph,
     const BalancerConfig &,
     legalizer::GraphSolver &graph_solver);
 
-BalancerPolicySolution run_policy_ribbon2(
+BalancerPolicySolution run_policy_ribbon(
     graphlib::Graph const *graph,
     const BalancerConfig &,
     legalizer::GraphSolver &graph_solver);

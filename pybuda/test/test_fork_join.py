@@ -308,7 +308,6 @@ def test_multilevel_fork_join_vovnet(test_kind, test_device, format):
     try:
         import os
         os.environ["PYBUDA_MAXIMIZE_SPARSE_UBLOCK"] = "1"
-        os.environ["PYBUDA_RIBBON2"] = "1"
 
         compiler_cfg = pybuda.config._get_global_compiler_config()
         compiler_cfg.balancer_policy = "Ribbon"
@@ -332,7 +331,6 @@ def test_multilevel_fork_join_vovnet(test_kind, test_device, format):
     finally:
         # unset env variables
         os.environ.pop('PYBUDA_MAXIMIZE_SPARSE_UBLOCK', None)
-        os.environ.pop('PYBUDA_RIBBON2', None)
 
 class BertGeluFork(pybuda.PyBudaModule):
 
@@ -688,7 +686,6 @@ def test_fork_join_yolo_v3(test_kind, test_device):
 
     YoloV3ForkJoin.add_op_overrides()
     import os
-    os.environ["PYBUDA_RIBBON2"] = "1"
     os.environ["PYBUDA_FORCE_SEQUENTIAL"] = "1" # TODO: Figure out why this is needed, segfaults otherwise: tenstorrent/pybuda#1935
     os.environ["PYBUDA_OVERRIDE_INPUT_QUEUE_ENTRIES"] = "32"
     os.environ["PYBUDA_MAXIMIZE_SPARSE_UBLOCK"] = "1"
@@ -822,7 +819,6 @@ def test_fork_join_hrnet(test_kind, test_device):
     compiler_cfg.default_df_override = DataFormat.Float16_b
 
     import os
-    os.environ["PYBUDA_RIBBON2"] = "1"
 
     HRNetForkJoin.add_overrides()
 

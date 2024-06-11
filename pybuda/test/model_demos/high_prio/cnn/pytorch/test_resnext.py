@@ -48,7 +48,6 @@ def test_resnext_50_torchhub_pytorch(test_device):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config() # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
-    os.environ["PYBUDA_RIBBON2"] = "1"
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     
     if test_device.arch == BackendDevice.Grayskull:
@@ -85,7 +84,6 @@ def test_resnext_101_torchhub_pytorch(test_device):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config() # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
-    os.environ["PYBUDA_RIBBON2"] = "1"
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
 
     if test_device.arch == BackendDevice.Wormhole_B0:
@@ -128,7 +126,6 @@ def test_resnext_101_32x8d_fb_wsl_pytorch(test_device):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config() # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
-    os.environ["PYBUDA_RIBBON2"] = "1"
     os.environ["PYBUDA_BALANCER_PREPASS_DISABLED"] = "1"
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
 
@@ -162,7 +159,6 @@ def test_resnext_14_osmr_pytorch(test_device):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
-    os.environ["PYBUDA_RIBBON2"] = "1"
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
 
     if test_device.arch == BackendDevice.Grayskull:
@@ -199,7 +195,6 @@ def test_resnext_26_osmr_pytorch(test_device):
     compiler_cfg = pybuda.config._get_global_compiler_config() # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
-    os.environ["PYBUDA_RIBBON2"] = "1"
 
     if test_device.arch == BackendDevice.Grayskull:
         compiler_cfg.enable_auto_fusing = False
@@ -234,7 +229,6 @@ def test_resnext_50_osmr_pytorch(test_device):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config() # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
-    os.environ["PYBUDA_RIBBON2"] = "1"
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     if test_device.arch == BackendDevice.Grayskull:
         compiler_cfg.enable_auto_fusing = False
@@ -268,7 +262,6 @@ def test_resnext_101_osmr_pytorch(test_device):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config() # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
-    os.environ["PYBUDA_RIBBON2"] = "1"
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     
     if test_device.arch == BackendDevice.Wormhole_B0:

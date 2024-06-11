@@ -22,7 +22,6 @@ def test_hardnet_pytorch(test_device, variant):
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
-    os.environ["PYBUDA_RIBBON2"] = "1"
 
     if variant == "hardnet85" and test_device.arch == BackendDevice.Wormhole_B0:
         os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"

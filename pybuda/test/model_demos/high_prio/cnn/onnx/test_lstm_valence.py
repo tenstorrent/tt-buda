@@ -21,7 +21,6 @@ def test_lstm_valence_onnx(test_device):
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
-    os.environ["PYBUDA_RIBBON2"] = "1"
     
     # Required to patch data-mismatch. Here is followup issue
     # to check this out in more details:

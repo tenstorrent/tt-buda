@@ -31,7 +31,6 @@ def test_ddrnet_pytorch(variant, test_device):
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
-    os.environ["PYBUDA_RIBBON2"] = "1"
 
     # STEP 2: Create PyBuda module from PyTorch model
     if variant == "ddrnet23s":
@@ -110,7 +109,6 @@ def test_ddrnet_semantic_segmentation_pytorch(variant, test_device):
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
-    os.environ["PYBUDA_RIBBON2"] = "1"
 
     if (
         variant == "ddrnet23s_cityscapes"

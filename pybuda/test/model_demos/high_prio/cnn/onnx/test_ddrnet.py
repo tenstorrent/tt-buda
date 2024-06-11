@@ -22,7 +22,6 @@ def test_ddrnet(variant, test_device):
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
-    os.environ["PYBUDA_RIBBON2"] = "1"
 
     if test_device.arch == BackendDevice.Wormhole_B0:
         # These overrides are planned to be ON by default
@@ -89,7 +88,6 @@ def test_ddrnet_semantic_segmentation_onnx(variant, test_device):
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
-    os.environ["PYBUDA_RIBBON2"] = "1"
 
     if test_device.arch == BackendDevice.Wormhole_B0:
         os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "36864"

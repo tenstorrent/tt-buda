@@ -3600,7 +3600,6 @@ def test_override_removal_flag(test_kind, test_device):
     },
     {
         # Level 2 overrides
-        "PYBUDA_RIBBON2": "",
         "PYBUDA_DISABLE_STREAM_OUTPUT": "",
         "PYBUDA_PAD_OUTPUT_BUFFER": "",
     })
@@ -3626,7 +3625,6 @@ def test_override_removal_flag(test_kind, test_device):
     
     # Environement variable compiler configuration overrides
     os.environ["PYBUDA_EXTRA_L1_MARGIN"] = "60000"
-    os.environ["PYBUDA_RIBBON2"] = "1"
 
     # Load PyBuda module
     pybuda_module = PyTorchModule("pt_override_removal", Module())

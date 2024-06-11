@@ -23,7 +23,6 @@ def resnet(training: bool, config: str, microbatch: int, devtype: str, arch: str
 
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"
-        os.environ["PYBUDA_RIBBON2"] = "1"
 
     os.environ["PYBUDA_ENABLE_HOST_INPUT_NOP_BUFFERING"] = "1"
     os.environ["PYBUDA_ALLOW_MULTICOLUMN_SPARSE_MATMUL"] = "1"
@@ -77,7 +76,6 @@ def resnet_quant(training: bool, config: str, microbatch: int, devtype: str, arc
 
     os.environ["PYBUDA_DISABLE_CONV_MULTI_OP_FRACTURE"] = "1"
     os.environ["PYBUDA_DISABLE_FUSE_OPS"] = "1"
-    os.environ["PYBUDA_RIBBON2"] = "1"
 
     if data_type == "Fp32" and pybuda.detect_available_devices()[0] == BackendDevice.Wormhole_B0:
         os.environ["PYBUDA_ENABLE_DRAM_IO_BUFFER_SCALING"] = "1"

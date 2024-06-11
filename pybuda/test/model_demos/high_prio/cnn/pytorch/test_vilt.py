@@ -102,7 +102,6 @@ def generate_model_vilt_question_answering_hf_pytorch(test_device, variant):
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     compiler_cfg.balancer_policy = "Ribbon"
-    os.environ["PYBUDA_RIBBON2"] = "1"
 
     # Set model configurations
     config = ViltConfig.from_pretrained(variant)
@@ -158,7 +157,6 @@ def generate_model_vilt_maskedlm_hf_pytorch(test_device, variant):
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     compiler_cfg.balancer_policy = "Ribbon"
-    os.environ["PYBUDA_RIBBON2"] = "1" 
 
     # Set model configurations
     config = ViltConfig.from_pretrained(variant)

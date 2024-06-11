@@ -37,7 +37,6 @@ def test_recompile_fuse_stream_limits(test_device):
 
     # Setting target cycles to 0 causes us to hit stream constraints on fused op.
     os.environ["PYBUDA_RIBBON_TARGET_CYCLES"] = "0"
-    os.environ["PYBUDA_RIBBON2"] = "1"
     os.environ["PYBUDA_TEMP_BALANCER_MODEL_PCIE_BW"] = "0"
     os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
 

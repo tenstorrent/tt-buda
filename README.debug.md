@@ -108,6 +108,7 @@
  * PYBUDA\_RIBBON2\_DISABLE\_CLEANUP\_BUF\_NOPS: Disable cleanup of unneeded buffering nops in Ribbon2. (default: 0/False)
  * PYBUDA\_RIBBON2\_CALCULATE\_TARGET\_CYCLES: Calculate target cycles for every epoch within Ribbon2 balancing policy. (default: 0/False)
  * PYBUDA\_RIBBON2\_CALCULATE\_TARGET\_CYCLES\_APPLY\_FILTERING: Apply filtering on GS search space while calculating dynamic cycles per epoch within Ribbon2 balancing policy. (default: 0/False)
+ * PYBUDA\_RIBBON\_LEGACY: Use legacy Ribbon balancing policy. (default: 0/False)
  * PYBUDA\_ENABLE\_HOST\_INPUT\_NOP\_BUFFERING: Enable nop buffering of input host read. (default: 0/False)
  * PYBUDA\_AUTO\_RECOMPILE: Triggers handling of backend compile error and recompiles the model. (default: 1/True)
  * PYBUDA\_AUTO\_RECOMPILE\_TARGET\_CYCLES: Enables adjustment of target cycles during recompile if no errors from backend have been previously handled. Requires PYBUDA\_AUTO\_RECOMPILE to be enabled to work. (default: 0/False)

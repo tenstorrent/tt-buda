@@ -40,7 +40,6 @@ def test_perceiver_for_image_classification_onnx(test_device, model_name):
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
     compiler_cfg.enable_auto_fusing = False
-    os.environ["PYBUDA_RIBBON2"] = "1"
     verify_enabled = True
 
     if test_device.arch == pybuda.BackendDevice.Wormhole_B0:

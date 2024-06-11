@@ -70,7 +70,6 @@ def test_yolo_v5_320x320_onnx(test_device, variant):
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
-    os.environ["PYBUDA_RIBBON2"] = "1"
 
     input_size = 320
 
@@ -115,7 +114,6 @@ def test_yolo_v5_480x480_onnx(test_device, variant):
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
-    os.environ["PYBUDA_RIBBON2"] = "1"
     compiler_cfg.enable_tm_cpu_fallback = True
     # Temp mitigations for net2pipe errors, should be removed.
     #
@@ -195,7 +193,6 @@ def test_yolo_v5_640x640_onnx(test_device, variant):
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
-    os.environ["PYBUDA_RIBBON2"] = "1"
 
     if test_device.arch == BackendDevice.Wormhole_B0:
 

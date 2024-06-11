@@ -24,7 +24,6 @@ def openpose_hand(training: bool, config: str, microbatch: int, devtype: str, ar
 
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"
-        os.environ["PYBUDA_RIBBON2"] = "1"
 
     if data_type == "Bfp8_b" and pybuda.detect_available_devices()[0] == BackendDevice.Wormhole_B0:
         os.environ["PYBUDA_ENABLE_DRAM_IO_BUFFER_SCALING"] = "1"

@@ -255,7 +255,6 @@ def generate_model_mobilenetV1I224_imgcls_hf_pytorch(test_device, variant):
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
-    os.environ["PYBUDA_RIBBON2"] = "1"
 
     # Create PyBuda module from PyTorch model
     preprocessor = download_model(AutoImageProcessor.from_pretrained,

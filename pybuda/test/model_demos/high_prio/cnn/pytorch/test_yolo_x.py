@@ -60,7 +60,6 @@ def test_yolox_pytorch(variant, test_device):
     # Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    os.environ["PYBUDA_RIBBON2"] = "1"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
     os.environ["PYBUDA_DECOMPOSE_SIGMOID"] = "1"
 

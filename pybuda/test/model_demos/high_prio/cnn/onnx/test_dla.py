@@ -34,8 +34,6 @@ def test_dla_onnx(test_device, variant):
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda._C.Float16_b
 
-    os.environ["PYBUDA_RIBBON2"] = "1"
-
     # Load data sample
     url = "https://images.rawpixel.com/image_1300/cHJpdmF0ZS9sci9pbWFnZXMvd2Vic2l0ZS8yMDIyLTA1L3BkMTA2LTA0Ny1jaGltXzEuanBn.jpg"
     image = Image.open(requests.get(url, stream=True).raw)

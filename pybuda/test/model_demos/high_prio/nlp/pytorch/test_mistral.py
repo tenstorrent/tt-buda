@@ -299,7 +299,6 @@ def configure_mistral(test_device) -> MistralConfig:
     configuration.use_cache = True
     configuration.return_dict = False
 
-    os.environ["PYBUDA_RIBBON2"] = "1"
     pybuda.set_configuration_options(default_df_override=pybuda.DataFormat.Float16_b, balancer_policy='Ribbon')
 
     # configuration for all ops that are not matmul

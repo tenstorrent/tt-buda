@@ -25,7 +25,6 @@ def test_pidnet_pytorch(variant, test_device):
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
-    os.environ["PYBUDA_RIBBON2"] = "1"
 
     # Load and pre-process image
     image_path = "./third_party/confidential_customer_models/cv_demos/pidnet/image/road_scenes.png"

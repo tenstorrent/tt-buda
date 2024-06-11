@@ -175,7 +175,6 @@ def test_efficientnet_lite_3_pytorch(test_device):
     os.environ["PYBUDA_MANUAL_SPLICE_DECOMP_TH"] = "613"
     os.environ["PYBUDA_GRAPHSOLVER_SELF_CUT_TYPE"] = "ConsumerOperandDataEdgesFirst"
     os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
-    os.environ["PYBUDA_RIBBON2"] = "1"
     if test_device.arch == BackendDevice.Grayskull:
         os.environ["PYBUDA_PAD_SPARSE_MM_WEIGHT_MM"] = "{26:27}"
     elif test_device.arch == BackendDevice.Wormhole_B0:
@@ -219,7 +218,6 @@ def test_efficientnet_lite_4_pytorch(test_device):
     if test_device.arch == BackendDevice.Wormhole_B0:
         compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
         compiler_cfg.amp_level = 1
-        os.environ["PYBUDA_RIBBON2"] = "1"
     elif test_device.arch == BackendDevice.Grayskull:
         os.environ["PYBUDA_PAD_SPARSE_MM_WEIGHT_CONCAT"] = "{51:54, 11:16, 6:8, 5:8}"
  

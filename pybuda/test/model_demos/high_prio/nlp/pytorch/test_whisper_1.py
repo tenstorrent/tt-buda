@@ -86,7 +86,6 @@ def test_whisper_enc_dec(test_device, variant):
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     compiler_cfg.balancer_policy = "Ribbon"
     os.environ["PYBUDA_FORCE_SEQUENTIAL"] = "1"
-    os.environ["PYBUDA_RIBBON2"] = "1"
     if test_device.arch == BackendDevice.Wormhole_B0:
         compiler_cfg.amp_level = 1
         os.environ["PYBUDA_PAD_OUTPUT_BUFFER"] = "1"

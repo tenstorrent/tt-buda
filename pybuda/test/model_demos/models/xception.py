@@ -21,7 +21,6 @@ def generate_model_xception_imgcls_timm(test_device, variant):
         compiler_cfg.balancer_policy = "CNN"
     else:
         compiler_cfg.balancer_policy = "Ribbon"
-    os.environ["PYBUDA_RIBBON2"] = "1"
     os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
 
     # STEP 2: Create PyBuda module from PyTorch model

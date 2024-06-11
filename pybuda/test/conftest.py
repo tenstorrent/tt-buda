@@ -363,7 +363,6 @@ def pytest_runtest_logreport(report):
                 },
                 {
                     # Level 2 overrides
-                    "PYBUDA_RIBBON2": "",
                     "PYBUDA_DISABLE_STREAM_OUTPUT": "",
                     "PYBUDA_PAD_OUTPUT_BUFFER": "",
                     "PYBUDA_OVERRIDE_DEVICE_YAML": "" # Mostly used for 1x1 model overrides

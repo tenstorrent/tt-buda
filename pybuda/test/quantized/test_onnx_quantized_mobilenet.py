@@ -44,7 +44,6 @@ def test_onnx_quantized_mb_v2_depth(test_device):
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.enable_t_streaming = True
     compiler_cfg.enable_auto_fusing = False
-    os.environ["PYBUDA_RIBBON2"] = "1"
     if test_device.devtype == BackendType.Silicon:
         os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"]  = f"{80*1024}"
 
@@ -96,7 +95,6 @@ def test_onnx_quantized_mb_v2(test_device):
     compiler_cfg.enable_auto_fusing = False
     compiler_cfg.graph_solver_self_cut_type = "ConsumerOperandDataEdgesFirst"
     compiler_cfg.place_on_new_epoch("conv2d_118.dc.reshape.0.dc.sparse_matmul.14.lc2")
-    os.environ["PYBUDA_RIBBON2"] = "1"
     os.environ["PYBUDA_DISABLE_CONV_MULTI_OP_FRACTURE"] = "1"
     os.environ["PYBUDA_DISABLE_PADDING_PASS"] = "1"
     os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"]  = f"{80*1024}"

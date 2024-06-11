@@ -17,7 +17,6 @@ def yolo_v5(training: bool, config: str, microbatch: int, devtype: str, arch: st
 
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"
-        os.environ["PYBUDA_RIBBON2"] = "1"
 
     from pybuda._C.backend_api import BackendDevice
     available_devices = pybuda.detect_available_devices()

@@ -98,7 +98,6 @@ def test_yolo_v6_pytorch(variant, test_device):
     # STEP 1 : Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
-    os.environ["PYBUDA_RIBBON2"] = "1"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
 
     if variant in ["yolov6m", "yolov6l"]:

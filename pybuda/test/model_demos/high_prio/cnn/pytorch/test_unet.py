@@ -33,7 +33,6 @@ def generate_model_unet_imgseg_osmr_pytorch(test_device, variant):
     compiler_cfg.enable_enumerate_u_kt = False
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     os.environ["PYBUDA_FORCE_RESIZE_DENSE_MM"] = "1"
-    os.environ["PYBUDA_RIBBON2"] = "1"
     if test_device.arch == BackendDevice.Wormhole_B0:
         compiler_cfg.balancer_policy = "Ribbon"
         os.environ["PYBUDA_BALANCER_PREPASS_DISABLED"] = "1"

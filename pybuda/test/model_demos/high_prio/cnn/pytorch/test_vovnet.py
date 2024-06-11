@@ -110,7 +110,6 @@ def generate_model_vovnet39_imgcls_stigma_pytorch(test_device, variant):
     # STEP 1: Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "Ribbon"
-    os.environ["PYBUDA_RIBBON2"] = "1"
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
    
     # STEP 2: Create PyBuda module from PyTorch model 
@@ -205,8 +204,6 @@ def generate_model_vovnet_imgcls_timm_pytorch(test_device, variant):
     # tenstorrent/pybuda#915
     if test_device.arch == BackendDevice.Grayskull and variant == "ese_vovnet39b":
         compiler_cfg.balancer_policy = "Ribbon"
-        os.environ["PYBUDA_RIBBON2"] = "1"
-
     # STEP 2: Create PyBuda module from PyTorch model
     tt_model = pybuda.PyTorchModule(variant+"_pt", model)
     
