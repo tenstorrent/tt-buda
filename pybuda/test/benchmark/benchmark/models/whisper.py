@@ -37,6 +37,7 @@ def whisper_decoder(training: bool, config: str, microbatch: int, devtype: str, 
 def whisper(training: bool, config: str, microbatch: int, devtype: str, arch: str, data_type: str, math_fidelity: str):
 
     compiler_cfg = _get_global_compiler_config()
+    compiler_cfg.dont_fuse("subtract_634")
 
     if compiler_cfg.balancer_policy == "default":
         compiler_cfg.balancer_policy = "Ribbon"
