@@ -146,7 +146,7 @@ def test_yolox_onnx(variant, test_device):
             os.environ["PYBUDA_FORK_JOIN_SKIP_EXPANDING_BUFFERS"] = "1"
 
             if variant == "yolox_l":
-
+                os.environ["PYBUDA_RIBBON2_CONSERVATIVE_OPTIMIZATION_ITERATIONS"] = "0"
                 compiler_cfg.place_on_new_epoch("conv2d_372.dc.matmul.11")
                 compiler_cfg.balancer_op_override("concatenate_433.dc.concatenate.7.before_padded_node.nop_0", "grid_shape", (1, 1))
                 compiler_cfg.balancer_op_override(

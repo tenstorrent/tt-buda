@@ -156,6 +156,7 @@ def generate_model_yoloV5I640_imgcls_torchhub_pytorch(test_device, variant, size
             compiler_cfg.enable_auto_transposing_placement = True
             compiler_cfg.enable_tm_cpu_fallback = True
             compiler_cfg.balancer_op_override("conv2d_328.dc.matmul.8", "grid_shape", (5,2))
+            os.environ["PYBUDA_RIBBON2_CONSERVATIVE_OPTIMIZATION_ITERATIONS"] = "0"
         if size == "x":
             compiler_cfg.balancer_op_override("concatenate_363.dc.concatenate.0", "grid_shape", (1,1))
             compiler_cfg.balancer_op_override("conv2d_41.dc.matmul.8", "t_stream_shape", (1,1))
