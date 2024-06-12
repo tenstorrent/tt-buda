@@ -43,8 +43,11 @@ struct Padding
     std::uint32_t pad_lhs_ct = 0;
     std::uint32_t pad_rhs_ct = 0;
 
-    // If we have added nop input edge of the node with NodeId map will hold true for that NodeId.
-    std::unordered_set<tt::graphlib::NodeId> added_nop;
+    // If true, we will add nop on input edge of padded node. This is done to solve operand constraints.
+    bool add_nop_on_input_edge = false;
+
+    // If true, we will add buffering queue on output edge of padded node instead of adding nop.
+    bool add_queues_on_output = false;
 };
 
 // Padding criterion says how we want to compute
@@ -115,13 +118,13 @@ void remove_pad_tm(Graph *, Node *);
 
 void remove_buda_unpad(tt::graphlib::Graph *, tt::graphlib::Node *);
 
-bool pad_node(tt::graphlib::Graph *, tt::graphlib::Node *, Padding &, bool add_nop_on_input_edge = false);
+bool pad_node(tt::graphlib::Graph *, tt::graphlib::Node *, Padding &);
 
-bool pad_eltwise(tt::graphlib::Graph *, tt::graphlib::Node *, Padding &, bool add_nop_on_input_edge = false);
+bool pad_eltwise(tt::graphlib::Graph *, tt::graphlib::Node *, Padding &);
 
-bool pad_matmul(tt::graphlib::Graph *, tt::graphlib::Node *, Padding &, bool add_nop_on_input_edge = false);
+bool pad_matmul(tt::graphlib::Graph *, tt::graphlib::Node *, Padding &);
 
-bool pad_smm(tt::graphlib::Graph *, tt::graphlib::Node *, Padding &, bool add_nop_on_input_edge = false);
+bool pad_smm(tt::graphlib::Graph *, tt::graphlib::Node *, Padding &);
 
 // TODO: In Progress.
 // bool pad_splice(tt::graphlib::Graph *, tt::graphlib::Node *);

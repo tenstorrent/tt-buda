@@ -88,6 +88,8 @@ bool insert_queue_instead_of_nop(
     return true;
 }
 
+// Adds queue on output edge of the node and checks if node is legal. Returns true if node is legal after adding queue.
+// Before returning, we remove the queue from the graph.
 bool check_if_queue_fixes_failures(
     Graph *graph,
     Node *node,
@@ -135,28 +137,177 @@ bool node_has_padding_queue(
     return false;
 }
 
+bool run_padding_loop(
+    Graph *graph,
+    Node *node,
+    Padding &padding,
+    const BudaOpNodeLegalizerFailureInfo &failure_info,
+    const BalancerConfig &balancer_config,
+    std::shared_ptr<balancer::BalancerCacheCollection> balancer_cache_collection,
+    bool queue_fixes_failures)
+{
+    const int PADDING_TRY_MAX = 10;
+    bool padded_node = false;
+    bool padded_loop = false;
+    bool no_failures = false;
+
+    std::uint32_t operand_access_cnt =
+        failure_info.getOpModelFailureCountByType(OpModelFailureReason::OperandAccessPreventsStreaming);
+    std::uint32_t operand_and_user_access_cnt =
+        failure_info.getOpModelFailureCountByType(OpModelFailureReason::OperandAndUserAccessPreventsStreaming);
+    std::uint32_t user_access_cnt =
+        failure_info.getOpModelFailureCountByType(OpModelFailureReason::UserAccessPreventsStreaming);
+    std::uint32_t buffer_alloc_cnt =
+        failure_info.getOpModelFailureCountByType(OpModelFailureReason::InputBufferAllocationFailure);
+
+    // allow padding loop at least once
+    bool first = true;
+    int padding_try_it = 0;
+    while (padding_try_it++ < PADDING_TRY_MAX && (buffer_alloc_cnt > 0 || first))
+    {
+        if (!first)
+        {
+            // If we have tried to pad the node (not first iteration of loop), but it failed, we remove padding and try
+            // again. Note, padding structure stays intact, and we resume padding in next iteration from where we have
+            // stopped.
+            remove_padding(graph, node, padding);
+        }
+        first = false;
+
+        if (operand_access_cnt)
+        {
+            // add nop on input edge of padded node to fix operand access prevents streaming failures
+            padding.add_nop_on_input_edge = true;
+        }
+        padded_loop = pad_node(graph, node, padding);
+
+        if (padded_loop)
+        {
+            std::unordered_map<Node *, const BudaOpNodeLegalizerFailureInfo> failures =
+                check_node_legality(graph, node, balancer_config, balancer_cache_collection);
+            user_access_cnt =
+                (failures.size() > 0)
+                    ? failures[node].getOpModelFailureCountByType(OpModelFailureReason::UserAccessPreventsStreaming)
+                    : 0;
+            buffer_alloc_cnt =
+                (failures.size() > 0)
+                    ? failures[node].getOpModelFailureCountByType(OpModelFailureReason::InputBufferAllocationFailure)
+                    : 0;
+            operand_access_cnt =
+                (failures.size() > 0)
+                    ? failures[node].getOpModelFailureCountByType(OpModelFailureReason::OperandAccessPreventsStreaming)
+                    : 0;
+            operand_and_user_access_cnt = (failures.size() > 0)
+                                              ? failures[node].getOpModelFailureCountByType(
+                                                    OpModelFailureReason::OperandAndUserAccessPreventsStreaming)
+                                              : 0;
+            if (failures.size() > 0)
+            {
+                if (padded_loop)
+                    padded_loop = false;
+                log_debug(
+                    LogPadding,
+                    "Node {} is illegal after padding: lhs_rt {} lhs_ct {} rhs_ct {}",
+                    node->name(),
+                    padding.pad_lhs_rt,
+                    padding.pad_lhs_ct,
+                    padding.pad_rhs_ct);
+            }
+            else
+            {
+                no_failures = true;
+                log_debug(
+                    LogPadding,
+                    "Node {} is legal after padding: lhs_rt {} lhs_ct: {} rhs_ct: {}",
+                    node->name(),
+                    padding.pad_lhs_rt,
+                    padding.pad_lhs_ct,
+                    padding.pad_rhs_ct);
+                // If we added queue and also padded the node, we want to check if only adding the queue had solved
+                // the failures (queue_fixes_failures). If it did, we remove padding and keep the queue.
+                bool has_padding_queue = node_has_padding_queue(graph, node);
+                if (has_padding_queue && queue_fixes_failures)
+                {
+                    log_debug(
+                        LogPadding,
+                        "Node {} has padding queue on output edge but it's also padded. In this case only queue is "
+                        "enough.",
+                        node->name());
+                    remove_padding(graph, node, padding);
+                    insert_queue(graph, node);
+                    std::unordered_map<Node *, const BudaOpNodeLegalizerFailureInfo> failures =
+                        check_node_legality(graph, node, balancer_config, balancer_cache_collection);
+                    TT_ASSERT(failures.size() == 0, "Adding queue is expected to fix all failures in this situation");
+                }
+                padded_node |= padded_loop;
+                break;
+            }
+        }
+    }
+
+    if (!no_failures)
+    {
+        // if we have failures after padding loop, we still have few things that can make the node legal.
+        // If queue_fixes_failures is true, this means that adding queue without padding the node fixes the failures.
+        if (queue_fixes_failures)
+        {
+            remove_padding(graph, node, padding);
+            insert_queue(graph, node);
+            std::unordered_map<Node *, const BudaOpNodeLegalizerFailureInfo> failures =
+                check_node_legality(graph, node, balancer_config, balancer_cache_collection);
+            TT_ASSERT(failures.size() == 0, "Adding queue is expected to fix all failures in this situation");
+        }
+        else
+        {
+            // If we have failures, but  buffer_alloc_cnt == 0, then we can try to handle other failures by adding queue
+            // on output edge. In some cases this, along with padding will make node legal. However, if we don't even
+            // have buffer_alloc_cnt == 0, we remove padding and give up.
+            if (buffer_alloc_cnt > 0)
+            {
+                // After padding loop we still have input buffer allocation count issues.
+                log_warning(
+                    LogPadding,
+                    "Couldn't find padding for node: {} after {} iterations.",
+                    node->name(),
+                    padding_try_it);
+                // We remove padding only if it didn't solve input buffer allocation issues.
+                remove_padding(graph, node, padding);
+                // unsuccessful padding for node
+                return false;
+            }
+
+            if (user_access_cnt > 0 || operand_and_user_access_cnt > 0)
+            {
+                // Inserting queue helps with user access failures but can also solve input buffer allocation issues.
+                insert_queue(graph, node);
+                padded_node = true;
+            }
+        }
+    }
+    return padded_node;
+}
+
+// Tries padding all nodes from map nodes_to_pad. Returns true if it successfully padded at least one node.
 bool pad_pass_placer(
     Graph *graph,
-    const std::unordered_map<graphlib::Node *, 
-    const BudaOpNodeLegalizerFailureInfo> &nodes_to_pad,
+    const std::unordered_map<graphlib::Node *, const BudaOpNodeLegalizerFailureInfo> &nodes_to_pad,
     const balancer::BalancerConfig &balancer_config,
     std::shared_ptr<balancer::BalancerCacheCollection> balancer_cache_collection)
 {
-    const int PADDING_TRY_MAX = 10;
     bool padded = false;
 
-    // We pass operations we want to pad, in other words if paddings map is not empty,
-    // for each operations in our graph we check if it should be padded or not.
-    // So, it should exist in the map and its flag should be TRUE, otherwise we skip the node.
-
+    // We go through map of nodes to pad. These can be nodes without valid op models, and/or user defined nodes that
+    // need to be padded.
     for (const auto &node_fail_pair : nodes_to_pad)
     {
-
-        Node* node = node_fail_pair.first;
+        Node *node = node_fail_pair.first;
         const BudaOpNodeLegalizerFailureInfo failure_info = node_fail_pair.second;
         log_debug(LogPadding, "Padding node {} with {}", node->name(), failure_info.toString().c_str());
 
-        // If the node has no valid grids and has padding_nop tag, we replace it with buffering queue.
+        // If the node has no valid grids and has padding_nop tag it means that we padded nop's producer and got valid
+        // op models, but nop that we added on output edge took the burdain of constraints and we just postponed the no
+        // valid grids issue to the next node (padding_nop). This is solved by replacing padding nop with the buffering
+        // queue.
         if (node->as<graphlib::TaggedNode>()->has_tag("padding_nop"))
         {
             std::vector<Node *> oprands = graph->data_operands(node);
@@ -170,127 +321,37 @@ bool pad_pass_placer(
 
         if (node->as<graphlib::TaggedNode>()->has_tag("padding"))
             continue;
-        std::uint32_t operand_access_cnt =
-            failure_info.getOpModelFailureCountByType(OpModelFailureReason::OperandAccessPreventsStreaming);
-        std::uint32_t operand_and_user_access_cnt =
-            failure_info.getOpModelFailureCountByType(OpModelFailureReason::OperandAndUserAccessPreventsStreaming);
-        std::uint32_t operand_and_user_access_cnt_begin = operand_and_user_access_cnt;
 
-        std::uint32_t user_access_cnt =
-            failure_info.getOpModelFailureCountByType(OpModelFailureReason::UserAccessPreventsStreaming);
-        std::uint32_t user_access_cnt_begin = user_access_cnt;
-
-        std::uint32_t buffer_alloc_cnt =
-            failure_info.getOpModelFailureCountByType(OpModelFailureReason::InputBufferAllocationFailure);
-
-        int padding_try_it = 0;
-        bool padded_loop = false;
-
+        // Initialize padding structure.
         Padding padding;
-        // Preserve the original shape
-        padding.orig_shape = node->shape();
-        bool no_failures = false;
-        bool add_nop_on_input_edge = false;
+        // Preserve the original shape.
+        tt::graphlib::Shape orig_shape = node->shape();
+        padding.orig_shape = orig_shape;
 
-        // Check if adding queue after the node fixes failures. After padding loop is done, we will decide whether it is
-        // better to pad the node or just to add queue.
+        // Check if adding queue after the node fixes all the failures. After padding loop is done, we will decide
+        // whether it is better to pad the node or just to add queue.
         bool queue_fixes_failures =
             check_if_queue_fixes_failures(graph, node, balancer_config, balancer_cache_collection);
         log_trace(LogPadding, "For node {}, queue after node fixes failures: {}", node->name(), queue_fixes_failures);
-        // allow padding loop at least once
-        bool first = true;
-        while (padding_try_it++ < PADDING_TRY_MAX && ( buffer_alloc_cnt > 0 || first ))
+
+        // Try padding the node with nop on output edges.
+        bool padded_node = run_padding_loop(
+            graph, node, padding, failure_info, balancer_config, balancer_cache_collection, queue_fixes_failures);
+
+        if (!padded_node)
         {
-            first = false;
-            if (padding_try_it > 0)
-            {
-                // If we have tried to pad the node, but it failed, we remove padding and try again.
-                // Note, padding structure stays intact, and we resume padding in next iteration from where we have stopped.
-                remove_padding(graph, node, padding);
-            }
-
-            if (operand_access_cnt)
-            {
-                // add nop on input edge of padded node to fix operand access prevents streaming failures
-                add_nop_on_input_edge = true;
-            }
-            padded_loop = pad_node(graph, node, padding, add_nop_on_input_edge);
-            
-            if (padded_loop) 
-            {
-
-                std::unordered_map<Node*, const BudaOpNodeLegalizerFailureInfo> failures = check_node_legality(graph, node, balancer_config, balancer_cache_collection);
-                // user_access_cnt shouldn't be updated in padding loop because it is only used after the loop if there are still failures and graph is unpadded.
-                user_access_cnt = (failures.size() > 0) ? failures[node].getOpModelFailureCountByType(OpModelFailureReason::UserAccessPreventsStreaming) : 0;
-                buffer_alloc_cnt = (failures.size() > 0) ? failures[node].getOpModelFailureCountByType(OpModelFailureReason::InputBufferAllocationFailure) : 0;
-                operand_access_cnt = (failures.size() > 0) ? failures[node].getOpModelFailureCountByType(OpModelFailureReason::OperandAccessPreventsStreaming): 0;
-                operand_and_user_access_cnt = (failures.size() > 0) ? failures[node].getOpModelFailureCountByType(OpModelFailureReason::OperandAndUserAccessPreventsStreaming): 0;
-                if (failures.size() > 0)
-                {
-                    if (padded_loop)
-                        padded_loop = false;
-                    log_debug(LogPadding, "Node {} is illegal after padding: lhs_rt {} lhs_ct {} rhs_ct {}", node->name(), padding.pad_lhs_rt, padding.pad_lhs_ct, padding.pad_rhs_ct);
-                }
-                else
-                {
-                    no_failures = true;
-                    log_debug(LogPadding, "Node {} is legal after padding: lhs_rt {} lhs_ct: {} rhs_ct: {}", node->name(), padding.pad_lhs_rt, padding.pad_lhs_ct, padding.pad_rhs_ct);
-                    // If we added queue and also padded the node, we want to check if only adding the queue had solved
-                    // the failures (queue_fixes_failures). If it did, we remove padding and keep the queue.
-                    bool has_padding_queue = node_has_padding_queue(graph, node);
-                    if (has_padding_queue && queue_fixes_failures)
-                    {
-                        remove_padding(graph, node, padding);
-                        insert_queue(graph, node);
-                        std::unordered_map<Node *, const BudaOpNodeLegalizerFailureInfo> failures =
-                            check_node_legality(graph, node, balancer_config, balancer_cache_collection);
-                        TT_ASSERT(
-                            failures.size() == 0, "Adding queue is expected to fix all failures in this situation");
-                    }
-                    padded |= padded_loop;
-                    break;
-                }
-            }
-
+            // Reset the padding structure and try again with padding.add_queues_on_output = true.
+            // This means that for the current node we will try padding again but with adding queue on output edge
+            // instead of nop.
+            padding = Padding();
+            padding.orig_shape = orig_shape;
+            padding.add_queues_on_output = true;
+            padded_node = run_padding_loop(
+                graph, node, padding, failure_info, balancer_config, balancer_cache_collection, queue_fixes_failures);
         }
 
-
-        if (!no_failures)
-        {
-            // if we have failures after padding loop, we still have few things that can make the node legal.
-            // If queue_fixes_failures is true, this means that adding queue without padding the node fixes the failures.
-            if (queue_fixes_failures)
-            {
-                remove_padding(graph, node, padding);
-                insert_queue(graph, node);
-                std::unordered_map<Node *, const BudaOpNodeLegalizerFailureInfo> failures =
-                    check_node_legality(graph, node, balancer_config, balancer_cache_collection);
-                TT_ASSERT(
-                    failures.size() == 0, "Adding queue is expected to fix all failures in this situation");
-            }
-            else
-            {
-                // If queue doesn't fix the failures, we try to add 
-                std::uint32_t user_access_cnt_final = (buffer_alloc_cnt > 0) ? user_access_cnt_begin : user_access_cnt;
-                std::uint32_t operand_and_user_access_cnt_final = (buffer_alloc_cnt > 0) ? operand_and_user_access_cnt_begin : operand_and_user_access_cnt;
-
-                if (buffer_alloc_cnt > 0)
-                {
-                    // After padding loop we still have input buffer allocation count issues.
-                    log_warning(LogPadding, "Couldn't find padding for node: {} after {} iterations.", node->name(), padding_try_it);
-                    // We remove padding only if it didn't solve input buffer allocation issues.
-                    remove_padding(graph, node, padding);
-                }
-
-                if (user_access_cnt_final > 0 || operand_and_user_access_cnt_final > 0)
-                {
-                    // Inserting queue helps with user access failures but can also solve input buffer allocation issues.
-                    insert_queue(graph, node);
-                    padded = true;
-                }
-            }
-        }
-
+        // padded will be true if we padded successfully at least one node from the nodes_to_pad.
+        padded |= padded_node;
     }
 
     return padded;
@@ -566,8 +627,7 @@ void remove_buda_unpad(Graph *graph, Node *node)
 bool pad_node(
     Graph *graph, 
     Node *node,
-    Padding &padding,
-    bool add_nop_on_input_edge
+    Padding &padding
 )
 {
 
@@ -604,7 +664,7 @@ bool pad_node(
         if (element_wise_flag && op_type != "splice")
         {
             compute_pad_eltwise(node, padding, criterion);
-            return pad_eltwise(graph, node, padding, add_nop_on_input_edge);
+            return pad_eltwise(graph, node, padding);
         }
 
         /* TODO: Should be enabled.
@@ -620,14 +680,14 @@ bool pad_node(
         if (buda_op_node->is_sparse_matmul() && sparse_matmul_flag)
         {
             compute_pad_smm(graph, node, padding, criterion);
-            return pad_smm(graph, node, padding, add_nop_on_input_edge);
+            return pad_smm(graph, node, padding);
         }
 
         // Pad matmul
         if (buda_op_node->is_matmul() && matmul_flag)
         {
             compute_pad_matmul(graph, node, padding, criterion);
-            return pad_matmul(graph, node, padding, add_nop_on_input_edge);
+            return pad_matmul(graph, node, padding);
         }
 
     }  // end if, matmul
@@ -654,8 +714,7 @@ void set_padded_node_out_shape(Node* padded_node, Padding &padding)
 bool pad_eltwise(
     Graph *graph, 
     Node *node,
-    Padding &padding,
-    bool add_nop_on_input_edge
+    Padding &padding
 )
 {
 
@@ -692,7 +751,7 @@ bool pad_eltwise(
                 // Padding value, used only in case
                 // when we use buda implmentation for padding
                 0.0,
-                add_nop_on_input_edge
+                padding.add_nop_on_input_edge
             );
 
     }  // end for, incoming edges
@@ -720,8 +779,7 @@ bool pad_eltwise(
 bool pad_matmul(
     Graph *graph, 
     Node *node,
-    Padding &padding,
-    bool add_nop_on_input_edge
+    Padding &padding
 )
 {
 
@@ -760,7 +818,7 @@ bool pad_matmul(
             // Padding value, used only in case
             // when we use buda implmentation for padding
             0.0,
-            add_nop_on_input_edge);
+            padding.add_nop_on_input_edge);
     }
 
     // Insert pad for the right operand
@@ -775,7 +833,7 @@ bool pad_matmul(
             // Padding value, used only in case
             // when we use buda implmentation for padding
             0.0,
-            add_nop_on_input_edge);
+            padding.add_nop_on_input_edge);
     }
 
     // If matmul has bias operand (incoming_edges.size() > 2), we update tms on the bias edge to include padding.
@@ -803,12 +861,7 @@ bool pad_matmul(
     return true;
 }
 
-bool pad_smm(
-    Graph *graph, 
-    Node *node, 
-    Padding &padding,
-    bool add_nop_on_input_edge
-)
+bool pad_smm(Graph *graph, Node *node, Padding &padding)
 {
     bool padded = false;
 
@@ -871,7 +924,7 @@ bool pad_smm(
                     // Padding value, used only in case
                     // when we use buda implmentation for padding
                     0.0,
-                    add_nop_on_input_edge
+                    padding.add_nop_on_input_edge
                 );
 
                 padded = true;
@@ -1222,7 +1275,7 @@ void insert_unpad(
             (PortId)edge.consumer_input_port_id);
         std::get<1>(new_queue_info)->as<TaggedNode>()->add_tags({ { "padding_queue", true } });
     }
-    else if (padding.added_nop.find(edge.consumer_node_id) != padding.added_nop.end())
+    else if (padding.add_queues_on_output)
     {
         insert_unpad_buda(
             graph,
@@ -1271,9 +1324,6 @@ void insert_unpad(
             // Original shape C dimension
             orig_c
         );
-
-        // Set the NOP indicator.
-        padding.added_nop.insert(outgoing_node->id());
     }
 
 }
