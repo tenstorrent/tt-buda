@@ -17,26 +17,36 @@ from pybuda._C.backend_api import BackendDevice, BackendType
 
 variants = [
     "Salesforce/codegen-350M-mono",
-    # "Salesforce/codegen-350M-multi", # Currently not supported
-    # "Salesforce/codegen-350M-nl", # Currently not supported
+    "Salesforce/codegen-350M-multi",
+    "Salesforce/codegen-350M-nl",
 ]
 
 @pytest.mark.parametrize("variant", variants, ids=variants)
 def test_codegen(test_device, variant):
     # Configurations
     compiler_cfg = pybuda.config._get_global_compiler_config()
-    compiler_cfg.enable_tvm_cpu_fallback = False
-    compiler_cfg.default_dram_parameters = False
-    compiler_cfg.enable_enumerate_u_kt = False
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
-    os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{32*1024}"
-    pcc = 0.98
-    if test_device.arch == BackendDevice.Grayskull:
-        compiler_cfg.default_dram_parameters = False
-        compiler_cfg.balancer_policy = "Ribbon"
-        pcc = 0.96 if test_device.devtype == BackendType.Silicon else 0.98
-    # DRAM stream limit
+    compiler_cfg.balancer_policy = "Ribbon"
+    os.environ["PYBUDA_RIBBON2"] = "1"
+    compiler_cfg.enable_tvm_cpu_fallback = False
     compiler_cfg.balancer_op_override("matmul_1829", "grid_shape", (2, 8))
+
+    pcc_value = 0.99
+    if test_device.arch == BackendDevice.Wormhole_B0:
+        if test_device.devtype == BackendType.Silicon:
+            if variant == "Salesforce/codegen-350M-multi":
+                pcc_value = 0.96
+            elif variant == "Salesforce/codegen-350M-nl":
+                pcc_value = 0.95
+    elif test_device.arch == BackendDevice.Grayskull:
+        if test_device.devtype == BackendType.Silicon:
+            if variant == "Salesforce/codegen-350M-mono":
+                pcc_value = 0.96
+            elif variant == "Salesforce/codegen-350M-multi":
+                pcc_value = 0.93
+            elif variant == "Salesforce/codegen-350M-nl":
+                compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16
+                pcc_value = 0.90
 
     # Load model (with tokenizer)
     tokenizer = download_model(AutoTokenizer.from_pretrained, variant)
@@ -75,7 +85,7 @@ def test_codegen(test_device, variant):
     attn_mask = attn_mask.to(torch.float32)
     out = framework_model(input_ids, attn_mask)
 
-    pybuda_model = pybuda.PyTorchModule("pt_codegen", framework_model)
+    pybuda_model = pybuda.PyTorchModule("pt_"+str(variant.split("/")[-1].replace("-", "_")), framework_model)
     verify_module(
         pybuda_model,
         input_shapes=[(input_ids.shape, attn_mask.shape,)],
@@ -86,6 +96,6 @@ def test_codegen(test_device, variant):
             devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
             chip_ids=NebulaGalaxy.chip_ids if "PYBUDA_NEB_GALAXY_CI" in os.environ and int(os.environ.get("PYBUDA_NEB_GALAXY_CI"))==1 else [0],
-            pcc=pcc,
+            pcc=pcc_value,
         ),
     )
