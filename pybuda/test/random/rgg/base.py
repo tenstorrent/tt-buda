@@ -16,7 +16,8 @@ from pybuda.op_repo import OperatorRepository
 from test.conftest import TestDevice
 from .datatypes import RandomizerNode, RandomizerGraph, RandomizerParameters, RandomizerConfig, ExecutionContext
 from .datatypes import RandomizerTestContext
-from .utils import RandomUtils, StrUtils, GraphUtils
+from .datatypes import TensorShape
+from .utils import StrUtils, GraphUtils
 
 
 class GraphBuilder:
@@ -67,30 +68,17 @@ class RandomizerCodeGenerator:
         self.template = Environment(loader=FileSystemLoader(template_dir)).get_template('generated_model.jinja2')
 
     def constructor_kwargs(self, node: RandomizerNode):
-        constructor_kwargs = RandomUtils.constructor_kwargs(node.operator)
-        return StrUtils.kwargs_str(**constructor_kwargs)
+        return StrUtils.kwargs_str(**node.constructor_kwargs)
 
     def forward_args(self, node: RandomizerNode) -> str:
         args_str = ", ".join([f"inputs[{i}]" for i in range(node.operator.input_num)])
         return args_str
     
     def forward_kwargs(self, node: RandomizerNode) -> str:
-        forward_kwargs = RandomUtils.forward_kwargs(node.operator)
-        return StrUtils.kwargs_str(**forward_kwargs)
+        return StrUtils.kwargs_str(**node.forward_kwargs)
 
-    # TODO obsolete by constructor_kwargs
-    def build_layer(self, node: RandomizerNode) -> str:
-        if node.operator.is_layer() and node.operator.full_name is not None:
-            return f"{node.operator.full_name}({node.in_features}, {node.out_features} {self.constructor_kwargs(node)})"
-        else:
-            raise Exception(f"Unsupported layer building for {node.node_info()}")
-
-    # def call_operator(self, ctx: ExecutionContext) -> str:
-    #     if ctx.node.operator.is_operator() and ctx.node.operator.full_name is not None:
-    #         v = f"{ctx.node.operator.full_name}('{ctx.node.node_name()}', {self.forward_args(ctx.node)} {self.forward_kwargs(ctx.node)})"
-    #     else:
-    #         raise Exception(f"Unsupported operator call for {ctx.node.node_info()}")
-    #     return v
+    def reduce_microbatch_size(self, shape: TensorShape) -> str:
+        return (1, ) + shape[1:]
 
     def generate_code(self, test_context: RandomizerTestContext, test_format: bool = True) -> str:
         # TODO setup random seed in generated test function
@@ -99,17 +87,17 @@ class RandomizerCodeGenerator:
         template = self.template
 
         code_str = template.render(
+            randomizer_config = test_context.randomizer_config,
             graph_builder_name = parameters.graph_builder_name,
             test_id = StrUtils.test_id(test_context),
             test_format = test_format,
             test_index = parameters.test_index,
             random_seed = parameters.random_seed,
             graph=test_context.graph,
-            build_layer=self.build_layer,
-            # call_operator=self.call_operator,
             constructor_kwargs=self.constructor_kwargs,
             forward_args=self.forward_args,
             forward_kwargs=self.forward_kwargs,
+            reduce_microbatch_size=self.reduce_microbatch_size,
             ExecutionContext=ExecutionContext,
             )
 

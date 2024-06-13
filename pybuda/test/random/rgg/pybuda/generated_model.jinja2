@@ -17,14 +17,18 @@ class GeneratedTestModel_{{ test_index }}_{{ random_seed }}(PyBudaModule):
         super(GeneratedTestModel_{{ test_index }}_{{ random_seed }}, self).__init__(module_name)
         self.testname = "Operator Test GeneratedTestModel_{{ test_id }}"
 {% for node in graph.nodes %}{% if node.operator.is_layer() %}        
-        self.{{ node.layer_name() }} = {{ build_layer(node) }}{% endif %}{% endfor %}
+        self.{{ node.layer_name() }} = {{ node.operator.full_name }}({{ constructor_kwargs(node=node) }}){% endif %}{% endfor %}
 
-    def forward(self{% for node in graph.input_nodes %}, {{ node.out_value }}: pybuda.Tensor{% endfor %}) -> pybuda.Tensor:
+    def forward(self{% for node in graph.input_nodes %},
+            {{ node.out_value }}: pybuda.Tensor{% endfor %}
+        ) -> pybuda.Tensor:
         {% for node in graph.nodes %}
 
+        # shapes: {{ node.input_shapes }} -> {{ node.output_shape }}
         inputs = [{% for input_node in node.inputs %}{{ input_node.out_value }}{% if not loop.last %}, {% endif %}{% endfor %}]{% if node.operator.is_layer() %}
         {{ node.out_value }} = self.{{ node.layer_name() }}(inputs[0]){% else %}
-        {{ node.out_value }} = {% if node.operator.forward_code %}{{node.operator.forward_code()}}{% else %}{{ node.operator.full_name }}('{{ node.node_name() }}', {{ forward_args(node=node) }}{{ forward_kwargs(node=node) }}){% endif %}{% endif %}{% endfor %}
+        {{ node.out_value }} = {% if node.operator.forward_code %}{{node.operator.forward_code()}}{% else %}{{ node.operator.full_name }}('{{ node.node_name() }}', {{ forward_args(node=node) }}, {{ forward_kwargs(node=node) }}){% endif %}{% endif %}{% if randomizer_config.verify_shapes %}
+        assert {{ node.out_value }}.shape == {{ reduce_microbatch_size(node.output_shape) }}, f"Unexpected output shape of {{ node.out_value }} { {{ node.out_value }}.shape } <> {{ reduce_microbatch_size(node.output_shape) }}"{% endif %}{% endfor %}
 
         return v
 {% if test_format %}
@@ -32,7 +36,9 @@ class GeneratedTestModel_{{ test_index }}_{{ random_seed }}(PyBudaModule):
 # @pytest.mark.skip(reason="Skip this test for now.")
 def test_gen_model_{{ test_index }}_{{ random_seed }}(test_device):
     
-    input_shapes = [{% for input_node in graph.input_nodes %}{{ input_node.input_shape }}, {% endfor %}]
+    input_shapes = [
+        {% for input_node in graph.input_nodes %}{{ input_node.input_shape }},
+        {% endfor %}]
     model = GeneratedTestModel_{{ test_index }}_{{ random_seed }}("pytest_gen_model_{{ test_id }}")
 
     verify_module(model, input_shapes, VerifyConfig(devtype=test_device.devtype, arch=test_device.arch))

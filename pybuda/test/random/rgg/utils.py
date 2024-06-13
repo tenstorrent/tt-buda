@@ -10,9 +10,7 @@ from dataclasses import asdict
 import re
 import yaml
 
-import numpy as np
-
-from pybuda.op_repo import OperatorParam, OperatorParamNumber
+from pybuda.op_repo import OperatorParam, OperatorDefinition, OperatorParamNumber
 
 from .datatypes import TensorShape
 from .datatypes import RandomizerConfig, RandomizerTestContext, RandomizerNode, RandomizerGraph
@@ -23,8 +21,6 @@ class StrUtils:
     @staticmethod
     def kwargs_str(**kwargs):
         s = ', '.join([f"{key}= {value}" for key, value in kwargs.items()])
-        if s:
-            s = ", " + s
         return s
 
     @staticmethod
@@ -56,30 +52,30 @@ class StrUtils:
 class RandomUtils:
 
     @classmethod
-    def random_value_for_param(cls, param: OperatorParam):
+    def random_value_for_param(cls, param: OperatorParam, rng_params: random.Random):
         if isinstance(param, OperatorParamNumber):
-            return cls.random_value_for_number_param(param)
+            return cls.random_value_for_number_param(param, rng_params)
         else:
             raise ValueError(f"Unsupported param type {type(param)}")
 
     @classmethod
-    def random_value_for_number_param(cls, param: OperatorParamNumber) -> int:
-        # TODO: reuse seed
+    def random_value_for_number_param(cls, param: OperatorParamNumber, rng_params: random.Random) -> int:
         # TODO: support open intervals
+        # TODO: store rng_params in test_context
         if param.type == float:
-            return np.random.uniform(param.min_value, param.max_value)
+            return rng_params.uniform(param.min_value, param.max_value)
         elif param.type == int:
-            return np.random.randint(param.min_value, param.max_value + 1)
+            return rng_params.randint(param.min_value, param.max_value + 1)
         else:
             raise ValueError(f"Unsupported type {param.type}")
 
     @classmethod
-    def constructor_kwargs(cls, param: OperatorParam) -> Dict:
-        return {param.name: cls.random_value_for_param(param) for param in param.constructor_params}
+    def constructor_kwargs(cls, operator: OperatorDefinition, constructor_kwargs: Dict[str, object], rng_params: random.Random) -> Dict:
+        return {param.name: cls.random_value_for_param(param, rng_params) if param.name not in constructor_kwargs else constructor_kwargs[param.name] for param in operator.constructor_params}
 
     @classmethod
-    def forward_kwargs(cls, param: OperatorParam) -> Dict:
-        return {param.name: cls.random_value_for_param(param) for param in param.forward_params}
+    def forward_kwargs(cls, operator: OperatorDefinition, forward_kwargs: Dict[str, object], rng_params: random.Random) -> Dict:
+        return {param.name: cls.random_value_for_param(param, rng_params) if param.name not in forward_kwargs else forward_kwargs[param.name] for param in operator.forward_params}
 
     @classmethod
     def random_shape(cls,
@@ -100,8 +96,8 @@ class RandomUtils:
 
     @classmethod
     def random_shape_from_config(cls, randomizer_config: RandomizerConfig, rng_shape: random.Random) -> TensorShape:
-        op_size_min = randomizer_config.op_size_min
-        op_size_max = randomizer_config.op_size_max
+        op_size_min = randomizer_config.op_size_per_dim_min
+        op_size_max = randomizer_config.op_size_per_dim_max
 
         dim_min = randomizer_config.dim_min
         dim_max = randomizer_config.dim_max
@@ -160,3 +156,12 @@ class NodeUtils:
     @classmethod
     def get_open_nodes(cls, nodes: List[RandomizerNode]) -> List[RandomizerNode]:
         return [node for node in nodes if cls.is_open(node)]
+
+    @classmethod
+    def get_open_nodes_with_input_shape(cls, nodes: List[RandomizerNode], input_shape: TensorShape) -> List[RandomizerNode]:
+        # TODO support checking not just next operand but all not connected operands
+        return [node for node in nodes if cls.is_open(node) and node.input_shapes[len(node.inputs)] == input_shape]
+
+    @classmethod
+    def calc_input_shapes(cls, node: RandomizerNode, rng_shape: random.Random) -> List[TensorShape]:
+        return node.operator.calc_input_shapes(node.operator, node.output_shape, rng_shape)
