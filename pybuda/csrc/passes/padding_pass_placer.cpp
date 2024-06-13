@@ -143,8 +143,7 @@ bool run_padding_loop(
     Padding &padding,
     const BudaOpNodeLegalizerFailureInfo &failure_info,
     const BalancerConfig &balancer_config,
-    std::shared_ptr<balancer::BalancerCacheCollection> balancer_cache_collection,
-    bool queue_fixes_failures)
+    std::shared_ptr<balancer::BalancerCacheCollection> balancer_cache_collection)
 {
     const int PADDING_TRY_MAX = 10;
     bool padded_node = false;
@@ -225,20 +224,6 @@ bool run_padding_loop(
                     padding.pad_rhs_ct);
                 // If we added queue and also padded the node, we want to check if only adding the queue had solved
                 // the failures (queue_fixes_failures). If it did, we remove padding and keep the queue.
-                bool has_padding_queue = node_has_padding_queue(graph, node);
-                if (has_padding_queue && queue_fixes_failures)
-                {
-                    log_debug(
-                        LogPadding,
-                        "Node {} has padding queue on output edge but it's also padded. In this case only queue is "
-                        "enough.",
-                        node->name());
-                    remove_padding(graph, node, padding);
-                    insert_queue(graph, node);
-                    std::unordered_map<Node *, const BudaOpNodeLegalizerFailureInfo> failures =
-                        check_node_legality(graph, node, balancer_config, balancer_cache_collection);
-                    TT_ASSERT(failures.size() == 0, "Adding queue is expected to fix all failures in this situation");
-                }
                 padded_node |= padded_loop;
                 break;
             }
@@ -247,41 +232,28 @@ bool run_padding_loop(
 
     if (!no_failures)
     {
-        // if we have failures after padding loop, we still have few things that can make the node legal.
-        // If queue_fixes_failures is true, this means that adding queue without padding the node fixes the failures.
-        if (queue_fixes_failures)
+        // If we have failures, but  buffer_alloc_cnt == 0, then we can try to handle other failures by adding queue
+        // on output edge. In some cases this, along with padding will make node legal. However, if we don't even
+        // have buffer_alloc_cnt == 0, we remove padding and give up.
+        if (buffer_alloc_cnt > 0)
         {
+            // After padding loop we still have input buffer allocation count issues.
+            log_warning(
+                LogPadding,
+                "Couldn't find padding for node: {} after {} iterations.",
+                node->name(),
+                padding_try_it);
+            // We remove padding only if it didn't solve input buffer allocation issues.
             remove_padding(graph, node, padding);
-            insert_queue(graph, node);
-            std::unordered_map<Node *, const BudaOpNodeLegalizerFailureInfo> failures =
-                check_node_legality(graph, node, balancer_config, balancer_cache_collection);
-            TT_ASSERT(failures.size() == 0, "Adding queue is expected to fix all failures in this situation");
+            // unsuccessful padding for node
+            return false;
         }
-        else
-        {
-            // If we have failures, but  buffer_alloc_cnt == 0, then we can try to handle other failures by adding queue
-            // on output edge. In some cases this, along with padding will make node legal. However, if we don't even
-            // have buffer_alloc_cnt == 0, we remove padding and give up.
-            if (buffer_alloc_cnt > 0)
-            {
-                // After padding loop we still have input buffer allocation count issues.
-                log_warning(
-                    LogPadding,
-                    "Couldn't find padding for node: {} after {} iterations.",
-                    node->name(),
-                    padding_try_it);
-                // We remove padding only if it didn't solve input buffer allocation issues.
-                remove_padding(graph, node, padding);
-                // unsuccessful padding for node
-                return false;
-            }
 
-            if (user_access_cnt > 0 || operand_and_user_access_cnt > 0)
-            {
-                // Inserting queue helps with user access failures but can also solve input buffer allocation issues.
-                insert_queue(graph, node);
-                padded_node = true;
-            }
+        if (user_access_cnt > 0 || operand_and_user_access_cnt > 0)
+        {
+            // Inserting queue helps with user access failures but can also solve input buffer allocation issues.
+            insert_queue(graph, node);
+            padded_node = true;
         }
     }
     return padded_node;
@@ -333,10 +305,24 @@ bool pad_pass_placer(
         bool queue_fixes_failures =
             check_if_queue_fixes_failures(graph, node, balancer_config, balancer_cache_collection);
         log_trace(LogPadding, "For node {}, queue after node fixes failures: {}", node->name(), queue_fixes_failures);
+        if (queue_fixes_failures && failure_info.getFailuresCountTargetedByPadding())
+        {
+            // add queue instead of padding if there are failures related to padding and queue fixes them.
+            log_debug(
+                LogPadding,
+                "Node {} becomes legal after adding queue. Adding queue instead of padding.",
+                node->name());
+            insert_queue(graph, node);
+            std::unordered_map<Node *, const BudaOpNodeLegalizerFailureInfo> failures =
+                check_node_legality(graph, node, balancer_config, balancer_cache_collection);
+            TT_ASSERT(failures.size() == 0, "Adding queue is expected to fix all failures in this situation");
+            node->as<TaggedNode>()->add_tags({ { "padding", true } });
+            continue;
+        }
 
         // Try padding the node with nop on output edges.
         bool padded_node = run_padding_loop(
-            graph, node, padding, failure_info, balancer_config, balancer_cache_collection, queue_fixes_failures);
+            graph, node, padding, failure_info, balancer_config, balancer_cache_collection);
 
         if (!padded_node)
         {
@@ -347,7 +333,7 @@ bool pad_pass_placer(
             padding.orig_shape = orig_shape;
             padding.add_queues_on_output = true;
             padded_node = run_padding_loop(
-                graph, node, padding, failure_info, balancer_config, balancer_cache_collection, queue_fixes_failures);
+                graph, node, padding, failure_info, balancer_config, balancer_cache_collection);
         }
 
         // padded will be true if we padded successfully at least one node from the nodes_to_pad.

@@ -57,6 +57,15 @@ class BudaOpNodeLegalizerFailureInfo
         return opModelFailureCountByType[failureReason];
     }
 
+    // Returns the total number of failures targeted by padding. Padding aims to resolve these failures.
+    std::uint32_t getFailuresCountTargetedByPadding() const
+    {
+        return opModelFailureCountByType[UserAccessPreventsStreaming] +
+               opModelFailureCountByType[OperandAccessPreventsStreaming] +
+               opModelFailureCountByType[OperandAndUserAccessPreventsStreaming] +
+               opModelFailureCountByType[InputBufferAllocationFailure];
+    }
+
     std::string toString() const
     {
         std::string result = "Op model failure counts by type: \n";
