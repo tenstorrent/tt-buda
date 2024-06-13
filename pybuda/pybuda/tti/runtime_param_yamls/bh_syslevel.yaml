@@ -1,0 +1,10 @@
+system_level_params:
+  system-device-chip_locations: 0,0,0,0,0,-
+  system-device-chips_with_mmio: 0-
+  system-device-cluster_descriptor: ""
+  system-device-ethernet_connections: ""
+  system-device-num_mmio_devices: 1
+  system-device-number_of_chips: 1
+  system-device0-harvesting_mask: 2048
+  system-device0-num_harvested_rows: 1
+  system-device0-type: BLACKHOLE
