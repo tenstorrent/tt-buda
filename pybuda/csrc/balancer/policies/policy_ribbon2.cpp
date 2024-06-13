@@ -92,19 +92,13 @@ std::optional<OpModel> get_closest_op_model_conservative(
     return closest_model;
 }
 
-bool operand_of_datacopy_output_node(const graphlib::Graph *graph, const graphlib::Node *node)
+bool operand_of_linked_output_node(const graphlib::Graph *graph, const graphlib::Node *node)
 {
     for (const graphlib::Node *user_node : graph->data_users(node))
     {
-        if (user_node->node_type() == graphlib::NodeType::kOutput)
+        if (user_node->node_type() == graphlib::NodeType::kOutput and is_linked_queue(graph, user_node))
         {
-            std::function<bool(tt::graphlib::Edge)> is_partial_datacopy_edge = [](Edge e)
-            { return (e.edge_type == graphlib::EdgeType::kPartialDataCopy); };
-            std::vector<graphlib::Edge> partial_datacopy_edges = graph->user_edges(user_node, is_partial_datacopy_edge);
-            if (!partial_datacopy_edges.empty())
-            {
-                return true;
-            }
+            return true;
         }
     }
 
@@ -180,9 +174,10 @@ EpochSolution optimize_solution_conservative(
         {
             const OpModel &source_op_model = best_solution.get_selected_op_models()[op_index];
 
-            // Mitigation for datacopy output nodes. We don't want to bump up the grid of the datacopy output node.
+            // Mitigation for linked output nodes. We don't want to bump up the grid of the linked output node because
+            // of higher chance of op_model mismatch on OPs feeding the fake output.
             //
-            if (operand_of_datacopy_output_node(graph, source_op_model.buda_op_node))
+            if (operand_of_linked_output_node(graph, source_op_model.buda_op_node))
             {
                 continue;
             }
