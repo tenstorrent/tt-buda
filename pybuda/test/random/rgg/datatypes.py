@@ -17,8 +17,8 @@ TensorShape = Tuple[int, ...]
 
 @dataclass
 class RandomizerInputNode:
-    out_value: Optional[str] = None
-    input_shape: Optional[TensorShape] = None  # will be set by the graph_builder.init_shapes later
+    out_value: str
+    input_shape: TensorShape
 
 
 @dataclass
@@ -26,9 +26,11 @@ class RandomizerNode:
     index: Optional[int] = None
     out_value: Optional[str] = None
     operator: Optional[OperatorDefinition] = None
-    in_features: Optional[int] = None
-    out_features: Optional[int] = None
     inputs: List['RandomizerNode'] = field(default_factory=list)
+    constructor_kwargs: Dict[str, object] = field(default_factory=dict)
+    forward_kwargs: Dict[str, object] = field(default_factory=dict)
+    input_shapes: List[TensorShape] = field(default_factory=list)
+    output_shape: TensorShape = None
 
     def operator_name(self):
         return f"op{self.index}"
@@ -81,10 +83,11 @@ class RandomizerConfig:
     test_dir:str = "pybuda/test/random_tests"
     save_tests: bool = False
     # build_model_from_code: bool = False  # TODO remove obsoleted
+    verify_shapes: bool = False,
     dim_min: int = 3
     dim_max: int = 4
-    op_size_min: int = 16
-    op_size_max: int = 512
+    op_size_per_dim_min: int = 16
+    op_size_per_dim_max: int = 512
     microbatch_size_min: int = 1
     microbatch_size_max: int = 8
     num_of_nodes: int = 10

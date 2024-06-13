@@ -4,8 +4,13 @@
 # Operator repository models
 
 
-from typing import List, Optional, Callable, Type, Union
+from random import Random
+from typing import List, Tuple, Optional, Callable, Type, Union
 from dataclasses import dataclass, field
+
+
+# Defining a type for tensor shape
+TensorShape = Tuple[int, ...]
 
 
 @dataclass
@@ -29,6 +34,7 @@ class OperatorDefinition:
     forward_code: Optional[Callable[[], str]] = None
     forward_params: List[OperatorParam] = field(default_factory=list)
     operands: List[str] = field(default_factory=list)  # TODO describe operand and shapes
+    calc_input_shapes: Optional[Callable[["OperatorDefinition", TensorShape, Random], List[TensorShape]]] = None  # calculate input shapes from output shape
 
     def is_operator(self) -> bool:
         return not self.instantiate

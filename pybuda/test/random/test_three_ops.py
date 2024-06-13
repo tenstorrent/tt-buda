@@ -58,8 +58,8 @@ def test_three_ops(test_index, random_seeds, test_device, randomizer_config):
     random_seed = random_seeds[test_index]
     rng = random.Random(random_seed)
 
-    op_size_min = randomizer_config.op_size_min
-    op_size_max = randomizer_config.op_size_max
+    op_size_min = randomizer_config.op_size_per_dim_min
+    op_size_max = randomizer_config.op_size_per_dim_max
     
     rows = rng.randint(op_size_min, op_size_max)
     cols1 = rng.randint(op_size_min, op_size_max)
