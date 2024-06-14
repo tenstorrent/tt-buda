@@ -1,13 +1,17 @@
 [submodule "third_party/tvm"]
 	path = third_party/tvm
-	url = ../tt-tvm.git
+	url = https://github.com/tenstorrent/tt-tvm.git
+	branch = pybuda_runtime
 [submodule "third_party/budabackend"]
 	path = third_party/budabackend
-	url = ../tt-budabackend.git
+	url = https://github.com/tenstorrent/tt-budabackend.git
+	branch = main
 [submodule "third_party/pybind11"]
 	path = third_party/pybind11
 	url = https://github.com/pybind/pybind11.git
 [submodule "third_party/buda-model-demos"]
 	path = third_party/buda-model-demos
 	url = https://github.com/tenstorrent/tt-buda-demos
-
+[submodule "third_party/benchmarking"]
+	path = third_party/benchmarking
+	url = https://github.com/tenstorrent/benchmarking.git
