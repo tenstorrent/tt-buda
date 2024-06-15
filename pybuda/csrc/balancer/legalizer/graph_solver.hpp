@@ -390,12 +390,20 @@ class GraphSolver
     void invalidate_suboptimal_op_models_for_op(
         const graphlib::BudaOpNode* node, GraphSolverOpModelInvalidationStrategyTier tier);
 
+    void filter_op_models_for_sibling_partial_datacopy_op(graphlib::Node const* node, OpModel const& role_op_model);
+    void op_model_sync_with_sibling_partial_datacopy_ops(graphlib::Node const* node, OpModel const& op_model);
+    void apply_partial_datacopy_op_model_sync(
+        std::vector<graphlib::Edge> const& partial_datacopy_edges,
+        graphlib::Node const* datacopy_output,
+        OpModel const& op_model);
+
     struct SharedData
     {
        public:
         std::unique_ptr<Constraint> constraint;
         std::unordered_map<std::uint64_t, const std::pair<const EdgeCost, const ConstraintFailureReason>>
             constraint_result_cache;
+        std::unordered_set<const graphlib::Node*> sibling_operands_of_partial_datacopy_output;
 
        private:
         LegalOpModels legal_op_models;

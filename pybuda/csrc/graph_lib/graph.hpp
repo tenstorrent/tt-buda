@@ -126,7 +126,11 @@ class Graph
         const Node *node, std::function<bool(Edge)> edge_filter = [](Edge) { return true; }) const;
     std::vector<Edge> operand_data_edges(
         const Node *node, std::function<bool(Edge)> edge_filter = [](Edge) { return true; }) const;
+    std::vector<Edge> operand_partial_datacopy_edges(
+        const Node *node, std::function<bool(Edge)> edge_filter = [](Edge) { return true; }) const;
     std::vector<Edge> user_data_edges(
+        const Node *node, std::function<bool(Edge)> edge_filter = [](Edge) { return true; }) const;
+    std::vector<Edge> user_partial_datacopy_edges(
         const Node *node, std::function<bool(Edge)> edge_filter = [](Edge) { return true; }) const;
 
     std::unordered_set<Edge> &user_edges_set(NodeId node_id);

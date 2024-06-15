@@ -55,10 +55,7 @@ bool check_ublock_order(graphlib::Graph *graph) {
     bool ublock_order_matches = true;
     for (Node * node : graph->nodes())
     {
-        auto is_partial_datacopy_edge = [](Edge e) {
-            return (e.edge_type == graphlib::EdgeType::kPartialDataCopy);
-        };
-        std::vector<graphlib::Edge> partial_datacopy_edges = graph->operand_edges(node, is_partial_datacopy_edge);
+        std::vector<graphlib::Edge> partial_datacopy_edges = graph->operand_partial_datacopy_edges(node);
 
         if (partial_datacopy_edges.empty())
             continue;

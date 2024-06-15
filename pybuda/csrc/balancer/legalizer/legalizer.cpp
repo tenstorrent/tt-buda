@@ -809,8 +809,7 @@ static std::tuple<int, bool, bool, bool> calculate_user_buffer_factor(
             can_stream_due_to_users = false;
         }
 
-        auto is_partial_datacopy_edge = [](Edge e) { return (e.edge_type == graphlib::EdgeType::kPartialDataCopy); };
-        std::vector<graphlib::Edge> partial_datacopy_edges = graph->user_edges(user_node, is_partial_datacopy_edge);
+        std::vector<graphlib::Edge> partial_datacopy_edges = graph->user_partial_datacopy_edges(user_node);
         if (user_node->node_type() == graphlib::NodeType::kOutput and partial_datacopy_edges.empty())
         {
             // Host runtime outputs cannot support undoing z major order
@@ -2902,11 +2901,8 @@ static void resolve_input_queue_block_shapes(Graph const* graph, BalancerConfig 
                 std::vector<OpModel const*> users;
                 std::vector<OpModel const*> prologue_users;
 
-                auto is_partial_datacopy_edge = [](Edge e)
-                { return (e.edge_type == graphlib::EdgeType::kPartialDataCopy); };
-                std::vector<graphlib::Edge> partial_datacopy_edges =
-                    graph->operand_edges(node, is_partial_datacopy_edge);
-                for (auto edge : user_edges)
+                std::vector<graphlib::Edge> partial_datacopy_edges = graph->operand_partial_datacopy_edges(node);
+                for (const graphlib::Edge& edge : user_edges)
                 {
                     graphlib::Node* user = graph->node_by_id(edge.consumer_node_id);
                     OpModel const& user_op_model = op_models.at(user->name());
@@ -2977,20 +2973,20 @@ static void resolve_input_queue_block_shapes(Graph const* graph, BalancerConfig 
                         auto other_output = graph->node_by_id(edge.producer_node_id);
                         auto other_writeback_op = graph->data_operands(other_output).front();
                         OpModel const& other_op_model = op_models.at(other_writeback_op->name());
-                        TT_ASSERT(
+                        TT_LOG_ASSERT(
                             other_op_model.grid_shape == grid_shape,
                             "Partial datacopy grid shape mismatch on {} and {}",
                             writeback_op->name(),
-                            other_output->name());
+                            other_writeback_op->name());
                         bool block_shapes_match = other_op_model.block_shape().mblock_m == block_shape.mblock_m and
                                                   other_op_model.block_shape().mblock_n == block_shape.mblock_n and
                                                   other_op_model.block_shape().ublock == block_shape.ublock;
-                        TT_ASSERT(
+                        TT_LOG_ASSERT(
                             block_shapes_match,
                             "Partial datacopy block shape mismatch on (note, t's don't have to match)",
                             writeback_op->name(),
                             other_op_model.block_shape(),
-                            other_output->name(),
+                            other_writeback_op->name(),
                             block_shape);
                     }
 
@@ -3180,9 +3176,8 @@ std::tuple<OpModelMap, BlockShapeMap, OutputHostTMMap, CutEdges> resolve_block_s
     BlockShapeMap block_shape_map;
     for (Node* node : tt::graphlib::topological_sort(*graph))
     {
-        auto is_partial_datacopy_edge = [](Edge e) { return (e.edge_type == graphlib::EdgeType::kPartialDataCopy); };
         std::vector<graphlib::Edge> partial_datacopy_operand_edges =
-            graph->operand_edges(node, is_partial_datacopy_edge);
+            graph->operand_partial_datacopy_edges(node);
 
         BlockShape block_shape;
         switch (node->node_type())
@@ -3203,7 +3198,7 @@ std::tuple<OpModelMap, BlockShapeMap, OutputHostTMMap, CutEdges> resolve_block_s
                 GridShape operand_grid = operand_op_model.grid_shape;
 
                 block_shape = operand_block_shape;
-                std::vector<graphlib::Edge> partial_datacopy_edges = graph->user_edges(node, is_partial_datacopy_edge);
+                std::vector<graphlib::Edge> partial_datacopy_edges = graph->user_partial_datacopy_edges(node);
 
                 if (not operand_op_model.t_stream_factor.none())
                 {

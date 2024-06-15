@@ -23,10 +23,7 @@ void lower_concat_to_runtime_transform(graphlib::Graph *graph)
     for (graphlib::Node *output_node: graph->nodes_by_type(graphlib::NodeType::kOutput))
     {
         // Skip partial data copy edges (past-cache link between producers/consumers)
-        auto is_partial_datacopy_edge = [](graphlib::Edge e) {
-            return (e.edge_type == graphlib::EdgeType::kPartialDataCopy);
-        };
-        std::vector<graphlib::Edge> partial_datacopy_edges = graph->user_edges(output_node, is_partial_datacopy_edge);
+        std::vector<graphlib::Edge> partial_datacopy_edges = graph->user_partial_datacopy_edges(output_node);
         if (not partial_datacopy_edges.empty())
             continue;
         

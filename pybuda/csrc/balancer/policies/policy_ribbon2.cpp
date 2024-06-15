@@ -92,19 +92,6 @@ std::optional<OpModel> get_closest_op_model_conservative(
     return closest_model;
 }
 
-bool operand_of_linked_output_node(const graphlib::Graph *graph, const graphlib::Node *node)
-{
-    for (const graphlib::Node *user_node : graph->data_users(node))
-    {
-        if (user_node->node_type() == graphlib::NodeType::kOutput and is_linked_queue(graph, user_node))
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
 // Optimize a solution by iteratively bumping up grids of the slowest ops, as long as that
 // improves the utilization of the epoch.
 // Conservative version which tries to stick to the same ribbon and same OP count in epoch.
@@ -173,14 +160,6 @@ EpochSolution optimize_solution_conservative(
         for (std::size_t op_index = 0; op_index < new_solution.get_selected_op_models().size(); op_index++)
         {
             const OpModel &source_op_model = best_solution.get_selected_op_models()[op_index];
-
-            // Mitigation for linked output nodes. We don't want to bump up the grid of the linked output node because
-            // of higher chance of op_model mismatch on OPs feeding the fake output.
-            //
-            if (operand_of_linked_output_node(graph, source_op_model.buda_op_node))
-            {
-                continue;
-            }
 
             int cycles = get_limiter_cycles(
                 source_op_model,

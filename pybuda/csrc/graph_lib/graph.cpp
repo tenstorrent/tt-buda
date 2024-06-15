@@ -228,6 +228,10 @@ std::vector<Edge> Graph::operand_data_edges(const Node *node, std::function<bool
     return operand_edges(node, [edge_filter](Edge edge) {return edge_filter(edge) and (edge.edge_type == EdgeType::kData or edge.edge_type == EdgeType::kDataLoopback);});
 }
 
+std::vector<Edge> Graph::operand_partial_datacopy_edges(const Node *node, std::function<bool(Edge)> edge_filter) const {
+    return operand_edges(node, [edge_filter](Edge edge) {return edge_filter(edge) and (edge.edge_type == graphlib::EdgeType::kPartialDataCopy);});
+}
+
 std::unordered_set<Edge> &Graph::user_edges_set(NodeId node_id) { return this->users_map_.at(node_id); }
 
 
@@ -278,6 +282,10 @@ std::vector<Edge> Graph::user_edges(const Node *node, std::function<bool(Edge)> 
 
 std::vector<Edge> Graph::user_data_edges(const Node *node, std::function<bool(Edge)> edge_filter) const {
     return user_edges(node, [edge_filter](Edge edge) {return edge_filter(edge) and (edge.edge_type == EdgeType::kData or edge.edge_type == EdgeType::kDataLoopback);});
+}
+
+std::vector<Edge> Graph::user_partial_datacopy_edges(const Node *node, std::function<bool(Edge)> edge_filter) const {
+    return user_edges(node, [edge_filter](Edge edge) {return edge_filter(edge) and (edge.edge_type == graphlib::EdgeType::kPartialDataCopy);});
 }
 
 const std::unordered_set<Edge> &Graph::user_edges_set(const Node *node) const {
