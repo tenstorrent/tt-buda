@@ -257,13 +257,9 @@ std::pair<bool, std::unique_ptr<IOEdgeInfo>> find_commutable_output_edge(
         if ((!can_commute and op != initial_op) or (not all_forks_commute_to_output_or_inverse))
             break;
 
-
-        auto is_partial_datacopy_edge = [](graphlib::Edge e) {
-            return (e.edge_type == graphlib::EdgeType::kPartialDataCopy);
-        };
-        std::vector<graphlib::Edge> partial_datacopy_edges = graph->user_edges(users[0], is_partial_datacopy_edge);
-
+        std::vector<graphlib::Edge> partial_datacopy_edges = graph->user_partial_datacopy_edges(users[0]);
         graphlib::OutputNode *output = dynamic_cast<graphlib::OutputNode *>(users[0]);
+
         // Usually there is no point in inserting an invers on top of an output if the initial op in question is 
         // Adjacent to the output. Unless, this node forks.
         if (output and (op != initial_op or graph->user_data_edges(op).size() > 1) and partial_datacopy_edges.empty())

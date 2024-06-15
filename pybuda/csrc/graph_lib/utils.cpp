@@ -1699,8 +1699,7 @@ std::vector<UBlockOrder> get_input_ublock_order(Graph const *graph, Node const *
 
 tt::graphlib::Node *get_input_queue_producer(Graph const *graph, tt::graphlib::InputNode const *node)
 {
-    auto is_partial_datacopy_edge = [](Edge e) { return (e.edge_type == graphlib::EdgeType::kPartialDataCopy); };
-    std::vector<graphlib::Edge> partial_datacopy_edges = graph->operand_edges(node, is_partial_datacopy_edge);
+    std::vector<graphlib::Edge> partial_datacopy_edges = graph->operand_partial_datacopy_edges(node);
     auto producers = graph->data_operands(node);
 
     if (not producers.empty() and not partial_datacopy_edges.empty())

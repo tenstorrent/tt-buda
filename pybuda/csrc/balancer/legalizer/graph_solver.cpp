@@ -1176,6 +1176,13 @@ void GraphSolver::set(graphlib::Node const* node, OpModel const& op_model, bool 
     }
 
     update_solver(node, true /*expand_root*/, true /*invoked_by_set*/);
+
+    if (shared_data->sibling_operands_of_partial_datacopy_output.count(node) > 0)
+    {
+        // Enforce similar op models for sibling operands of partial datacopy output.
+        //
+        op_model_sync_with_sibling_partial_datacopy_ops(node, op_model);
+    }
 }
 
 // Given current epoch ops, runs the overlay model to determine the amount of memory used for each of the ops. Where
@@ -1563,7 +1570,12 @@ std::vector<graphlib::Node*> GraphSolver::buffer(std::vector<BufferInfo>& buffer
                 if (buffer_nop == nullptr)
                 {
                     std::tie(buffer_nop, std::ignore, std::ignore) = graphlib::insert_nop_on_edge(
-                        graph, e, op_name(src, original_dest, buffer_index), true /* is_buffering_op */, buff_info.hoist_tms, false /* remove_edge */);
+                        graph,
+                        e,
+                        op_name(src, original_dest, buffer_index),
+                        true /* is_buffering_op */,
+                        buff_info.hoist_tms,
+                        false /* remove_edge */);
 
                     register_virtual_node(buffer_nop);
                     nodes_to_legalize.insert(buffer_nop);
@@ -1574,7 +1586,14 @@ std::vector<graphlib::Node*> GraphSolver::buffer(std::vector<BufferInfo>& buffer
                     // Reuse the already created buffer nop for all edges between src and dest.
                     // Covers the case when source node is connected with multiple edges to the destination node.
                     // In that case we don't want to create multiple nops, but instead we reuse the same one.
-                    std::tie(std::ignore, std::ignore) = graphlib::insert_node_on_edge(graph, e, buffer_nop, false /* inherit_consumer_attrs */, false /* remove_edge */, 0, not buff_info.hoist_tms);
+                    std::tie(std::ignore, std::ignore) = graphlib::insert_node_on_edge(
+                        graph,
+                        e,
+                        buffer_nop,
+                        false /* inherit_consumer_attrs */,
+                        false /* remove_edge */,
+                        0,
+                        not buff_info.hoist_tms);
                 }
 
                 // Edge cannot be removed right away from the graph as we will affect global state
@@ -1667,9 +1686,14 @@ void GraphSolver::invalidate_streaming_into_output(const std::vector<graphlib::N
         //
         if (node->node_type() == graphlib::NodeType::kOutput)
         {
-            std::function<bool(tt::graphlib::Edge)> is_partial_datacopy_edge = [](Edge e)
-            { return (e.edge_type == graphlib::EdgeType::kPartialDataCopy); };
-            std::vector<graphlib::Edge> partial_datacopy_edges = graph->user_edges(node, is_partial_datacopy_edge);
+            std::vector<graphlib::Edge> partial_datacopy_edges = graph->user_partial_datacopy_edges(node);
+
+            if (!partial_datacopy_edges.empty())
+            {
+                graphlib::Node const* datacopy_input = graph->users(node)[0];
+                TT_ASSERT(datacopy_input->node_type() == graphlib::NodeType::kInput);
+                partial_datacopy_edges = graph->operand_partial_datacopy_edges(datacopy_input);
+            }
 
             for (graphlib::Node* operand_node : graph->data_operands(node))
             {
@@ -1678,10 +1702,25 @@ void GraphSolver::invalidate_streaming_into_output(const std::vector<graphlib::N
                     bool no_stream_output_valid = false;
                     const graphlib::BudaOpNode* op_node = static_cast<const graphlib::BudaOpNode*>(operand_node);
 
+                    if (partial_datacopy_edges.size() > 1)
+                    {
+                        // Cache op writing into partial datacopy output node, for sibling opmodel sync.
+                        //
+                        shared_data->sibling_operands_of_partial_datacopy_output.insert(op_node);
+                    }
+
                     // Op model already selected for this node, skip.
                     //
                     if (selected_op_models.count(op_node) > 0)
                     {
+                        // Reapply filter for sibling datacopy op since this is coming from re-resolve.
+                        //
+                        if (partial_datacopy_edges.size() > 1)
+                        {
+                            apply_partial_datacopy_op_model_sync(
+                                partial_datacopy_edges, node, selected_op_models.at(op_node));
+                        }
+
                         continue;
                     }
 
@@ -1994,9 +2033,27 @@ void GraphSolver::invalidate_suboptimal_op_models_for_op(
 
 void GraphSolver::set_filter_grid_size(graphlib::Node const* node, OpModel const& role_op_model)
 {
+    // Op model already selected for this node, skip.
+    //
+    if (selected_op_models.count(node) > 0)
+    {
+        return;
+    }
+
     const std::vector<tt::balancer::OpModel>& op_models = get_legal_op_models(node);
 
+    if (op_models.size() == 1)
+    {
+        return;
+    }
+
     Bitset* node_bitset = get_bitset(node->id());
+
+    if (node_bitset->count() == 1)
+    {
+        return;
+    }
+
     Bitset temp_bitset = *node_bitset;
     std::uint32_t op_model_count = std::min(kNumBitsetBits, std::max(1lu, op_models.size()));
     Bitset discarded_op_models_bitset;
@@ -2037,6 +2094,97 @@ void GraphSolver::set_filter_grid_size(graphlib::Node const* node, OpModel const
     }
 
     update_solver(node);
+}
+
+void GraphSolver::filter_op_models_for_sibling_partial_datacopy_op(
+    graphlib::Node const* node, OpModel const& role_op_model)
+{
+    // Op model already selected for this node, skip.
+    //
+    if (selected_op_models.count(node) > 0)
+    {
+        return;
+    }
+
+    const std::vector<tt::balancer::OpModel>& op_models = get_legal_op_models(node);
+
+    if (op_models.size() == 1)
+    {
+        return;
+    }
+
+    Bitset* node_bitset = get_bitset(node->id());
+
+    if (node_bitset->count() == 1)
+    {
+        return;
+    }
+
+    Bitset temp_bitset = *node_bitset;
+    std::uint32_t op_model_count = std::min(kNumBitsetBits, std::max(1lu, op_models.size()));
+    Bitset discarded_op_models_bitset;
+    for (size_t i = 0; i < op_model_count; i++)
+    {
+        if (op_models[i].grid_shape != role_op_model.grid_shape ||
+            op_models[i].block_shape().mblock_m != role_op_model.block_shape().mblock_m ||
+            op_models[i].block_shape().mblock_n != role_op_model.block_shape().mblock_n ||
+            op_models[i].block_shape().ublock != role_op_model.block_shape().ublock)
+        {
+            discarded_op_models_bitset.set(i);
+        }
+    }
+
+    if (discarded_op_models_bitset.none())
+    {
+        return;
+    }
+
+    temp_bitset &= ~discarded_op_models_bitset;
+
+    TT_ASSERT(temp_bitset.any());
+
+    *node_bitset = temp_bitset;
+
+    auto it = op_disabled_bitset_cache.find(node->id());
+
+    if (it == op_disabled_bitset_cache.end())
+    {
+        op_disabled_bitset_cache.emplace(node->id(), discarded_op_models_bitset);
+    }
+    else
+    {
+        it->second |= discarded_op_models_bitset;
+    }
+
+    update_solver(node);
+}
+
+void GraphSolver::apply_partial_datacopy_op_model_sync(
+    std::vector<graphlib::Edge> const& partial_datacopy_edges,
+    graphlib::Node const* datacopy_output,
+    OpModel const& op_model)
+{
+    for (graphlib::Edge const& edge : partial_datacopy_edges)
+    {
+        graphlib::Node* producer = graph->node_by_id(edge.producer_node_id);
+        if (producer != datacopy_output)
+        {
+            TT_ASSERT(producer->node_type() == graphlib::NodeType::kOutput);
+            graphlib::Node const* datacopy_op_sibling = graph->data_operands(producer)[0];
+            filter_op_models_for_sibling_partial_datacopy_op(datacopy_op_sibling, op_model);
+        }
+    }
+}
+
+void GraphSolver::op_model_sync_with_sibling_partial_datacopy_ops(graphlib::Node const* node, OpModel const& op_model)
+{
+    graphlib::Node const* datacopy_output = graph->data_users(node)[0];
+    TT_ASSERT(datacopy_output->node_type() == graphlib::NodeType::kOutput);
+    graphlib::Node const* datacopy_input = graph->users(datacopy_output)[0];
+    TT_ASSERT(datacopy_input->node_type() == graphlib::NodeType::kInput);
+    std::vector<graphlib::Edge> partial_datacopy_edges = graph->operand_partial_datacopy_edges(datacopy_input);
+
+    apply_partial_datacopy_op_model_sync(partial_datacopy_edges, datacopy_output, op_model);
 }
 
 #ifdef DEBUG

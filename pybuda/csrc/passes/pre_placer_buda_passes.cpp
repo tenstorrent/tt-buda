@@ -383,13 +383,9 @@ void insert_queues_for_op_intermediates(graphlib::Graph *graph, const std::vecto
 
 void sanitize_past_cache_ios(graphlib::Graph *graph)
 {
-    auto is_partial_datacopy_edge = [](Edge e) {
-        return (e.edge_type == graphlib::EdgeType::kPartialDataCopy);
-    };
-
     for (Node *node : graph->nodes_by_type(NodeType::kOutput))
     {
-        std::vector<graphlib::Edge> partial_datacopy_edges = graph->user_edges(node, is_partial_datacopy_edge);
+        std::vector<graphlib::Edge> partial_datacopy_edges = graph->user_partial_datacopy_edges(node);
         if (partial_datacopy_edges.size() == 0)
             continue;
         
@@ -1080,10 +1076,7 @@ void calculate_ublock_order(graphlib::Graph *graph) {
     // Set order on partial datacopy edges consumers
     for (Node * node : graph->nodes())
     {
-        auto is_partial_datacopy_edge = [](Edge e) {
-            return (e.edge_type == graphlib::EdgeType::kPartialDataCopy);
-        };
-        std::vector<graphlib::Edge> partial_datacopy_edges = graph->operand_edges(node, is_partial_datacopy_edge);
+        std::vector<graphlib::Edge> partial_datacopy_edges = graph->operand_partial_datacopy_edges(node);
 
         if (partial_datacopy_edges.empty())
             continue;
@@ -1349,12 +1342,8 @@ void validate_buffering_queues(graphlib::Graph *graph) {
 
 
 void insert_partial_datacopy_tms(graphlib::Graph *graph) {
-
-    auto is_partial_datacopy_edge = [](Edge e) {
-        return (e.edge_type == graphlib::EdgeType::kPartialDataCopy);
-    };
     for (graphlib::Node *node : graphlib::topological_sort(*graph))  {
-        std::vector<graphlib::Edge> partial_datacopy_edges = graph->user_edges(node, is_partial_datacopy_edge);
+        std::vector<graphlib::Edge> partial_datacopy_edges = graph->user_partial_datacopy_edges(node);
         if (node->node_type() != graphlib::NodeType::kOutput or partial_datacopy_edges.empty()) {
             continue;
         }

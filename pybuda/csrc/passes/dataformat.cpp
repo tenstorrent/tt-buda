@@ -587,9 +587,6 @@ void fix_data_formats(graphlib::Graph *graph, bool fp32_acc_supported)
         else if (node->node_type() == graphlib::NodeType::kOutput)
         {
             auto output_op = graph->data_operands(node)[0];
-            auto is_partial_datacopy_edge = [](Edge e) {
-                return (e.edge_type == graphlib::EdgeType::kPartialDataCopy);
-            };
             if (node->as<graphlib::OutputNode>()->untilize())
             {
                 if ((output_op->output_df() == DataFormat::Bfp8_b) || (output_op->output_df() == DataFormat::Bfp4_b) ||
@@ -605,7 +602,7 @@ void fix_data_formats(graphlib::Graph *graph, bool fp32_acc_supported)
                 }
             }
 
-            std::vector<graphlib::Edge> partial_datacopy_edges = graph->user_edges(node, is_partial_datacopy_edge);
+            std::vector<graphlib::Edge> partial_datacopy_edges = graph->user_partial_datacopy_edges(node);
             if (not partial_datacopy_edges.empty())
             {
                 // Current queue is aliased to an existing queue. Impose constraint on write-back producer
@@ -869,10 +866,7 @@ void validate_data_formats(const graphlib::Graph *graph, const DeviceConfig& dev
         else if (node->node_type() == graphlib::NodeType::kOutput)
         {
             auto producer = graph->data_operands(node).at(0);
-            auto is_partial_datacopy_edge = [](Edge e) {
-                return (e.edge_type == graphlib::EdgeType::kPartialDataCopy);
-            };
-            std::vector<graphlib::Edge> partial_datacopy_edges = graph->user_edges(node, is_partial_datacopy_edge);
+            std::vector<graphlib::Edge> partial_datacopy_edges = graph->user_partial_datacopy_edges(node);
             if (not partial_datacopy_edges.empty())
             {
                 // Current queue is aliased to an existing queue. Impose constraint on write-back producer
