@@ -632,7 +632,13 @@ def populate_conv2d_transpose_args(graph, nid, compiler_cfg):
     assert all([x == 1 for x in dilation]), "Only supports dilation of 1"
     args.append(("dilation", f"{dilation[0]}",))
 
-    in_channel = next((n['attrs']['shape'][0][0][0] for n in graph['nodes'] if n['name'] == 'model.weight'), None)
+    in_channel = None
+    for input_ in node["inputs"]:
+        input_nid = input_[0]
+        input_node = graph["nodes"][input_nid]
+        if input_node["op"] == "parameter" and input_node["name"].endswith(".weight"):
+            in_channel = input_node["attrs"]["shape"][0][0][0]
+            break
     groups = int(node["attrs"]["groups"][0][0])
     assert groups == 1 or (in_channel is not None and groups == in_channel), "Only supports group of 1 or in_channel"
     args.append(("groups", f"{groups}",))
