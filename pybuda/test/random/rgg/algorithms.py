@@ -121,19 +121,10 @@ class GraphNodeSetup:
 class RandomGraphAlgorithm(GraphBuilder):
     '''Implementation of the random graph building algorithm'''
 
-    SKIP_OPERATORS = (
-        "sqrt",  # skip because it's failing for negative values
-        # "linear",
-        "conv2d",  # skip until calc_input_shapes is properly implemented
-    )
-
     def __init__(self, framework: Framework, randomizer_config):
         super(RandomGraphAlgorithm, self).__init__(randomizer_config)
         self.framework = framework
-        self.operators = [
-            op for op in framework.operator_repository.operators
-            if op.name not in self.SKIP_OPERATORS
-        ]
+        self.operators = framework.operator_repository.operators
 
     def _get_random_operator(self, rng):
         return rng.choice(self.operators)

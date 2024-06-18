@@ -5,10 +5,14 @@
 
 
 import random
-from typing import List, Dict
+from typing import Callable, List, Dict
 from dataclasses import asdict
+from loguru import logger
 import re
 import yaml
+
+import torch
+import pybuda
 
 from pybuda.op_repo import OperatorParam, OperatorDefinition, OperatorParamNumber
 
@@ -65,7 +69,7 @@ class RandomUtils:
         if param.type == float:
             return rng_params.uniform(param.min_value, param.max_value)
         elif param.type == int:
-            return rng_params.randint(param.min_value, param.max_value + 1)
+            return rng_params.randint(param.min_value, param.max_value)
         else:
             raise ValueError(f"Unsupported type {param.type}")
 
@@ -165,3 +169,18 @@ class NodeUtils:
     @classmethod
     def calc_input_shapes(cls, node: RandomizerNode, rng_shape: random.Random) -> List[TensorShape]:
         return node.operator.calc_input_shapes(node.operator, node.output_shape, rng_shape)
+
+
+class DebugUtils:
+
+    @classmethod
+    def format_tensors(cls, tensors: List[pybuda.Tensor]):
+        if isinstance(tensors[0], pybuda.Tensor):
+            format_tensor: Callable[[pybuda.Tensor], str] = lambda t: f'{t.data_format}:{t.shape}'
+        elif isinstance(tensors[0], torch.Tensor):
+            format_tensor: Callable[[pybuda.Tensor], str] = lambda t: f'{t.type()}:{t.shape}'
+        return [format_tensor(t) for t in tensors]
+    
+    @classmethod
+    def debug_inputs(cls, inputs: List[pybuda.Tensor]):
+        logger.info(f"inputs: {cls.format_tensors(inputs)}")
