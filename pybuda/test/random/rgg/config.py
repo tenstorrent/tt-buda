@@ -15,10 +15,10 @@ def get_randomizer_config_default():
     randomizer_config = RandomizerConfig (
         print_graph = False,
         print_code = True,
-        # debug_forward = True,
         run_test = True,
         save_tests = True,
         # build_model_from_code = False,
+        debug_shapes = False,
         verify_shapes = False,
         # TODO ranges
         # dim_min=int(os.environ.get("MIN_DIM", 3)),

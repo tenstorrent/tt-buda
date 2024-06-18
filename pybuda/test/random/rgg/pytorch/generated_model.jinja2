@@ -4,6 +4,8 @@ import pybuda
 import pytest
 from pybuda.verify import verify_module, VerifyConfig
 {% endif %}
+from test.random.rgg import DebugUtils
+
 {# TODO replace empty new lines with spaces to keep formatting in pipeline #}
 class GeneratedTestModel_{{ test_index }}_{{ random_seed }}(torch.nn.Module):
     # graph_builder: {{ graph_builder_name }}
@@ -22,7 +24,8 @@ class GeneratedTestModel_{{ test_index }}_{{ random_seed }}(torch.nn.Module):
         {% for node in graph.nodes %}
 
         # shapes: {{ node.input_shapes }} -> {{ node.output_shape }}
-        inputs = [{% for input_node in node.inputs %}{{ input_node.out_value }}{% if not loop.last %}, {% endif %}{% endfor %}]{% if node.operator.is_layer() %}
+        inputs = [{% for input_node in node.inputs %}{{ input_node.out_value }}{% if not loop.last %}, {% endif %}{% endfor %}]{% if randomizer_config.debug_shapes %}
+        print(f"{{ node.layer_name() }} inputs: {DebugUtils.format_tensors(inputs)}"){% endif %}{% if node.operator.is_layer() %}
         {{ node.out_value }} = self.{{ node.layer_name() }}(inputs[0]){% else %}
         {{ node.out_value }} = {% if node.operator.forward_code %}{{node.operator.forward_code()}}{% else %}{{ node.operator.full_name }}({{ forward_args(node=node) }}, {{ forward_kwargs(node=node) }}){% endif %}{% endif %}{% if randomizer_config.verify_shapes %}
         assert {{ node.out_value }}.shape == {{ reduce_microbatch_size(node.output_shape) }}, f"Unexpected output shape of {{ node.out_value }} { {{ node.out_value }}.shape } <> {{ reduce_microbatch_size(node.output_shape) }}"{% endif %}{% endfor %}

@@ -78,11 +78,11 @@ class RandomizerGraph:
 class RandomizerConfig:
     print_graph: bool = True
     print_code: bool = False
-    # debug_forward: bool = True  # TODO remove obsoleted
     run_test: bool = True
     test_dir:str = "pybuda/test/random_tests"
     save_tests: bool = False
     # build_model_from_code: bool = False  # TODO remove obsoleted
+    debug_shapes: bool = False,
     verify_shapes: bool = False,
     dim_min: int = 3
     dim_max: int = 4
