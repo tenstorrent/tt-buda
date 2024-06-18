@@ -24,6 +24,9 @@ def mobilenet_v2(training: bool, config: str, microbatch: int, devtype: str, arc
     if data_type == "Bfp8_b" and pybuda.detect_available_devices()[0] == BackendDevice.Wormhole_B0:
         os.environ["PYBUDA_ENABLE_DRAM_IO_BUFFER_SCALING"] = "1"
         os.environ["PYBUDA_ENABLE_INPUT_BUFFER_SCALING_FOR_NOC_READERS"] = "1"
+        # Enable Data Movement Estimates
+        os.environ["PYBUDA_BALANCER_USE_DRAM_BW_ESTIMATES"] = "1"
+        os.environ["PYBUDA_BALANCER_USE_NOC_BW_ESTIMATES"] = "1"
 
     os.environ["PYBUDA_ENABLE_HOST_INPUT_NOP_BUFFERING"] = "1"
 

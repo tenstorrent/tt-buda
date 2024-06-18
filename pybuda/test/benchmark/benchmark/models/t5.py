@@ -26,10 +26,6 @@ def t5(training: bool, config: str, microbatch: int, devtype: str, arch: str, da
         # Disable DRAM BW estimates.
         os.environ["PYBUDA_BALANCER_USE_DRAM_BW_ESTIMATES"] = "0"
 
-    if data_type == "Bfp8_b" and pybuda.detect_available_devices()[0] == BackendDevice.Wormhole_B0:
-        os.environ["PYBUDA_BALANCER_USE_NOC_BW_ESTIMATES"] = "0"
-        os.environ["PYBUDA_BALANCER_USE_DRAM_BW_ESTIMATES"] = "0"
-
     # These are about to be enabled by default.
     #
     os.environ["PYBUDA_RIBBON2_CALCULATE_TARGET_CYCLES"] = "1"
@@ -74,10 +70,6 @@ def flan_t5(training: bool, config: str, microbatch: int, devtype: str, arch: st
     if data_type == "Fp16_b" and pybuda.detect_available_devices()[0] == BackendDevice.Wormhole_B0:
         os.environ["PYBUDA_ENABLE_DRAM_IO_BUFFER_SCALING"] = "1"
         os.environ["PYBUDA_ENABLE_INPUT_BUFFER_SCALING_FOR_NOC_READERS"] = "1"
-
-    if data_type == "Bfp8_b" and pybuda.detect_available_devices()[0] == BackendDevice.Wormhole_B0:
-        os.environ["PYBUDA_BALANCER_USE_NOC_BW_ESTIMATES"] = "0"
-        os.environ["PYBUDA_BALANCER_USE_DRAM_BW_ESTIMATES"] = "0"
 
     # These are about to be enabled by default.
     #
