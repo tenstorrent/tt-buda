@@ -1880,10 +1880,10 @@ OpCycleEstimates get_op_cycles_estimates(
     static const bool disable_model_kb_prologue_bw = env_as<bool>("PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW", false);
 
     // Should we use estimates for the NOC bandwidth.
-    static const bool use_noc_bw_estimates = env_as<bool>("PYBUDA_BALANCER_USE_NOC_BW_ESTIMATES", true);
+    static const bool use_noc_bw_estimates = env_as<bool>("PYBUDA_BALANCER_USE_NOC_BW_ESTIMATES", false);
 
     // Should we use estimates for the DRAM bandwidth.
-    static const bool use_dram_bw_estimates = env_as<bool>("PYBUDA_BALANCER_USE_DRAM_BW_ESTIMATES", true);
+    static const bool use_dram_bw_estimates = env_as<bool>("PYBUDA_BALANCER_USE_DRAM_BW_ESTIMATES", false);
 
     const float inefficency_divider = 2.0;
     const float subchannel_oversub_coeff = 1.5;
