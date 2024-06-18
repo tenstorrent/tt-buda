@@ -1,5 +1,7 @@
 import yaml
 
+# TODO: support multiple architectures via wildcards. It will be important for nightly job for operators.
+# Currently, it works only when specifying GOLDEN_WORMHOLE_B0=1 on test run.
 def read_netlist_value(file_path, key_path):
     """
     Reads a netlist value from a YAML file based on the given key path.
