@@ -214,7 +214,6 @@ def generate_model_yoloV5I480_imgcls_torchhub_pytorch(test_device, variant, size
     if test_device.arch == BackendDevice.Grayskull:
         os.environ["PYBUDA_PAD_SPARSE_MM"] = "{113:128}"
         if size == "x":
-            os.environ["PYBUDA_RIBBON_LEGACY"] = "1"
             os.environ["PYBUDA_TEMP_ELT_UNARY_ESTIMATES_LEGACY"] = "1"
             os.environ["PYBUDA_INSERT_SLICE_FOR_CONCAT"] = "1"
             os.environ["PYBUDA_CONCAT_SLICE_Y"] = "10"
@@ -226,7 +225,6 @@ def generate_model_yoloV5I480_imgcls_torchhub_pytorch(test_device, variant, size
             compiler_cfg.balancer_op_override("concatenate_26.dc.concatenate.30.dc.concatenate.1.dc.buffer.0", "t_stream_shape", (6,1))
             os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"]  = f"{32*1024}"
         elif size == "n":
-            os.environ["PYBUDA_RIBBON_LEGACY"] = "1"
             os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"]  = f"{16*1024}"
         else:
             os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"]  = f"{16*1024}"
