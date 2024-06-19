@@ -99,6 +99,7 @@ def test_yolox_pytorch(variant, test_device):
                 compiler_cfg.balancer_op_override("conv2d_7.dc.conv2d.1.dc.reshape.0.dc.sparse_matmul.4.lc2", "t_stream_shape", (1, 4))
                 compiler_cfg.balancer_op_override("conv2d_7.dc.conv2d.3.dc.reshape.0.dc.sparse_matmul.4.lc2", "t_stream_shape", (1, 4))
                 compiler_cfg.balancer_op_override("conv2d_7.dc.conv2d.5.dc.reshape.0.dc.sparse_matmul.10.lc2", "t_stream_shape", (1, 4))
+                compiler_cfg.place_on_new_epoch("concatenate_1897.dc.sparse_matmul.11.lc2")
 
             elif variant == "yolox_darknet":
                 os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "53248"
@@ -109,6 +110,7 @@ def test_yolox_pytorch(variant, test_device):
                 compiler_cfg.balancer_op_override("conv2d_7.dc.conv2d.1.dc.reshape.0.dc.sparse_matmul.10.lc2", "t_stream_shape", (1, 4))
                 compiler_cfg.balancer_op_override("conv2d_7.dc.conv2d.3.dc.sparse_matmul.9.dc.sparse_matmul.1.lc2", "t_stream_shape", (5, 1))
                 compiler_cfg.balancer_op_override("conv2d_7.dc.conv2d.3.dc.reshape.0.dc.sparse_matmul.10.lc2", "t_stream_shape", (1, 4))
+                compiler_cfg.place_on_new_epoch("concatenate_2264.dc.sparse_matmul.11.lc2")
 
     # prepare model
     weight_name = f"{variant}.pth"

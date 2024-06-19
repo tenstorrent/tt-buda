@@ -115,6 +115,7 @@ def test_whisper_enc_dec(test_device, variant):
             os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "0"
             os.environ["PYBUDA_TEMP_ELT_UNARY_ESTIMATES_LEGACY"] = "1"
             compiler_cfg.enable_auto_fusing = False
+            compiler_cfg.place_on_new_epoch("matmul_2818")
 
     elif test_device.arch == BackendDevice.Grayskull:
         compiler_cfg.enable_auto_fusing = False
