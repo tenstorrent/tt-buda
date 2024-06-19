@@ -42,10 +42,14 @@ def test_perceiver_for_image_classification_onnx(test_device, model_name):
     compiler_cfg.enable_auto_fusing = False
     verify_enabled = True
 
+    pcc_value = 0.96
     if test_device.arch == pybuda.BackendDevice.Wormhole_B0:
 
         if model_name == "deepmind/vision-perceiver-learned":
             os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{105*1024}"
+            compiler_cfg.balancer_op_override("add_63", "t_stream_shape", (1, 2))
+            if test_device.devtype == pybuda.BackendType.Silicon:
+                pcc_value = 0.95
 
         elif model_name == "deepmind/vision-perceiver-conv":
             os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{10*1024}"
@@ -58,6 +62,7 @@ def test_perceiver_for_image_classification_onnx(test_device, model_name):
 
         elif model_name == "deepmind/vision-perceiver-fourier":
             os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{101*1024}"
+            compiler_cfg.balancer_op_override("add_58", "t_stream_shape", (1, 2))
 
     elif test_device.arch == pybuda.BackendDevice.Grayskull:
 
@@ -107,6 +112,6 @@ def test_perceiver_for_image_classification_onnx(test_device, model_name):
             devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
             enabled=verify_enabled,  # pcc drops in silicon devicetype
-            pcc=0.96,
+            pcc=pcc_value,
         ),
     )

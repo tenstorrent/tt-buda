@@ -126,7 +126,7 @@ def test_yolo_v5_480x480_onnx(test_device, variant):
         os.environ["PYBUDA_INSERT_SLICE_FOR_CONCAT"] = "1"
         os.environ["PYBUDA_CONCAT_SLICE_Y"] = "10"
         os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{112*1024}"
-        if variant == "yolov5m":
+        if variant in ("yolov5m", "yolov5s"):
             compiler_cfg.balancer_op_override(
                 "concatenate_19.dc.concatenate.30.dc.concatenate.0.dc.concatenate.12",
                 "grid_shape",
@@ -227,6 +227,8 @@ def test_yolo_v5_640x640_onnx(test_device, variant):
                 "concatenate_478.dc.concatenate.7", "grid_shape", (1, 1)
             )
             os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{150*1024}"
+            compiler_cfg.enable_auto_fusing = False
+
 
     elif test_device.arch == BackendDevice.Grayskull:
 
