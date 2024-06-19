@@ -40,6 +40,7 @@ BalancerPolicySolution run_policy(
         }
         case PolicyType::MinimizeGrid:
         {
+            TT_ASSERT(config.use_interactive_placer);
             balancer_policy_solution = run_policy_minimize_grid(graph, config, graph_solver);
             break;
         }
@@ -126,9 +127,9 @@ bool can_use_interactive_placer(PolicyType policy_type)
     switch (policy_type)
     {
         case PolicyType::MaximizeTMinimizeGrid:
-        case PolicyType::MinimizeGrid:
         case PolicyType::CNN: return false;
 
+        case PolicyType::MinimizeGrid:
         case PolicyType::Random:
         case PolicyType::NLP:
         case PolicyType::Ribbon: 
