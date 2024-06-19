@@ -2,42 +2,52 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 #include "balancer/policies/policy_minimize_grid.hpp"
-
-#include "balancer/balancer.hpp"
-#include "utils/logger.hpp"
+#include "balancer/policies/policy_manager.hpp"
+#include "balancer/policies/policy_utils.hpp"
 
 using Graph = tt::graphlib::Graph;
 using Node = tt::graphlib::Node;
-using NodeType = tt::graphlib::NodeType;
-using Edge = tt::graphlib::Edge;
-using DataFormat = tt::DataFormat;
 
-namespace tt::balancer {
-BalancerPolicySolution run_policy_minimize_grid(Graph const* graph, BalancerConfig const&, legalizer::GraphSolver& graph_solver)
+namespace tt::balancer
 {
-    for (Node* node : tt::graphlib::topological_sort(*graph)) {
-        if (node->node_type() != NodeType::kBudaOp)
-            continue;
-
-        auto legal_op_models = graph_solver.at(node);
-        std::vector<OpModel> op_models(legal_op_models.begin(), legal_op_models.end());
-        std::sort(
-            op_models.begin(),
-            op_models.end(),
-            [](OpModel const& a, OpModel const& b) -> bool
-            {
-                int perimeter_a = a.grid_shape.r + a.grid_shape.c;
-                int perimeter_b = b.grid_shape.r + b.grid_shape.c;
-                if (perimeter_a == perimeter_b)
-                    return a.grid_shape.r < b.grid_shape.r;
-                return perimeter_a < perimeter_b;
-            });
-        graph_solver.set(node, op_models.front());
-        log_debug(LogBalancer, "Selected minimum grid for node: {}", node->name());
-        log_debug(LogBalancer, "  {} {}", op_models.front().grid_shape, op_models.front().t_stream_factor);
+BalancerPolicySolution run_policy_minimize_grid(
+    Graph const* graph, BalancerConfig const& config, legalizer::GraphSolver& graph_solver)
+{
+    PolicyManager policy_manager(graph, config, graph_solver);
+    bool epoch_completed = false;
+    bool maximize_grid = env_as<bool>("PYBUDA_MAXIMIZE_GRID", false);
+    if (maximize_grid)
+    {
+        policy_manager.invalidate_suboptimal_op_models(legalizer::MatmulSparseDenseGridPairing);
     }
 
-    return BalancerPolicySolution(graph_solver.finish());
+    // Pick OpModel for each node.
+    //
+    while (const Node* node = policy_manager.get_next_op())
+    {
+        auto legal_op_models = policy_manager.at(node);
+        const OpModel* target_grid_op_model = &(*legal_op_models.begin());
+
+        for (const OpModel& op_model : legal_op_models)
+        {
+            if ((!maximize_grid and op_model.grid_shape.volume() < target_grid_op_model->grid_shape.volume()) or
+                (maximize_grid and op_model.grid_shape.volume() > target_grid_op_model->grid_shape.volume()))
+            {
+                target_grid_op_model = &op_model;
+            }
+        }
+
+        std::tie(std::ignore, epoch_completed, std::ignore) = policy_manager.commit_op(*target_grid_op_model);
+
+        // If we're done with the epoch, finish it.
+        //
+        if (epoch_completed)
+        {
+            policy_manager.finish_current_epoch();
+        }
+    }
+
+    return policy_manager.commit_solution();
 }
 
 }  // namespace tt::balancer
