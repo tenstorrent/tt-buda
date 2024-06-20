@@ -508,7 +508,7 @@ def init_compile(context: CompileContext) -> CompileDepth:
     ci.initialize_output_build_directory(context.backend_output_directory)
 
     device_cfg = dev.get_device_config(compiler_cfg=compiler_cfg)
-    logger.info("Device architecutre: {}", device_cfg.arch_name)
+    logger.info("Device architecture: {}", device_cfg.arch_name)
     logger.info("Device grid size: r = {}, c = {}", device_cfg.grid_size.r, device_cfg.grid_size.c)
 
     # Set global cluster descriptor file path if not provided by user (it was obtained from backend when getting device config)
