@@ -17,28 +17,30 @@ Compiling and running a PyBuda workload is as easy as:
   import pybuda
   import torch
   from transformers import BertModel, BertConfig
-  
-  # Download the model from huggingface
-  model = BertModel.from_pretrained("bert-base-uncased")
-  
-  # Wrap the pytorch model in a PyBuda module wrapper
-  module = pybuda.PyTorchModule("bert_encoder", model.encoder)
-  
-  # Create a tenstorrent device
-  tt0 = pybuda.TTDevice(
-      "tt0",
-      module=module,
-      arch=pybuda.BackendDevice.Wormhole_B0,
-      devtype=pybuda.BackendType.Silicon,
-  )
-  
-  # Create an input tensor
-  seq_len = 128
-  input = torch.randn(1, seq_len, model.config.hidden_size)
-  
-  # Compile and run inference
-  output_queue = pybuda.run_inference(inputs=[input])
-  print(output_queue.get())
+
+  # Guard in the main module to avoid creating subprocesses recursively.
+  if __name__ == "__main__":
+      # Download the model from huggingface
+      model = BertModel.from_pretrained("bert-base-uncased")
+
+      # Wrap the pytorch model in a PyBuda module wrapper
+      module = pybuda.PyTorchModule("bert_encoder", model.encoder)
+
+      # Create a tenstorrent device
+      tt0 = pybuda.TTDevice(
+          "tt0",
+          module=module,
+          arch=pybuda.BackendDevice.Wormhole_B0,
+          devtype=pybuda.BackendType.Silicon,
+      )
+
+      # Create an input tensor
+      seq_len = 128
+      input = torch.randn(1, seq_len, model.config.hidden_size)
+
+      # Compile and run inference
+      output_queue = pybuda.run_inference(inputs=[input])
+      print(output_queue.get())
 
 
 Framework Support
@@ -90,7 +92,7 @@ PyBuda API and workflow is flexible enough that some of these steps can be merge
 Devices
 *******
 
-PyBuda makes it easy to distribute a workload onto a heterogenous set of devices available to you. This can be one or more 
+PyBuda makes it easy to distribute a workload onto a heterogeneous set of devices available to you. This can be one or more 
 Tenstorrent devices, CPUs, or GPUs. Each device that will be used to run your workflow needs to be declared by creating the appropriate
 device type and giving it a unique name:
 
@@ -121,7 +123,7 @@ To run a module on a device, it needs to be "placed" on it
    tt0.place_module(mod)
 
 This tells PyBuda that module ``mod`` needs to be compiled and executed on device ``tt0``. In this case, ``mod`` is a native PyBuda module. To
-simiarly place a PyTorch module onto a Tenstorrent device, the module must be wrapped in a :py:class:`PyTorchModule<pybuda.PyTorchModule>` wrapper:
+similarly place a PyTorch module onto a Tenstorrent device, the module must be wrapped in a :py:class:`PyTorchModule<pybuda.PyTorchModule>` wrapper:
 
 .. code-block:: python
 
@@ -147,7 +149,7 @@ PyBuda provides all-in-one APIs for compiling and running workloads, :py:func:`r
 For inference, and simple training setups, this is the simplest way to get up and running.
 
 Alternatively, the models can be compiled in a separate step, using the :py:func:`initialize_pipeline<pybuda.initialize_pipeline>` call, 
-which optioanlly takes sample inputs, if none have been pushed into the first device. Once the compilation has completed, the user 
+which optionally takes sample inputs, if none have been pushed into the first device. Once the compilation has completed, the user 
 can run :py:func:`run_forward<pybuda.run_forward>` pass through the pipeline for inference, or a loop of 
 :py:func:`run_forward<pybuda.run_forward>`, :py:func:`run_backward<pybuda.run_backward>`, and :py:func:`run_optimizer<pybuda.run_optimizer>` 
 calls to manually implement a training loop:
@@ -165,10 +167,10 @@ calls to manually implement a training loop:
 CPU Fallback
 ************
 
-If there are operators in the workload that are unsuppored by PyBuda, the user can create a CPUDevice and place module containing those 
+If there are operators in the workload that are unsupported by PyBuda, the user can create a CPUDevice and place module containing those 
 operators onto that CPUDevice. If enabled, PyBuda is capable of doing this automatically.
 
-If a TTDevice contains unsuppored operators, during compilation, the device will be split into mupltiple devices (TTDevice and CPUDevice). If
+If a TTDevice contains unsupported operators, during compilation, the device will be split into multiple devices (TTDevice and CPUDevice). If
 the CPUDevice is at the front of the pipeline (i.e. the unsupported ops are in the first half of the graph), any inputs pushed to the TTDevice
 will be redirected to the correct CPUDevice. 
 
@@ -214,7 +216,7 @@ Output queues hold PyBuda tensors. For each PyBuda tensor, user can convert it b
     output_in_tf = output_q[0].to_framework("tensorflow")
 
 Advanced training scenarios sometimes require accumulated gradients to be retrieved and analyzed. For those cases, PyBuda provides an 
-:py::func:`API<pybuda.get_parameter_gradients>` that retrieves a dictionary of all currently accumulated gradients on a device. This can be used to 
+:py:func:`API<pybuda.get_parameter_gradients>` that retrieves a dictionary of all currently accumulated gradients on a device. This can be used to 
 debug or analyze data, or even run a manual optimizer and push new weights onto the device.
 
 Saving and Loading Models
@@ -623,20 +625,22 @@ Here is a simple example to (1) tag operations of interest and (2) fetch interme
            matmul2 = pybuda.op.Matmul("matmul2", matmul1_gelu, self.weights2)
            return matmul2
 
-   # Configure Pybuda compilation options to include a list of operations to collect intermediate tensors
-   tagged_operations = ["matmul1", "gelu"]
-   pybuda.set_configuration_options(op_intermediates_to_save=tagged_operations)
+   # Guard in the main module to avoid creating subprocesses recursively.
+   if __name__ == "__main__":
+       # Configure Pybuda compilation options to include a list of operations to collect intermediate tensors
+       tagged_operations = ["matmul1", "gelu"]
+       pybuda.set_configuration_options(op_intermediates_to_save=tagged_operations)
 
-   # Invoke the run_inference API to create device, compile and run module on device:
-   output_q = pybuda.run_inference(PyBudaTestModule("test_module"), inputs=[torch.randn(1, 32, 32)])
+       # Invoke the run_inference API to create device, compile and run module on device:
+       output_q = pybuda.run_inference(PyBudaTestModule("test_module"), inputs=[torch.randn(1, 32, 32)])
 
-   # After running inference, the intermediates queue will contain the ordered list of tagged intermediates
-   intermediates_queue = pybuda.get_intermediates_queue()
-   matmul1_tensor, gelu_tensor = intermediates_queue.get()
+       # After running inference, the intermediates queue will contain the ordered list of tagged intermediates
+       intermediates_queue = pybuda.get_intermediates_queue()
+       matmul1_tensor, gelu_tensor = intermediates_queue.get()
 
-   # Print tensor values recorded from device inference
-   print(matmul1_tensor)
-   print(gelu_tensor)
+       # Print tensor values recorded from device inference
+       print(matmul1_tensor)
+       print(gelu_tensor)
 
 
 Multiple Devices
@@ -647,7 +651,7 @@ Using Multiple Tenstorrent Devices
 
 PyBuda makes it easy to parallelize workloads onto multiple devices. A single :py:class:`TTDevice<pybuda.TTDevice>` can be used as a wrapper to any number of available 
 Tenstorrent devices accessible to the host - either locally or through ethernet. The PyBuda compiler will then break up the workload over
-assigned devices using either pipeline or model parllelism strategies, or a combination of both.
+assigned devices using either pipeline or model parallelism strategies, or a combination of both.
 
 The easiest way to use all available hardware is to set ``num_chips`` parameter in :py:class:`TTDevice<pybuda.TTDevice>` to 0, which instructs it to auto-detect and use everything it can find. 
 However, ``num_chips`` and ``chip_ids`` parameters can be used to select a subset of available hardware:
@@ -765,7 +769,7 @@ The following Python code generates a Multi-Model TTI in a manner identical to t
 
   model_binary_loc = "device_images_to_merge"
   models_to_merge = ["bert_large", "deit", "hrnet", "inception", "mobilenet_v1", "mobilenet_v2", "mobilenet_v3", "resnet", "unet", "vit"]
-  target_arch = "wormhole_b0
+  target_arch = "wormhole_b0"
   merged_model_location = "multi_model_workload.tti"
 
   # Individual Model Generation Code Goes Here
@@ -776,7 +780,7 @@ The following Python code generates a Multi-Model TTI in a manner identical to t
 
 During the model fusion process, the API presented above is responsible for performing memory reallocation. Users may be interested in the memory footprint of the fused model (both Device and Host DRAM).
 
-To fullfil this requirement, the tool reports memory utilization post reallocation. An example using a model compiled for Wormhole (with 6 Device and upto 4 Host DRAM channels) is provided below.
+To fulfill this requirement, the tool reports memory utilization post reallocation. An example using a model compiled for Wormhole (with 6 Device and up to 4 Host DRAM channels) is provided below.
 
 .. code-block:: bash
 
