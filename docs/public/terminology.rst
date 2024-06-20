@@ -27,7 +27,7 @@ The dense tensor math unit in Tensix. It performs bulk tensor math operations, s
 
 SFPU
 ----
-Tensix SIMD engine, used for various miscellaneous activations operations, such as exponents, square roots, softmax, topK, and others.
+Tensix SIMD engine, used for various miscellaneous activation operations, such as exponents, square roots, softmax, topK, and others.
 
 Unpacker
 --------
@@ -49,7 +49,7 @@ A collection of ops that fits onto one chip. In a typical workflow, epoch code w
 
 Buffer
 ------
-A reserved location in local memory, DRAM, or host memory. Buffers are used either as desinations for operation outputs, sources for operation inputs, or temporary locations for intermediate data.
+A reserved location in local memory, DRAM, or host memory. Buffers are used either as destinations for operation outputs, sources for operation inputs, or temporary locations for intermediate data.
 
 Pipe
 ----

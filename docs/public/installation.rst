@@ -38,7 +38,7 @@ Python Environment Installation
 
 It is strongly recommended to use virtual environments for each project utilizing PyBUDA and Python dependencies. Creating a new virtual environment with PyBUDA and libraries is very easy.
 
-Prerequisites (detailed sections below) for python envirnment installation are listed here:
+Prerequisites (detailed sections below) for python environment installation are listed here:
 
   * `Setup HugePages (below) <#setup-hugepages>`_
   * `PCI Driver Installation (below) <#pci-driver-installation>`_
