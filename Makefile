@@ -49,6 +49,8 @@ DOCSDIR = $(OUT)/docs
 SUBMODULESDIR = $(OUT)/submodules
 TORCHVISIONDIR = build_deps/vision
 
+export TT_BACKEND_ERISC_PRECOMPILED_BINARIES_PATH=./erisc_hex/
+
 # Top level flags, compiler, defines etc.
 
 #WARNINGS ?= -Wall -Wextra
