@@ -203,8 +203,11 @@ class RandomizerRunner:
         verify_module(model, input_shapes,
                       VerifyConfig(devtype=parameters.test_device.devtype, arch=parameters.test_device.arch))
 
-    def save_test(self, test_code_str: str):
+    def save_test(self, test_code_str: str, failing_test: bool = False):
         test_dir = self.test_context.randomizer_config.test_dir
+        if failing_test:
+            test_dir = f"{test_dir}/failing_tests"
+            test_code_str = test_code_str.replace("# @pytest.mark.xfail", "@pytest.mark.xfail") 
         test_code_file_name = f"{test_dir}/test_gen_model_{StrUtils.test_id(self.test_context)}.py"
 
         if not os.path.exists(test_dir):
@@ -251,7 +254,7 @@ class RandomizerRunner:
 
         if randomizer_config.save_tests:
             # saving test source code to file for debugging purposes
-            self.save_test(test_code_str)
+            self.save_test(test_code_str, failing_test=False)
 
         logger.debug(f"Graph built in: {graph_duration.get_duration():.4f} seconds")
 
@@ -261,8 +264,14 @@ class RandomizerRunner:
             # perform model validation
             try:
                 verify_duration = Timer()
+                verify_successful = False
                 self.verify(model)
+                verify_successful = True
             finally:
+                if not verify_successful:
+                    if randomizer_config.save_failing_tests:
+                        # saving error test source code to file for debugging purposes
+                        self.save_test(test_code_str, failing_test=True)
                 logger.debug(f"Test verified in: {verify_duration.get_duration():.4f} seconds")
         else:
             logger.info("Skipping test run")

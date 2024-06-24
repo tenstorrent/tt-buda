@@ -17,6 +17,7 @@ def get_randomizer_config_default():
         print_code = True,
         run_test = True,
         save_tests = True,
+        save_failing_tests = True,
         # build_model_from_code = False,
         debug_shapes = False,
         verify_shapes = False,
