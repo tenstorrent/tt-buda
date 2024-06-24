@@ -40,16 +40,35 @@ class StrUtils:
         snake_case = re.sub(pattern, '_', camel_case).lower()
         return snake_case
 
+    @staticmethod
+    def text_to_snake_case(text: str) -> str:
+        text = text.lower()
+        pattern = re.compile(r'\ +')
+        snake_case = re.sub(pattern, '_', text).lower()
+        return snake_case
+
     @classmethod
     def test_id(cls, test_context: RandomizerTestContext) -> str:
         parameters = test_context.parameters
         graph_builder_snake_case = cls.camel_case_to_snake_case(parameters.graph_builder_name)
-        test_id = f"{parameters.framework_name}_{graph_builder_snake_case}_{parameters.test_index}_{parameters.random_seed}"
+        test_name = cls.text_to_snake_case(test_context.test_name)
+        test_id = f"{parameters.framework_name}_{graph_builder_snake_case}_{test_name}_{parameters.test_index}_{parameters.random_seed}"
         return test_id
 
     @staticmethod
     def nodes_to_str(nodes: List[RandomizerNode]) -> str:
-        nodes_str = "\n".join([f"    {node}" for node in nodes])
+        '''Converts list of nodes to string representation
+        Used for debugging purposes
+        
+        Args:
+            nodes (List[RandomizerNode]): list of nodes
+
+        Returns:
+            str: string representation of nodes
+        '''
+        # TODO Very slow -> implement in a faster way
+        # nodes_str = "\n".join([f"    {node}" for node in nodes])
+        nodes_str = ""
         return nodes_str
 
 
@@ -155,7 +174,7 @@ class NodeUtils:
 
     @staticmethod
     def is_open(node: RandomizerNode) -> bool:
-        return (node.inputs is None or len(node.inputs) == 0) or (node.operator.input_num > 1 and len(node.inputs) < node.operator.input_num)
+        return (len(node.inputs) if node.inputs else 0)  < node.operator.input_num
 
     @classmethod
     def get_open_nodes(cls, nodes: List[RandomizerNode]) -> List[RandomizerNode]:

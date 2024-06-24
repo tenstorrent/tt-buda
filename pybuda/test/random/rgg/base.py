@@ -14,6 +14,7 @@ from pybuda import PyBudaModule
 from pybuda.verify import verify_module, VerifyConfig
 from pybuda.op_repo import OperatorRepository
 from test.conftest import TestDevice
+from test.utils import Timer
 from .datatypes import RandomizerNode, RandomizerGraph, RandomizerParameters, RandomizerConfig, ExecutionContext
 from .datatypes import RandomizerTestContext
 from .datatypes import TensorShape
@@ -231,7 +232,10 @@ class RandomizerRunner:
         logger.debug(f"Parameters test_index: {parameters.test_index} random_seed: {parameters.random_seed} test_device: {parameters.test_device}")
 
         # build random graph for the specified parameters
+        logger.trace("Building graph started")
+        graph_duration = Timer()
         self.build_graph(graph_builder)
+        logger.trace("Building graph completed")
         graph = self.test_context.graph
         logger.debug(f"Generating graph model {GraphUtils.short_description(graph)}")
         if randomizer_config.print_graph:
@@ -249,16 +253,22 @@ class RandomizerRunner:
             # saving test source code to file for debugging purposes
             self.save_test(test_code_str)
 
+        logger.debug(f"Graph built in: {graph_duration.get_duration():.4f} seconds")
+
         if randomizer_config.run_test:
             # instantiate PyBuda model
             model = self.build_model()
             # perform model validation
-            self.verify(model)
+            try:
+                verify_duration = Timer()
+                self.verify(model)
+            finally:
+                logger.debug(f"Test verified in: {verify_duration.get_duration():.4f} seconds")
         else:
             logger.info("Skipping test run")
 
 
-def process_test(test_index: int, random_seed: int, test_device: TestDevice, randomizer_config: RandomizerConfig, graph_builder_type: Type[GraphBuilder], framework: Framework):
+def process_test(test_name: str, test_index: int, random_seed: int, test_device: TestDevice, randomizer_config: RandomizerConfig, graph_builder_type: Type[GraphBuilder], framework: Framework):
     '''
     Process a single randomizer test.
 
@@ -277,7 +287,7 @@ def process_test(test_index: int, random_seed: int, test_device: TestDevice, ran
     # instantiate parameters
     parameters = RandomizerParameters(test_index, random_seed, test_device, framework_name=framework.framework_name.lower(), graph_builder_name=graph_builder.get_name())
     # instantiate test_context
-    test_context = RandomizerTestContext(randomizer_config=randomizer_config, parameters=parameters, graph=None)
+    test_context = RandomizerTestContext(randomizer_config=randomizer_config, parameters=parameters, graph=None, test_name=test_name)
     # instantiate graph_builder
     model_builder = framework.ModelBuilderType()
     # instantiate runner

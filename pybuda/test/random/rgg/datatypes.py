@@ -90,7 +90,9 @@ class RandomizerConfig:
     op_size_per_dim_max: int = 512
     microbatch_size_min: int = 1
     microbatch_size_max: int = 8
-    num_of_nodes: int = 10
+    num_of_nodes_min: int = 5
+    num_of_nodes_max: int = 10
+    num_fork_joins_max: int = 50
 
 
 @dataclass
@@ -100,3 +102,4 @@ class RandomizerTestContext:
     # framework: Framework
     # graph_builder: GraphBuilder
     graph: Optional[RandomizerGraph]  # graph will be constructed later during test processing
+    test_name: str = "Default"

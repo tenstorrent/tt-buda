@@ -23,3 +23,14 @@ def download_model(download_func, *args, num_retries=3, timeout=180, **kwargs):
     logger.error("Failed to download the model after multiple retries.")
     assert False, "Failed to download the model after multiple retries."
     
+
+class Timer:
+
+    def __init__(self):
+        self.start_time = time.perf_counter()
+
+    def get_duration(self):
+        end_time = time.perf_counter()
+        duration = end_time - self.start_time
+        return duration
+

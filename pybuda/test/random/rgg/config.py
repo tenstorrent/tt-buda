@@ -29,6 +29,8 @@ def get_randomizer_config_default():
         # op_size_per_dim_max=int(os.environ.get("MAX_OP_SIZE_PER_DIM", 512)),
         microbatch_size_min=int(os.environ.get("MIN_MICROBATCH_SIZE", 1)),
         microbatch_size_max=int(os.environ.get("MAX_MICROBATCH_SIZE", 8)),
-        num_of_nodes=int(os.environ.get("NUM_OF_NODES", 10)),
+        num_of_nodes_min=int(os.environ.get("NUM_OF_NODES_MIN", 5)),
+        num_of_nodes_max=int(os.environ.get("NUM_OF_NODES_MAX", 10)),
+        num_fork_joins_max=int(os.environ.get("NUM_OF_FORK_JOINS_MAX", 50)),
     )
     return randomizer_config

@@ -56,4 +56,4 @@ def randomize_size(n: int, rng_shape: Random) -> int:
     Returns:
         int: random size of an dimension
     '''
-    return n + (rng_shape.randint(0, 1) * 2 - 1) * rng_shape.randint(1, int(n/2))
+    return n + (rng_shape.randint(0, 1) * 2 - 1) * rng_shape.randint(0, n // 2)

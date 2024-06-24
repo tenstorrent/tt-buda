@@ -5,6 +5,7 @@
 
 
 import random
+from typing import List
 from loguru import logger
 
 from pybuda.op_repo import OperatorDefinition
@@ -53,6 +54,7 @@ class GraphNodeSetup:
             node.index = op_index_cnt
 
         # Storing output values if needed as explicit input for later operator
+        logger.trace("Setting out_value for nodes")
         for node in nodes:
             # setting default output variable name
             node.out_value = "v"
@@ -62,6 +64,7 @@ class GraphNodeSetup:
                     input_node.out_value = input_node.operator_name()
                     logger.trace(f"Set out_value = {input_node.out_value}")
 
+        logger.trace("Setting input nodes for open nodes")
         open_nodes = NodeUtils.get_open_nodes(nodes)
         logger.trace(f"Open nodes {StrUtils.nodes_to_str(open_nodes)}")
 
@@ -78,10 +81,12 @@ class GraphNodeSetup:
                     graph.input_nodes.append(input_node)
                 node.inputs.append(input_node)
 
+        logger.trace("Generating random settings for operator parameters")
         # Generate random values for operator parameters
         for node in nodes:
             node.constructor_kwargs = RandomUtils.constructor_kwargs(node.operator, node.constructor_kwargs, rng_params)
             node.forward_kwargs = RandomUtils.forward_kwargs(node.operator, node.forward_kwargs, rng_params)
+        logger.trace("Random settings for operator parameters generated")
 
     @classmethod
     def validate_graph(cls, graph: RandomizerGraph):
@@ -111,10 +116,17 @@ class GraphNodeSetup:
 
     @classmethod
     def prepare_graph(cls, graph: RandomizerGraph, rng_params: random.Random):
+        logger.trace("Initializing nodes")
         cls.init_nodes(graph, rng_params)
-        cls.validate_graph(graph)
+        logger.trace("Nodes initialized")
 
+        logger.trace("Validating graph")
+        cls.validate_graph(graph)
+        logger.trace("Graph validated")
+
+        logger.trace("Serializing nodes")
         nodes_str = StrUtils.nodes_to_str(graph.nodes)
+        logger.trace("Nodes serialized")
         logger.trace(f"Nodes: \n{nodes_str}")
 
 
@@ -143,11 +155,13 @@ class RandomGraphAlgorithm(GraphBuilder):
             node.constructor_kwargs["out_channels"] = node.output_shape[1]
 
     # Build graph of random operators via random graph building algorithm
-    # Graph contains between num_of_nodes/2 and num_of_nodes nodes
+    # Graph contains between num_of_nodes_min and num_of_nodes_max nodes
     # Graph is constructed backwards starting from end node
     # In each step a random operator is selected and a new node is created
-    # New node is connected to the last node and optionally to a random node with the same input shape
-    # When new node is connected to 2 nodes graph contains a fork join
+    # Output of new node is connected as input to the multiple open nodes randomly selected which has the same input shape
+    # When new node is connected to more than one node, graph constructs a fork join
+    # Output shape of first node is random
+    # Output shape of other nodes is based on next input shape of a randomly picked open node
     # Input shapes for each node are calculated based on output shape of the node
     def build_graph(self, test_context: RandomizerTestContext):
         '''Implementation of the random graph building algorithm'''
@@ -164,46 +178,60 @@ class RandomGraphAlgorithm(GraphBuilder):
         # Initialize random number generators for parameters
         rng_params = random.Random(test_context.parameters.random_seed)
 
-        num_of_nodes = self.randomizer_config.num_of_nodes
+        fork_join_counter = 0
+        fork_join_max = test_context.randomizer_config.num_fork_joins_max
 
-        # Building the graph with number of nodes between n/2 and n
-        # num_of_nodes defines max number of nodes in the graph
-        for _ in range(rng_graph.randint(int(num_of_nodes/2), num_of_nodes)):
+        # Building the graph with number of nodes between num_of_nodes_min and num_of_nodes_max
+        num_of_nodes = rng_graph.randint(self.randomizer_config.num_of_nodes_min, self.randomizer_config.num_of_nodes_max) 
+        for node_index in range(num_of_nodes, 0, -1):
             # Choose operator randomly based on rng
             op1 = self._get_random_operator(rng_graph)
 
-            # Last node defines output shape for next node to create
-            last_node: RandomizerNode = None
-            # Random node is selected by matching the same input shape to support fork joins
-            # TODO random_node -> random_nodes, select all random_nodes instead of just one
-            # TODO: obsolete last_node in flavor of random_nodes
-            random_node: RandomizerNode = None
+            # Find all open nodes
+            open_nodes = NodeUtils.get_open_nodes(nodes)
 
-            if len(nodes) > 0:
-                # If graph is not empty find previusly added node
-                last_node = nodes[0]
-
-            if len(nodes) == 0:
-                # Setting output shape for the first node
+            # Select output shape for the new node
+            if len(open_nodes) == 0:
+                # For the first node set output shape as random shape
                 output_shape = RandomUtils.random_shape_from_config(self.randomizer_config, rng_shape)
             else:
-                # Setting output shape based on last node input shapes
-                input_shapes = last_node.input_shapes
-                output_shape = input_shapes[len(last_node.inputs)]
+                # For other nodes, output shape is based on input shapes of a random open node
+                # Select one of open nodes randomly
+                random_open_node: RandomizerNode = rng_graph.choice(open_nodes)
+                # Setting output shape based on input shapes of the random open node
+                input_shapes = random_open_node.input_shapes
+                output_shape = input_shapes[len(random_open_node.inputs)]
 
-            # Find open nodes with input shape mathing the output shape of new node
+            # Find all other open nodes with input shape mathing the output shape of new node
             open_nodes = NodeUtils.get_open_nodes_with_input_shape(nodes, output_shape)
 
+            # Random nodes are selected by matching the same input shape as new node
+            # Closing multiple nodes will construct fork joins
+            random_nodes: List[RandomizerNode]
+
             if len(open_nodes) > 0:
-                # Randomly selecting one of the open nodes
-                random_node = rng_graph.choice(open_nodes)
+                # There must be at least one node to close
+                subset_count_min = max(1, len(open_nodes) // 2)
+                subset_count_max = len(open_nodes)
+                # Choose a random number of nodes to close
+                subset_count = rng_graph.randint(subset_count_min, subset_count_max)
 
-            if last_node is not None and random_node is not None and last_node == random_node:
-                # Skip random_node if it's the same as last_node
-                random_node = None
+                # Limit number of fork joins
+                subset_count = min(subset_count, fork_join_max - fork_join_counter + 1)
 
-            # Closing nodes are last_node and optionally random_node
-            closing_nodes = [closing_node for closing_node in [last_node, random_node] if closing_node is not None]
+                # Increase fork join counter
+                new_fork_join = subset_count - 1
+                if new_fork_join > 0:
+                    logger.trace(f"Constructing {new_fork_join} new fork join(s) from operator op{node_index} {op1.name}")
+                fork_join_counter += new_fork_join
+
+                # Select random subset of open nodes to close
+                random_nodes = rng_graph.sample(open_nodes, subset_count)
+            else:
+                random_nodes = []
+
+            # Closing nodes are all random open nodes
+            closing_nodes = random_nodes
 
             # Creating new node
             node = RandomizerNode(operator=op1, output_shape=output_shape)
@@ -217,12 +245,14 @@ class RandomGraphAlgorithm(GraphBuilder):
                 for _ in range(rng_graph.randint(1, closing_node.operator.input_num - len(closing_node.inputs))):
                     # currently only if next input of closing node matches the output shape a closing node will be actually closed
                     # TODO check all inputs for matching shapes not just next one
-                    # if second operands is different shape than first one it will most likely not be closed with an internal node but with external input
-                    # e.x. second operand of matmul usually connect to external input instead of an internal node
                     if closing_node.input_shapes[len(closing_node.inputs)] == node.output_shape:
                         closing_node.inputs.append(node)
 
             open_nodes.append(node)
             nodes.insert(0, node)
 
+        logger.trace(f"Graph built with {len(nodes)} nodes")
+
+        logger.trace("Preparing graph")
         GraphNodeSetup.prepare_graph(graph, rng_params)
+        logger.trace("Graph prepared")
