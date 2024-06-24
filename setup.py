@@ -146,10 +146,11 @@ bbe_files = {
 
 if "BACKEND_ARCH_NAME" in os.environ and os.environ["BACKEND_ARCH_NAME"] == "wormhole_b0" or os.environ["BACKEND_ARCH_NAME"] == "blackhole":
     bbe_files["firmware_erisc_hex"] = {
-        "path": "build/src/firmware/riscv/targets/erisc_app/out",
+        # "path": "build/src/firmware/riscv/targets/erisc_app/out",
+        "path": "erisc_hex",
         "files": [
             "erisc_app.hex",
-            "erisc_app.elf",
+            # "erisc_app.elf",
             "erisc_app.iram.hex",
             "erisc_app.l1.hex",
             "split_iram_l1"
