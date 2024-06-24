@@ -35,7 +35,7 @@ class GeneratedTestModel_{{ test_index }}_{{ random_seed }}(PyBudaModule):
         return v
 {% if test_format %}
 
-# @pytest.mark.skip(reason="Skip this test for now.")
+# @pytest.mark.xfail(reason="The model triggers a bug.")
 def test_gen_model_{{ test_index }}_{{ random_seed }}(test_device):
     
     input_shapes = [

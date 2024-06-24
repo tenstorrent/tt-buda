@@ -81,6 +81,7 @@ class RandomizerConfig:
     run_test: bool = True
     test_dir:str = "pybuda/test/random_tests"
     save_tests: bool = False
+    save_failing_tests: bool = False
     # build_model_from_code: bool = False  # TODO remove obsoleted
     debug_shapes: bool = False,
     verify_shapes: bool = False,
