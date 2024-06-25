@@ -2,11 +2,14 @@ import pybuda
 from pybuda.verify.backend import verify_module
 from pybuda import VerifyConfig
 from pybuda.verify.config import TestKind
+
 from transformers import AutoImageProcessor
+
 import os
-import pytest
 import requests
 from PIL import Image
+import pytest
+
 import onnx
 
 
@@ -24,13 +27,11 @@ variants_img_classification = [
     "nvidia/mit-b1",
     "nvidia/mit-b2",
     "nvidia/mit-b3",
-    "nvidia/mit-b4",
-    "nvidia/mit-b5",
 ]
 
 
 @pytest.mark.parametrize("variant", variants_img_classification)
-def test_segformer_imgcls_onnx(test_device, variant):
+def test_segformer_imgcls_onnx_1(test_device, variant):
 
     # Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()
@@ -45,12 +46,13 @@ def test_segformer_imgcls_onnx(test_device, variant):
             "nvidia/mit-b1",
             "nvidia/mit-b2",
             "nvidia/mit-b3",
-            "nvidia/mit-b4",
-            "nvidia/mit-b5",
         ]:
             os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
 
-        if variant == "nvidia/mit-b0" and test_device.devtype == pybuda.BackendType.Silicon:
+        if (
+            variant == "nvidia/mit-b0"
+            and test_device.devtype == pybuda.BackendType.Silicon
+        ):
             pcc_value = 0.97
 
     elif test_device.arch == pybuda.BackendDevice.Grayskull:
@@ -63,11 +65,17 @@ def test_segformer_imgcls_onnx(test_device, variant):
     # Load the sample image
     pixel_values = get_sample_data(variant)
 
-    onnx_model_path = "third_party/confidential_customer_models/generated/files/" + str(variant).split("/")[-1].replace("-", "_") + ".onnx"
+    onnx_model_path = (
+        "third_party/confidential_customer_models/generated/files/"
+        + str(variant).split("/")[-1].replace("-", "_")
+        + ".onnx"
+    )
     model = onnx.load(onnx_model_path)
     onnx.checker.check_model(model)
 
-    tt_model = pybuda.OnnxModule(str(variant).split("/")[-1].replace("-", "_"), model, onnx_model_path)
+    tt_model = pybuda.OnnxModule(
+        str(variant).split("/")[-1].replace("-", "_"), model, onnx_model_path
+    )
 
     # Run inference on Tenstorrent device
     verify_module(

@@ -2,16 +2,15 @@ import pybuda
 from pybuda.verify.backend import verify_module
 from pybuda import VerifyConfig
 from pybuda.verify.config import TestKind
-from transformers import (
-    AutoImageProcessor,
-    SegformerForImageClassification,
-    SegformerConfig,
-)
+
+from transformers import AutoImageProcessor
 
 import os
 import requests
-import pytest
 from PIL import Image
+import pytest
+
+import onnx
 
 
 def get_sample_data(model_name):
@@ -24,17 +23,13 @@ def get_sample_data(model_name):
 
 
 variants_img_classification = [
-    "nvidia/mit-b0",
-    "nvidia/mit-b1",
-    "nvidia/mit-b2",
-    "nvidia/mit-b3",
     "nvidia/mit-b4",
     "nvidia/mit-b5",
 ]
 
 
 @pytest.mark.parametrize("variant", variants_img_classification)
-def test_segformer_imgcls_pytorch(test_device, variant):
+def test_segformer_imgcls_onnx_2(test_device, variant):
 
     # Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()
@@ -46,37 +41,25 @@ def test_segformer_imgcls_pytorch(test_device, variant):
     if test_device.arch == pybuda.BackendDevice.Wormhole_B0:
 
         if variant in [
-            "nvidia/mit-b1",
-            "nvidia/mit-b2",
-            "nvidia/mit-b3",
             "nvidia/mit-b4",
             "nvidia/mit-b5",
         ]:
             os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
 
-        if variant == "nvidia/mit-b0" and test_device.devtype == pybuda.BackendType.Silicon:
-            pcc_value = 0.97
-
-    elif test_device.arch == pybuda.BackendDevice.Grayskull:
-
-        if variant in ["nvidia/mit-b1"] and test_device.devtype == pybuda.BackendType.Silicon:
-            pcc_value = 0.97
-
-    # Set model configurations
-    config = SegformerConfig.from_pretrained(variant)
-    config_dict = config.to_dict()
-    config_dict["return_dict"] = False
-    config = SegformerConfig(**config_dict)
-
-    # Load the model from HuggingFace
-    model = SegformerForImageClassification.from_pretrained(variant, config=config)
-    model.eval()
-
     # Load the sample image
     pixel_values = get_sample_data(variant)
 
-    # Create PyBuda module from PyTorch model
-    tt_model = pybuda.PyTorchModule("pt_" + str(variant.split("/")[-1].replace("-", "_")), model)
+    onnx_model_path = (
+        "third_party/confidential_customer_models/generated/files/"
+        + str(variant).split("/")[-1].replace("-", "_")
+        + ".onnx"
+    )
+    model = onnx.load(onnx_model_path)
+    onnx.checker.check_model(model)
+
+    tt_model = pybuda.OnnxModule(
+        str(variant).split("/")[-1].replace("-", "_"), model, onnx_model_path
+    )
 
     # Run inference on Tenstorrent device
     verify_module(
