@@ -7,7 +7,6 @@ import onnx
 import os
 import requests
 from PIL import Image
-import pytest
 
 from transformers import AutoImageProcessor
 
@@ -25,15 +24,9 @@ def get_sample_data(model_name):
     return pixel_values
 
 
-@pytest.mark.parametrize(
-    "model_name",
-    [
-        "deepmind/vision-perceiver-conv",
-        "deepmind/vision-perceiver-learned",
-        "deepmind/vision-perceiver-fourier",
-    ],
-)
-def test_perceiver_for_image_classification_onnx(test_device, model_name):
+def test_perceiverio_conv_imgcls_onnx(test_device):
+
+    model_name = "deepmind/vision-perceiver-conv"
 
     # Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()
@@ -44,42 +37,25 @@ def test_perceiver_for_image_classification_onnx(test_device, model_name):
 
     pcc_value = 0.96
     if test_device.arch == pybuda.BackendDevice.Wormhole_B0:
-
-        if model_name == "deepmind/vision-perceiver-learned":
-            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{105*1024}"
-            compiler_cfg.balancer_op_override("add_63", "t_stream_shape", (1, 2))
-            if test_device.devtype == pybuda.BackendType.Silicon:
-                pcc_value = 0.95
-
-        elif model_name == "deepmind/vision-perceiver-conv":
-            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{10*1024}"
-            compiler_cfg.balancer_op_override("multiply_19", "t_stream_shape", (1, 1))
-            compiler_cfg.balancer_op_override("multiply_142", "t_stream_shape", (1, 1))
-            compiler_cfg.balancer_op_override("multiply_3103", "t_stream_shape", (1, 1))
-            compiler_cfg.balancer_op_override("multiply_3123", "t_stream_shape", (1, 1))
-            compiler_cfg.balancer_op_override("multiply_2745", "t_stream_shape", (1, 1))
-            compiler_cfg.balancer_op_override("multiply_2934", "t_stream_shape", (1, 1))
-
-        elif model_name == "deepmind/vision-perceiver-fourier":
-            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{101*1024}"
-            compiler_cfg.balancer_op_override("add_58", "t_stream_shape", (1, 2))
+        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{10*1024}"
+        compiler_cfg.balancer_op_override("multiply_19", "t_stream_shape", (1, 1))
+        compiler_cfg.balancer_op_override("multiply_142", "t_stream_shape", (1, 1))
+        compiler_cfg.balancer_op_override("multiply_3103", "t_stream_shape", (1, 1))
+        compiler_cfg.balancer_op_override("multiply_3123", "t_stream_shape", (1, 1))
+        compiler_cfg.balancer_op_override("multiply_2745", "t_stream_shape", (1, 1))
+        compiler_cfg.balancer_op_override("multiply_2934", "t_stream_shape", (1, 1))
+        compiler_cfg.balancer_op_override("multiply_79", "t_stream_shape", (1, 1))
+        compiler_cfg.balancer_op_override("multiply_99", "t_stream_shape", (1, 1))
+        compiler_cfg.balancer_op_override(
+            "max_pool2d_35.dc.reshape.10.dc.sparse_matmul.13.lc2",
+            "t_stream_shape",
+            (1, 1),
+        )
 
     elif test_device.arch == pybuda.BackendDevice.Grayskull:
 
         if test_device.devtype == pybuda.BackendType.Silicon:
             verify_enabled = False
-
-        if model_name == "deepmind/vision-perceiver-learned":
-            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{101*1024}"
-
-        elif model_name == "deepmind/vision-perceiver-fourier":
-            os.environ["PYBUDA_DISABLE_PADDING_PASS"] = "1"
-            compiler_cfg.place_on_new_epoch("hslice_50.dc.sparse_matmul.2.lc2")
-            compiler_cfg.place_on_new_epoch("matmul_47")
-            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{101*1024}"
-            compiler_cfg.balancer_op_override(
-                "hslice_50.dc.sparse_matmul.2.lc2", "t_stream_shape", (1, 7)
-            )
 
     onnx_model_path = (
         "third_party/confidential_customer_models/generated/files/"

@@ -26,13 +26,11 @@ variants_semseg = [
     "nvidia/segformer-b0-finetuned-ade-512-512",
     "nvidia/segformer-b1-finetuned-ade-512-512",
     "nvidia/segformer-b2-finetuned-ade-512-512",
-    "nvidia/segformer-b3-finetuned-ade-512-512",
-    "nvidia/segformer-b4-finetuned-ade-512-512",
 ]
 
 
 @pytest.mark.parametrize("variant", variants_semseg)
-def test_segformer_semseg_pytorch(test_device, variant):
+def test_segformer_semseg_pytorch_1(test_device, variant):
 
     # Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()
@@ -45,10 +43,7 @@ def test_segformer_semseg_pytorch(test_device, variant):
         if variant in [
             "nvidia/segformer-b1-finetuned-ade-512-512",
             "nvidia/segformer-b2-finetuned-ade-512-512",
-            "nvidia/segformer-b3-finetuned-ade-512-512",
-            "nvidia/segformer-b4-finetuned-ade-512-512",
         ]:
-
             os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
 
         if (
@@ -66,12 +61,6 @@ def test_segformer_semseg_pytorch(test_device, variant):
         if variant == "nvidia/segformer-b2-finetuned-ade-512-512":
             compiler_cfg.place_on_new_epoch("concatenate_1098.dc.concatenate.0")
 
-        if variant == "nvidia/segformer-b3-finetuned-ade-512-512":
-            compiler_cfg.place_on_new_epoch("concatenate_1890.dc.concatenate.0")
-
-        if variant == "nvidia/segformer-b4-finetuned-ade-512-512":
-            compiler_cfg.place_on_new_epoch("concatenate_2748.dc.concatenate.0")
-
         if test_device.devtype == pybuda.BackendType.Silicon:
             pcc_value = 0.98
 
@@ -83,7 +72,9 @@ def test_segformer_semseg_pytorch(test_device, variant):
     pixel_values = get_sample_data(variant)
 
     # Create PyBuda module from PyTorch model
-    tt_model = pybuda.PyTorchModule("pt_" + str(variant.split("/")[-1].replace("-", "_")), model)
+    tt_model = pybuda.PyTorchModule(
+        "pt_" + str(variant.split("/")[-1].replace("-", "_")), model
+    )
 
     # Run inference on Tenstorrent device
     verify_module(

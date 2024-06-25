@@ -35,6 +35,9 @@ def test_tri_basic_2_sematic_segmentation_pytorch(test_device):
             "add_156", "t_stream_shape", (1, 1)
         )  # TM error
         compiler_cfg.balancer_op_override(
+            "add_185", "t_stream_shape", (1, 1)
+        )  # TM error
+        compiler_cfg.balancer_op_override(
             "add_200", "t_stream_shape", (1, 1)
         )  # TM error
         compiler_cfg.balancer_op_override(

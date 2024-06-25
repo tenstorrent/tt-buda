@@ -2,12 +2,15 @@ import pybuda
 from pybuda.verify.backend import verify_module
 from pybuda import VerifyConfig
 from pybuda.verify.config import TestKind
-from transformers import AutoImageProcessor
+from transformers import (
+    AutoImageProcessor,
+    SegformerForSemanticSegmentation,
+)
+
 import os
-import pytest
 import requests
+import pytest
 from PIL import Image
-import onnx
 
 
 def get_sample_data(model_name):
@@ -20,16 +23,13 @@ def get_sample_data(model_name):
 
 
 variants_semseg = [
-    "nvidia/segformer-b0-finetuned-ade-512-512",
-    "nvidia/segformer-b1-finetuned-ade-512-512",
-    "nvidia/segformer-b2-finetuned-ade-512-512",
     "nvidia/segformer-b3-finetuned-ade-512-512",
     "nvidia/segformer-b4-finetuned-ade-512-512",
 ]
 
 
 @pytest.mark.parametrize("variant", variants_semseg)
-def test_segformer_semseg_onnx(test_device, variant):
+def test_segformer_semseg_pytorch_2(test_device, variant):
 
     # Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()
@@ -40,52 +40,33 @@ def test_segformer_semseg_onnx(test_device, variant):
 
     if test_device.arch == pybuda.BackendDevice.Wormhole_B0:
         if variant in [
-            "nvidia/segformer-b1-finetuned-ade-512-512",
-            "nvidia/segformer-b2-finetuned-ade-512-512",
             "nvidia/segformer-b3-finetuned-ade-512-512",
             "nvidia/segformer-b4-finetuned-ade-512-512",
         ]:
-
             os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
 
-        if variant == "nvidia/segformer-b2-finetuned-ade-512-512" and test_device.devtype == pybuda.BackendType.Silicon:
-            pcc_value = 0.98
-
     elif test_device.arch == pybuda.BackendDevice.Grayskull:
-        compiler_cfg.enable_auto_fusing = False
-
-        if variant == "nvidia/segformer-b2-finetuned-ade-512-512":
-            compiler_cfg.place_on_new_epoch("add_1423")
-            compiler_cfg.place_on_new_epoch("concatenate_1427.dc.concatenate.0")
 
         if variant == "nvidia/segformer-b3-finetuned-ade-512-512":
-            compiler_cfg.place_on_new_epoch("add_2431")
-            compiler_cfg.place_on_new_epoch("concatenate_2435.dc.concatenate.0")
+            compiler_cfg.place_on_new_epoch("concatenate_1890.dc.concatenate.0")
 
         if variant == "nvidia/segformer-b4-finetuned-ade-512-512":
-            compiler_cfg.place_on_new_epoch("add_3523")
-            compiler_cfg.place_on_new_epoch("concatenate_3527.dc.concatenate.0")
+            compiler_cfg.place_on_new_epoch("concatenate_2748.dc.concatenate.0")
 
         if test_device.devtype == pybuda.BackendType.Silicon:
+            pcc_value = 0.98
 
-            if variant in [
-                "nvidia/segformer-b0-finetuned-ade-512-512",
-                "nvidia/segformer-b2-finetuned-ade-512-512",
-                "nvidia/segformer-b4-finetuned-ade-512-512",
-            ]:
-                pcc_value = 0.98
-
-            if variant == "nvidia/segformer-b1-finetuned-ade-512-512":
-                pcc_value = 0.97
+    # Load the model from HuggingFace
+    model = SegformerForSemanticSegmentation.from_pretrained(variant)
+    model.eval()
 
     # Load the sample image
     pixel_values = get_sample_data(variant)
 
-    onnx_model_path = "third_party/confidential_customer_models/generated/files/" + str(variant).split("/")[-1].replace("-", "_") + ".onnx"
-    model = onnx.load(onnx_model_path)
-    onnx.checker.check_model(model)
-
-    tt_model = pybuda.OnnxModule(str(variant).split("/")[-1].replace("-", "_"), model, onnx_model_path)
+    # Create PyBuda module from PyTorch model
+    tt_model = pybuda.PyTorchModule(
+        "pt_" + str(variant.split("/")[-1].replace("-", "_")), model
+    )
 
     # Run inference on Tenstorrent device
     verify_module(
