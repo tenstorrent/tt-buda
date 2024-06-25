@@ -26,6 +26,8 @@ def test_pidnet_pytorch(variant, test_device):
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
 
+    os.environ["PYBUDA_RIBBON2"] = "1"
+
     # Load and pre-process image
     image_path = "./third_party/confidential_customer_models/cv_demos/pidnet/image/road_scenes.png"
     image = cv2.imread(image_path, cv2.IMREAD_COLOR)
@@ -66,6 +68,7 @@ def test_pidnet_pytorch(variant, test_device):
                 "t_stream_shape",
                 (1, 8),
             )
+            compiler_cfg.place_on_new_epoch("resize2d_353.dc.reshape.5.dc.sparse_matmul.10.lc2")
 
         elif variant == "pidnet_m":
             os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "335872"

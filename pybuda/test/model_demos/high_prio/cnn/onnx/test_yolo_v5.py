@@ -126,12 +126,39 @@ def test_yolo_v5_480x480_onnx(test_device, variant):
         os.environ["PYBUDA_INSERT_SLICE_FOR_CONCAT"] = "1"
         os.environ["PYBUDA_CONCAT_SLICE_Y"] = "10"
         os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{112*1024}"
-        if variant in ("yolov5m", "yolov5s"):
+        if variant == "yolov5m":
             compiler_cfg.balancer_op_override(
                 "concatenate_19.dc.concatenate.30.dc.concatenate.0.dc.concatenate.12",
                 "grid_shape",
                 (1, 1),
             )
+            compiler_cfg.balancer_op_override(
+                "concatenate_26.dc.concatenate.30.dc.concatenate.0.dc.concatenate.12",
+                "grid_shape",
+                (1, 1),
+            )
+            compiler_cfg.place_on_new_epoch("concatenate_26.dc.concatenate.30.dc.concatenate.1.dc.buffer.0")
+        elif variant == "yolov5s":
+            compiler_cfg.balancer_op_override(
+                "concatenate_19.dc.concatenate.30.dc.concatenate.0.dc.concatenate.12",
+                "grid_shape",
+                (1, 1),
+            )
+            compiler_cfg.balancer_op_override(
+                "concatenate_26.dc.concatenate.30.dc.concatenate.0.dc.concatenate.12",
+                "grid_shape",
+                (1, 1),
+            )
+        elif variant == "yolov5n":
+            compiler_cfg.balancer_op_override(
+                "concatenate_19.dc.concatenate.30.dc.concatenate.0.dc.concatenate.12",
+                "t_stream_shape",
+                (1, 1),
+            )
+            os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
+        elif variant == "yolov5x":
+            os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
+
     elif test_device.arch == BackendDevice.Grayskull:
 
         if variant in ["yolov5n", "yolov5s"]:
@@ -226,8 +253,10 @@ def test_yolo_v5_640x640_onnx(test_device, variant):
             compiler_cfg.balancer_op_override(
                 "concatenate_478.dc.concatenate.7", "grid_shape", (1, 1)
             )
-            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{150*1024}"
             compiler_cfg.enable_auto_fusing = False
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "382976"
+            compiler_cfg.place_on_new_epoch("concatenate_40.dc.concatenate.30.dc.concatenate.0.dc.concatenate.12")
+            compiler_cfg.place_on_new_epoch("concatenate_478.dc.sparse_matmul.10.lc2")
 
 
     elif test_device.arch == BackendDevice.Grayskull:

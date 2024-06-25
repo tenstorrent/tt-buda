@@ -167,6 +167,7 @@ def test_yolox_onnx(variant, test_device):
 
             elif variant == "yolox_darknet":
 
+                compiler_cfg.place_on_new_epoch("_fused_op_34")
                 compiler_cfg.place_on_new_epoch("conv2d_199.dc.matmul.11")
                 compiler_cfg.balancer_op_override("concatenate_222.dc.concatenate.7.before_padded_node.nop_0", "grid_shape", (1, 1))
                 compiler_cfg.place_on_new_epoch("concatenate_222.dc.sparse_matmul.11.lc2")

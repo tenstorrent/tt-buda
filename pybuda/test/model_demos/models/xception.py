@@ -17,8 +17,11 @@ def generate_model_xception_imgcls_timm(test_device, variant):
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
 
-    if variant == "xception" and test_device.arch == BackendDevice.Wormhole_B0:
-        compiler_cfg.balancer_policy = "CNN"
+    if variant == "xception" :
+        if test_device.arch == BackendDevice.Wormhole_B0:
+            compiler_cfg.balancer_policy = "CNN"
+        elif test_device.arch == BackendDevice.Grayskull:
+            compiler_cfg.amp_level = 1
     else:
         compiler_cfg.balancer_policy = "Ribbon"
     os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"

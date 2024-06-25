@@ -63,6 +63,10 @@ def test_distilbert_question_answering_pytorch(test_device):
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object 
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
 
+    if test_device.arch == BackendDevice.Grayskull and test_device.devtype == pybuda.BackendType.Golden:
+        os.environ["PYBUDA_EXTRA_L1_MARGIN"] = '169536'
+        compiler_cfg.enable_auto_fusing = False
+
     # Load data sample from SQuADv1.1
     context = """Super Bowl 50 was an American football game to determine the champion of the National Football League
     (NFL) for the 2015 season. The American Football Conference (AFC) champion Denver Broncos defeated the
