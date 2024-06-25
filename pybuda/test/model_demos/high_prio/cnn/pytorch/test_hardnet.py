@@ -26,6 +26,11 @@ def test_hardnet_pytorch(test_device, variant):
     if variant == "hardnet85" and test_device.arch == BackendDevice.Wormhole_B0:
         os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
 
+    if variant == "hardnet68ds" and test_device.arch == BackendDevice.Grayskull:
+        os.environ["PYBUDA_FORK_JOIN_BUF_QUEUES"] = "1"
+        os.environ["PYBUDA_FORK_JOIN_EXPAND_OUTPUT_BUFFERS"] = "1"
+        os.environ["PYBUDA_FORK_JOIN_SKIP_EXPANDING_BUFFERS"] = "1"
+
     # load only the model architecture without pre-trained weights.
     model = torch.hub.load("PingoLH/Pytorch-HarDNet", variant, pretrained=False)
 

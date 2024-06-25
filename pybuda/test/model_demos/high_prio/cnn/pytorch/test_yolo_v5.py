@@ -33,6 +33,9 @@ def generate_model_yoloV5I320_imgcls_torchhub_pytorch(test_device, variant, size
     if test_device.arch == BackendDevice.Grayskull:
         compiler_cfg.enable_tm_cpu_fallback = True
         os.environ["PYBUDA_FORK_JOIN_SKIP_EXPANDING_BUFFERS"] = "1"
+        if size == "x":
+            os.environ["PYBUDA_FORK_JOIN_BUF_QUEUES"] = "1"
+            os.environ["PYBUDA_FORK_JOIN_EXPAND_OUTPUT_BUFFERS"] = "1"
     elif test_device.arch == BackendDevice.Wormhole_B0:
         if size == "m":
             os.environ["PYBUDA_FORK_JOIN_SKIP_EXPANDING_BUFFERS"] = "1"
@@ -152,6 +155,11 @@ def generate_model_yoloV5I640_imgcls_torchhub_pytorch(test_device, variant, size
             compiler_cfg.balancer_op_override("concatenate_332.dc.concatenate.7", "grid_shape", (1,1))
             os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"]  = f"{112*1024}"
             os.environ["PYBUDA_TEMP_RIBBON2_LEGACY_UTIL_EVAL"] = "1"
+            compiler_cfg.balancer_op_override(
+                "concatenate_26.dc.concatenate.30.dc.concatenate.0.dc.concatenate.12",
+                "grid_shape",
+                (1, 1),
+            )
         if size == "l":
             compiler_cfg.enable_auto_transposing_placement = True
             compiler_cfg.enable_tm_cpu_fallback = True
@@ -168,6 +176,7 @@ def generate_model_yoloV5I640_imgcls_torchhub_pytorch(test_device, variant, size
             os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "0"
             os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "0"
             os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "0"
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{98*1024}"
 
     name = "yolov5" + size
     model = download_model(torch.hub.load, variant, name, pretrained=True)
@@ -219,6 +228,7 @@ def generate_model_yoloV5I480_imgcls_torchhub_pytorch(test_device, variant, size
             os.environ["PYBUDA_CONCAT_SLICE_Y"] = "10"
             compiler_cfg.balancer_op_override("concatenate_40.dc.concatenate.30.dc.concatenate.1.dc.buffer.0", "t_stream_shape", (6,1))
             compiler_cfg.balancer_op_override("conv2d_41.dc.matmul.8", "grid_shape", (5,5))
+            compiler_cfg.place_on_new_epoch("conv2d_44.dc.matmul.11")
         elif size == "m":
             os.environ["PYBUDA_INSERT_SLICE_FOR_CONCAT"] = "1"
             os.environ["PYBUDA_CONCAT_SLICE_Y"] = "10"
@@ -274,6 +284,8 @@ def test_yolov5_480x480(test_device, size):
         os.environ["PYBUDA_LEGACY_KERNEL_BROADCAST"] = "1"
     if size in ["s"] and test_device.arch == BackendDevice.Wormhole_B0:
         os.environ["PYBUDA_TEMP_DISABLE_MODEL_KB_PROLOGUE_BW"] = "1"
+    if size in ["x"] and test_device.arch == BackendDevice.Wormhole_B0:
+        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"]  = f"{68*1024}"
 
     model, inputs, _ = generate_model_yoloV5I480_imgcls_torchhub_pytorch(
         test_device, "ultralytics/yolov5",

@@ -41,6 +41,7 @@ def generate_model_unet_imgseg_osmr_pytorch(test_device, variant):
         os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "0"
         os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "0"
         os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "0"
+        compiler_cfg.place_on_new_epoch("conv2d_176.dc.matmul.11")
     elif test_device.arch == BackendDevice.Grayskull:
         compiler_cfg.balancer_policy = "CNN"
 
