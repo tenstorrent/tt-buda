@@ -1551,13 +1551,13 @@ class TTDevice(Device):
         *, 
         img: Optional["TTDeviceImage"] = None, 
         img_path: Optional[str] = None, 
-        device_id_override: Optional[int] = None
+        device_id_overrides: Optional[List[int]] = None
     ) -> "TTDevice":
         from .tti import TTDeviceImage
         if img and img_path:
             logger.error("only one of image/image-path should be specified")
         if img is None:
-            img = TTDeviceImage.load_from_disk(img_path, device_id_override)
+            img = TTDeviceImage.load_from_disk(img_path, device_id_overrides)
         return TTDeviceImage.create_device_from_image(img)
 
 

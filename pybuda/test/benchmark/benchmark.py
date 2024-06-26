@@ -427,7 +427,7 @@ def run(
         assert not args.training, "Training not supported in parallel tti run"
         assert args.chips == 1, "Parallel TTI only supported for single chip models"
         assert len(device_list) > 0
-        device_ids = list(range(len(device_list)))
+        device_ids = [[i] for i in range(len(device_list))]
         precompiled_image_path = args.load_tti if args.load_tti else None
         tt_device = None if args.load_tti else tt
         

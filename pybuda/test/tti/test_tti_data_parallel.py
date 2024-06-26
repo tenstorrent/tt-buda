@@ -2,15 +2,17 @@
 # SPDX-FileCopyrightText: © 2024 Tenstorrent AI ULC
 
 # SPDX-License-Identifier: Apache-2.0
+from typing import Optional, List
+import shutil
 import pybuda
 import pybuda.backend
 import torch
 import os
-import pybuda
 import inspect
 from pybuda.pybudaglobal import pybuda_reset
 import numpy as np
 from pybuda.tools.tti_data_parallel import (
+    split_tensor_batch,
     run_tti_data_parallel, 
     RunMode,
     RunResult, 
@@ -67,14 +69,55 @@ def get_generative_params(other):
         
     return compile_inputs, num_tokens_to_generate, first_current_index, pad_token_id, write_index
 
-if __name__ == "__main__":
+def compile_and_save_tti(
+    module,
+    arch: pybuda.BackendDevice,
+    tti_output_path: str,
+    sample_inputs,
+    chip_ids: Optional[List[int]] = None,
+    num_chips: Optional[int] = None,
+):
+    tt0 = pybuda.TTDevice(
+        "tt0", 
+        module=module,
+        chip_ids=chip_ids,
+        num_chips=num_chips,
+        arch=arch
+    )
+    tt0.compile_to_image(
+        img_path=tti_output_path,
+        training=False,
+        sample_inputs=sample_inputs,
+    )
+    pybuda_reset()
+
+def get_model_config(base_kwargs, model, config):
+    models = get_models()
+    kwargs = base_kwargs.copy()
+    func = models[model]["func"]
+    available_parameters = inspect.signature(func).parameters
+    for p in available_parameters:
+        if p == "config":
+            kwargs["config"] = config
+        elif p == "force_num_layers":
+            kwargs["force_num_layers"] = 0
+
+    return func(**kwargs)
+
+
+def test_tti_mmio_dp_sanity():
+    clean_env = os.environ.copy()
     device_list = pybuda.detect_available_devices()
-    if not device_list:
-        raise RuntimeError("No devices available")
+    assert device_list, "No devices available"
+    
+    mmio_device_ids = [[0]]
+    arch = device_list[0]
+    num_loops = 16
+    total_microbatch_size = 128
     
     base_kwargs = {
         "training": False, 
-        "microbatch": 128, 
+        "microbatch": total_microbatch_size, 
         "data_type": 'Fp16_b',
         "math_fidelity": 'HiFi3',
         "arch": "wormhole_b0",
@@ -86,37 +129,24 @@ if __name__ == "__main__":
         "bert": "base", 
         "mobilenet_v2": "224"
     }
-    
-    mmio_device_ids = list(range(len(device_list)))
-    arch = device_list[0]
-    
-    output_dir="device_images/"
+
+    output_dir = "device_images_multi_mmio/"
     os.makedirs(output_dir, exist_ok=True)
     
-    
-    num_loops = 16
-    total_microbatch_size = 128
-    
-    models = get_models()
-    os.environ["PYBUDA_FORCE_THREADS"] = "1"
-    clean_env = os.environ.copy()
-    
     for model, config in model_to_config.items():
-        kwargs = base_kwargs.copy()
-        func = models[model]["func"]
-        available_parameters = inspect.signature(func).parameters
-        for p in available_parameters:
-            if p == "config":
-                kwargs["config"] = config
-            elif p == "force_num_layers":
-                kwargs["force_num_layers"] = 0
-        
-        model_config = func(**kwargs)
-    
+        model_config = get_model_config(base_kwargs, model, config)
         duts, inputs, targets, other = model_config
         module = duts['tt']
-        run_result: RunResult = run_tti_data_parallel(
+        image_path = os.path.join(output_dir, f"{model}.tti")
+        compile_and_save_tti(
             module=module,
+            arch=arch,
+            chip_ids=[0],
+            tti_output_path=image_path,
+            sample_inputs=inputs,
+        )
+        run_result: RunResult = run_tti_data_parallel(
+            precompiled_tti_path=image_path,
             run_mode=RunMode.FORWARD,
             inputs=ForwardRunInputs(inputs=inputs),
             arch=arch,
@@ -127,8 +157,71 @@ if __name__ == "__main__":
         )
         outputs = run_result.outputs
         cpu_outputs = [module.cpu_eval_forward(*inputs)] * num_loops
-        
         check_outputs(cpu_outputs, outputs)
         
         pybuda_reset()
         os.environ = clean_env
+    
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
+
+# Sanity test that runs on a single card
+def test_tti_n300_dp_sanity():
+    clean_env = os.environ.copy()
+    device_list = pybuda.detect_available_devices()
+    assert device_list, "No devices available"
+    assert os.environ.get("PYBUDA_N300_DATA_PARALLEL", "0") == "1"
+    
+    device_ids = [[0, 1]]
+    arch = device_list[0]
+    num_loops = 16
+    total_microbatch_size = 128
+        
+    base_kwargs = {
+        "training": False, 
+        "microbatch": total_microbatch_size, 
+        "data_type": 'Fp16_b',
+        "math_fidelity": 'HiFi3',
+        "arch": "wormhole_b0",
+        "devtype": "silicon",
+    }
+    
+    model_to_config = {
+        "resnet": "resnet50", 
+        "bert": "base"
+    }
+    
+    output_dir="device_images_n300_dp/"
+    os.makedirs(output_dir, exist_ok=True)
+    
+    for model, config in model_to_config.items():
+        model_config = get_model_config(base_kwargs, model, config)
+        duts, inputs, targets, other = model_config
+        module = duts['tt']
+        image_path = os.path.join(output_dir, f"{model}.tti")
+        compile_and_save_tti(
+            module=module,
+            arch=arch,
+            num_chips=1,
+            tti_output_path=image_path,
+            sample_inputs=inputs,
+        )
+        run_result: RunResult = run_tti_data_parallel(
+            precompiled_tti_path=image_path,
+            run_mode=RunMode.FORWARD,
+            inputs=ForwardRunInputs(inputs=inputs),
+            arch=arch,
+            device_ids=device_ids,
+            num_loops=num_loops,
+            output_dir=output_dir,
+            sync_at_run_start=True
+        )
+        outputs = run_result.outputs
+        cpu_outputs = [module.cpu_eval_forward(*inputs)] * num_loops
+        check_outputs(cpu_outputs, outputs)
+        
+        pybuda_reset()
+        os.environ = clean_env
+    
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
