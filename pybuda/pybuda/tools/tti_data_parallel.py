@@ -12,9 +12,8 @@ import threading
 import shutil
 from typing import Iterable, Optional, Dict, List, Tuple, Union, Any
 import pybuda
-from pybuda.pybudaglobal import pybuda_reset
 from loguru import logger
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 
 OUTPUT_TTI_NAME = "parallel_tti_run.tti"
@@ -27,16 +26,16 @@ class ForwardRunInputs:
     inputs: Iterable[torch.Tensor] = None
         
     @staticmethod
-    def get_inputs_per_device(all_inputs: "ForwardRunInputs", num_devices: int) -> List["ForwardRunInputs"]:
-        run_inputs_per_device = split_tensor_batch(all_inputs.inputs, num_devices)
-        inputs_per_device: List[ForwardRunInputs] = []
-        for device_index in range(num_devices):
-            inputs_per_device.append(
+    def get_inputs_per_card(all_inputs: "ForwardRunInputs", num_cards: int) -> List["ForwardRunInputs"]:
+        run_inputs_per_card = split_tensor_batch(all_inputs.inputs, num_cards)
+        inputs_per_card: List[ForwardRunInputs] = []
+        for card_index in range(num_cards):
+            inputs_per_card.append(
                 ForwardRunInputs(
-                    inputs=run_inputs_per_device[device_index]
+                    inputs=run_inputs_per_card[card_index]
                 )
             )
-        return inputs_per_device
+        return inputs_per_card
         
 @dataclass
 class GenerativeRunInputs:
@@ -54,18 +53,18 @@ class GenerativeRunInputs:
             
     
     @staticmethod
-    def get_inputs_per_device(all_inputs: "GenerativeRunInputs", num_devices: int) -> List["GenerativeRunInputs"]:
+    def get_inputs_per_card(all_inputs: "GenerativeRunInputs", num_cards: int) -> List["GenerativeRunInputs"]:
         # autograd does not support crossing process boundaries, this is an issue for whisper
         # detach all input tensors from compute graph to bypass this issue
-        compile_inputs_per_device = detach_all_tensors(split_tensor_batch(all_inputs.compile_inputs, num_devices))
-        run_inputs_per_device = detach_all_tensors(split_tensor_batch(all_inputs.run_inputs, num_devices))
+        compile_inputs_per_card = detach_all_tensors(split_tensor_batch(all_inputs.compile_inputs, num_cards))
+        run_inputs_per_card = detach_all_tensors(split_tensor_batch(all_inputs.run_inputs, num_cards))
         
-        inputs_per_device: List[GenerativeRunInputs] = []
-        for device_index in range(num_devices):
-            inputs_per_device.append(
+        inputs_per_card: List[GenerativeRunInputs] = []
+        for card_index in range(num_cards):
+            inputs_per_card.append(
                 GenerativeRunInputs(
-                    compile_inputs=compile_inputs_per_device[device_index],
-                    run_inputs=run_inputs_per_device[device_index],
+                    compile_inputs=compile_inputs_per_card[card_index],
+                    run_inputs=run_inputs_per_card[card_index],
                     num_tokens_to_generate=all_inputs.num_tokens_to_generate,
                     write_index=all_inputs.write_index,
                     first_current_index=all_inputs.first_current_index,
@@ -73,17 +72,18 @@ class GenerativeRunInputs:
                 )
             )
             
-        return inputs_per_device
+        return inputs_per_card
 
 
 @dataclass
 class ForwardRunConfig:
-    chip_id: int = 0
+    chip_ids: List[int] = field(default_factory=list)
     inputs: ForwardRunInputs = None
     tti_path: str = ""
     loop_count: int = 0
     
     def __post_init__(self):
+        assert self.chip_ids
         assert self.inputs
         assert self.tti_path
         assert self.loop_count
@@ -94,28 +94,15 @@ class ForwardRunConfig:
     def inputs_for_run(self):
         return self.inputs.inputs
     
-    @staticmethod
-    def get_configs_per_device(inputs: ForwardRunInputs, loop_count: int, tti_path: str, device_ids: List[int]):
-        configs: List[ForwardRunConfig] = []
-        per_device_inputs = inputs.split_inputs_per_device(len(device_ids))
-        for device_index, device in enumerate(device_ids):
-            configs.append(
-                ForwardRunConfig(
-                    chip_id=device,
-                    run_inputs=per_device_inputs[device_index],
-                    loop_count=loop_count,
-                    tti_path=tti_path,
-                )
-            )
-        return configs
     
 @dataclass
 class GenerativeRunConfig:
-    chip_id: int = 0
+    chip_ids: List[int] = field(default_factory=list)
     inputs: GenerativeRunInputs = None
     tti_path: str = ""
     
     def __post_init__(self):
+        assert self.chip_ids
         assert self.inputs
         assert self.tti_path
     
@@ -124,20 +111,6 @@ class GenerativeRunConfig:
     
     def inputs_for_run(self):
         return self.inputs.run_inputs
-    
-    @staticmethod
-    def get_configs_per_device(inputs: GenerativeRunInputs, tti_path: str, device_ids: List[int]):
-        configs: List[GenerativeRunConfig] = []
-        per_device_inputs = inputs.split_inputs_per_device(len(device_ids))
-        for device_index, device in enumerate(device_ids):
-            configs.append(
-                ForwardRunConfig(
-                    chip_id=device,
-                    inputs=per_device_inputs[device_index],
-                    tti_path=tti_path,
-                )
-            )
-        return configs
     
 @dataclass
 class RunEvents:
@@ -199,26 +172,26 @@ class RunResult:
     outputs: List[List[torch.Tensor]] = None
     
     # Device id to start time
-    per_device_start_time: Dict[int, float] = None
+    per_card_start_time: Dict[int, float] = None
     
     # Device id to end time
-    per_device_end_time: Dict[int, float] = None
+    per_card_end_time: Dict[int, float] = None
     
     def __post_init__(self):
-        assert self.per_device_start_time.keys() == self.per_device_end_time.keys()
+        assert self.per_card_start_time.keys() == self.per_card_end_time.keys()
         
-    def get_per_device_runtime(self):
-        per_device_runtime = {}
-        for device_id in self.per_device_start_time.keys():
-            per_device_runtime[device_id] = self.per_device_end_time[device_id] - self.per_device_start_time[device_id]
+    def get_per_card_runtime(self):
+        per_card_runtime = {}
+        for device_id in self.per_card_start_time.keys():
+            per_card_runtime[device_id] = self.per_card_end_time[device_id] - self.per_card_start_time[device_id]
             
-        return per_device_runtime
+        return per_card_runtime
     
     def get_earliest_start(self):
-        return min(self.per_device_start_time.values())
+        return min(self.per_card_start_time.values())
     
     def get_latest_end(self):
-        return max(self.per_device_end_time.values())
+        return max(self.per_card_end_time.values())
     
     def get_total_runtime(self):
         return self.get_latest_end() - self.get_earliest_start()
@@ -232,7 +205,7 @@ class ForwardRun:
         # Create ethernet map is not process safe
         events.process_start_event.set()
         
-        tt0 = pybuda.TTDevice.load_image(img_path=config.tti_path, device_id_override=config.chip_id)
+        tt0 = pybuda.TTDevice.load_image(img_path=config.tti_path, device_id_overrides=config.chip_ids)
         
         # For the first device process, set the event to notify the main process the tti has been unzipped
         # So that the main process can launch other processes
@@ -308,105 +281,45 @@ class ForwardRun:
 
     @staticmethod
     def _create_run_result(
-         # List of outputs per device, per loop
-        outputs_per_device: List[List[List[torch.tensor]]], 
-        per_device_runtime: Dict[int, Tuple[float, float]]
+         # List of outputs per card, per loop
+        outputs_per_card: List[List[List[torch.tensor]]], 
+        per_card_runtime: Dict[int, Tuple[float, float]]
     ):
         # Merge the outputs from all devices
-        num_devices = len(outputs_per_device)
-        num_loops = len(outputs_per_device[0])
-        single_loop_output_len = len(outputs_per_device[0][0])
+        num_cards = len(outputs_per_card)
+        num_loops = len(outputs_per_card[0])
         
-        assert len(per_device_runtime) == num_devices
+        # when running with n300 data parallel, the outputs are further split into two
+        # for example if the output of the module should be [tensor(256, 1000)], it will be split into [tensor(128, 1000), tensor(128, 1000)]
+        # thus, we need to merge these outputs back into [tensor(256, 1000)]
+        if os.environ.get("PYBUDA_N300_DATA_PARALLEL", "0") == "1":
+            for card_index in range(num_cards):
+                for loop_idx in range(num_loops):
+                    total_num_output_tensors = len(outputs_per_card[card_index][loop_idx])
+                    assert total_num_output_tensors % 2 == 0, "Number of output tensors in n300 data parallel should be even"
+                    merged_outputs = []
+                    # Step over the outputs, merge every adjacent pair
+                    for tensor_idx in range(0, total_num_output_tensors, 2):
+                        merged_output = torch.cat([outputs_per_card[card_index][loop_idx][tensor_idx], outputs_per_card[card_index][loop_idx][tensor_idx + 1]], dim=0)
+                        merged_outputs.append(merged_output)
+                    outputs_per_card[card_index][loop_idx] = merged_outputs
+                    
+        single_loop_output_len = len(outputs_per_card[0][0])
+        
+        assert len(per_card_runtime) == num_cards
         
         merged_outputs_per_loop = []
         for loop_idx in range(num_loops):
             merged_outputs_this_loop = []
             for output_idx in range(single_loop_output_len):
-                output_per_device = [outputs_per_device[device_index][loop_idx][output_idx] for device_index in range(num_devices)]
-                merged_outputs_this_loop.append(torch.cat(output_per_device, dim=0))
+                output_per_card = [outputs_per_card[card_index][loop_idx][output_idx] for card_index in range(num_cards)]
+                merged_outputs_this_loop.append(torch.cat(output_per_card, dim=0))
             merged_outputs_per_loop.append(merged_outputs_this_loop)
-            
-        per_device_start_time = {device_id: start_end[0] for device_id, start_end in per_device_runtime.items()}
-        per_device_end_time = {device_id: start_end[1] for device_id, start_end in per_device_runtime.items()}
-        
-        return RunResult(merged_outputs_per_loop, per_device_start_time, per_device_end_time)
-    
-    @staticmethod
-    def run(
-        configs: List[ForwardRunConfig],
-        output_dir: str,
-        sync_at_run_start: bool,
-        rm_tmp_dirs: bool,
-    ):
-        procs = []
-        device_ids = [config.chip_id for config in configs]
-        num_devices = len(device_ids)
-        
-        mp_context = torch.multiprocessing.get_context('spawn')
-        all_events: List[RunEvents] = []
-        all_output_wrappers: List[RunOutputs] = []
-        # Shared events 
-        kill_event = mp_context.Event()
-        run_event = mp_context.Event() if sync_at_run_start else None
-
-        # Temporary directories for each device to dump intermediates such as outputs
-        tmp_dirs = [os.path.join(output_dir, f"tmp_device_{device_id}") for device_id in device_ids]
-        for tmp_dir in tmp_dirs:
-            os.makedirs(tmp_dir, exist_ok=True)
-        
-        for device_index, config in enumerate(configs):
-            chip_id = config.chip_id
-            events = RunEvents(
-                run_event=run_event,
-                kill_event=kill_event,
-                process_start_event=mp_context.Event(),
-                done_event=mp_context.Event(),
-                tti_first_load_event=mp_context.Event() if device_index == 0 else None,
-                initialize_completed_event=mp_context.Event() if sync_at_run_start else None,
-            )
-            output_wrapper = RunOutputs(
-                output_tensors_path=os.path.join(tmp_dirs[device_index], f"output_tensors_{chip_id}.pth"),
-                perf_q=mp_context.Queue(),
-            )
-            all_events.append(events)
-            all_output_wrappers.append(output_wrapper)
-            p = mp_context.Process(
-                target=ForwardRun._multi_thread_forward_run, 
-                args=(config, events, output_wrapper)
-            )
-            p.start()
-            procs.append(p)
-            events.process_start_event.wait()
-            if events.tti_first_load_event:
-                events.tti_first_load_event.wait()
-
-        if sync_at_run_start:
-            for device_events in all_events:
-                device_events.wait_for_initialize_complete()
                 
-            logger.info(f"Initialize completed on all {num_devices} devices, launching run")
-            run_event.set()
+        per_card_start_time = {device_id: start_end[0] for device_id, start_end in per_card_runtime.items()}
+        per_card_end_time = {device_id: start_end[1] for device_id, start_end in per_card_runtime.items()}
         
-        for device_events in all_events:
-            device_events.wait_for_run_complete()
-        
-        outputs_per_device = [output_wrapper.get_output_tensors() for output_wrapper in all_output_wrappers]
-        per_device_start_end = {device_ids[i]: all_output_wrappers[i].get_start_end_time() for i in range(num_devices)}
-        
-        # Terminate the processes after reading the outputs
-        kill_event.set()
-        for device_index, p in enumerate(procs):
-            p.join()
-            logger.info(f"Chip {device_ids[device_index]} finished run successfully")
-
-        # Clean up intermediate directories
-        if rm_tmp_dirs:
-            logger.info("Cleaning up temporary directories")
-            for tmp_dir in tmp_dirs:
-                shutil.rmtree(tmp_dir)
-            
-        return ForwardRun._create_run_result(outputs_per_device, per_device_start_end)
+        return RunResult(merged_outputs_per_loop, per_card_start_time, per_card_end_time)
 
 # Namespace for generative run APIs
 class GenerativeRun:
@@ -420,7 +333,7 @@ class GenerativeRun:
         compile_inputs = config.inputs_for_compile()
         run_inputs = config.inputs_for_run()
         
-        first_device = pybuda.TTDevice.load_image(img_path=config.tti_path, device_id_override=config.chip_id)
+        first_device = pybuda.TTDevice.load_image(img_path=config.tti_path, device_id_overrides=config.chip_ids)
         
         # For the first device process, set the event to notify the main process the tti has been unzipped
         # So that the main process can launch other processes
@@ -514,123 +427,151 @@ class GenerativeRun:
         events.done_event.set()
         events.kill_event.wait()
 
+    # TODO: Implement output merging for n300 data-parallel generative runs once its supported
     @staticmethod
     def _create_run_result(
-         # List of outputs per device, per loop
-        outputs_per_device: List[List[List[torch.tensor]]], 
-        per_device_runtime: Dict[int, Tuple[float, float]]
+        # List of outputs per card
+        # each inner list is the list of generated tokens of that card, of length num_tokens_to_generate
+        outputs_per_card: List[List[torch.tensor]], 
+        per_card_runtime: Dict[int, Tuple[float, float]]
     ):
-        per_device_start_time = {device_id: start_end[0] for device_id, start_end in per_device_runtime.items()}
-        per_device_end_time = {device_id: start_end[1] for device_id, start_end in per_device_runtime.items()}
+        per_card_start_time = {device_id: start_end[0] for device_id, start_end in per_card_runtime.items()}
+        per_card_end_time = {device_id: start_end[1] for device_id, start_end in per_card_runtime.items()}
         
-        return RunResult(outputs_per_device, per_device_start_time, per_device_end_time)
+        return RunResult(outputs_per_card, per_card_start_time, per_card_end_time)
     
-    @staticmethod
-    def run(
-        configs: List[GenerativeRunConfig],
-        output_dir: str,
-        sync_at_run_start: bool,
-        rm_tmp_dirs: bool,
-    ):
-        procs = []
-        device_ids = [config.chip_id for config in configs]
-        num_devices = len(device_ids)
-        
-        mp_context = torch.multiprocessing.get_context('spawn')
-        all_events: List[RunEvents] = []
-        all_output_wrappers: List[RunOutputs] = []
-        # Shared events 
-        kill_event = mp_context.Event()
-        run_event = mp_context.Event() if sync_at_run_start else None
+def _encode_chip_ids(chip_ids: List[int]) -> str:
+    return "_".join([str(chip_id) for chip_id in chip_ids])
 
-        # Temporary directories for each device to dump intermediates such as outputs
-        tmp_dirs = [os.path.join(output_dir, f"tmp_device_{device_id}") for device_id in device_ids]
-        for tmp_dir in tmp_dirs:
-            os.makedirs(tmp_dir, exist_ok=True)
-        
-        for device_index, config in enumerate(configs):
-            chip_id = config.chip_id
-            events = RunEvents(
-                run_event=run_event,
-                kill_event=kill_event,
-                process_start_event=mp_context.Event(),
-                done_event=mp_context.Event(),
-                tti_first_load_event=mp_context.Event() if device_index == 0 else None,
-                initialize_completed_event=mp_context.Event() if sync_at_run_start else None,
-            )
-            output_wrapper = RunOutputs(
-                output_tensors_path=os.path.join(tmp_dirs[device_index], f"output_tensors_{chip_id}.pth"),
-                perf_q=mp_context.Queue(),
-            )
-            all_events.append(events)
-            all_output_wrappers.append(output_wrapper)
-            p = mp_context.Process(
-                target=GenerativeRun._single_thread_generative_model_run, 
-                args=(config, events, output_wrapper)
-            )
-            p.start()
-            procs.append(p)
-            events.process_start_event.wait()
-            if events.tti_first_load_event:
-                events.tti_first_load_event.wait()
-
-        if sync_at_run_start:
-            for device_events in all_events:
-                device_events.wait_for_initialize_complete()
-                
-            logger.info(f"Initialize completed on all {num_devices} devices, launching run")
-            run_event.set()
-        
-        for device_events in all_events:
-            device_events.wait_for_run_complete()
-        
-        outputs_per_device = [output_wrapper.get_output_tensors() for output_wrapper in all_output_wrappers]
-        per_device_start_end = {device_ids[i]: all_output_wrappers[i].get_start_end_time() for i in range(num_devices)}
-        
-        # Terminate the processes after reading the outputs
-        kill_event.set()
-        for device_index, p in enumerate(procs):
-            p.join()
-            logger.info(f"Chip {device_ids[device_index]} finished run successfully")
-
-        # Clean up intermediate directories
-        if rm_tmp_dirs:
-            logger.info("Cleaning up temporary directories")
-            for tmp_dir in tmp_dirs:
-                shutil.rmtree(tmp_dir)
+def _initialize_tti_image(
+    output_dir: str,
+    precompiled_tti_path: Optional[str] = None,
+):
+    # copy tti over to the output directory if it isn't already there
+    precompiled_tti_path = os.path.realpath(precompiled_tti_path)
+    precompiled_tti_name = os.path.basename(precompiled_tti_path)
+    image_path = os.path.join(output_dir, precompiled_tti_name)
+    if os.path.abspath(precompiled_tti_path) != os.path.abspath(image_path):
+        shutil.copy(precompiled_tti_path, image_path)
             
-        return GenerativeRun._create_run_result(outputs_per_device, per_device_start_end)
+    return image_path
 
-def split_tensor_batch(input_data, num_devices: int):
+def _run(
+    run_mode: RunMode,
+    configs: Union[List[ForwardRunConfig], List[GenerativeRunConfig]],
+    output_dir: str,
+    sync_at_run_start: bool,
+    rm_tmp_dirs: bool,
+):
+    procs = []
+    device_ids_per_card = [config.chip_ids for config in configs]
+    num_cards = len(device_ids_per_card)
+    
+    mp_context = torch.multiprocessing.get_context('spawn')
+    all_events: List[RunEvents] = []
+    all_output_wrappers: List[RunOutputs] = []
+    # Shared events 
+    kill_event = mp_context.Event()
+    run_event = mp_context.Event() if sync_at_run_start else None
+
+    if run_mode == RunMode.FORWARD:
+        runner = ForwardRun._multi_thread_forward_run
+        
+    elif run_mode == RunMode.GENERATIVE:
+        runner = GenerativeRun._single_thread_generative_model_run
+    
+    # Temporary directories for each device to dump intermediates such as outputs
+    tmp_dirs = [os.path.join(output_dir, f"tmp_device_{_encode_chip_ids(chip_ids)}") for chip_ids in device_ids_per_card]
+    for tmp_dir in tmp_dirs:
+        os.makedirs(tmp_dir, exist_ok=True)
+    
+    for card_index, config in enumerate(configs):
+        events = RunEvents(
+            run_event=run_event,
+            kill_event=kill_event,
+            process_start_event=mp_context.Event(),
+            done_event=mp_context.Event(),
+            tti_first_load_event=mp_context.Event() if card_index == 0 else None,
+            initialize_completed_event=mp_context.Event() if sync_at_run_start else None,
+        )
+        output_wrapper = RunOutputs(
+            output_tensors_path=os.path.join(tmp_dirs[card_index], f"output_tensors_{_encode_chip_ids(config.chip_ids)}.pth"),
+            perf_q=mp_context.Queue(),
+        )
+        all_events.append(events)
+        all_output_wrappers.append(output_wrapper)
+        p = mp_context.Process(
+            target=runner, 
+            args=(config, events, output_wrapper)
+        )
+        p.start()
+        procs.append(p)
+        events.process_start_event.wait()
+        if events.tti_first_load_event:
+            events.tti_first_load_event.wait()
+
+    if sync_at_run_start:
+        for device_events in all_events:
+            device_events.wait_for_initialize_complete()
+            
+        logger.info(f"Initialize completed on all {num_cards} cards, launching run")
+        run_event.set()
+    
+    for device_events in all_events:
+        device_events.wait_for_run_complete()
+    
+    outputs_per_card = [output_wrapper.get_output_tensors() for output_wrapper in all_output_wrappers]
+    per_card_start_end = {i: all_output_wrappers[i].get_start_end_time() for i in range(num_cards)}
+    
+    # Terminate the processes after reading the outputs
+    kill_event.set()
+    for proc_id, p in enumerate(procs):
+        p.join()
+        logger.info(f"Devices {device_ids_per_card[proc_id]} finished run successfully")
+
+    # Clean up intermediate directories
+    if rm_tmp_dirs:
+        logger.info("Cleaning up temporary directories")
+        for tmp_dir in tmp_dirs:
+            shutil.rmtree(tmp_dir)
+    
+    if run_mode == RunMode.FORWARD:
+        run_result: RunResult = ForwardRun._create_run_result(outputs_per_card, per_card_start_end) 
+    elif run_mode == RunMode.GENERATIVE:
+        run_result: RunResult = GenerativeRun._create_run_result(outputs_per_card, per_card_start_end)
+        
+    return run_result
+    
+def split_tensor_batch(input_data, num_cards: int):
     '''
     Splits tensors in input data recursively
-    If input_data = ((tensor1, tensor2), tensor3) and we have 2 devices
+    If input_data = ((tensor1, tensor2), tensor3) and we have 2 cards
     returns [
         [[first_half_tensor1, first_half_tensor2], first_half_tensor3]],
         [[second_half_tensor1, second_half_tensor2], second_half_tensor3]]
     ]
     '''
-    inputs_per_device = [[] for _ in range(num_devices)]
+    inputs_per_card = [[] for _ in range(num_cards)]
     def _split_tensors(input_data, containers: List[List[Any]]):
-        num_devices = len(containers)
+        num_cards = len(containers)
         if isinstance(input_data, torch.Tensor):
-            assert input_data.shape[0] % num_devices == 0, "Number of devices must divide the total batch size evenly"
-            input_split = torch.tensor_split(input_data, num_devices, dim=0)
-            for device_index in range(num_devices):
-                containers[device_index] = input_split[device_index]
+            assert input_data.shape[0] % num_cards == 0, "Number of cards must divide the total batch size evenly"
+            input_split = torch.tensor_split(input_data, num_cards, dim=0)
+            for card_index in range(num_cards):
+                containers[card_index] = input_split[card_index]
         
         elif isinstance(input_data, (list, tuple)):
             for data in input_data:
-                new_containers = [[] for _ in range(num_devices)]
+                new_containers = [[] for _ in range(num_cards)]
                 _split_tensors(data, new_containers)
-                for device_index in range(num_devices):
-                    containers[device_index].append(new_containers[device_index])
+                for card_index in range(num_cards):
+                    containers[card_index].append(new_containers[card_index])
             
         else:
             raise TypeError("Input data should contain list, tuple or torch tensor only")
     
-    _split_tensors(input_data, inputs_per_device)
-    return inputs_per_device
+    _split_tensors(input_data, inputs_per_card)
+    return inputs_per_card
     
 def detach_all_tensors(data):
     if isinstance(data, torch.Tensor):
@@ -644,93 +585,38 @@ def detach_all_tensors(data):
         raise TypeError("Input data should contain list or torch tensor only")
     
     return data
-
-def compile_and_save_tti(
-    module,
-    arch: pybuda.BackendDevice,
-    device_id: int,
-    tti_output_path: str,
-    sample_inputs,
-    training: Optional[bool] = False,
-):
-    tt0 = pybuda.TTDevice(
-        "tt0", 
-        chip_ids=[device_id],
-        arch=arch,
-        devtype=pybuda.BackendType.Silicon
-    )
-    tt0.place_module(module)
-    tt0.compile_to_image(
-        img_path=tti_output_path,
-        training=training,
-        sample_inputs=sample_inputs,
-    )
-    
-def initialize_tti_image(
-    arch: pybuda.BackendDevice,
-    first_device_id: int,
-    single_device_compile_inputs: Iterable[torch.Tensor],
-    output_dir: str,
-    module: Optional["Module"] = None, 
-    precompiled_tti_path: Optional[str] = None,
-):
-    if precompiled_tti_path is None:
-        # Compile a tti on the fly if no precompiled tti is provided
-        # chip_ids are arbitrary, we will override it later when running the module
-        # fork a new process to compile the tti so we don't contaminate the state of the main process
-        image_path = os.path.join(output_dir, OUTPUT_TTI_NAME)
-        compile_and_save_tti(
-            module=module,
-            arch=arch,
-            device_id=first_device_id,
-            tti_output_path=image_path,
-            sample_inputs=single_device_compile_inputs,
-        )
-        # Clear the compile configs populated when compiling the tti
-        pybuda_reset()
-    else:
-        # If a precompiled tti is provided
-        # copy it over to the output directory if it isn't already there
-        precompiled_tti_path = os.path.realpath(precompiled_tti_path)
-        precompiled_tti_name = os.path.basename(precompiled_tti_path)
-        image_path = os.path.join(output_dir, precompiled_tti_name)
-        if os.path.abspath(precompiled_tti_path) != os.path.abspath(image_path):
-            shutil.copy(precompiled_tti_path, image_path)
-            
-    return image_path
             
 def run_tti_data_parallel(
     arch: pybuda.BackendDevice,
-    device_ids: Iterable[int],
+    device_ids: List[List[int]],
     run_mode: RunMode,
     inputs: Union[ForwardRunInputs, GenerativeRunInputs],
     sync_at_run_start: bool = False,
     rm_tmp_dirs: bool = True,
+    precompiled_tti_path: str = None,
     output_dir: str = "./device_images",
     num_loops: Optional[int] = None,
-    module: Optional["Module"] = None, 
-    precompiled_tti_path: Optional[str] = None,
 ) -> "RunResult":
     '''
-    User-facing API. Run a module/precompiled-tti on multiple devices in parallel.
+    User-facing API. Run a tti on multiple cards in parallel.
     Arguments: 
     - arch: Architecture of the devices.
-    - device_ids: List of device ids to run the module on, these device ids should all be mmio mapped.
+    - device_ids: List of device ids to run the tti on, each sublist should start with mmio-mapped device id.
     - run_mode: Mode to run on. Currently supports forward and generative runs.
     - inputs: List of inputs to run the tti on.
     - sync_at_run_start: If True, the processes will wait until all processes are ready to run before starting the run.
-    - rm_tmp_dirs: If True, remove all temporary directories created for each device.
+    - rm_tmp_dirs: If True, remove all temporary directories created for each card.
+    - precompiled_tti_path: Path to a precompiled tti image to run on the cards.
     - output_dir: Directory to store the ttis as well as the unzipped tti directories. If it doesn't exist, one will be created.
         If precompiled_tti_path is provided, the tti will be copied to this directory.
-    - num_loops: Number of loops to run the module. For generative runs, this will be hardcoded to 1.
-    - module: Module to be compiled as a tti and run on the devices, must be provided if precompiled_tti_path is not.
-    - precompiled_tti_path: Path to a precompiled tti image to run on the devices, must be provided if module is not.
+    - num_loops: Number of loops to run the tti. For generative runs, this will be hardcoded to 1.
     Returns:
-    - RunResult object containing the merged outputs and start/end times of the run on each device.
+    - RunResult object containing the merged outputs and start/end times of the run on each card.
     '''
     assert arch in [pybuda.BackendDevice.Wormhole_B0, pybuda.BackendDevice.Grayskull], "Unsupported device architecture"
-    assert module or precompiled_tti_path, "Either a module or a precompiled tti path must be provided"
-    assert not (module and precompiled_tti_path), "Only one of module or precompiled tti path should be provided"
+    assert precompiled_tti_path
+    if len(device_ids[0]) > 1:
+        assert os.environ.get("PYBUDA_N300_DATA_PARALLEL", "0") == "1", "Only support multi-device override in N300 data parallel mode"
     
     if arch == pybuda.BackendDevice.Wormhole_B0 and os.environ.get("PYBUDA_FORCE_THREADS", "0") != "1":
         logger.warning("PYBUDA_FORCE_THREADS is not set, this may cause errors when running on multiple devices due to parallel execution of create-ethernet-map")
@@ -739,59 +625,42 @@ def run_tti_data_parallel(
     
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-        
+    
+    image_path = _initialize_tti_image(
+        output_dir=output_dir,
+        precompiled_tti_path=precompiled_tti_path,
+    )
+    
     if run_mode == RunMode.FORWARD:
         assert isinstance(inputs, ForwardRunInputs)
-        inputs_per_device = ForwardRunInputs.get_inputs_per_device(inputs, len(device_ids))
-        image_path = initialize_tti_image(
-            arch=arch,
-            first_device_id=device_ids[0],
-            single_device_compile_inputs=inputs_per_device[0].inputs,
-            output_dir=output_dir,
-            module=module,
-            precompiled_tti_path=precompiled_tti_path,
-        )
+        inputs_per_card = ForwardRunInputs.get_inputs_per_card(inputs, len(device_ids))
         configs: List[ForwardRunConfig] = [
             ForwardRunConfig(
-                chip_id = device,
-                inputs = inputs_per_device[device_index],
+                chip_ids=devices,
+                inputs=inputs_per_card[card],
                 tti_path=image_path,
                 loop_count=num_loops,
-            ) for device, device_index in enumerate(device_ids)
+            ) for card, devices in enumerate(device_ids)
         ]
-        run_result: RunResult = ForwardRun.run(
-            configs=configs,
-            output_dir=output_dir,
-            sync_at_run_start=sync_at_run_start,
-            rm_tmp_dirs=rm_tmp_dirs,
-        )
         
     elif run_mode == RunMode.GENERATIVE:
         assert isinstance(inputs, GenerativeRunInputs)
-        inputs_per_device = GenerativeRunInputs.get_inputs_per_device(inputs, len(device_ids))          
-        image_path = initialize_tti_image(
-            arch=arch,
-            first_device_id=device_ids[0],
-            single_device_compile_inputs=inputs_per_device[0].compile_inputs,
+        inputs_per_card = GenerativeRunInputs.get_inputs_per_card(inputs, len(device_ids))          
+        image_path = _initialize_tti_image(
             output_dir=output_dir,
-            module=module,
             precompiled_tti_path=precompiled_tti_path,
         )
         configs: List[GenerativeRunConfig] = [
             GenerativeRunConfig(
-                chip_id = device,
-                inputs = inputs_per_device[device_index],
+                chip_ids=devices,
+                inputs=inputs_per_card[card],
                 tti_path=image_path,
-            ) for device, device_index in enumerate(device_ids)
+            ) for card, devices in enumerate(device_ids)
         ]
-        run_result: RunResult = GenerativeRun.run(
-            configs=configs,
-            output_dir=output_dir,
-            sync_at_run_start=sync_at_run_start,
-            rm_tmp_dirs=rm_tmp_dirs
-        )
         
     else:
         raise TypeError("Invalid run mode provided. Supported modes are FORWARD and GENERATIVE.")
+    
+    run_result: RunResult = _run(run_mode=run_mode, configs=configs, output_dir=output_dir, sync_at_run_start=sync_at_run_start, rm_tmp_dirs=rm_tmp_dirs)
     
     return run_result

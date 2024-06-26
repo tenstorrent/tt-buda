@@ -31,7 +31,7 @@ from pybuda.tti.utils import (
 import torch
 import json
 import pickle
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Match
 from pybuda.optimizers import Optimizer
 from pybuda.backend import BackendAPI
 from pybuda._C.backend_api import (
@@ -41,6 +41,7 @@ from pybuda._C.backend_api import (
     binarize_tensor,
     debinarize_tensor,
     tilize_tensor,
+    get_device_cluster_yaml,
 )
 from pybuda._C import DataFormat
 
@@ -331,66 +332,190 @@ class TTIArchive:
             device_img_path = DEFAULT_DEVICE_PATH
         return device_img_path
     
-    @staticmethod
-    def _get_override_netlist_path(original_netlist_path: str, device_id_override: int) -> str:
-        return f"{os.path.splitext(original_netlist_path)[0]}_override_device_{device_id_override}.yaml"
+    @staticmethod 
+    def _device_override_str(device_id_overrides: List[int]) -> str:
+        return "_".join([str(device_id) for device_id in device_id_overrides])
     
     @staticmethod
-    def _get_override_backend_output_dir(oringal_binaries_path: str, device_id_override: int) -> str:
-        return f"{oringal_binaries_path}_override_device_{device_id_override}"
+    def _get_override_netlist_path(original_netlist_path: str, device_id_overrides: List[int]) -> str:
+        device_override_str = TTIArchive._device_override_str(device_id_overrides)
+        return f"{os.path.splitext(original_netlist_path)[0]}_override_device_{device_override_str}.yaml"
     
     @staticmethod
-    def _create_device_override_netlist_yaml(original_netlist_path: str, device_id_override: int) -> str:
-        # Can't use yaml library here, netlist needs to be in specific format
-        target_device_pattern = r'target_device:\s*\d+'
-        new_netlist_path = TTIArchive._get_override_netlist_path(original_netlist_path, device_id_override)
-        
-        if os.path.exists(new_netlist_path):
-            return new_netlist_path
-        
-        with open(original_netlist_path, "r") as netlist_file:
+    def _get_override_backend_output_path(oringal_binaries_path: str, device_id_overrides: List[int]) -> str:
+        device_override_str = TTIArchive._device_override_str(device_id_overrides)
+        return f"{oringal_binaries_path}_override_device_{device_override_str}"
+    
+    @staticmethod
+    def _get_original_device_to_new_device_map(netlist_file_path: str, device_id_overrides: List[int]):
+        with open(netlist_file_path, "r") as netlist_file:
             netlist_str = netlist_file.read()
-            
-        netlist_str_override = re.sub(target_device_pattern, f"target_device: {device_id_override}", netlist_str)
-        with open(new_netlist_path, "w") as new_netlist_file:
-            new_netlist_file.write(netlist_str_override)
-            
-        return new_netlist_path
+        
+        single_target_device_pattern = re.compile(r'\btarget_device:\s*(\d+)\b')
+        multi_target_device_pattern = re.compile(r'target_device:\s*\[(\d+),\s*(\d+)\]')
+        
+        if len(device_id_overrides) == 1:
+            m = single_target_device_pattern.search(netlist_str)
+            assert m, "Expected single target_device in netlist"
+            original_device = int(m.group(1))
+            return {original_device: device_id_overrides[0]}
+
+        m = multi_target_device_pattern.search(netlist_str)
+        assert m, "Expected multi-target_device in netlist"
+        original_devices = (int(m.group(1)), int(m.group(2)))
+        return {old_device: new_device for old_device, new_device in zip(original_devices, device_id_overrides)}
     
+    @staticmethod
+    def _update_n300_dp_trisc_firmware_directories(
+        netlist_path: str, 
+        old_device_to_new_device_map: Dict[int, int]
+    ) -> None:
+        override_backend_outdir = os.path.dirname(netlist_path)
+        with open(netlist_path, "r") as netlist_file:
+            netlist_map = yaml.safe_load(netlist_file)
+            
+        device_suffix_pattern = re.compile(r'\.(\d+)$')
+        all_graphs = list(netlist_map["graphs"].keys())
+        
+        temp_sub_dirs = []
+        for sub_dir in os.listdir(override_backend_outdir):
+            m = device_suffix_pattern.search(sub_dir)
+            # Locate trisc firmware directories
+            if m and any([graph in sub_dir for graph in all_graphs]):
+                old_device_id = int(m.group(1))
+                new_device_id = old_device_to_new_device_map[old_device_id]
+                # temp name to prevent name collisions
+                temp_sub_dir = device_suffix_pattern.sub(f".{new_device_id}_temp", sub_dir)
+                temp_sub_dirs.append(temp_sub_dir)
+                os.rename(os.path.join(override_backend_outdir, sub_dir), os.path.join(override_backend_outdir, temp_sub_dir))
+        
+        # Finalize temporary directory names
+        device_suffix_pattern_temp = re.compile(r'\.(\d+)_temp$')
+        for temp_sub_dir in temp_sub_dirs:
+            new_sub_dir = device_suffix_pattern_temp.sub(r".\1", temp_sub_dir)
+            os.rename(os.path.join(override_backend_outdir, temp_sub_dir), os.path.join(override_backend_outdir, new_sub_dir))
+        
+    @staticmethod
+    def _update_n300_dp_nops_in_netlist_string(netlist_str: str, old_device_to_new_device_map: Dict[int, int]) -> str:
+        netlist_map = yaml.safe_load(netlist_str)
+        dp_nop_pattern = re.compile(r'dp_nop\.(\d+)$')
+        device_suffix_pattern = re.compile(r'\.(\d+)$')
+        
+        def override_handler(m: Match, old_device_to_new_device_map: Dict[int, int]):
+            matched_string = m.group(0)
+            old_device_id = int(device_suffix_pattern.search(matched_string).group(1))
+            new_device_id = old_device_to_new_device_map[old_device_id]
+            return device_suffix_pattern.sub(f".{new_device_id}", matched_string)
+
+        fields_to_override = set()
+        graphs_map = netlist_map["graphs"]
+        
+        for graph_name, ops_map in graphs_map.items():
+            for op_name, op_configs in ops_map.items():
+                if not dp_nop_pattern.search(op_name):
+                    continue
+                fields_to_override.add(op_name)
+                op_inputs = op_configs["inputs"]
+                for op_input in op_inputs:
+                    if not device_suffix_pattern.search(op_input):
+                        continue
+                    fields_to_override.add(op_input)
+                
+        new_netlist_str = re.sub("|".join(fields_to_override), lambda m: override_handler(m, old_device_to_new_device_map), netlist_str)
+        return new_netlist_str
+    
+    @staticmethod
+    def _update_n300_dp_compiled_graph_state(
+        compiled_graph_state: "CompiledGraphState",
+        old_device_to_new_device_map: Dict[int, int],
+    ) -> None:
+        device_suffix_pattern = re.compile(r'\.(\d+)$')
+        def update_device_id_suffix(items: Union[Dict[str, str], List[str]]):
+            assert isinstance(items, (dict, list)), "Expected items to be a dict or list"
+            if isinstance(items, dict):
+                updated_items: Dict[str, str] = {}
+                for k, v in items.items():
+                    old_device_id = int(device_suffix_pattern.search(k).group(1))
+                    new_device_id = old_device_to_new_device_map[old_device_id]
+                    updated_items[device_suffix_pattern.sub(f".{new_device_id}", k)] = v
+                return updated_items
+            else:
+                updated_items: List[str] = []
+                for item in items:
+                    old_device_id = int(device_suffix_pattern.search(item).group(1))
+                    new_device_id = old_device_to_new_device_map[old_device_id]
+                    updated_items.append(device_suffix_pattern.sub(f".{new_device_id}", item))
+                return updated_items
+
+        compiled_graph_state.input_to_tile_dims = update_device_id_suffix(compiled_graph_state.input_to_tile_dims)
+
+        compiled_graph_state.post_const_eval_constants = update_device_id_suffix(compiled_graph_state.post_const_eval_constants)
+        compiled_graph_state.post_const_eval_parameters = update_device_id_suffix(compiled_graph_state.post_const_eval_parameters)
+
+        compiled_graph_state.ordered_constant_node_names = update_device_id_suffix(compiled_graph_state.ordered_constant_node_names)
+        compiled_graph_state.ordered_parameter_node_names = update_device_id_suffix(compiled_graph_state.ordered_parameter_node_names)
+
+        compiled_graph_state.ordered_input_names = update_device_id_suffix(compiled_graph_state.ordered_input_names)
+        compiled_graph_state.ordered_output_names = update_device_id_suffix(compiled_graph_state.ordered_output_names)
+        
     # Keep consistent with epoch_loader.cpp::update_overlay_binary
     @staticmethod
     def _update_overlay_binary_hex_filenames(
         override_backend_output_dir: str,
-        device_id_override: int
-    ):
+        old_device_to_new_device_map: Dict[int, int],
+    ) -> None:
+        def rename_blob_file_temp(m: Match, old_device_to_new_device_map: Dict[int, int]):
+            old_device_id = int(m.group(2))
+            new_device_id = old_device_to_new_device_map[old_device_id]
+            return f'pipegen_epoch{m.group(1)}_{new_device_id}_{m.group(3)}_{m.group(4)}_temp.hex'
+        
+        def rename_blob_file_final(m: Match):
+            return f'pipegen_epoch{m.group(1)}_{m.group(2)}_{m.group(3)}_{m.group(4)}.hex'
+        
         temporal_epoch_dir_re = re.compile(r"^temporal_epoch_\d+$")
         # (temporal_epoch)_(chip_id)_(route_r)_(route_c)
         overlay_blob_hex_re = re.compile(r"^pipegen_epoch(\d+)_(\d+)_(\d+)_(\d+).hex$")
-        substitution = r'pipegen_epoch\1_' + str(device_id_override) + r'_\3_\4.hex'
+        temp_overlay_blob_hex_re = re.compile(r"^pipegen_epoch(\d+)_(\d+)_(\d+)_(\d+)_temp.hex$")
         
         temporal_epoch_dirs = [os.path.join(override_backend_output_dir, epoch_dir) for epoch_dir in os.listdir(override_backend_output_dir) if temporal_epoch_dir_re.match(epoch_dir)]
         for temporal_epoch_dir in temporal_epoch_dirs:
             blobs_dir = os.path.join(temporal_epoch_dir, "overlay", "blobs")
             if not os.path.isdir(blobs_dir):
                 continue
-            blobs_dir = os.path.join(temporal_epoch_dir, "overlay", "blobs")
-            for blob_hex in os.listdir(blobs_dir):
-                if overlay_blob_hex_re.match(blob_hex):
-                    new_blob_hex = re.sub(overlay_blob_hex_re, substitution, blob_hex)
-                    os.rename(os.path.join(blobs_dir, blob_hex), os.path.join(blobs_dir, new_blob_hex))
+            temp_blob_files: List[str] = []
+            for blob_hex_name in os.listdir(blobs_dir):
+                # Rename blob files to a temporary name to prevent name collisions
+                if overlay_blob_hex_re.match(blob_hex_name):
+                    temp_blob_hex_name = overlay_blob_hex_re.sub(lambda m: rename_blob_file_temp(m, old_device_to_new_device_map), blob_hex_name)
+                    os.rename(os.path.join(blobs_dir, blob_hex_name), os.path.join(blobs_dir, temp_blob_hex_name))
+                    temp_blob_files.append(temp_blob_hex_name)
+            
+            # After all device ids have been updated, rename the temporary blob files to the final name
+            for temp_blob_file in temp_blob_files:
+                final_blob_hex_name = temp_overlay_blob_hex_re.sub(rename_blob_file_final, temp_blob_file)
+                os.rename(os.path.join(blobs_dir, temp_blob_file), os.path.join(blobs_dir, final_blob_hex_name))
 
     # Keep consistent with epoch_loader.cpp::populate_queue_to_core_map_from_net2pipe
     @staticmethod
     def _update_producer_consumer_queue_yaml(
         override_backend_output_dir: str,
-        device_id_override: int
-    ):
-        temporal_epoch_dir_re = re.compile(r"^temporal_epoch_\d+$")
-        chip_id_pattern = r'chip_id:\s*\d+'
-        queue_target_device_pattern = r'queue_target_device:\s*\d+'
+        old_device_to_new_device_map: Dict[int, int],
+    ) -> None:
         
-        chip_id_override = f"chip_id: {device_id_override}"
-        queue_target_device_override = f"queue_target_device: {device_id_override}"
+        def override_queue_target_device(m: Match, old_device_to_new_device_map: Dict[int, int]):
+            old_device_id = int(m.group(1))
+            new_device_id = old_device_to_new_device_map[old_device_id]
+            return f"queue_target_device: {new_device_id}"
+        
+        def override_chip_id(m: Match, old_device_to_new_device_map: Dict[int, int]):
+            old_device_id = int(m.group(1))
+            new_device_id = old_device_to_new_device_map[old_device_id]
+            return f"chip_id: {new_device_id}"
+        
+        temporal_epoch_dir_re = re.compile(r"^temporal_epoch_\d+$")
+        chip_id_pattern = re.compile(r'chip_id:\s*(\d+)')
+        queue_target_device_pattern = re.compile(r'queue_target_device:\s*(\d+)')
+
         temporal_epoch_dirs = [os.path.join(override_backend_output_dir, epoch_dir) for epoch_dir in os.listdir(override_backend_output_dir) if temporal_epoch_dir_re.match(epoch_dir)]
         
         for temporal_epoch_dir in temporal_epoch_dirs:
@@ -401,8 +526,8 @@ class TTIArchive:
                 with open(queue_to_consumer_path, "r") as old_q_consumer_file:
                     queue_to_consumer_str = old_q_consumer_file.read()
                     
-                queue_to_consumer_str_override = re.sub(chip_id_pattern, chip_id_override, queue_to_consumer_str)
-                queue_to_consumer_str_override = re.sub(queue_target_device_pattern, queue_target_device_override, queue_to_consumer_str_override)
+                queue_to_consumer_str_override = chip_id_pattern.sub(lambda m: override_chip_id(m, old_device_to_new_device_map), queue_to_consumer_str)
+                queue_to_consumer_str_override = queue_target_device_pattern.sub(lambda m: override_queue_target_device(m, old_device_to_new_device_map), queue_to_consumer_str_override)
                 
                 with open(queue_to_consumer_path, "w") as new_q_consumer_file:
                     new_q_consumer_file.write(queue_to_consumer_str_override)
@@ -411,8 +536,8 @@ class TTIArchive:
                 with open(queue_to_producer_path, "r") as old_q_producer_file:
                     queue_to_producer_str = old_q_producer_file.read()
                     
-                queue_to_producer_str_override = re.sub(chip_id_pattern, chip_id_override, queue_to_producer_str)
-                queue_to_producer_str_override = re.sub(queue_target_device_pattern, queue_target_device_override, queue_to_producer_str_override)
+                queue_to_producer_str_override = chip_id_pattern.sub(lambda m: override_chip_id(m, old_device_to_new_device_map), queue_to_producer_str)
+                queue_to_producer_str_override = queue_target_device_pattern.sub(lambda m: override_queue_target_device(m, old_device_to_new_device_map), queue_to_producer_str_override)
                 
                 with open(queue_to_producer_path, "w") as new_q_producer_file:
                     new_q_producer_file.write(queue_to_producer_str_override)
@@ -420,51 +545,108 @@ class TTIArchive:
     @staticmethod
     def _update_overlay_blob_dir_with_override_device_id(
         override_backend_output_dir: str,
-        device_id_override: int
-    ):
+        old_device_to_new_device_map: Dict[int, int],
+    ) -> None:
         # Update chip_id in overlay blob hex file names
-        TTIArchive._update_overlay_binary_hex_filenames(override_backend_output_dir, device_id_override)
+        TTIArchive._update_overlay_binary_hex_filenames(override_backend_output_dir, old_device_to_new_device_map)
         
         # Update device id in queue_to_consumer.yaml and queue_to_producer.yaml
-        TTIArchive._update_producer_consumer_queue_yaml(override_backend_output_dir, device_id_override)
+        TTIArchive._update_producer_consumer_queue_yaml(override_backend_output_dir, old_device_to_new_device_map)
+        
+
+    @staticmethod
+    def _create_device_override_netlist_yaml(original_netlist_path: str, device_id_overrides: List[int]) -> str:
+        
+        def replace_target_device_with_new_device(m: Match, old_device_to_new_device_map: Dict[int, int]):
+            old_device = int(m.group(1))
+            new_device = old_device_to_new_device_map[old_device]
+            return f"target_device: {new_device}"
+        
+        single_device_pattern = re.compile(r'\btarget_device:\s*(\d+)\b')
+        # Can't use yaml library here, netlist needs to be in specific format
+        new_netlist_path = TTIArchive._get_override_netlist_path(original_netlist_path, device_id_overrides)
+        
+        if os.path.exists(new_netlist_path):
+            return new_netlist_path
+        
+        with open(original_netlist_path, "r") as netlist_file:
+            netlist_str_override = netlist_file.read()
+        
+        # Create a map that maps original device to new device
+        old_device_to_new_device_map = TTIArchive._get_original_device_to_new_device_map(original_netlist_path, device_id_overrides)
+        
+        # Override single device ids with its new device equivalent
+        netlist_str_override = single_device_pattern.sub(lambda m: replace_target_device_with_new_device(m, old_device_to_new_device_map), netlist_str_override)
+        
+        if len(device_id_overrides) > 1:
+            assert os.environ.get("PYBUDA_N300_DATA_PARALLEL", "0") == "1", "Only support multi-device override in N300 data parallel mode"
+            assert len(device_id_overrides) == 2, "Only support 1 or 2 device overrides"
+            multi_target_device_pattern = re.compile(r'target_device:\s*\[(\d+),\s*(\d+)\]')
+            
+            # Override multi device arrays with new device ids
+            netlist_str_override = multi_target_device_pattern.sub(rf"target_device: {device_id_overrides}", netlist_str_override)
+            netlist_str_override = TTIArchive._update_n300_dp_nops_in_netlist_string(netlist_str_override, old_device_to_new_device_map)
+            
+        with open(new_netlist_path, "w") as new_netlist_file:
+            new_netlist_file.write(netlist_str_override)
+            
+        return new_netlist_path
+    
+    @staticmethod
+    def _update_cluster_desc_yaml(cluster_desc_path: str) -> str:
+        if os.path.exists(cluster_desc_path):
+            os.remove(cluster_desc_path)
+        cluster_output_dir = os.path.dirname(cluster_desc_path)
+        new_cluster_descriptor_path = get_device_cluster_yaml(cluster_output_dir)
+        return new_cluster_descriptor_path
     
     @staticmethod
     def _update_runtime_data_yaml_with_override_device_id(
         new_backend_output_dir: str,
-        device_id_override: int
-    ):
+        old_device_to_new_device_map: Dict[int, int],
+    ) -> None:
+        device_id_overrides = list(old_device_to_new_device_map.values())
+        
         # Update runtime data yaml
         new_runtime_yaml_path = os.path.join(new_backend_output_dir, "runtime_data.yaml")
         with open(new_runtime_yaml_path, "r") as f:
             new_runtime_data = yaml.safe_load(f)
             
         # Update worker_grid_sizes_per_chip
-        num_devices = len(new_runtime_data["worker_grid_sizes_per_chip"].keys())
-        assert num_devices == 1, f"Unexpected TTI not compiled on single device: {num_devices} devices in worker_grid_sizes_per_chip"
-        if device_id_override not in new_runtime_data["worker_grid_sizes_per_chip"]:
-            original_device_id = list(new_runtime_data["worker_grid_sizes_per_chip"].keys()).pop()
-            new_runtime_data["worker_grid_sizes_per_chip"][device_id_override] = new_runtime_data["worker_grid_sizes_per_chip"].pop(original_device_id)
+        old_worker_grid_sizes_per_chip = new_runtime_data["worker_grid_sizes_per_chip"]
+        new_worker_grid_sizes_per_chip = {}
+        assert len(old_worker_grid_sizes_per_chip) == len(device_id_overrides), f"Num devices mismatch between runtime data worker_grid_sizes_per_chip and devices to override"
+        
+        for old_device_id in old_worker_grid_sizes_per_chip:
+            new_device_id = old_device_to_new_device_map[old_device_id]
+            new_worker_grid_sizes_per_chip[new_device_id] = old_worker_grid_sizes_per_chip[old_device_id]
+            
+        new_runtime_data["worker_grid_sizes_per_chip"] = new_worker_grid_sizes_per_chip
             
         # Update harvested_rows_per_chip
-        # Set the harvesting mask to be the same as what we used for the original device id
+        # Set the harvesting mask to be the same as what we used for the original device ids
         # If the grid size is not the same as what runtime detects during run
         # runtime will use the actual harvesting mask, and overlay will be recompiled implicitly by runtime
-        num_devices = len(new_runtime_data["harvested_rows_per_chip"].keys())
-        assert num_devices == 1, f"Unexpected TTI not compiled on single device: {num_devices} devices in harvested_rows_per_chip"
-        if device_id_override not in new_runtime_data["harvested_rows_per_chip"]:
-            original_device_id = list(new_runtime_data["harvested_rows_per_chip"].keys()).pop()
-            new_runtime_data["harvested_rows_per_chip"][device_id_override] = new_runtime_data["harvested_rows_per_chip"].pop(original_device_id)
+        old_harvested_rows_per_chip = new_runtime_data["harvested_rows_per_chip"]
+        new_harvested_rows_per_chip = {}
+        assert len(old_harvested_rows_per_chip) == len(device_id_overrides), f"Num devices mismatch between runtime data harvested_rows_per_chip and devices to override"
+        
+        for old_device_id in old_harvested_rows_per_chip:
+            new_device_id = old_device_to_new_device_map[old_device_id]
+            new_harvested_rows_per_chip[new_device_id] = old_harvested_rows_per_chip[old_device_id]
+            
+        new_runtime_data["harvested_rows_per_chip"] = new_harvested_rows_per_chip
         
         with open(new_runtime_yaml_path, 'w') as f:
             yaml.safe_dump(new_runtime_data, f)
-            
+    
     @staticmethod
     def _create_device_override_backend_output_dir(
         original_backend_output_dir: str,
         original_netlist_path: str,
-        device_id_override: int
+        device_id_overrides: List[int]
     ) -> str:
-        new_backend_output_dir = TTIArchive._get_override_backend_output_dir(original_backend_output_dir, device_id_override)
+        new_backend_output_dir = TTIArchive._get_override_backend_output_path(original_backend_output_dir, device_id_overrides)
         if os.path.exists(new_backend_output_dir):
             logger.info("TTDeviceImage: Using existing device override binaries directory {}", new_backend_output_dir)
             return new_backend_output_dir
@@ -475,15 +657,26 @@ class TTIArchive:
         # Remove the original netlist and copy over the override netlist to the new binaries directory
         original_netlist_name = os.path.basename(original_netlist_path)
         os.remove(os.path.join(new_backend_output_dir, original_netlist_name))
-        override_netlist_path = TTIArchive._get_override_netlist_path(original_netlist_path, device_id_override)
+        
+        # Path to the netlist file override directly under unzipped_tti directory
+        override_netlist_path = TTIArchive._get_override_netlist_path(original_netlist_path, device_id_overrides)
         override_netlist_name = os.path.basename(override_netlist_path)
-        TTIArchive._copy_netlist_yaml(netlist_yaml=override_netlist_path, dst_dir=os.path.join(new_backend_output_dir, override_netlist_name))
+        
+        override_netlist_path_in_backend_outdir = os.path.join(new_backend_output_dir, override_netlist_name)
+        
+        TTIArchive._copy_netlist_yaml(netlist_yaml=override_netlist_path, dst_dir=override_netlist_path_in_backend_outdir)
 
+        old_device_to_new_device_map = TTIArchive._get_original_device_to_new_device_map(original_netlist_path, device_id_overrides)
+        
         # Update runtime data yaml
-        TTIArchive._update_runtime_data_yaml_with_override_device_id(new_backend_output_dir, device_id_override)
+        TTIArchive._update_runtime_data_yaml_with_override_device_id(new_backend_output_dir, old_device_to_new_device_map)
         
         # Update relative files in the overlay output directories
-        TTIArchive._update_overlay_blob_dir_with_override_device_id(new_backend_output_dir, device_id_override)
+        TTIArchive._update_overlay_blob_dir_with_override_device_id(new_backend_output_dir, old_device_to_new_device_map)
+        
+        if os.environ.get("PYBUDA_N300_DATA_PARALLEL", "0") == "1":
+            # Update device id suffix in trisc firmware directories
+            TTIArchive._update_n300_dp_trisc_firmware_directories(override_netlist_path_in_backend_outdir, old_device_to_new_device_map)
 
         return new_backend_output_dir
     
@@ -520,7 +713,7 @@ class TTIArchive:
         return instantiated_modules
 
     @staticmethod
-    def construct_device_image(unzipped_tti_directory: str, device_id_override: Optional[int] = None) -> "TTDeviceImage":
+    def construct_device_image(unzipped_tti_directory: str, device_id_overrides: Optional[List[int]] = None) -> "TTDeviceImage":
         from .tti import TTDeviceImage
 
         device_image = None
@@ -528,6 +721,7 @@ class TTIArchive:
             os.path.join(unzipped_tti_directory, "device.json"), "r"
         ) as json_file:
             device_image_dict = json.load(json_file, cls=TTDeviceImageJsonDecoder)
+                
             TTDeviceImageJsonDecoder.postprocess_keys(
                 device_image_dict, unzipped_tti_directory
             )
@@ -539,9 +733,14 @@ class TTIArchive:
                     f"TTI failed to deserialize. TTDeviceImage not contain key: {e}. TTI recompilation required."
                 )
 
-            if device_id_override:
-                assert len(device_image.chip_ids) == 1, "Cannot override multi-device TTI image with single device"
-                device_image.chip_ids = [device_id_override]
+            if device_id_overrides is not None:
+                if os.environ.get("PYBUDA_N300_DATA_PARALLEL", "0") == "1" or len(device_id_overrides) == 1:
+                    # In n300 data parallel mode, the chip_ids of the device image is of length 1 as well
+                    assert len(device_image.chip_ids) == 1, "Cannot override multi-device TTI image with single device"
+                    device_image.chip_ids = [device_id_overrides[0]]
+                    
+                else:
+                    device_image.chip_ids = device_id_overrides
                 
             sys.path.append(
                 "."
@@ -560,16 +759,20 @@ class TTIArchive:
             
             netlist_file_path = original_netlist_file_path
             
-            if device_id_override is not None:
-                netlist_file_path = TTIArchive._create_device_override_netlist_yaml(netlist_file_path, device_id_override)
+            if device_id_overrides is not None:
+                netlist_file_path = TTIArchive._create_device_override_netlist_yaml(netlist_file_path, device_id_overrides)
             
             device_image.compiled_graph_state.netlist_filename = netlist_file_path
 
-                
+            # Update the device image compiled_graph_state with the new device ids
+            if device_id_overrides is not None and os.environ.get("PYBUDA_N300_DATA_PARALLEL", "0") == "1":
+                old_device_to_new_device_map = TTIArchive._get_original_device_to_new_device_map(original_netlist_file_path, device_id_overrides)
+                TTIArchive._update_n300_dp_compiled_graph_state(device_image.compiled_graph_state, old_device_to_new_device_map)
+                    
         return device_image, original_netlist_file_path
 
     @staticmethod
-    def load_from_disk(tti_file_path: str, device_id_override: Optional[int] = None) -> "TTDeviceImage":
+    def load_from_disk(tti_file_path: str, device_id_overrides: Optional[List[int]] = None) -> "TTDeviceImage":
         tti_file_path = TTIArchive._get_device_img_path(tti_file_path)
         absolute_device_image_path = os.path.realpath(tti_file_path)
         logger.info("TTDeviceImage::loading from {}", absolute_device_image_path)
@@ -585,7 +788,9 @@ class TTIArchive:
             return tti_checksum == directory_checksum
 
         tti_checksum = compute_file_checksum(absolute_device_image_path)
-        if contains_matching_checksum(tti_checksum):
+        found_matching_checksum = contains_matching_checksum(tti_checksum)
+        
+        if found_matching_checksum:
             logger.info(
                 f"TTI: Netlist checksum matches - populating TTDevice from pre-existing dir {unzipped_tti_directory}"
             )
@@ -604,17 +809,29 @@ class TTIArchive:
                 tti_checksum, os.path.join(unzipped_tti_directory, "checksum.txt")
             )
 
-        device_image, original_netlist_file_path = TTIArchive.construct_device_image(unzipped_tti_directory, device_id_override)
+        device_image, original_netlist_file_path = TTIArchive.construct_device_image(unzipped_tti_directory, device_id_overrides)
+            
+        if device_image.compiler_cfg.backend_cluster_descriptor_path:
+            device_image.compiler_cfg.backend_cluster_descriptor_path = os.path.join(
+                absolute_device_image_directory,
+                device_image.compiler_cfg.backend_cluster_descriptor_path
+            )
+            # If we unzipped the tti for the first time and we are overriding devices
+            # Regenerate the cluster descriptor
+            if device_id_overrides is not None and not found_matching_checksum:
+                new_cluster_desc_path = TTIArchive._update_cluster_desc_yaml(device_image.compiler_cfg.backend_cluster_descriptor_path)
+                device_image.compiler_cfg.backend_cluster_descriptor_path = new_cluster_desc_path
+            
         if device_image.compiler_cfg.backend_output_dir:
             device_image.compiler_cfg.backend_output_dir = os.path.join(
                 absolute_device_image_directory,
                 device_image.compiler_cfg.backend_output_dir,
             )
-            if device_id_override is not None:
+            if device_id_overrides is not None:
                 device_image.compiler_cfg.backend_output_dir = TTIArchive._create_device_override_backend_output_dir(
                     device_image.compiler_cfg.backend_output_dir,
                     original_netlist_file_path,
-                    device_id_override
+                    device_id_overrides,
                 )
 
         if device_image.compiler_cfg.backend_runtime_params_path:
@@ -629,11 +846,6 @@ class TTIArchive:
                 device_image.compiler_cfg.backend_device_descriptor_path
             )
             
-        if device_image.compiler_cfg.backend_cluster_descriptor_path:
-            device_image.compiler_cfg.backend_cluster_descriptor_path = os.path.join(
-                absolute_device_image_directory,
-                device_image.compiler_cfg.backend_cluster_descriptor_path
-            )
             
         _set_global_compiler_config(device_image.compiler_cfg)
 
