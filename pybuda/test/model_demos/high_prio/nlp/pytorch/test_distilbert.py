@@ -27,6 +27,8 @@ def test_distilbert_masked_lm_pytorch(variant, test_device):
 
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object 
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
+
+    os.environ["PYBUDA_DISABLE_MASKED_FILL_V2"] = "1"
     
     # Load data sample
     sample_text = "The capital of France is [MASK]."
@@ -62,6 +64,8 @@ def test_distilbert_question_answering_pytorch(test_device):
 
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object 
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
+
+    os.environ["PYBUDA_DISABLE_MASKED_FILL_V2"] = "1"
 
     if test_device.arch == BackendDevice.Grayskull and test_device.devtype == pybuda.BackendType.Golden:
         os.environ["PYBUDA_EXTRA_L1_MARGIN"] = '169536'
@@ -113,6 +117,8 @@ def test_distilbert_sequence_classification_pytorch(test_device):
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object 
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
 
+    os.environ["PYBUDA_DISABLE_MASKED_FILL_V2"] = "1"
+
     # Load data sample
     review = "the movie was great!"
 
@@ -146,6 +152,8 @@ def test_distilbert_token_classification_pytorch(test_device):
 
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object 
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
+
+    os.environ["PYBUDA_DISABLE_MASKED_FILL_V2"] = "1"
 
     # Load data sample
     sample_text = "HuggingFace is a company based in Paris and New York"
