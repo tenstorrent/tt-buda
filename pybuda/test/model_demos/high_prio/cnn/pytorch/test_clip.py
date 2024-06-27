@@ -112,6 +112,7 @@ def test_clip_pytorch(test_device):
     # to check this out in more details:
     # tenstorrent/pybuda#1828
     os.environ["PYBUDA_DECOMPOSE_SIGMOID"] = "1"
+    os.environ["PYBUDA_DISABLE_MASKED_FILL_V2"] = "1"
 
     # Load processor and model from HuggingFace
     model_ckpt = "openai/clip-vit-base-patch32"
@@ -148,10 +149,8 @@ def test_clip_pytorch(test_device):
     prob_cat = float(f"{probs[0].tolist()[0]*100:.1f}")
     prob_dog = float(f"{probs[0].tolist()[1]*100:.1f}")
 
-    # Pcc drop due to Masked_fill op kernel 
-    # Issue link - https://yyz-gitlab.local.tenstorrent.com/tenstorrent/pybuda/-/issues/2712
-    # assert 99.3 <= prob_cat
-    # assert 0.7 >= prob_dog
+    assert 99.3 <= prob_cat
+    assert 0.7 >= prob_dog
 
     processed_output = list(zip(text, probs[0].tolist()))
     print("RESULTS")

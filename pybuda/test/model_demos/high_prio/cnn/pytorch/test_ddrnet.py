@@ -22,9 +22,6 @@ sys.path.append(
 from semseg import DualResNet, BasicBlock_seg
 
 
-torch.multiprocessing.set_sharing_strategy("file_system")
-
-
 variants = ["ddrnet23s", "ddrnet23", "ddrnet39"]
 
 
