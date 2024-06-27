@@ -21,6 +21,7 @@ def generate_model_xception_imgcls_timm(test_device, variant):
         if test_device.arch == BackendDevice.Wormhole_B0:
             compiler_cfg.balancer_policy = "CNN"
         elif test_device.arch == BackendDevice.Grayskull:
+            compiler_cfg.balancer_policy = "Ribbon"
             compiler_cfg.amp_level = 1
     else:
         compiler_cfg.balancer_policy = "Ribbon"

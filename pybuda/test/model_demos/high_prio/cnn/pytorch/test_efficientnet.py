@@ -61,6 +61,9 @@ def test_efficientnet_timm(variant, test_device):
             os.environ["PYBUDA_PAD_SPARSE_MM"] = "{13:16}"
             os.environ["PYBUDA_GRAPHSOLVER_SELF_CUT_TYPE"] = "ConsumerOperandDataEdgesFirst"
             os.environ["PYBUDA_DECOMPOSE_SIGMOID"] = "1"
+            os.environ["PYBUDA_FORK_JOIN_BUF_QUEUES"] = "1"
+            os.environ["PYBUDA_FORK_JOIN_EXPAND_OUTPUT_BUFFERS"] = "1"
+            os.environ["PYBUDA_FORK_JOIN_SKIP_EXPANDING_BUFFERS"] = "1"
 
     # Load model
     framework_model = download_model(timm.create_model, variant, pretrained=True)
