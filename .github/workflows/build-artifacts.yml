@@ -3,15 +3,26 @@ name: Build artifacts
 on:
   workflow_dispatch:
   workflow_call:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 env:
   PYTHON_VERSION: "python3.10"
 
 jobs:
   build-artifacts:
+    
     strategy:
       matrix:
-        arch: ["grayskull"]
+        include:
+          - arch: grayskull
+            env_script: env_for_silicon.sh
+          - arch: wormhole_b0
+            env_script: env_for_wormhole_b0.sh
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -21,4 +32,4 @@ jobs:
       - name: Update submodule
         run: git submodule update --init --recursive
       - name: Build for ${{ matrix.arch }}
-        run: source env_for_silicon.sh
+        run: source ${{ matrix.env_script }}
