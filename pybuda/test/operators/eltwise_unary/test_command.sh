@@ -32,3 +32,11 @@ pytest -svv test_eltwise_unary_single.py --un_model model_4 --un_train True --un
 
 # pytest -svv pybuda/test/operators/eltwise_unary/test_eltwise_unary_single.py --un_model model_6 --un_train True --un_recompute False --un_op 'Relu' --un_shape '[1, 12, 13]'
 # pytest -svv pybuda/test/operators/eltwise_unary/test_eltwise_unary_single.py --un_model model_7 --un_train True --un_recompute True --un_op 'Exp' --un_shape '[1, 12, 13]'
+
+pytest -svv pybuda/test/operators/eltwise_unary/test_eltwise_unary.py::test_eltwise_unary_ops_per_test_plan_single --un_model 'model_op_src_from_host' --un_shape '[1, 32, 96, 128]' --un_op 'Exp' --runxfail --no-skips
+pytest -svv pybuda/test/operators/eltwise_unary/test_eltwise_unary.py::test_eltwise_unary_ops_per_test_plan_pow_single --un_model 'model_op_src_from_host' --un_shape '[1, 32, 96, 128]' --un_kwargs_json='{"exponent": 0.54881352186203}' --runxfail --no-skips
+pytest -svv pybuda/test/operators/eltwise_unary/test_eltwise_unary.py::test_eltwise_unary_ops_per_test_plan_clip_single --un_model 'model_op_src_from_host' --un_shape '[1, 32, 96, 128]' --un_kwargs_json='{"min": 0.54881352186203, "max": 1}' --runxfail --no-skips
+pytest -svv pybuda/test/operators/eltwise_unary/test_eltwise_unary.py::test_eltwise_unary_ops_per_test_plan_cum_sum_single --un_model 'model_op_src_from_host' --un_shape '[1, 32, 96, 128]' --un_kwargs_json='{"exclusive": "False"}' --runxfail --no-skips
+
+
+pytest -svv pybuda/test/operators/eltwise_unary/test_eltwise_unary.py::test_eltwise_unary_ops_per_test_plan_clip_single --un_model 'model_op_src_from_host' --un_shape '[1, 32, 96, 128]' --un_kwargs_json='{"min": "None", "max": "None"}' --runxfail --no-skips
