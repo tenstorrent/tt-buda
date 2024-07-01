@@ -1,0 +1,6 @@
+from .model_op_src_const_inputs1 import BudaElementWiseUnaryTest
+from .model_op_src_from_another_op import BudaElementWiseUnaryTest
+from .model_op_src_from_dram import BudaElementWiseUnaryTest
+from .model_op_src_from_host import BudaElementWiseUnaryTest
+from .model_op_src_from_tm_edge1 import BudaElementWiseUnaryTest
+from .model_op_src_from_tm_edge2 import BudaElementWiseUnaryTest

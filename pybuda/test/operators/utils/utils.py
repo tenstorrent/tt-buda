@@ -72,7 +72,7 @@ class VerifyUtils:
     '''Utility functions for PyBuda verification'''
 
     @staticmethod
-    def verify(model: PyBudaModule, test_device: TestDevice, input_shapes: List[TensorShape], input_params: List[Dict] = []):
+    def verify(model: PyBudaModule, test_device: TestDevice, input_shapes: List[TensorShape], input_params: List[Dict] = [], pcc = 0.99):
         '''Perform PyBuda verification on the model
 
         Args:
@@ -89,6 +89,7 @@ class VerifyUtils:
                 test_kind=TestKind.INFERENCE,
                 devtype=test_device.devtype,
                 arch=test_device.arch,
+                pcc=pcc,
             ),
             input_params=[input_params],
         )
