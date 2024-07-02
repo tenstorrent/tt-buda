@@ -33,5 +33,6 @@ def get_randomizer_config_default():
         num_of_nodes_min=int(os.environ.get("NUM_OF_NODES_MIN", 5)),
         num_of_nodes_max=int(os.environ.get("NUM_OF_NODES_MAX", 10)),
         num_fork_joins_max=int(os.environ.get("NUM_OF_FORK_JOINS_MAX", 50)),
+        same_inputs_percent_limit=int(os.environ.get("SAME_INPUTS_PERCENT_LIMIT", 10)),
     )
     return randomizer_config

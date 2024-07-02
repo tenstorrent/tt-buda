@@ -5,7 +5,7 @@
 
 
 import random
-from typing import Callable, List, Dict
+from typing import Callable, Generator, List, Dict
 from dataclasses import asdict
 from loguru import logger
 import re
@@ -172,18 +172,41 @@ class NodeUtils:
     def is_previous_node(node: RandomizerNode, previous_node: RandomizerNode) -> bool:
         return node.index == previous_node.index + 1
 
-    @staticmethod
-    def is_open(node: RandomizerNode) -> bool:
-        return (len(node.inputs) if node.inputs else 0)  < node.operator.input_num
+    @classmethod
+    def num_of_open_inputs(cls, node: RandomizerNode) -> int:
+        return node.inputs.count(None)
 
+    @classmethod
+    def num_of_closed_inputs(cls, node: RandomizerNode) -> int:
+        return node.operator.input_num - cls.num_of_open_inputs(node)
+
+    @classmethod
+    def is_open(cls, node: RandomizerNode) -> bool:
+        return cls.num_of_open_inputs(node) > 0
+
+    # TODO replace list with generator
     @classmethod
     def get_open_nodes(cls, nodes: List[RandomizerNode]) -> List[RandomizerNode]:
         return [node for node in nodes if cls.is_open(node)]
 
     @classmethod
+    def has_open_input_with_input_shape(cls, node: RandomizerNode, input_shape: TensorShape) -> bool:
+        for i, open_input in enumerate(node.inputs):
+            if open_input is None:
+                if input_shape == node.input_shapes[i]:
+                    return True
+        return False
+
+    @classmethod
+    def get_open_input_indices(cls, node: RandomizerNode) -> Generator[int, None, None]:
+        for i, open_input in enumerate(node.inputs):
+            if open_input is None:
+                yield i
+
+    # TODO replace list with generator
+    @classmethod
     def get_open_nodes_with_input_shape(cls, nodes: List[RandomizerNode], input_shape: TensorShape) -> List[RandomizerNode]:
-        # TODO support checking not just next operand but all not connected operands
-        return [node for node in nodes if cls.is_open(node) and node.input_shapes[len(node.inputs)] == input_shape]
+        return [node for node in nodes if cls.is_open(node) and cls.has_open_input_with_input_shape(node, input_shape)]
 
     @classmethod
     def calc_input_shapes(cls, node: RandomizerNode, rng_shape: random.Random) -> List[TensorShape]:
@@ -203,3 +226,25 @@ class DebugUtils:
     @classmethod
     def debug_inputs(cls, inputs: List[pybuda.Tensor]):
         logger.info(f"inputs: {cls.format_tensors(inputs)}")
+
+
+class RateLimitter:
+    '''Rate limitter class to limit the number of allowed operations by a rate limit factor'''
+
+    def __init__(self, rng: random.Random, max_limit: int, current_limit: int):
+        self.rng = rng
+        self.max_limit = max_limit
+        self.current_limit = current_limit
+        self.current_value: int = None
+
+    def is_allowed(self) -> bool:
+        '''Check if the operation is allowed by the rate limit factor and current random value'''
+        self.current_value = self.rng.randint(0, 100)
+        return self.current_value < self.current_limit
+    
+    def limit_info(self) -> str:
+        '''Return the rate limit info for previous operation'''
+        if self.current_value < self.current_limit:
+            return f"{self.current_value} < {self.current_limit}"
+        else:
+            return f"{self.current_value} >= {self.current_limit}"

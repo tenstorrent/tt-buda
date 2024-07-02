@@ -27,11 +27,16 @@ class RandomizerNode:
     index: Optional[int] = None
     out_value: Optional[str] = None
     operator: Optional[OperatorDefinition] = None
-    inputs: List['RandomizerNode'] = field(default_factory=list)
+    inputs: List['RandomizerNode'] = field(init=False)
     constructor_kwargs: Dict[str, object] = field(default_factory=dict)
     forward_kwargs: Dict[str, object] = field(default_factory=dict)
     input_shapes: List[TensorShape] = field(default_factory=list)
     output_shape: TensorShape = None
+
+    def __post_init__(self):
+        # List of input nodes is initialized with None values for each input
+        # Inputs will be set later during graph construction
+        self.inputs = [None for _ in range(self.operator.input_num)]
 
     def operator_name(self):
         return f"op{self.index}"
@@ -95,6 +100,7 @@ class RandomizerConfig:
     num_of_nodes_min: int = 5
     num_of_nodes_max: int = 10
     num_fork_joins_max: int = 50
+    same_inputs_percent_limit: int = 10
 
 
 @dataclass
