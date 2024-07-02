@@ -6,6 +6,7 @@
 
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
+import random
 import torch
 
 from pybuda.op_repo import OperatorDefinition
@@ -104,3 +105,10 @@ class RandomizerTestContext:
     # graph_builder: GraphBuilder
     graph: Optional[RandomizerGraph]  # graph will be constructed later during test processing
     test_name: str = "Default"
+
+    # random number generators for graph building
+    rng_graph: Optional[random.Random] = None
+    # random number generators for shape generation
+    rng_shape: Optional[random.Random] = None
+    # random number generators for parameters
+    rng_params: Optional[random.Random] = None
