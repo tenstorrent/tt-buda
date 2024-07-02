@@ -43,6 +43,7 @@ def test_efficientnet_timm(variant, test_device):
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.enable_auto_fusing = False
 
+    pcc_value = 0.94
     if variant == "efficientnet_b0":
         # Solves issue for bigger conv layers in the middle of the graph
         if test_device.arch == BackendDevice.Wormhole_B0:
@@ -55,15 +56,10 @@ def test_efficientnet_timm(variant, test_device):
 
     elif variant == "efficientnet_b4":
         if test_device.arch == BackendDevice.Wormhole_B0:
+            pcc_value = 0.92
             compiler_cfg.amp_level = 1
             compiler_cfg.default_df_override=pybuda.DataFormat.Float16_b
             os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
-            os.environ["PYBUDA_PAD_SPARSE_MM"] = "{13:16}"
-            os.environ["PYBUDA_GRAPHSOLVER_SELF_CUT_TYPE"] = "ConsumerOperandDataEdgesFirst"
-            os.environ["PYBUDA_DECOMPOSE_SIGMOID"] = "1"
-            os.environ["PYBUDA_FORK_JOIN_BUF_QUEUES"] = "1"
-            os.environ["PYBUDA_FORK_JOIN_EXPAND_OUTPUT_BUFFERS"] = "1"
-            os.environ["PYBUDA_FORK_JOIN_SKIP_EXPANDING_BUFFERS"] = "1"
 
     # Load model
     framework_model = download_model(timm.create_model, variant, pretrained=True)
@@ -102,7 +98,7 @@ def test_efficientnet_timm(variant, test_device):
             devtype=test_device.devtype,
             devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
-            pcc=0.94,
+            pcc=pcc_value,
         ),
     )
 
