@@ -1532,6 +1532,9 @@ class TTDevice(Device):
                 _device_mode=self.device_mode
             )
 
+        if self.cpu_fallback_device_pre is not None or self.cpu_fallback_device_post is not None:
+            logger.warning("CPU fallback devices are not supported when compiling to TTI image. Only TTDevice will be saved to TTI image. Loading the image will probably end in an error.")
+
         from .tti import TTDeviceImage
         device_image = TTDeviceImage.create_image_from_device(
             self, 
