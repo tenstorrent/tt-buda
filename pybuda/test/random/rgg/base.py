@@ -9,6 +9,7 @@ from loguru import logger
 from dataclasses import dataclass
 from jinja2 import Environment, FileSystemLoader
 import os
+import random
 
 from pybuda import PyBudaModule
 from pybuda.verify import verify_module, VerifyConfig
@@ -177,6 +178,14 @@ class RandomizerRunner:
 
     def build_graph(self, graph_builder: GraphBuilder) -> None:
         self.test_context.graph = RandomizerGraph()
+
+        # Initialize random number generators for graph building
+        self.test_context.rng_graph = random.Random(self.test_context.parameters.random_seed)
+        # Initialize random number generators for shape generation
+        self.test_context.rng_shape = random.Random(self.test_context.parameters.random_seed)
+        # Initialize random number generators for parameters
+        self.test_context.rng_params = random.Random(self.test_context.parameters.random_seed)
+
         graph_builder.build_graph(self.test_context)
 
     def build_model(self) -> PyBudaModule:

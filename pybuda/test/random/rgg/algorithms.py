@@ -4,7 +4,6 @@
 # Implementation of randomization algrorithms
 
 
-import random
 from typing import List
 from loguru import logger
 
@@ -25,7 +24,7 @@ class GraphNodeSetup:
     always_unique_variables = False
 
     @classmethod
-    def init_nodes(cls, graph: RandomizerGraph, rng_params: random.Random):
+    def init_nodes(cls, test_context: RandomizerTestContext):
         """
         Initializes the nodes of a graph. 
 
@@ -36,7 +35,7 @@ class GraphNodeSetup:
         4. Generates random settings for operator parameters.
 
         Args:
-            graph (RandomizerGraph): The graph nodes to initialize.
+            test_context (RandomizerTestContext): The test context.
 
         Raises:
             Exception: If the number of inputs for a node does not match the configured input number.
@@ -45,7 +44,11 @@ class GraphNodeSetup:
         Returns:
             None
         """
-        nodes = graph.nodes
+        graph = test_context.graph
+        nodes = test_context.graph.nodes
+
+        rng_shape = test_context.rng_shape
+        rng_params = test_context.rng_params
 
         # Setting node.index
         op_index_cnt = 0
@@ -115,9 +118,12 @@ class GraphNodeSetup:
                 raise Exception(f"Step operator is wrong type {node.node_info()} expected RandomizerOperator got {type(node.operator)}")
 
     @classmethod
-    def prepare_graph(cls, graph: RandomizerGraph, rng_params: random.Random):
+    def prepare_graph(cls, test_context: RandomizerTestContext):
+
+        graph = test_context.graph
+
         logger.trace("Initializing nodes")
-        cls.init_nodes(graph, rng_params)
+        cls.init_nodes(test_context)
         logger.trace("Nodes initialized")
 
         logger.trace("Validating graph")
@@ -165,18 +171,12 @@ class RandomGraphAlgorithm(GraphBuilder):
     # Input shapes for each node are calculated based on output shape of the node
     def build_graph(self, test_context: RandomizerTestContext):
         '''Implementation of the random graph building algorithm'''
-        parameters = test_context.parameters
+
         graph = test_context.graph
         nodes = graph.nodes
 
-        # Initialize random number generators for graph building
-        rng_graph = random.Random(parameters.random_seed)
-
-        # Initialize random number generators for shape generation
-        rng_shape = random.Random(test_context.parameters.random_seed)
-
-        # Initialize random number generators for parameters
-        rng_params = random.Random(test_context.parameters.random_seed)
+        rng_graph = test_context.rng_graph
+        rng_shape = test_context.rng_shape
 
         fork_join_counter = 0
         fork_join_max = test_context.randomizer_config.num_fork_joins_max
@@ -184,6 +184,8 @@ class RandomGraphAlgorithm(GraphBuilder):
         # Building the graph with number of nodes between num_of_nodes_min and num_of_nodes_max
         num_of_nodes = rng_graph.randint(self.randomizer_config.num_of_nodes_min, self.randomizer_config.num_of_nodes_max) 
         for node_index in range(num_of_nodes, 0, -1):
+            first_node = node_index == num_of_nodes
+
             # Choose operator randomly based on rng
             op1 = self._get_random_operator(rng_graph)
 
@@ -191,7 +193,7 @@ class RandomGraphAlgorithm(GraphBuilder):
             open_nodes = NodeUtils.get_open_nodes(nodes)
 
             # Select output shape for the new node
-            if len(open_nodes) == 0:
+            if first_node:
                 # For the first node set output shape as random shape
                 output_shape = RandomUtils.random_shape_from_config(self.randomizer_config, rng_shape)
             else:
@@ -209,7 +211,7 @@ class RandomGraphAlgorithm(GraphBuilder):
             # Closing multiple nodes will construct fork joins
             random_nodes: List[RandomizerNode]
 
-            if len(open_nodes) > 0:
+            if not first_node:
                 # There must be at least one node to close
                 subset_count_min = max(1, len(open_nodes) // 2)
                 subset_count_max = len(open_nodes)
@@ -254,5 +256,5 @@ class RandomGraphAlgorithm(GraphBuilder):
         logger.trace(f"Graph built with {len(nodes)} nodes")
 
         logger.trace("Preparing graph")
-        GraphNodeSetup.prepare_graph(graph, rng_params)
+        GraphNodeSetup.prepare_graph(test_context)
         logger.trace("Graph prepared")
