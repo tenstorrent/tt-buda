@@ -117,6 +117,8 @@ def test_ddrnet_semantic_segmentation_pytorch(variant, test_device):
     ):
         compiler_cfg.enable_auto_fusing = False
         compiler_cfg.amp_level = 2
+        os.environ["PYBUDA_BALANCER_USE_DRAM_BW_ESTIMATES"] = "1"
+        os.environ["PYBUDA_BALANCER_USE_NOC_BW_ESTIMATES"] = "1"
 
     # prepare model
     if variant == "ddrnet23s_cityscapes":
