@@ -102,7 +102,7 @@ struct DeviceConfig
             return;
 
         // Get backend related parameters
-        if (this->is_wormhole_b0())
+        if (arch == ARCH::WORMHOLE_B0)
         {
             // Load and cache system-level params if needed
             if (this->backend_type == "silicon")
