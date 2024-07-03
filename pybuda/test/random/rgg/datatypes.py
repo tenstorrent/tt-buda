@@ -38,20 +38,25 @@ class RandomizerNode:
         # Inputs will be set later during graph construction
         self.inputs = [None for _ in range(self.operator.input_num)]
 
+    @property
     def operator_name(self):
         return f"op{self.index}"
 
+    @property
     def layer_name(self):
         return f"l{self.index}"
 
+    @property
     def node_name(self):
-        return self.operator_name() if self.operator.is_operator() else self.layer_name()
+        return self.operator_name if self.operator.is_operator else self.layer_name
 
-    def get_name(self):
+    @property
+    def name(self):
         return self.operator.name
 
+    @property
     def node_info(self):
-        return f"{self.node_name()} {self.get_name()}"
+        return f"{self.node_name} {self.name}"
 
 
 @dataclass

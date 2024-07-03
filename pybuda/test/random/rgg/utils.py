@@ -148,7 +148,7 @@ class GraphUtils:
 
     @classmethod
     def to_ops_str(cls, graph: RandomizerGraph) -> str:
-        ops = [node.get_name() for node in graph.nodes]
+        ops = [node.name for node in graph.nodes]
         ops_str = " -> ".join(ops)
         return ops_str
 
