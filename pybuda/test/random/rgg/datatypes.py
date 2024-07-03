@@ -4,7 +4,7 @@
 # Generic test model randomizer
 
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Final, Tuple
 from dataclasses import dataclass, field
 import random
 import torch
@@ -16,14 +16,24 @@ from test.conftest import TestDevice
 # Defining a type for tensor shape
 TensorShape = Tuple[int, ...]
 
+
 @dataclass
 class RandomizerInputNode:
+    constant: Final[bool] = field(default=False, init=False)
+    out_value: str
+    input_shape: TensorShape
+
+
+@dataclass
+class RandomizerConstantNode:
+    constant: Final[bool] = field(default=True, init=False)
     out_value: str
     input_shape: TensorShape
 
 
 @dataclass
 class RandomizerNode:
+    constant: Final[bool] = field(default=False, init=False)
     index: Optional[int] = None
     out_value: Optional[str] = None
     operator: Optional[OperatorDefinition] = None
@@ -82,6 +92,7 @@ class RandomizerGraph:
     # parameters: RandomizerParameters
     nodes: List[RandomizerNode] = field(default_factory=list)
     input_nodes: List[RandomizerInputNode] = field(default_factory=list)
+    constant_nodes: List[RandomizerConstantNode] = field(default_factory=list)
     # graph_builder: Optional[str] = None
 
 
@@ -105,6 +116,7 @@ class RandomizerConfig:
     num_of_nodes_min: int = 5
     num_of_nodes_max: int = 10
     num_fork_joins_max: int = 50
+    constant_input_rate: int = 20
     same_inputs_percent_limit: int = 10
 
 
