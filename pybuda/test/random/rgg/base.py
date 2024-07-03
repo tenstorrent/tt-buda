@@ -265,7 +265,7 @@ class RandomizerRunner:
             # saving test source code to file for debugging purposes
             self.save_test(test_code_str, failing_test=False)
 
-        logger.debug(f"Graph built in: {graph_duration.get_duration():.4f} seconds")
+        logger.info(f"Graph built in: {graph_duration.get_duration():.4f} seconds")
 
         if randomizer_config.run_test:
             # instantiate PyBuda model

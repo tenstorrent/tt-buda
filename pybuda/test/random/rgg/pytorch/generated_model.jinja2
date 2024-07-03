@@ -17,6 +17,8 @@ class GeneratedTestModel_{{ test_index }}_{{ random_seed }}(torch.nn.Module):
         super(GeneratedTestModel_{{ test_index }}_{{ random_seed }}, self).__init__()
 {% for node in graph.nodes %}{% if node.operator.is_layer %}        
         self.{{ node.layer_name }} = {{ node.operator.full_name }}({{ constructor_kwargs(node=node) }}){% endif %}{% endfor %}
+        {% for constant_node in graph.constant_nodes %}
+        self.{{ constant_node.out_value }} = torch.randn({{ reduce_microbatch_size(constant_node.input_shape) }}){% endfor %}
 
     def forward(self{% for node in graph.input_nodes %},
             {{ node.out_value }}: torch.Tensor{% endfor %}
@@ -24,7 +26,7 @@ class GeneratedTestModel_{{ test_index }}_{{ random_seed }}(torch.nn.Module):
         {% for node in graph.nodes %}
 
         # shapes: {{ node.input_shapes }} -> {{ node.output_shape }}
-        inputs = [{% for input_node in node.inputs %}{{ input_node.out_value }}{% if not loop.last %}, {% endif %}{% endfor %}]{% if randomizer_config.debug_shapes %}
+        inputs = [{% for input_node in node.inputs %}{% if input_node.constant %}self.{{ input_node.out_value }}{% else %}{{ input_node.out_value }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}]{% if randomizer_config.debug_shapes %}
         print(f"{{ node.layer_name }} inputs: {DebugUtils.format_tensors(inputs)}"){% endif %}{% if node.operator.is_layer %}
         {{ node.out_value }} = self.{{ node.layer_name }}(inputs[0]){% else %}
         {{ node.out_value }} = {% if node.operator.forward_code %}{{node.operator.forward_code()}}{% else %}{{ node.operator.full_name }}({{ forward_args(node=node) }}, {{ forward_kwargs(node=node) }}){% endif %}{% endif %}{% if randomizer_config.verify_shapes %}

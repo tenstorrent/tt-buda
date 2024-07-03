@@ -11,6 +11,7 @@ from pybuda.op_repo import OperatorDefinition
 
 from .datatypes import RandomizerGraph, RandomizerTestContext
 from .datatypes import RandomizerInputNode
+from .datatypes import RandomizerConstantNode
 from .base import RandomizerNode, GraphBuilder
 from .base import Framework
 from .utils import RandomUtils, StrUtils, NodeUtils
@@ -51,6 +52,7 @@ class GraphNodeSetup:
         rng_shape = test_context.rng_shape
         rng_params = test_context.rng_params
 
+        constant_input_rate_limitter = RateLimitter(rng_shape, 100, test_context.randomizer_config.constant_input_rate)
         same_inputs_rate_limitter = RateLimitter(rng_shape, 100, test_context.randomizer_config.same_inputs_percent_limit)
 
         # Setting node.index
@@ -65,7 +67,7 @@ class GraphNodeSetup:
             # setting default output variable name
             node.out_value = "v"
             for input_node in node.inputs:
-                if (input_node is not None and not NodeUtils.is_previous_node(node, input_node)) or cls.always_unique_variables:
+                if input_node is not None and not input_node.constant and (not NodeUtils.is_previous_node(node, input_node) or cls.always_unique_variables):
                     # overriding default output variable name
                     input_node.out_value = input_node.operator_name
                     logger.trace(f"Set out_value = {input_node.out_value}")
@@ -82,38 +84,54 @@ class GraphNodeSetup:
             for open_input_index in NodeUtils.get_open_input_indices(node):
                 input_shape = input_shapes[open_input_index]
 
-                # list of all graph input nodes with the same shape as the input shape
-                input_nodes_with_same_shape = [input_node for input_node in graph.input_nodes if input_node.input_shape == input_shape]
-                # list of input nodes with the same shape that are not already connected to the node
-                input_nodes_with_same_shape_unused = [input_node for input_node in input_nodes_with_same_shape if input_node not in used_input_nodes]
-                if len(input_nodes_with_same_shape_unused) > 0:
-                    # reuse existing input node with the same shape that is not already connected to the node
-                    input_node = input_nodes_with_same_shape_unused[0]
-                    used_input_nodes.append(input_node)
+                # There must be at least one input node for forward method
+                if len(graph.input_nodes) > 0 and constant_input_rate_limitter.is_allowed():
+                    # Creates a new constant node with the same shape
+                    constant_node = RandomizerConstantNode(out_value=None, input_shape=input_shape)
+                    logger.trace(f"Allowed constant input {constant_node.out_value} -> {node.name}[{open_input_index}] due to rate limit not exceeded: {constant_input_rate_limitter.limit_info()}")
+                    # Stores the new constant node in the graph constant nodes
+                    graph.constant_nodes.append(constant_node)
+                    input_node = constant_node
                 else:
-                    # there are no input nodes with the same shape that are not already connected to the node
-                    # check if same input value is allowed
-                    # there must be at least one input node with the same shape to allow repeat
-                    allow_repeat = len(input_nodes_with_same_shape) > 0
-
-                    if allow_repeat:
-                        if not same_inputs_rate_limitter.is_allowed():
-                            logger.trace(f"Not allowed same input value {input_node.out_value} -> {node.name}[{open_input_index}] due to rate limit exceeded: {same_inputs_rate_limitter.limit_info()}")
-                            allow_repeat = False
-
-                    if allow_repeat:
-                        input_node = rng_shape.choice(input_nodes_with_same_shape)
-                        logger.trace(f"Allowed same input value {input_node.out_value} -> {node.name}[{open_input_index}] due to rate limit not exceeded: {same_inputs_rate_limitter.limit_info()}")
-                    
-                    else:
-                        # create a new input node with the same shape since there are no unused input nodes with the same shape or repeat is not allowed
-                        input_node = RandomizerInputNode(out_value=f"in_value{len(graph.input_nodes)+1}", input_shape=input_shape)
+                    # list of all graph input nodes with the same shape as the input shape
+                    input_nodes_with_same_shape = [input_node for input_node in graph.input_nodes if input_node.input_shape == input_shape]
+                    # list of input nodes with the same shape that are not already connected to the node
+                    input_nodes_with_same_shape_unused = [input_node for input_node in input_nodes_with_same_shape if input_node not in used_input_nodes]
+                    if len(input_nodes_with_same_shape_unused) > 0:
+                        # reuse existing input node with the same shape that is not already connected to the node
+                        input_node = input_nodes_with_same_shape_unused[0]
                         used_input_nodes.append(input_node)
-                        # store the new input node in the graph input nodes
-                        graph.input_nodes.append(input_node)
-                
+                    else:
+                        # there are no input nodes with the same shape that are not already connected to the node
+                        # check if same input value is allowed
+                        # there must be at least one input node with the same shape to allow repeat
+                        allow_repeat = len(input_nodes_with_same_shape) > 0
+
+                        if allow_repeat:
+                            if not same_inputs_rate_limitter.is_allowed():
+                                logger.trace(f"Not allowed same input value {input_node.out_value} -> {node.name}[{open_input_index}] due to rate limit exceeded: {same_inputs_rate_limitter.limit_info()}")
+                                allow_repeat = False
+
+                        if allow_repeat:
+                            input_node = rng_shape.choice(input_nodes_with_same_shape)
+                            logger.trace(f"Allowed same input value {input_node.out_value} -> {node.name}[{open_input_index}] due to rate limit not exceeded: {same_inputs_rate_limitter.limit_info()}")
+                        
+                        else:
+                            # create a new input node with the same shape since there are no unused input nodes with the same shape or repeat is not allowed
+                            input_node = RandomizerInputNode(out_value=f"in_value{len(graph.input_nodes)+1}", input_shape=input_shape)
+                            used_input_nodes.append(input_node)
+                            # store the new input node in the graph input nodes
+                            graph.input_nodes.append(input_node)
+                    
                 # connect the input node to the open node input
                 node.inputs[open_input_index] = input_node
+
+        # Assign constant node values after connecting inputs
+        iconst_index = 0
+        for i, constant_node in enumerate(graph.constant_nodes):
+            if constant_node.out_value is None:
+                iconst_index += 1
+                constant_node.out_value = f"iconst{iconst_index}"
 
         logger.trace("Generating random settings for operator parameters")
         # Generate random values for operator parameters
@@ -212,6 +230,7 @@ class RandomGraphAlgorithm(GraphBuilder):
         fork_join_counter = 0
         fork_join_max = test_context.randomizer_config.num_fork_joins_max
 
+        constant_input_rate_limitter = RateLimitter(rng_shape, 100, test_context.randomizer_config.constant_input_rate)
         same_inputs_rate_limitter = RateLimitter(rng_shape, 100, test_context.randomizer_config.same_inputs_percent_limit)
 
         # Building the graph with number of nodes between num_of_nodes_min and num_of_nodes_max
@@ -300,6 +319,27 @@ class RandomGraphAlgorithm(GraphBuilder):
                         node_connected = True
 
             nodes.insert(0, node)
+
+            # Connecting constants randomly to current node inputs
+            open_nodes = NodeUtils.get_open_nodes(nodes)
+            open_nodes_count = len(open_nodes)
+            input_shapes = node.input_shapes
+            for open_input_index in NodeUtils.get_open_input_indices(node):
+                input_shape = input_shapes[open_input_index]
+                # Skip connecting constant input for last open input to avoid disconnected graph
+                if open_nodes_count > 1 or NodeUtils.num_of_open_inputs(node) > 1:
+                    if constant_input_rate_limitter.is_allowed():
+                        # Creates a new constant node with the same shape
+                        constant_node = RandomizerConstantNode(out_value=None, input_shape=input_shape)
+                        logger.trace(f"Allowed constant input {constant_node.out_value} -> {node.name}[{open_input_index}] due to rate limit not exceeded: {constant_input_rate_limitter.limit_info()}")
+                        # Stores the new constant node in the graph constant nodes
+                        graph.constant_nodes.insert(0, constant_node)
+                        # Connects the input node to the open node input
+                        node.inputs[open_input_index] = constant_node
+
+        # Assign constant node values
+        for i, constant_node in enumerate(graph.constant_nodes):
+            constant_node.out_value = f"nconst{i+1}"
 
         logger.trace(f"Graph built with {len(nodes)} nodes")
 
