@@ -56,4 +56,8 @@ def randomize_size(n: int, rng_shape: Random) -> int:
     Returns:
         int: random size of an dimension
     '''
-    return n + (rng_shape.randint(0, 1) * 2 - 1) * rng_shape.randint(0, n // 2)
+    range = n // 2
+    diff = rng_shape.randint(-1 * range, max(range, 1))
+    new_value = n + diff
+    # logger.trace(f"Randomize size: {n} + {diff} -> {new_value}")
+    return new_value
