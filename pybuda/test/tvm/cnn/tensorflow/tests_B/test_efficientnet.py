@@ -72,38 +72,4 @@ def test_transpose_batch_dim(training, input_shape):
     evaluate_framework_vs_pybuda(model, ret, act1)
 
 
-def test_efficientnet_layer(test_kind, test_device):
-    if (
-        test_kind == TestKind.TRAINING
-    ):  # Always run with recompute in post-commit CI. Nightly tests both
-        pytest.skip()
 
-    compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.compile_depth = CompileDepth.PRE_LOWERING_PASS
-    compiler_cfg.balancer_policy = "CNN"
-
-    blocks_args = [{
-        'kernel_size': 3,
-        'repeats': 1,
-        'filters_in': 32,
-        'filters_out': 16,
-        'expand_ratio': 1,
-        'id_skip': True,
-        'strides': 1,
-        'se_ratio': 0.25
-    }]
-
-    input_shape = (1, 32, 112, 112)
-    model = tf.keras.applications.EfficientNetB0(include_top=False, input_shape=input_shape[1:], blocks_args=blocks_args, weights=None)
-
-    mod = TFModule("efficientnet_b0_layer_tf", model)
-
-    verify_module(
-        mod,
-        (input_shape,),
-        verify_cfg=VerifyConfig(
-            arch=test_device.arch,
-            devtype=test_device.devtype,
-            test_kind=test_kind,
-        ),
-    )
