@@ -11,6 +11,10 @@ import torchvision.models as models
 from timm.data import resolve_data_config
 from timm.data.transforms_factory import create_transform
 from loguru import logger
+import torchvision
+from torchvision.models import efficientnet_b4, efficientnet_b0, EfficientNet_B4_Weights, EfficientNet_B0_Weights
+from torchvision.models._api import WeightsEnum
+from torch.hub import load_state_dict_from_url
 
 import pybuda
 from pybuda import VerifyConfig
@@ -32,6 +36,10 @@ variants = [
     # "hf_hub:timm/tf_efficientnetv2_s.in21k",
 ]
 
+def get_state_dict(self, *args, **kwargs):
+    kwargs.pop("check_hash")
+    return load_state_dict_from_url(self.url, *args, **kwargs)
+WeightsEnum.get_state_dict = get_state_dict
 
 @pytest.mark.parametrize("variant", variants)
 def test_efficientnet_timm(variant, test_device):
@@ -168,7 +176,10 @@ def test_efficientnet_torchvision(variant, test_device):
 
 
     # Load model
-    framework_model = download_model(variant, pretrained=True)
+    if variant == models.efficientnet_b0:
+        framework_model = efficientnet_b0(weights=EfficientNet_B0_Weights.IMAGENET1K_V1)
+    elif variant == models.efficientnet_b4:
+        framework_model = efficientnet_b4(weights=EfficientNet_B4_Weights.IMAGENET1K_V1)
     framework_model.eval()
     pybuda_model = pybuda.PyTorchModule("pt_effnet_torchvis", framework_model)
 
