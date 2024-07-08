@@ -50,7 +50,7 @@ def test_segformer_imgcls_onnx_2(test_device, variant):
     pixel_values = get_sample_data(variant)
 
     onnx_model_path = (
-        "third_party/confidential_customer_models/generated/files/"
+        "third_party/confidential_customer_models/internal/segformer/files/onnx/imgcls/"
         + str(variant).split("/")[-1].replace("-", "_")
         + ".onnx"
     )
