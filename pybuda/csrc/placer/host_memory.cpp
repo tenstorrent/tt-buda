@@ -14,7 +14,7 @@ namespace tt::placer
 {
 
 HostMemoryPlacerConfig::HostMemoryPlacerConfig(
-    const DeviceConfig& device_config, bool input_queues_on_host, bool output_queues_on_host)
+    const DeviceConfig& device_config, bool input_queues_on_host, bool output_queues_on_host) : device_config(device_config)
 {
     if (input_queues_on_host)
     {
