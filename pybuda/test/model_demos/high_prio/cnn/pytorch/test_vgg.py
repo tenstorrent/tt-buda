@@ -40,7 +40,9 @@ def test_vgg_osmr_pytorch(variant, test_device):
         os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "0"
         os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "0"
         os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "0"
-
+        if variant == "vgg19":
+            compiler_cfg.place_on_new_epoch("conv2d_32.dc.sparse_matmul.9.dc.sparse_matmul.1.lc2")
+            compiler_cfg.place_on_new_epoch("matmul_39")
     # STEP 2: Create PyBuda module from PyTorch model
     # Variants: 
     #['vgg11', 'vgg13', 'vgg16', 'vgg19', 
