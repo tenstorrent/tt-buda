@@ -36,7 +36,7 @@ def test_hardnet_pytorch(test_device, variant):
 
     # load the weights downloaded from https://github.com/PingoLH/Pytorch-HarDNet
     checkpoint_path = (
-        f"third_party/confidential_customer_models/generated/files/{variant}.pth"
+        f"third_party/confidential_customer_models/internal/hardnet/files/weights/{variant}.pth"
     )
 
     # Load weights from the checkpoint file and maps tensors to CPU, ensuring compatibility even without a GPU.

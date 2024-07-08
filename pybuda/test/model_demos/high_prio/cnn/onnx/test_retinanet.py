@@ -171,7 +171,7 @@ def test_retinanet_onnx(variant, test_device):
  
     # Prepare model
     load_path = (
-        f"third_party/confidential_customer_models/generated/files/{variant}.onnx"
+        f"third_party/confidential_customer_models/internal/retinanet/files/onnx/{variant}.onnx"
     )
     model_name = f"onnx_{variant}"
     model = onnx.load(load_path)

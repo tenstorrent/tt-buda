@@ -11,7 +11,7 @@ from pybuda._C.backend_api import BackendDevice
 
 from pybuda import VerifyConfig
 import sys
-sys.path.append("third_party/confidential_customer_models/cv_demos/pidnet/model")
+sys.path.append("third_party/confidential_customer_models/internal/pidnet/scripts")
 from model_pidnet import update_model_config, get_seg_model
 
 
@@ -29,7 +29,7 @@ def test_pidnet_pytorch(variant, test_device):
     os.environ["PYBUDA_RIBBON2"] = "1"
 
     # Load and pre-process image
-    image_path = "./third_party/confidential_customer_models/cv_demos/pidnet/image/road_scenes.png"
+    image_path = "third_party/confidential_customer_models/internal/pidnet/files/samples/road_scenes.png"
     image = cv2.imread(image_path, cv2.IMREAD_COLOR)
     image = image.astype(np.float32)[:, :, ::-1]
     image = image / 255.0

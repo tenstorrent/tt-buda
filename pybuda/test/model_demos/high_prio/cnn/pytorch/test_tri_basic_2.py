@@ -63,7 +63,7 @@ def test_tri_basic_2_sematic_segmentation_pytorch(test_device):
     image_w = 800
     image_h = 800
     image = cv2.imread(
-        "third_party/confidential_customer_models/cv_demos/tri_basic_2/images/left.png"
+        "third_party/confidential_customer_models/internal/tri_basic_2/files/samples/left.png"
     )
     image = cv2.resize(image, (image_w, image_h), interpolation=cv2.INTER_LINEAR)
     image_tensor = (
@@ -74,7 +74,7 @@ def test_tri_basic_2_sematic_segmentation_pytorch(test_device):
     hparams = SimpleNamespace(num_classes=24)
     model = resnet34_semseg(hparams)
     state_dict = torch.load(
-        "third_party/confidential_customer_models/cv_demos/tri_basic_2/weights/basic_semseg.ckpt",
+        "third_party/confidential_customer_models/internal/tri_basic_2/files/weights/basic_semseg.ckpt",
         map_location="cpu",
     )
     model.load_state_dict(state_dict)

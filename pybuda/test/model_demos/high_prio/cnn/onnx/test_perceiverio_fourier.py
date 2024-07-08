@@ -52,7 +52,7 @@ def test_perceiverio_fourier_imgcls_onnx(test_device):
             verify_enabled = False
 
     onnx_model_path = (
-        "third_party/confidential_customer_models/generated/files/"
+        "third_party/confidential_customer_models/internal/perceiverio/files/onnx/"
         + str(model_name).split("/")[-1].replace("-", "_")
         + ".onnx"
     )

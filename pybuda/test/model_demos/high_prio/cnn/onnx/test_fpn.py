@@ -17,7 +17,7 @@ def test_fpn_onnx(test_device, test_kind):
     os.environ["PYBUDA_FORCE_EMULATE_HARVESTED"] = "1"
 
     # Load FPN model
-    onnx_model_path = "third_party/confidential_customer_models/generated/files/fpn.onnx"
+    onnx_model_path = "third_party/confidential_customer_models/internal/fpn/files/onnx/fpn.onnx"
     model = onnx.load(onnx_model_path)
     tt_model = pybuda.OnnxModule("onnx_fpn", model, onnx_model_path)
 

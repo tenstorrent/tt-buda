@@ -79,7 +79,7 @@ def test_yolo_v5_320x320_onnx(test_device, variant):
             os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{112*1024}"
 
     # Load the ONNX model
-    onnx_model_path = f"./third_party/confidential_customer_models/generated/files/{variant}_{input_size}.onnx"
+    onnx_model_path = f"third_party/confidential_customer_models/internal/yolo_v5/files/onnx/{variant}_{input_size}.onnx"
     onnx_model = onnx.load(onnx_model_path)
     model_name = f"{variant}_{input_size}_onnx"
 
@@ -185,7 +185,7 @@ def test_yolo_v5_480x480_onnx(test_device, variant):
     input_size = 480
 
     # Load the ONNX model
-    onnx_model_path = f"./third_party/confidential_customer_models/generated/files/{variant}_{input_size}.onnx"
+    onnx_model_path = f"third_party/confidential_customer_models/internal/yolo_v5/files/onnx/{variant}_{input_size}.onnx"
     onnx_model = onnx.load(onnx_model_path)
     model_name = f"{variant}_{input_size}_onnx"
 
@@ -294,7 +294,7 @@ def test_yolo_v5_640x640_onnx(test_device, variant):
     input_size = 640
 
     # Load the ONNX model
-    onnx_model_path = f"./third_party/confidential_customer_models/generated/files/{variant}_{input_size}.onnx"
+    onnx_model_path = f"third_party/confidential_customer_models/internal/yolo_v5/files/onnx/{variant}_{input_size}.onnx"
     onnx_model = onnx.load(onnx_model_path)
     model_name = f"{variant}_{input_size}_onnx"
 
