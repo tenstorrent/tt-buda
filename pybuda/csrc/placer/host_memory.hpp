@@ -47,6 +47,7 @@ class HostChannelMemoryRegion
 // Host memory is divided into host channels, which are contiguous regions of memory.
 struct HostMemoryPlacerConfig
 {
+    const DeviceConfig& device_config;
     std::vector<HostChannelMemoryRegion> host_memory_regions;
     bool input_queues_on_host;
     bool output_queues_on_host;

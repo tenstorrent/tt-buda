@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "placer/host_memory_allocator.hpp"
 
+#include "backend_api/device_config.hpp"
 #include "balancer/balancer.hpp"
 #include "graph_lib/node.hpp"
 #include "placer/allocator_utils.hpp"
@@ -12,22 +13,33 @@
 namespace tt::placer
 {
 
-// NB: To ensure device->host writes are 64B aligned(PCIE controller w/ 512-bit interface), we need to allocate 
-// addresses that are odd multiples of 32 bytes because we need to include the 32 byte tile header.
-// See BBE#2175 for more details.
-inline static std::uint32_t align_host_address(std::uint32_t address)
+inline static std::uint32_t align_address(std::uint32_t address, std::uint32_t alignment) 
 {
-    constexpr std::uint32_t alignment = 32;
-    // Add alignment to the address to ensure we go to the next multiple if not already at one
-    address += (alignment - 1);
+    return (address + alignment - 1) & ~static_cast<std::uint32_t>(alignment - 1);
+}
 
-    // Align to the next even multiple of `alignment`
-    address &= ~uintptr_t(alignment - 1);
-
-    // Check if the result is an odd multiple; if not, add another `alignment`
-    if ((address / alignment) % 2 == 0)
+inline static std::uint32_t align_host_address(std::uint32_t address, const DeviceConfig& device_config) {
+    if (device_config.is_blackhole())
     {
-        address += alignment;
+        // On blackhole starting addresses of host queues need to be 64 byte aligned.
+        //
+        address = align_address(address, 64 /* alignment */);
+    }
+    else
+    {
+        // NB: To ensure device->host writes are 64B aligned(PCIE controller w/ 512-bit interface), we need to allocate 
+        // addresses that are odd multiples of 32 bytes because we need to include the 32 byte tile header.
+        // See BBE#2175 for more details.
+        //
+        constexpr std::uint32_t alignment = 32;
+        address = align_address(address, alignment);
+
+        // Check if the result is an odd multiple; if not, add another alignment.
+        //
+        if ((address / alignment) % 2 == 0)
+        {
+            address += alignment;
+        }
     }
 
     return address;
@@ -35,12 +47,12 @@ inline static std::uint32_t align_host_address(std::uint32_t address)
 
 std::uint32_t HostMemoryAllocator::get_current_allocation_address() const
 {
-    return align_host_address(this->current_allocation_address);
+    return align_host_address(this->current_allocation_address, config.device_config);
 }
 
 void HostMemoryAllocator::increment_allocation_address(const std::uint32_t size)
 {
-    this->current_allocation_address = align_host_address(this->get_current_allocation_address() + size);
+    this->current_allocation_address = align_host_address(this->get_current_allocation_address() + size, config.device_config);
 }
 
 std::pair<std::uint32_t, std::uint32_t> HostMemoryAllocator::allocate_memory(const graphlib::Node* node, std::uint32_t queue_size)
