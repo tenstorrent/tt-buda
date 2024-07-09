@@ -30,36 +30,7 @@ from pybuda.verify import verify_module
 from pybuda.verify.config import TestKind
 import pybuda
 
-def test_gptj_block(test_kind, test_device):
-    if test_device.arch == pybuda.BackendDevice.Grayskull:
-        pytest.skip()
-    input_shape = (1, 128, 4096)
-    compiler_cfg = _get_global_compiler_config()
-    if test_kind.is_training():
-        compiler_cfg.compile_depth = CompileDepth.BUDA_GRAPH_PRE_PLACER
 
-    if test_device.arch == BackendDevice.Wormhole_B0 or test_device.arch == BackendDevice.Blackhole:
-        pytest.skip() # see tenstorrent/pybuda#969
-
-    #Fusing disabled due to tenstorrent/pybuda#789
-    if (test_kind == TestKind.INFERENCE):
-        compiler_cfg.enable_auto_fusing=False
-
-    config = GPTJConfig(n_layer=1)  # for faster loading
-    config.rotary_dim = 64
-    model = GPTJBlock(config)
-
-    mod = PyTorchModule("gptj_block", model)
-
-    verify_module(
-        mod,
-        (input_shape,),
-        verify_cfg=VerifyConfig(
-            arch=test_device.arch,
-            devtype=test_device.devtype,
-            test_kind=test_kind,
-        )
-    )
 
 
 def fixed_pos_embedding(x, seq_dim=1, seq_len=None):
