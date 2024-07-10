@@ -25,74 +25,7 @@ from pybuda.verify import verify_module
 from pybuda.verify.config import TestKind
 
 
-def test_gptj_block(test_kind, test_device):
-    # unspported op Gather with the new environment
-    # tenstorrent/pybuda#1610
-    pytest.skip()
 
-    # Only run recompute test in post-commit
-    if test_kind == TestKind.TRAINING:
-        pytest.skip()
-
-    compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.retain_tvm_python_files = True
-    if not test_kind.is_training():
-        # Unsupported HW ops
-        compiler_cfg.compile_depth = CompileDepth.BUDA_GRAPH_PRE_PLACER
-    else:
-        # Unsupported concatenate backward pass
-        compiler_cfg.compile_depth = CompileDepth.GENERATE_INITIAL_GRAPH
-
-    # Configure PyTorch module
-    config = GPTJConfig(n_layer=1)  # for faster loading
-    config.rotary_dim = 64
-    pytorch_module = GPTJBlock(config)
-
-    # Export to ONNX
-    input_shape = (1, 128, 4096)
-    save_path = os.path.dirname(os.path.realpath(__file__)) + "/gptj_block.onnx"
-
-    # Add position_ids to args
-    position_ids = torch.arange(0, input_shape[-2], dtype=torch.long, device='cpu')   
-    position_ids = position_ids.unsqueeze(0).view(-1, input_shape[-2])
-    torch.onnx.export(
-        pytorch_module,
-        args=(torch.rand(input_shape), {"position_ids": position_ids,}),
-        f=save_path,
-        export_params=True,
-        opset_version=14,
-        do_constant_folding=True,
-        input_names=["input"],
-        output_names=["output"],
-    )
-
-    # Load ONNX module
-    onnx_module = onnx.load(save_path)
-    onnx.checker.check_model(onnx_module)
-    pybuda_onnx_module = OnnxModule(
-        "gptj_block_onnx",
-        onnx_module,
-        save_path,
-    )
-
-    input_shape = []
-    for i in range(len(onnx_module.graph.input)):
-        dimension = onnx_module.graph.input[i].type.tensor_type.shape
-        i_shape = [d.dim_value for d in dimension.dim]
-        input_shape.append(i_shape)
-
-    verify_module(
-        pybuda_onnx_module,
-        input_shape,
-        verify_cfg=VerifyConfig(
-            arch=test_device.arch,
-            devtype=test_device.devtype,
-            test_kind=test_kind,
-        ),
-    )
-
-    # Cleanup
-    os.remove(save_path)
 
 
 def fixed_pos_embedding(x, seq_dim=1, seq_len=None):
