@@ -25,45 +25,7 @@ from test.backend.models.test_bert import get_relaxed_atol_pcc
 import urllib
 import os
 
-@pytest.mark.skip(reason="Pretrained Onnx Bert casts int to float in TVM.")
-def test_tvm_bert_squad_onnx(test_kind, test_device):
-    if test_kind == TestKind.TRAINING: # only run recompute test in post-commit
-        pytest.skip()
 
-    if test_kind.is_training():
-        pytest.skip()
-        test_device.devtype = BackendType.NoBackend
-    save_path = os.path.dirname(os.path.realpath(__file__)) + "bert_squad.onnx"
-
-    if not os.path.exists(save_path):
-        urllib.request.urlretrieve(
-            "https://github.com/onnx/models/raw/main/text/machine_comprehension/bert-squad/model/bertsquad-12.onnx",
-            save_path,
-        )
-
-    onnx_model = onnx.load(save_path)
-    onnx.checker.check_model(onnx_model)
-    mod = OnnxModule(
-        "bert_squad_onnx",
-        onnx_model,
-        save_path,
-    )
-
-    compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.compile_depth = CompileDepth.PRE_LOWERING_PASS
-    
-    input_shape = (1, 32)
-    verify_module(
-        mod,
-        ((256,),(1, 256,),(1,256,),(1, 256,),),
-        input_params=[{"data_format" :  torch.int64},{"data_format" :  torch.int64},{"data_format" :  torch.int64},{"data_format" :  torch.int64},],
-        verify_cfg=VerifyConfig(
-            arch=test_device.arch,
-            devtype=test_device.devtype,
-            test_kind=test_kind,
-        )
-    )
-    os.remove(save_path)
 
 
 from transformers import BertModel, BertConfig, BertForPreTraining
