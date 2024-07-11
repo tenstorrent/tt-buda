@@ -226,7 +226,7 @@ def test_yolox_pytorch(variant, test_device):
     elif test_device.arch == BackendDevice.Grayskull:
         if variant in ["yolox_nano", "yolox_s", "yolox_l", "yolox_x"]:
             pcc_value = 0.93
-        elif variant in ["yolox_m,yolox_darknet"]:
+        elif variant in ["yolox_m","yolox_darknet"]:
             pcc_value = 0.92
         elif variant == "yolox_tiny":
             pcc_value = 0.98
