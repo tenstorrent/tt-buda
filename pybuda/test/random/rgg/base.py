@@ -14,11 +14,11 @@ import random
 from pybuda import PyBudaModule
 from pybuda.verify import verify_module, VerifyConfig
 from pybuda.op_repo import OperatorRepository
+from test.operators.utils import ShapeUtils
 from test.conftest import TestDevice
 from test.utils import Timer
 from .datatypes import RandomizerNode, RandomizerGraph, RandomizerParameters, RandomizerConfig, ExecutionContext
 from .datatypes import RandomizerTestContext
-from .datatypes import TensorShape
 from .utils import StrUtils, GraphUtils
 
 
@@ -79,9 +79,6 @@ class RandomizerCodeGenerator:
     def forward_kwargs(self, node: RandomizerNode) -> str:
         return StrUtils.kwargs_str(**node.forward_kwargs)
 
-    def reduce_microbatch_size(self, shape: TensorShape) -> str:
-        return (1, ) + shape[1:]
-
     def generate_code(self, test_context: RandomizerTestContext, test_format: bool = True) -> str:
         # TODO setup random seed in generated test function
 
@@ -99,7 +96,7 @@ class RandomizerCodeGenerator:
             constructor_kwargs=self.constructor_kwargs,
             forward_args=self.forward_args,
             forward_kwargs=self.forward_kwargs,
-            reduce_microbatch_size=self.reduce_microbatch_size,
+            reduce_microbatch_size=ShapeUtils.reduce_microbatch_size,
             ExecutionContext=ExecutionContext,
             )
 
