@@ -185,8 +185,8 @@ DramAllocator::DramAllocator(
     switch (allocator_algorithm)
     {
         case BEST_FIT:
-            std::uint32_t p2p_offset;
-            std::uint32_t p2p_size;
+            std::size_t p2p_offset;
+            std::size_t p2p_size;
 
             if (chip_id == 0)
             {

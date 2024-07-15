@@ -36,9 +36,9 @@ struct DramConfig
 {
     uint32_t channel;
     uint32_t sub_channel;
-    uint32_t channel_size;
+    size_t channel_size;
     Coord location;
-    uint32_t initial_dram_offset;
+    size_t initial_dram_offset;
 
     static std::vector<DramConfig> get_config(DeviceConfig const &device_config)
     {
