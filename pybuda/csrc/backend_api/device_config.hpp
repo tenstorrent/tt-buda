@@ -287,7 +287,7 @@ struct DeviceConfig
         // TODO - get from backend, but backend needs to add it
         return is_grayskull() ? 1 : 3;
     }
-    std::uint32_t get_dram_channel_capacity() const { return get<std::uint32_t>("dram-channel_capacity", false); }
+    std::size_t get_dram_channel_capacity() const { return get<std::size_t>("dram-channel_capacity", false); }
     std::size_t get_dram_bandwidth_per_block_theoretical() const
     {
         return get<std::size_t>("dram-bandwidth_per_block_theoretical", false);
