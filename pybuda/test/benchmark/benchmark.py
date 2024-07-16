@@ -47,10 +47,11 @@ import benchmark.models.custom.custom_vit_highres
 from pybuda.tools.tti_data_parallel import (
     RunMode,
     RunResult,
-    ForwardRunInputs,
-    GenerativeRunInputs,
+    ForwardInputs,
+    GenerativeInputs,
+    MultiCardRunner,
     split_tensor_batch,
-    run_tti_data_parallel,
+    initialize_multicard_runner,
 )
 
 def single_thread_generative_model_run(args, first_device, last_device, inputs, targets, output_q, num_tokens_to_generate, first_current_index, pad_token_id, write_index):
@@ -254,12 +255,12 @@ def duplicate_batch(input_data, factor: int):
 
 def data_parallel_tti_run(
     arch: BackendDevice,
-    inputs: Union[ForwardRunInputs, GenerativeRunInputs],
+    compile_inputs: Union[torch.Tensor, Tuple[torch.Tensor, ...]],
+    run_inputs: Union[ForwardInputs, GenerativeInputs],
     run_mode: RunMode,
-    loop_count: int, 
     output_dir: str,
     # List of mmio mapped device ids
-    device_ids: List[int],
+    device_ids: List[List[int]],
     tt_device: Optional[pybuda.TTDevice] = None, 
     precompiled_image_path: Optional[str] = None,
 ):
@@ -267,9 +268,7 @@ def data_parallel_tti_run(
     assert tt_device or precompiled_image_path, "One of tt_device or precompiled_image_path must be specified"
     assert not (tt_device and precompiled_image_path), "Specify one of tt_device, precompiled_image_path"
     num_devices = len(device_ids)
-    
-    compile_inputs = inputs.inputs if run_mode == RunMode.FORWARD else inputs.compile_inputs
-    
+        
     if tt_device is not None:
         image_path = os.path.join(output_dir, "parallel_tti_run.tti")
         single_device_inputs = split_tensor_batch(compile_inputs, num_devices)[0]
@@ -280,17 +279,22 @@ def data_parallel_tti_run(
 
     pybuda.pybuda_reset()
     
-    # Don't check outputs here, just care about perf
-    run_result: RunResult = run_tti_data_parallel(
+    runner: MultiCardRunner = initialize_multicard_runner(
         arch=arch,
         device_ids=device_ids,
         run_mode=run_mode,
-        inputs=inputs, 
-        output_dir=output_dir, 
-        num_loops=loop_count,
+        compile_inputs=compile_inputs,
         precompiled_tti_path=image_path,
-        sync_at_run_start=True,
+        output_dir=output_dir,
+        benchmark_perf=True,
     )
+    
+    # Don't check outputs here, just care about perf
+    run_result: RunResult = runner.run(
+        all_inputs=run_inputs
+    )
+    
+    runner.shutdown()
     
     return run_result.get_earliest_start(), run_result.get_latest_end()
 
@@ -433,7 +437,8 @@ def run(
         
         if not num_tokens_to_generate:
             run_mode = RunMode.FORWARD
-            all_inputs = ForwardRunInputs(inputs=inputs)
+            all_inputs = ForwardInputs(run_inputs=[inputs] * args.loop_count)
+            compile_inputs = inputs
             
         else:
             run_mode = RunMode.GENERATIVE
@@ -441,8 +446,7 @@ def run(
             inputs = duplicate_batch(inputs, len(device_list))
             compile_inputs = duplicate_batch(compile_inputs, len(device_list))
             
-            all_inputs = GenerativeRunInputs(
-                compile_inputs=compile_inputs,
+            all_inputs = GenerativeInputs(
                 run_inputs=inputs,
                 num_tokens_to_generate=num_tokens_to_generate,
                 write_index=write_index,
@@ -452,9 +456,9 @@ def run(
             
         start_time, end_time = data_parallel_tti_run(
             arch=arch,
-            inputs=all_inputs,
+            compile_inputs=compile_inputs,
+            run_inputs=all_inputs,
             run_mode=run_mode,
-            loop_count=args.loop_count,
             output_dir=args.parallel_tti,
             device_ids=device_ids,
             tt_device=tt_device,

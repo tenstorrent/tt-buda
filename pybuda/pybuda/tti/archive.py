@@ -647,6 +647,7 @@ class TTIArchive:
         device_id_overrides: List[int]
     ) -> str:
         new_backend_output_dir = TTIArchive._get_override_backend_output_path(original_backend_output_dir, device_id_overrides)
+        
         if os.path.exists(new_backend_output_dir):
             logger.info("TTDeviceImage: Using existing device override binaries directory {}", new_backend_output_dir)
             return new_backend_output_dir
@@ -656,15 +657,17 @@ class TTIArchive:
 
         # Remove the original netlist and copy over the override netlist to the new binaries directory
         original_netlist_name = os.path.basename(original_netlist_path)
-        os.remove(os.path.join(new_backend_output_dir, original_netlist_name))
+        new_backend_dir_original_netlist_path = os.path.join(new_backend_output_dir, original_netlist_name)
+        if os.path.exists(new_backend_dir_original_netlist_path):
+            os.remove(new_backend_dir_original_netlist_path)
         
         # Path to the netlist file override directly under unzipped_tti directory
         override_netlist_path = TTIArchive._get_override_netlist_path(original_netlist_path, device_id_overrides)
         override_netlist_name = os.path.basename(override_netlist_path)
         
-        override_netlist_path_in_backend_outdir = os.path.join(new_backend_output_dir, override_netlist_name)
+        new_backend_dir_override_netlist_path = os.path.join(new_backend_output_dir, override_netlist_name)
         
-        TTIArchive._copy_netlist_yaml(netlist_yaml=override_netlist_path, dst_dir=override_netlist_path_in_backend_outdir)
+        TTIArchive._copy_netlist_yaml(netlist_yaml=override_netlist_path, dst_dir=new_backend_dir_override_netlist_path)
 
         old_device_to_new_device_map = TTIArchive._get_original_device_to_new_device_map(original_netlist_path, device_id_overrides)
         
@@ -676,7 +679,7 @@ class TTIArchive:
         
         if os.environ.get("PYBUDA_N300_DATA_PARALLEL", "0") == "1":
             # Update device id suffix in trisc firmware directories
-            TTIArchive._update_n300_dp_trisc_firmware_directories(override_netlist_path_in_backend_outdir, old_device_to_new_device_map)
+            TTIArchive._update_n300_dp_trisc_firmware_directories(new_backend_dir_override_netlist_path, old_device_to_new_device_map)
 
         return new_backend_output_dir
     
