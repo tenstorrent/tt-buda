@@ -1,0 +1,16 @@
+.backend-silicon-wh-b0-t3k-common:
+  extends: .backend-silicon-wh-b0-common
+  stage: sanity-wh-b0-t3k-silicon
+  tags:
+    - t3k
+    - push
+
+pybuda-silicon-wh-b0-t3k-tti-data-parallel:
+  extends: .backend-silicon-wh-b0-t3k-common
+  script:
+    - !reference [.backend-silicon-wh-b0-t3k-common, script]
+    # Run this on x2 for now as a sanity test
+    # Move this to t3000 once we have more t3000 machines
+    # - source pybuda/test/benchmark/run_benchmark_tti_data_parallel
+    - PYBUDA_FORCE_THREADS=1 pytest -svv pybuda/test/tti/test_tti_data_parallel.py::test_tti_mmio_dp_sanity
+
