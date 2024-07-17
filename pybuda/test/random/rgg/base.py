@@ -243,7 +243,19 @@ class RandomizerRunner:
         # build random graph for the specified parameters
         logger.trace("Building graph started")
         graph_duration = Timer()
-        self.build_graph(graph_builder)
+        try:
+            self.build_graph(graph_builder)
+        except Exception as e1:
+            # Try to save test source code to file for debugging purposes if an error occurs
+            try:
+                test_code_str = self.generate_code()
+                if randomizer_config.save_tests:
+                    # Saving test source code to file for debugging purposes
+                    self.save_test(test_code_str, failing_test=True)
+            except Exception as e2:
+                logger.error(f"Error while saving test: {e2}")
+            # Re-raise the original exception from graph building
+            raise e1
         logger.trace("Building graph completed")
         graph = self.test_context.graph
         logger.debug(f"Generating graph model {GraphUtils.short_description(graph)}")
@@ -288,6 +300,7 @@ def process_test(test_name: str, test_index: int, random_seed: int, test_device:
     Process a single randomizer test.
 
     Args:
+        test_name (str): The name of the test used for generating test code, test file name, etc.
         test_index (int): The index of the test.
         random_seed (int): The random seed for the test.
         test_device (TestDevice): The device for the test.
