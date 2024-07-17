@@ -132,18 +132,20 @@ def test_random_graph_algorithm_pybuda(test_index, random_seeds, test_device, ra
     randomizer_config = copy(randomizer_config)
     # randomizer_config.debug_shapes = True
     # randomizer_config.verify_shapes = True
-    randomizer_config.dim_min = 3
-    randomizer_config.dim_max = 4
-    randomizer_config.op_size_per_dim_min = 4
-    # randomizer_config.op_size_per_dim_min = 16
-    randomizer_config.op_size_per_dim_max = 8
-    # randomizer_config.op_size_per_dim_max = 64
-    # randomizer_config.op_size_per_dim_max = 256
-    randomizer_config.microbatch_size_min = 1
-    randomizer_config.microbatch_size_max = 8
-    randomizer_config.num_of_nodes_min = 5
-    randomizer_config.num_of_nodes_max = 10
-    randomizer_config.num_fork_joins_max = 5
+
+    # Uncomment the following randomizer_config values to override the default values
+    # randomizer_config.dim_min = 3
+    # randomizer_config.dim_max = 4
+    # randomizer_config.op_size_per_dim_min = 4
+    # # randomizer_config.op_size_per_dim_min = 16
+    # randomizer_config.op_size_per_dim_max = 8
+    # # randomizer_config.op_size_per_dim_max = 64
+    # # randomizer_config.op_size_per_dim_max = 256
+    # randomizer_config.microbatch_size_min = 1
+    # randomizer_config.microbatch_size_max = 8
+    # randomizer_config.num_of_nodes_min = 5
+    # randomizer_config.num_of_nodes_max = 10
+    # randomizer_config.num_fork_joins_max = 5
 
     # TODO random_seed instead of random_seeds
     random_seed = random_seeds[test_index]
@@ -184,18 +186,20 @@ def test_random_graph_algorithm_pytorch(test_index, random_seeds, test_device, r
     randomizer_config = copy(randomizer_config)
     # randomizer_config.debug_shapes = True
     # randomizer_config.verify_shapes = True
-    randomizer_config.dim_min = 4
-    randomizer_config.dim_max = 4
-    randomizer_config.op_size_per_dim_min = 4
-    # randomizer_config.op_size_per_dim_min = 16
-    randomizer_config.op_size_per_dim_max = 8
-    # randomizer_config.op_size_per_dim_max = 64
-    # randomizer_config.op_size_per_dim_max = 256
-    randomizer_config.microbatch_size_min = 1
-    randomizer_config.microbatch_size_max = 8
-    randomizer_config.num_of_nodes_min = 3
-    randomizer_config.num_of_nodes_max = 5
-    randomizer_config.num_fork_joins_max = 5
+    
+    # Uncomment the following randomizer_config values to override the default values
+    # randomizer_config.dim_min = 4
+    # randomizer_config.dim_max = 4
+    # randomizer_config.op_size_per_dim_min = 4
+    # # randomizer_config.op_size_per_dim_min = 16
+    # randomizer_config.op_size_per_dim_max = 8
+    # # randomizer_config.op_size_per_dim_max = 64
+    # # randomizer_config.op_size_per_dim_max = 256
+    # randomizer_config.microbatch_size_min = 1
+    # randomizer_config.microbatch_size_max = 8
+    # randomizer_config.num_of_nodes_min = 3
+    # randomizer_config.num_of_nodes_max = 5
+    # randomizer_config.num_fork_joins_max = 5
 
     # TODO random_seed instead of random_seeds
     random_seed = random_seeds[test_index]
