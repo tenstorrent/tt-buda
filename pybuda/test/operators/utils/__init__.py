@@ -6,6 +6,7 @@ from .utils import ShapeUtils
 from .utils import InputSourceFlag, InputSourceFlags
 from .utils import CompilerUtils
 from .utils import VerifyUtils
+from .utils import NetlistValidation
 from .utils import LoggerUtils
 from .netlist_utils import read_netlist_value
 
@@ -16,5 +17,6 @@ __all__ = [
     'InputSourceFlags',
     'CompilerUtils',
     'VerifyUtils',
+    'NetlistValidation',
     'LoggerUtils',
 ]
