@@ -3,8 +3,8 @@ import pybuda
 {% if test_format %}
 import pytest
 from pybuda.verify import verify_module, VerifyConfig
-{% endif %}
-from test.random.rgg import DebugUtils
+{% endif %}{% if randomizer_config.debug_shapes %}
+from test.random.rgg import DebugUtils{% endif %}
 from pybuda import PyBudaModule, Tensor
 
 {# TODO replace empty new lines with spaces to keep formatting in pipeline #}

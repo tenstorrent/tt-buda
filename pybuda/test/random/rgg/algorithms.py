@@ -26,34 +26,16 @@ class GraphNodeSetup:
     always_unique_variables = False
 
     @classmethod
-    def init_nodes(cls, test_context: RandomizerTestContext):
+    def init_nodes_names(cls, test_context: RandomizerTestContext):
         """
-        Initializes the nodes of a graph. 
+        Initializes the nodes names of a graph. 
 
-        This method does three main things:
+        This method does following things:
         1. Sets the index for each node.
         2. Stores output values if they are needed as explicit input for a later operator.
-        3. Setting input nodes for open nodes.
-        4. Generates random settings for operator parameters.
-
-        Args:
-            test_context (RandomizerTestContext): The test context.
-
-        Raises:
-            Exception: If the number of inputs for a node does not match the configured input number.
-            Exception: If the node operator is not of type RandomizerOperator.
-
-        Returns:
-            None
         """
-        graph = test_context.graph
+
         nodes = test_context.graph.nodes
-
-        rng_shape = test_context.rng_shape
-        rng_params = test_context.rng_params
-
-        constant_input_rate_limitter = RateLimitter(rng_shape, 100, test_context.randomizer_config.constant_input_rate)
-        same_inputs_rate_limitter = RateLimitter(rng_shape, 100, test_context.randomizer_config.same_inputs_percent_limit)
 
         # Setting node.index
         op_index_cnt = 0
@@ -71,6 +53,25 @@ class GraphNodeSetup:
                     # overriding default output variable name
                     input_node.out_value = input_node.operator_name
                     logger.trace(f"Set out_value = {input_node.out_value}")
+
+    @classmethod
+    def init_nodes_inputs(cls, test_context: RandomizerTestContext):
+        """
+        Setting input and contant nodes for open nodes.
+
+        Args:
+            test_context (RandomizerTestContext): The test context.
+
+        Returns:
+            None
+        """
+        graph = test_context.graph
+        nodes = test_context.graph.nodes
+
+        rng_shape = test_context.rng_shape
+
+        constant_input_rate_limitter = RateLimitter(rng_shape, 100, test_context.randomizer_config.constant_input_rate)
+        same_inputs_rate_limitter = RateLimitter(rng_shape, 100, test_context.randomizer_config.same_inputs_percent_limit)
 
         logger.trace("Setting input nodes for open nodes")
         open_nodes = NodeUtils.get_open_nodes(nodes)
@@ -133,6 +134,20 @@ class GraphNodeSetup:
                 iconst_index += 1
                 constant_node.out_value = f"iconst{iconst_index}"
 
+    @classmethod
+    def init_nodes_params(cls, test_context: RandomizerTestContext):
+        """
+        Generates random parameters for each node.
+
+        Args:
+            test_context (RandomizerTestContext): The test context.
+
+        Returns:
+            None
+        """
+        nodes = test_context.graph.nodes
+        rng_params = test_context.rng_params
+
         logger.trace("Generating random settings for operator parameters")
         # Generate random values for operator parameters
         for node in nodes:
@@ -172,7 +187,9 @@ class GraphNodeSetup:
         graph = test_context.graph
 
         logger.trace("Initializing nodes")
-        cls.init_nodes(test_context)
+        cls.init_nodes_names(test_context)
+        cls.init_nodes_inputs(test_context)
+        cls.init_nodes_params(test_context)
         logger.trace("Nodes initialized")
 
         logger.trace("Validating graph")
@@ -196,7 +213,8 @@ class RandomGraphAlgorithm(GraphBuilder):
     def _get_random_operator(self, rng):
         return rng.choice(self.operators)
 
-    def _init_default_constructor_params(self, node: RandomizerNode):
+    @classmethod
+    def _init_default_constructor_params(cls, node: RandomizerNode):
         '''Initializing default constructor parameters based on input and output shapes'''
         # Operator specific settings
         # TODO abstract this
