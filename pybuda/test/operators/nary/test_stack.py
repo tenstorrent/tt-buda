@@ -66,8 +66,9 @@ from loguru import logger
 
 from pybuda import PyBudaModule
 from pybuda.op_repo import TensorShape
-from test.operators.utils import netlist_utils, InputSourceFlags, CompilerUtils, VerifyUtils
+from test.operators.utils import InputSourceFlags, CompilerUtils, VerifyUtils
 from test.operators.utils import ShapeUtils
+from test.operators.utils import NetlistValidation
 from test.conftest import TestDevice
 
 
@@ -322,9 +323,9 @@ def test_stack_inputs_from_dram_queue(test_device, axis, input_shape, dev_data_f
         math_fidelity=math_fidelity,
     )
 
-    file_path = VerifyUtils.get_netlist_filename()
-    assert netlist_utils.read_netlist_value(file_path, "/queues/x/loc") == 'dram'
-    assert netlist_utils.read_netlist_value(file_path, "/queues/y/loc") == 'dram'
+    netlist = NetlistValidation()
+    assert netlist.get_value("/queues/x/loc") == 'dram'
+    assert netlist.get_value("/queues/y/loc") == 'dram'
 
 
 def get_input_shapes_prologued():
@@ -384,8 +385,8 @@ def test_stack_inputs_from_dram_prologued(test_device, axis, input_shape, input_
         math_fidelity=math_fidelity,
     )
 
-    file_path = VerifyUtils.get_netlist_filename()
-    d = netlist_utils.read_netlist_value(file_path, "/programs/0/run_fwd_0/4/execute/queue_settings/input_0_Stack0")
+    netlist = NetlistValidation()
+    d = netlist.get_value("/programs/0/run_fwd_0/4/execute/queue_settings/input_0_Stack0")
     if should_prolog:
         assert d['prologue']
     else:
@@ -435,8 +436,8 @@ def test_stack_inputs_from_constants(test_device, axis, input_shape, dev_data_fo
     )
 
     # Here we check there is no key with "Stack" in the netlist in graphs section
-    file_path = VerifyUtils.get_netlist_filename()
-    d = netlist_utils.read_netlist_value(file_path, "/graphs/fwd_0_0_temporal_epoch_0")
+    netlist = NetlistValidation()
+    d = netlist.get_value("/graphs/fwd_0_0_temporal_epoch_0")
     for key in d.keys():
         assert "Stack" not in key
 

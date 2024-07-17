@@ -19,6 +19,8 @@ from pybuda.config import _get_global_compiler_config
 from pybuda._C import MathFidelity
 from test.conftest import TestDevice
 
+from ..utils import netlist_utils
+
 
 class ShapeUtils:
 
@@ -95,6 +97,27 @@ class VerifyUtils:
     def get_netlist_filename() -> str:
         '''Get netlist filename of the last compiled model'''
         return pybuda.pybudaglobal.get_devices()[0]._compile_output.netlist_filename
+
+
+class NetlistValidation:
+    '''Utility functions for netlist validation'''
+
+    def __init__(self):
+        self.netlist_filename = VerifyUtils.get_netlist_filename()
+
+    def get_value(self, key_path: str):
+        """
+        Reads a netlist value from a YAML file based on the given key path.
+
+        Args:
+            key_path (str): The key path to the desired value in the YAML file.
+                            Keys are separated by slashes ("/").
+
+        Returns:
+            The value corresponding to the given key path in the YAML file, or None if the key path is not found.
+        """
+        return netlist_utils.read_netlist_value(self.netlist_filename, key_path)
+
 
 class LoggerUtils:
     '''Utility functions for logging'''
