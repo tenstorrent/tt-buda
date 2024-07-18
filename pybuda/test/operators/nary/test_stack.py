@@ -66,7 +66,7 @@ from loguru import logger
 
 from pybuda import PyBudaModule
 from pybuda.op_repo import TensorShape
-from test.operators.utils import InputSourceFlags, CompilerUtils, VerifyUtils
+from test.operators.utils import InputSourceFlags, VerifyUtils
 from test.operators.utils import ShapeUtils
 from test.operators.utils import NetlistValidation
 from test.conftest import TestDevice
@@ -78,16 +78,15 @@ def verify(model: PyBudaModule, test_device: TestDevice, input_shape: TensorShap
     input_shapes = tuple([input_shape for _ in range(number_of_operands)])
     logger.trace(f"***input_shapes: {input_shapes}")
 
-    if input_source_flag:
-        CompilerUtils.set_input_source(input_source_flag.value)
-
-    if math_fidelity:
-        CompilerUtils.set_math_fidelity(math_fidelity)
-
-    if dev_data_format:
-        input_params.append({"dev_data_format": dev_data_format})
-
-    VerifyUtils.verify(model, test_device, input_shapes, input_params)
+    VerifyUtils.verify(
+        model=model,
+        test_device=test_device,
+        input_shapes=input_shapes,
+        input_params=input_params,
+        input_source_flag=input_source_flag,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
+    )
 
 
 # Currently, verify_module for the Stack operator and Stack operator by it self

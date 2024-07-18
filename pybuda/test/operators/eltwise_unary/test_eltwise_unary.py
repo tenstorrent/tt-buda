@@ -61,16 +61,12 @@ import os
 from typing import Dict, List
 import pytest
 import numpy as np
-import math
 
 import pybuda.op
 from pybuda import TTDevice, BackendType, pybuda_compile, VerifyConfig, CompilerConfig
 from pybuda.verify.config import TestKind
 
-from pybuda.config import _get_global_compiler_config
-from pybuda.verify.backend import verify_module
-
-from test.operators.utils import netlist_utils, InputSourceFlags, CompilerUtils, VerifyUtils
+from test.operators.utils import netlist_utils, InputSourceFlags, VerifyUtils
 from test.conftest import TestDevice
 
 from pybuda.module import PyBudaModule
@@ -110,18 +106,22 @@ def verify(
 
     input_shapes = tuple([input_shape])
     
+    input_source_flag = None
     if input_model == "model_op_src_from_dram":
-        CompilerUtils.set_input_source(InputSourceFlags.FROM_DRAM.value) 
+        input_source_flag = InputSourceFlags.FROM_DRAM
     elif input_model == "model_op_src_from_host":
-        CompilerUtils.set_input_source(InputSourceFlags.FROM_HOST.value) 
+        input_source_flag = InputSourceFlags.FROM_HOST
         
-    if input_math_fidelity:
-        CompilerUtils.set_math_fidelity(input_math_fidelity)
-
-    if input_dev_data_format:
-        input_params.append({"dev_data_format": input_dev_data_format})
-
-    VerifyUtils.verify(model, test_device, input_shapes, input_params, pcc)
+    VerifyUtils.verify(
+        model=model,
+        test_device=test_device,
+        input_shapes=input_shapes,
+        input_params=input_params,
+        pcc=pcc,
+        input_source_flag=input_source_flag,
+        dev_data_format=input_dev_data_format,
+        math_fidelity=input_math_fidelity,
+    )
 
     file_path = VerifyUtils.get_netlist_filename() 
     match model:

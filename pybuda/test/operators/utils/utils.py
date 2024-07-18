@@ -72,7 +72,16 @@ class VerifyUtils:
     '''Utility functions for PyBuda verification'''
 
     @staticmethod
-    def verify(model: PyBudaModule, test_device: TestDevice, input_shapes: List[TensorShape], input_params: List[Dict] = [], pcc = 0.99):
+    def verify(
+        model: PyBudaModule,
+        test_device: TestDevice,
+        input_shapes: List[TensorShape],
+        input_params: List[Dict] = [],
+        pcc: Optional[float] = None,
+        input_source_flag: InputSourceFlags = None,
+        dev_data_format: pybuda.DataFormat = None,
+        math_fidelity: pybuda.MathFidelity = None,
+        ):
         '''Perform PyBuda verification on the model
 
         Args:
@@ -80,7 +89,20 @@ class VerifyUtils:
             test_device: TestDevice
             input_shapes: List of input shapes
             input_params: List of input parameters
+            pcc: PCC value for verification
+            input_source_flag: Input source flag
+            dev_data_format: Data format
+            math_fidelity: Math fidelity
         '''
+
+        if input_source_flag:
+            CompilerUtils.set_input_source(input_source_flag.value)
+
+        if math_fidelity:
+            CompilerUtils.set_math_fidelity(math_fidelity)
+
+        if dev_data_format:
+            input_params.append({"dev_data_format": dev_data_format})
 
         verify_module(
             model,
