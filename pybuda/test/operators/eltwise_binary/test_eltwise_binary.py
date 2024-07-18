@@ -61,27 +61,174 @@ import os
 import pytest
 import numpy as np
 
-from typing import List, Dict
+from typing import List, Dict, Type
 from loguru import logger
 
+import torch
 import pybuda
 import pybuda.op
 
+from pybuda import PyBudaModule
 from pybuda.op_repo import TensorShape
 from test.operators.utils import netlist_utils, InputSourceFlags, CompilerUtils, VerifyUtils
+from test.operators.utils import ShapeUtils
 from test.conftest import TestDevice
 
 from pybuda import TTDevice, pybuda_compile, VerifyConfig, CompilerConfig
 
-from . import models
-from .models import test_plan
+# from . import models
+# from .models import test_plan
 
-TEST_PLAN_MODELS_PATH = "./pybuda/test/operators/eltwise_binary/models/test_plan/"
+
+class ModelFromAnotherOp(PyBudaModule):
+
+    model_name = "model_op_src_from_another_op"
+
+    def __init__(self, operator, opname, shape):
+        super().__init__("Element-wise binary operator " + opname + " test _ op src from another op")
+        self.testname = "Element-wise binary operator " + opname + " test _ op src from another op"
+        self.operator = operator
+        self.opname = opname
+        self.shape = shape
+
+    def forward(self, x, y):
+        # we use Add and Subtract operators to create two operands which are inputs for the binary operator
+        xx = pybuda.op.Add("Add0", x, y)
+        yy = pybuda.op.Subtract("Subtract0", x, y)
+        output = self.operator(self.opname + "1", xx, yy)
+        return output
+
+
+class ModelFromHost(PyBudaModule):
+
+    model_name = "model_op_src_from_host"
+
+    def __init__(self, operator, opname, shape):
+        super().__init__("Element-wise binary operator " + opname + " test _ op src from host")
+        self.testname = "Element-wise binary operator " + opname + " test _ op src from host"
+        self.operator = operator
+        self.opname = opname
+        self.shape = shape
+
+    def forward(self, x, y):
+        output = self.operator(self.opname + "0", x, y)
+        return output
+
+
+class ModelFromDramQueue(PyBudaModule):
+
+    model_name = "model_op_src_from_dram_queue"
+
+    def __init__(self, operator, opname, shape):
+        super().__init__("Element-wise binary operator " + opname + " test _ op src from dram queue")
+        self.testname = "Element-wise binary operator " + opname + " test _ op src from dram queue"
+        self.operator = operator
+        self.opname = opname
+        self.shape = shape
+
+    def forward(self, x, y):
+        output = self.operator(self.opname + "0", x, y)
+        return output
+
+
+class ModelFromDramQueuePrologued(PyBudaModule):
+
+    model_name = "model_op_src_from_dram_queue_prologued"
+
+    def __init__(self, operator, opname, shape):
+        super().__init__("Element-wise binary operator " + opname + " test _ op src from dram queue prologued")
+        self.testname = "Element-wise binary operator " + opname + " test _ op src from dram queue prologued"
+        self.operator = operator
+        self.opname = opname
+        self.shape = shape
+
+        def my_rand(*shape, requires_grad=False):
+            return (torch.rand(*shape, requires_grad=requires_grad) - 0.5).detach()
+
+        self.shape_input = ShapeUtils.reduce_microbatch_size(shape)
+
+        self.add_constant("c")
+        self.set_constant("c", pybuda.Tensor.create_from_torch(my_rand(*self.shape_input), constant=True))
+
+    def forward(self, x):
+        output = self.operator(self.opname + "0", self.get_constant("c"), x)
+        return output
+
+
+class ModelConstEvalPass(PyBudaModule):
+
+    model_name = "model_op_src_const_eval_pass"
+
+    def __init__(self, operator, opname, shape):
+        super().__init__("Element-wise binary operator " + opname + " test _ op src const eval pass")
+        self.testname = "Element-wise binary operator " + opname + " test _ op src const eval pass"
+        self.operator = operator
+        self.opname = opname
+        self.shape = shape
+
+        def my_rand(*shape, requires_grad=False):
+            return (torch.rand(*shape, requires_grad=requires_grad) - 0.5).detach()
+        
+        self.constant_shape = ShapeUtils.reduce_microbatch_size(shape)
+
+        self.add_constant("c1")
+        self.set_constant("c1", pybuda.Tensor.create_from_torch(my_rand(*self.constant_shape), constant=True))
+
+        self.add_constant("c2")
+        self.set_constant("c2", pybuda.Tensor.create_from_torch(my_rand(*self.constant_shape), constant=True))
+       
+        self.inputs = [
+            pybuda.Tensor.create_from_torch(my_rand(*self.shape))
+        ]
+
+    def forward(self, x, y):
+        v1 = self.operator(self.opname + "0", self.get_constant("c1"), self.get_constant("c2"))
+        # v2 and v3 consume inputs
+        v2 = pybuda.op.Add("Add1", x, y)
+        v3 = pybuda.op.Add("Add2", v1, v2)
+        return v3
+
+
+class ModelOpSrcFromTmEdge1(PyBudaModule):
+
+    model_name = "model_op_src_from_tm_edge1"
+
+    def __init__(self, operator, opname, shape):
+        super().__init__("Element-wise binary operator " + opname + " test _ op src from tm edge1")
+        self.testname = "Element-wise binary operator " + opname + " test _ op src from tm edge1"
+        self.operator = operator
+        self.opname = opname
+        self.shape = shape
+
+    def forward(self, x, y):
+        xx = pybuda.op.Add("Add0", x, y)
+        yy = pybuda.op.tm.Transpose("Transpose0", xx, -1, -2)
+        output = self.operator(self.opname + "1", yy, yy)
+        return output
+
+
+class ModelOpSrcFromTmEdge2(PyBudaModule):
+
+    model_name = "model_op_src_from_tm_edge2"
+
+    def __init__(self, operator, opname, shape):
+        super().__init__("Element-wise binary operator " + opname + " test _ op src from tm edge2")
+        self.testname = "Element-wise binary operator " + opname + " test _ op src from tm edge2"
+        self.operator = operator
+        self.opname = opname
+        self.shape = shape
+
+    def forward(self, x, y):
+        # 
+        xx = pybuda.op.tm.Transpose("Transpose0", x, -1, -2)
+        yy = pybuda.op.tm.Transpose("Transpose1", y, -1, -2)
+        output = self.operator(self.opname + "2", xx, yy)
+        return output
 
 
 def verify(
     test_device: TestDevice,
-    input_model: str,
+    model_type: Type[PyBudaModule],
     input_operator: str,
     input_shape: TensorShape,
     number_of_operands: int,
@@ -92,8 +239,8 @@ def verify(
 ):
     '''Common verification function for all tests'''
 
-    architecture = f'test_plan.{input_model}.BudaElementWiseBinaryTest(operator=pybuda.op.{input_operator}, opname="{input_operator}", shape={input_shape})'
-    model = eval(architecture)
+    operator = getattr(pybuda.op, input_operator)
+    model = model_type(operator=operator, opname=input_operator, shape=input_shape)
 
     input_shapes = tuple([input_shape for _ in range(number_of_operands)])
     logger.trace(f"***input_shapes: {input_shapes}")
@@ -108,6 +255,17 @@ def verify(
         input_params.append({"dev_data_format": dev_data_format})
 
     VerifyUtils.verify(model, test_device, input_shapes, input_params)
+
+
+MODEL_TYPES = [
+    ModelFromAnotherOp,
+    ModelFromHost,
+    ModelFromDramQueue,
+    # ModelFromDramQueuePrologued,
+    ModelConstEvalPass,
+    ModelOpSrcFromTmEdge1,
+    ModelOpSrcFromTmEdge2,
+]
 
 
 def get_eltwise_binary_ops():
@@ -233,13 +391,11 @@ def get_input_shapes():
 
 
 @pytest.mark.parametrize("input_operator", get_eltwise_binary_ops())
-@pytest.mark.parametrize("input_model", 
-    [item.split(".")[0] for item in os.listdir(TEST_PLAN_MODELS_PATH) if item.startswith("model") and not item.__contains__("prologued")]
-)
+@pytest.mark.parametrize("model_type", MODEL_TYPES)
 @pytest.mark.parametrize("input_shape", get_input_shapes())
 def test_eltwise_binary_ops_per_test_plan(
     input_operator,
-    input_model,
+    model_type,
     input_shape,
     test_device,
     dev_data_format=None, 
@@ -249,23 +405,23 @@ def test_eltwise_binary_ops_per_test_plan(
     
     # Observed Bugs: --------------------------------------------------------------------------------------------------------------------
     # 1. input_shape in ((1, 1000, 100), (10, 1000, 100)):
-    if input_model == "model_op_src_from_tm_edge1" and input_operator == "Heaviside" and input_shape in (s[30], s[43]):
+    if model_type == ModelOpSrcFromTmEdge1 and input_operator == "Heaviside" and input_shape in (s[30], s[43]):
         pytest.xfail(reason="RuntimeError: TT_ASSERT @ pybuda/csrc/balancer/policies/policy_utils.cpp:2221: " + 
                             "graph ->get_edges( graph->get_node_by_name(nopInsertInst->src), " +
                             "graph->get_node_by_name(nopInsertInst->dest)) .size() == 1")
     # 2. input_shape in ((1, 9920, 1), (1, 1, 9920, 1), (9, 1, 9920, 1)):
-    if input_model == "model_op_src_from_another_op" and input_operator in ["Equal", "NotEqual"] and input_shape in (s[32], s[56], s[69]):
+    if model_type == ModelFromAnotherOp and input_operator in ["Equal", "NotEqual"] and input_shape in (s[32], s[56], s[69]):
         pytest.xfail(reason="RuntimeError: Fatal balancer error: Could not reconcile constraints: path[Add0 -> _fused_op_0]")
     # ------------------------------------------------------------------------------------------------------------------------------------
 
 
     input_source_flag = None
-    if input_model == "model_op_src_from_dram_queue":
+    if model_type == ModelFromDramQueue:
         input_source_flag = InputSourceFlags.FROM_DRAM
 
     verify(
         test_device=test_device,
-        input_model=input_model,
+        model_type=model_type,
         input_operator=input_operator,
         input_shape=input_shape,
         number_of_operands=2,
@@ -278,11 +434,11 @@ def test_eltwise_binary_ops_per_test_plan(
 
     file_path = VerifyUtils.get_netlist_filename()
 
-    if input_model == "model_op_src_from_dram_queue":
+    if model_type == ModelFromDramQueue:
         assert netlist_utils.read_netlist_value(file_path, "/queues/x/loc") == 'dram'
         assert netlist_utils.read_netlist_value(file_path, "/queues/y/loc") == 'dram'
 
-    if input_model == "model_op_src_const_eval_pass":
+    if model_type == ModelConstEvalPass:
         # Here we check there is no key with operator name in the netlist in graphs section
         d = netlist_utils.read_netlist_value(file_path, "/graphs/fwd_0_0_temporal_epoch_0")
         for key in d.keys():
@@ -349,11 +505,11 @@ def get_input_shapes_prologued():
 
 
 @pytest.mark.parametrize("input_operator", get_eltwise_binary_ops_prologued())
-@pytest.mark.parametrize("input_model", ["model_op_src_from_dram_queue_prologued"])
+@pytest.mark.parametrize("model_type", [ModelFromDramQueuePrologued])
 @pytest.mark.parametrize("input_shape, input_source_flag, should_prolog", get_input_shapes_prologued())
 def test_eltwise_binary_ops_per_test_plan_dram_prologued(
     input_operator,
-    input_model,
+    model_type,
     input_shape,
     input_source_flag,
     should_prolog,
@@ -364,7 +520,7 @@ def test_eltwise_binary_ops_per_test_plan_dram_prologued(
 
     verify(
         test_device=test_device,
-        input_model=input_model,
+        model_type=model_type,
         input_operator=input_operator,
         input_shape=input_shape,
         number_of_operands=1,
@@ -412,13 +568,13 @@ compiler_math_fidelity = [
 
 
 @pytest.mark.parametrize("input_operator", get_eltwise_binary_ops())
-@pytest.mark.parametrize("input_model", ["model_op_src_from_another_op"])
+@pytest.mark.parametrize("model_type", [ModelFromAnotherOp])
 @pytest.mark.parametrize("dev_data_format", dev_data_formats)
 @pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
-def test_mf_eltwise_binary_ops_per_test_plan(input_operator, input_model, test_device, dev_data_format, math_fidelity):
+def test_mf_eltwise_binary_ops_per_test_plan(input_operator, model_type, test_device, dev_data_format, math_fidelity):
     test_eltwise_binary_ops_per_test_plan(
         input_operator,
-        input_model,
+        model_type,
         get_single_shape(),
         test_device,
         dev_data_format,
@@ -455,13 +611,13 @@ compiler_math_fidelity = [
 
 
 @pytest.mark.parametrize("input_operator", get_eltwise_binary_ops())
-@pytest.mark.parametrize("input_model", ["model_op_src_from_another_op"])
+@pytest.mark.parametrize("model_type", [ModelFromAnotherOp])
 @pytest.mark.parametrize("dev_data_format", dev_data_formats)
 @pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
-def test_df_eltwise_binary_ops_per_test_plan(input_operator, input_model, test_device, dev_data_format, math_fidelity):
+def test_df_eltwise_binary_ops_per_test_plan(input_operator, model_type, test_device, dev_data_format, math_fidelity):
     test_eltwise_binary_ops_per_test_plan(
         input_operator,
-        input_model,
+        model_type,
         get_single_shape(),
         test_device,
         dev_data_format,
