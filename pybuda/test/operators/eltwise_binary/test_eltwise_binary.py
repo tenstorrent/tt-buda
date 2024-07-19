@@ -5,17 +5,474 @@
 # Tests for testing of element-wise binary operators
 #
 # In this test we use pytorch tensors and operators to verify buda operators
-#
+
+
+
+# GENERAL OP SUPPORT TEST PLAN:
+# 1. Operand type - any supported type
+# 2. Operand source(s):
+# (+)  2.1 From another op
+#       - Operator -> input
+# (+)  2.2 From tm edge
+#       - Combination: operator -> tm -> input
+#       - tm -> input
+# (+)  2.3 From DRAM queue
+#       - input_queue flag = false
+#       - Special case of From host? May it be triggered if the operator is not the first node of the network?
+#       - Can this be triggered from pybuda.Parameter?
+#       - Can this be triggered from big pybuda.Constant?
+# (+)  2.4 From DRAM, but prologued (constant)
+#       - Constants must be small enough to fit into L1
+#       - Verification via netlists that scenario is triggered
+#       - Input are not prologued for microbatch size = 1
+# (+)  2.5 Const Inputs (const eval pass)
+#       - Operator where all inputs are constants. Does it make difference if tensor is big > L1
+#       - Verification via netlists that scenario is triggered???
+# (+)  2.6 From host
+#       - Input tensor as input of network -> Operator is first node in network and input_queue flag = true
+#       - Can this scenario be triggered from pybuda.Parameter?
+#       - Can this be triggered from big pybuda.Constant?
+# 3 Operand shapes type(s):
+# (+)  3.1 Full tensor (i.e. full expected shape)
+#       - Is 3 dims max for all ops? Ex. Conv is 3d max
+# (+)  3.2 Tensor reduce on one or more dims to 1
+#       - Vector
+#       - Only one dim is not equal to 1
+# (/)  3.3 Scalar
+#       - Create tensor of dimension equal to 0 (tensor from scalar) or just to use scalar as simple value
+# 4. Operand / output size of dimensions (few examples of each, 10 values total)
+# (+)  4.1 Divisible by 32
+# (+)  4.2 Prime numbers
+# (+)  4.3 Very large (thousands, 10s of thousands)
+#       - 100x100, 100x1000
+#       - maybe nightly only
+# (+)  4.4 Extreme ratios between height/width
+#      4.5 ...probably many more interesting combinations here
+# 5. Data format - all supported formats
+# (/)  5.1 Output DF
+# (/)  5.2 Intermediate DF
+# (/)  5.3 Accumulation DF
+# (+)  5.4 Operand DFs
+# (+) 6. Math fidelity - LoFi, HiFi2a, Hifi2b, Hifi3, Hifi4
+# (-) 7. Special attributes - if applicable.. like approx_mode for Exp, for example
+
 
 import os
 import pytest
 import numpy as np
 
+from typing import List, Dict
+from loguru import logger
+
 import pybuda
 import pybuda.op
-from pybuda import TTDevice, BackendType, pybuda_compile, VerifyConfig, CompilerConfig
+
+from pybuda.op_repo import TensorShape
+from test.operators.utils import netlist_utils, InputSourceFlags, CompilerUtils, VerifyUtils
+from test.conftest import TestDevice
+
+from pybuda import TTDevice, pybuda_compile, VerifyConfig, CompilerConfig
 
 from . import models
+from .models import test_plan
+
+TEST_PLAN_MODELS_PATH = "./pybuda/test/operators/eltwise_binary/models/test_plan/"
+
+
+def verify(
+    test_device: TestDevice,
+    input_model: str,
+    input_operator: str,
+    input_shape: TensorShape,
+    number_of_operands: int,
+    input_params: List[Dict] = [],
+    input_source_flag: InputSourceFlags = None,
+    dev_data_format: pybuda.DataFormat = None,
+    math_fidelity: pybuda.MathFidelity = None,
+):
+    '''Common verification function for all tests'''
+
+    architecture = f'test_plan.{input_model}.BudaElementWiseBinaryTest(operator=pybuda.op.{input_operator}, opname="{input_operator}", shape={input_shape})'
+    model = eval(architecture)
+
+    input_shapes = tuple([input_shape for _ in range(number_of_operands)])
+    logger.trace(f"***input_shapes: {input_shapes}")
+
+    if input_source_flag:
+        CompilerUtils.set_input_source(input_source_flag.value)
+
+    if math_fidelity:
+        CompilerUtils.set_math_fidelity(math_fidelity)
+
+    if dev_data_format:
+        input_params.append({"dev_data_format": dev_data_format})
+
+    VerifyUtils.verify(model, test_device, input_shapes, input_params)
+
+
+def get_eltwise_binary_ops():
+    return [
+        "Add",              #00
+        "Max",              #01
+        "Min",              #02
+        "Power",            #03
+        "Subtract",         #04
+        "Multiply",         #05
+        "Heaviside",        #06
+        "Greater",          #07
+        "GreaterEqual",     #08
+        "Less",             #09
+        "LessEqual",        #10
+        "Equal",            #11
+        "NotEqual",         #12
+    ]
+
+def get_input_shapes():
+    return [
+            # 2-dimensional shape, microbatch_size = 1:
+            (1, 4),                     #00      # 3.1 Full tensor (i.e. full expected shape)
+            (1, 17),                    #01      # 3.1 Full tensor (i.e. full expected shape)
+            (1, 23),                    #02      # 3.2 Tensor reduce on one or more dims to 1
+            (1, 1),                     #03      # 3.2 Tensor reduce on one or more dims to 1
+            (1, 100),                   #04      # 4.3 Very large (thousands, 10s of thousands)
+            (1, 500),                   #05      # 4.3 Very large (thousands, 10s of thousands)
+            (1, 1000),                  #06      # 4.4 Extreme ratios between height/width
+            (1, 1920),                  #07      # 4.4 Extreme ratios between height/width
+            (1, 10000),                 #08      # 4.4 Extreme ratios between height/width
+            (1, 64),                    #09      # 4.1 Divisible by 32
+            (1, 96),                    #10     # 4.1 Divisible by 32
+            (1, 41),                    #11     # 4.2 Prime numbers
+            (1, 3),                     #12     # 4.2 Prime numbers
+            
+            # 2-dimensional shape, microbatch_size > 1:
+            # All shapes fails for all operators
+            pytest.param((3, 4),        #13      # 3.1 Full tensor (i.e. full expected shape)
+                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+            pytest.param((45, 17),      #14      # 3.1 Full tensor (i.e. full expected shape)
+                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+            pytest.param((64, 1),       #15      # 3.2 Tensor reduce on one or more dims to 1
+                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+            pytest.param((100, 100),    #16      # 4.3 Very large (thousands, 10s of thousands)
+                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+            pytest.param((1000, 100),   #17      # 4.3 Very large (thousands, 10s of thousands)
+                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+            pytest.param((10, 1000),    #18      # 4.4 Extreme ratios between height/width
+                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+            pytest.param((9920, 1),     #19      # 4.4 Extreme ratios between height/width  
+                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+            pytest.param((10000, 1),    #20      # 4.4 Extreme ratios between height/width 
+                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+            pytest.param((32, 64),      #21      # 4.1 Divisible by 32
+                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+            pytest.param((160, 96),     #22      # 4.1 Divisible by 32
+                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+            pytest.param((17, 41),      #23      # 4.2 Prime numbers
+                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+            pytest.param((89, 3),       #24      # 4.2 Prime numbers
+                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+
+            # 3-dimensional shape, microbatch_size = 1:
+            (1, 3, 4),                  #25     # 3.1 Full tensor (i.e. full expected shape)
+            (1, 45, 17),                #26     # 3.1 Full tensor (i.e. full expected shape)
+            (1, 1, 23),                 #27     # 3.2 Tensor reduce on one or more dims to 1
+            (1, 64, 1),                 #28     # 3.2 Tensor reduce on one or more dims to 1
+            (1, 100, 100),              #29     # 4.3 Very large (thousands, 10s of thousands)
+            (1, 1000, 100),             #30     # 4.3 Very large (thousands, 10s of thousands)
+            (1, 10, 1000),              #31     # 4.4 Extreme ratios between height/width
+            (1, 9920, 1),               #32     # 4.4 Extreme ratios between height/width
+            (1, 10000, 1),              #33     # 4.4 Extreme ratios between height/width 
+            (1, 32, 64),                #34     # 4.1 Divisible by 32
+            (1, 160, 96),               #35     # 4.1 Divisible by 32
+            (1, 17, 41),                #36     # 4.2 Prime numbers
+            (1, 89, 3),                 #37     # 4.2 Prime numbers
+
+            # 3-dimensional shape, microbatch_size > 1:
+            (2, 3, 4),                  #38     # 3.1 Full tensor (i.e. full expected shape)
+            (11, 45, 17),               #39     # 3.1 Full tensor (i.e. full expected shape)
+            (11, 1, 23),                #40     # 3.2 Tensor reduce on one or more dims to 1
+            (11, 64, 1),                #41     # 3.2 Tensor reduce on one or more dims to 1
+            (100, 100, 100),            #42     # 4.3 Very large (thousands, 10s of thousands)
+            (10, 1000, 100),            #43     # 4.3 Very large (thousands, 10s of thousands)
+            (10, 10000, 1),             #44     # 4.4 Extreme ratios between height/width
+            (32, 32, 64),               #45     # 4.1 Divisible by 32
+            (64, 160, 96),              #46     # 4.1 Divisible by 32
+            (11, 17, 41),               #47     # 4.2 Prime numbers
+            (13, 89, 3),                #48     # 4.2 Prime numbers
+
+            # 4-dimensional shape, microbatch_size = 1:
+            (1, 2, 3, 4),               #49     # 3.1 Full tensor (i.e. full expected shape)
+            (1, 11, 45, 17),            #50     # 3.1 Full tensor (i.e. full expected shape)
+            (1, 11, 1, 23),             #51     # 3.2 Tensor reduce on one or more dims to 1
+            (1, 11, 64, 1),             #52     # 3.2 Tensor reduce on one or more dims to 1
+            (1, 100, 100, 100),         #53     # 4.3 Very large (thousands, 10s of thousands)
+            (1, 10, 1000, 100),         #54     # 4.3 Very large (thousands, 10s of thousands)
+            (1, 1, 10, 1000),           #55     # 4.4 Extreme ratios between height/width
+            (1, 1, 9920, 1),            #56     # 4.4 Extreme ratios between height/width
+            (1, 10, 10000, 1),          #57     # 4.4 Extreme ratios between height/width
+            (1, 32, 32, 64),            #58     # 4.1 Divisible by 32
+            (1, 64, 160, 96),           #59     # 4.1 Divisible by 32
+            (1, 11, 17, 41),            #60     # 4.2 Prime numbers
+            (1, 13, 89, 3),             #61     # 4.2 Prime numbers
+
+            # 4-dimensional shape, microbatch_size > 1:
+            (3, 11, 45, 17),                  #62     # 3.1 Full tensor (i.e. full expected shape)
+            (2, 2, 3, 4),                     #63     # 3.1 Full tensor (i.e. full expected shape)
+            (4, 11, 1, 23),                   #64     # 3.2 Tensor reduce on one or more dims to 1
+            (5, 11, 64, 1),                   #65     # 3.2 Tensor reduce on one or more dims to 1
+            (6, 100, 100, 100),               #66     # 4.3 Very large (thousands, 10s of thousands)
+            (7, 10, 1000, 100),               #67     # 4.3 Very large (thousands, 10s of thousands)
+            (8, 1, 10, 1000),                 #68     # 4.4 Extreme ratios between height/width
+            (9, 1, 9920, 1),                  #69     # 4.4 Extreme ratios between height/width
+            (10, 10, 10000, 1),               #70     # 4.4 Extreme ratios between height/width
+            (11, 32, 32, 64),                 #71     # 4.1 Divisible by 32
+            pytest.param((12, 64, 160, 96),   #72     # 4.1 Divisible by 32
+                         marks=pytest.mark.skip(reason="RuntimeError: Fatal Python error: Segmentation fault")),
+            (13, 11, 17, 41),                 #73     # 4.2 Prime numbers
+            (14, 13, 89, 3),                  #74     # 4.2 Prime numbers
+    ]
+
+
+@pytest.mark.parametrize("input_operator", get_eltwise_binary_ops())
+@pytest.mark.parametrize("input_model", 
+    [item.split(".")[0] for item in os.listdir(TEST_PLAN_MODELS_PATH) if item.startswith("model") and not item.__contains__("prologued")]
+)
+@pytest.mark.parametrize("input_shape", get_input_shapes())
+def test_eltwise_binary_ops_per_test_plan(
+    input_operator,
+    input_model,
+    input_shape,
+    test_device,
+    dev_data_format=None, 
+    input_math_fidelity=None
+):
+    s = get_input_shapes()
+    
+    # Observed Bugs: --------------------------------------------------------------------------------------------------------------------
+    # 1. input_shape in ((1, 1000, 100), (10, 1000, 100)):
+    if input_model == "model_op_src_from_tm_edge1" and input_operator == "Heaviside" and input_shape in (s[30], s[43]):
+        pytest.xfail(reason="RuntimeError: TT_ASSERT @ pybuda/csrc/balancer/policies/policy_utils.cpp:2221: " + 
+                            "graph ->get_edges( graph->get_node_by_name(nopInsertInst->src), " +
+                            "graph->get_node_by_name(nopInsertInst->dest)) .size() == 1")
+    # 2. input_shape in ((1, 9920, 1), (1, 1, 9920, 1), (9, 1, 9920, 1)):
+    if input_model == "model_op_src_from_another_op" and input_operator in ["Equal", "NotEqual"] and input_shape in (s[32], s[56], s[69]):
+        pytest.xfail(reason="RuntimeError: Fatal balancer error: Could not reconcile constraints: path[Add0 -> _fused_op_0]")
+    # ------------------------------------------------------------------------------------------------------------------------------------
+
+
+    input_source_flag = None
+    if input_model == "model_op_src_from_dram_queue":
+        input_source_flag = InputSourceFlags.FROM_DRAM
+
+    verify(
+        test_device=test_device,
+        input_model=input_model,
+        input_operator=input_operator,
+        input_shape=input_shape,
+        number_of_operands=2,
+        input_source_flag=input_source_flag,
+        dev_data_format=dev_data_format,
+        math_fidelity=input_math_fidelity,
+    )
+
+    # netlist validations:
+
+    file_path = VerifyUtils.get_netlist_filename()
+
+    if input_model == "model_op_src_from_dram_queue":
+        assert netlist_utils.read_netlist_value(file_path, "/queues/x/loc") == 'dram'
+        assert netlist_utils.read_netlist_value(file_path, "/queues/y/loc") == 'dram'
+
+    if input_model == "model_op_src_const_eval_pass":
+        # Here we check there is no key with operator name in the netlist in graphs section
+        d = netlist_utils.read_netlist_value(file_path, "/graphs/fwd_0_0_temporal_epoch_0")
+        for key in d.keys():
+            assert input_operator not in key
+
+
+def get_eltwise_binary_ops_prologued():
+    return [
+        pytest.param("Add"),              #00
+        pytest.param("Max"),              #01
+        pytest.param("Min"),              #02
+        pytest.param("Power",             #03
+                     marks=pytest.mark.xfail(reason="AssertionError: Data mismatch detected")),
+        pytest.param("Subtract"),         #04
+        pytest.param("Multiply"),         #05
+        pytest.param("Heaviside"),        #06
+        pytest.param("Greater"),          #07
+        pytest.param("GreaterEqual"),     #08
+        pytest.param("Less"),             #09
+        pytest.param("LessEqual"),        #10
+        pytest.param("Equal"),            #11
+        pytest.param("NotEqual"),         #12
+    ]
+
+def get_input_shapes_prologued():
+    # Columns: input_shape, input_source_flag, should_prolog"
+    return [
+            # 2-dimensional shape, microbatch_size = 1:
+            ((1, 16),        InputSourceFlags.FROM_DRAM_PROLOGUED, True),                  #00        # 3.1 Full tensor (i.e. full expected shape)
+            ((1, 17),        InputSourceFlags.FROM_DRAM_NOT_PROLOGUED, False),             #01        # 3.1 Full tensor (i.e. full expected shape)
+            
+            # 2-dimensional shape, microbatch_size > 1:
+            pytest.param((4, 16), InputSourceFlags.FROM_DRAM_PROLOGUED, True,              #02        # 3.1 Full tensor (i.e. full expected shape)
+                    marks=pytest.mark.xfail(reason="Doesn't work for microbatchsize > 1 and two dimensions.")),
+            pytest.param((3, 17), InputSourceFlags.FROM_DRAM_NOT_PROLOGUED, False,         #03        # 3.1 Full tensor (i.e. full expected shape)
+                    marks=pytest.mark.xfail(reason="Doesn't work for microbatchsize > 1 and two dimensions.")),
+            
+            # 3-dimensional shape:
+            ((2, 3, 3),      InputSourceFlags.FROM_DRAM_NOT_PROLOGUED, False),             #04        # 3.1 Full tensor (i.e. full expected shape)
+            ((2, 3, 3),      InputSourceFlags.FROM_DRAM_PROLOGUED, True),                  #05        # 3.1 Full tensor (i.e. full expected shape)
+            ((2, 3, 3),      InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),   #06        # 3.1 Full tensor (i.e. full expected shape)
+            ((1, 3, 3),      InputSourceFlags.FROM_DRAM_NOT_PROLOGUED, False),             #07        # 3.1 Full tensor (i.e. full expected shape)
+            ((1, 3, 3),      InputSourceFlags.FROM_DRAM_PROLOGUED, True),                  #08        # 3.1 Full tensor (i.e. full expected shape)
+            ((1, 3, 3),      InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),   #09 !!!    # 3.1 Full tensor (i.e. full expected shape) - not according to documentation!
+            ((2, 10, 5),     InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),   #10        # 3.1 Full tensor (i.e. full expected shape)
+            ((2, 1, 15),     InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),   #11        # 3.2 Tensor reduce on one or more dims to 1
+            ((2, 50, 1),     InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),   #12        # 3.2 Tensor reduce on one or more dims to 1
+            ((2, 100, 100),  InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),   #13        # 4.3 Very large (thousands, 10s of thousands)
+            ((2, 100, 1000), InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, False),  #14        # 4.3 Very large (thousands, 10s of thousands)
+            ((2, 1, 10000),  InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, False),  #15        # 4.4 Extreme ratios between height/width
+            ((2, 10000, 1),  InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, False),  #16        # 4.4 Extreme ratios between height/width
+            ((2, 32, 32),    InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),   #17        # 4.1 Divisible by 32
+            ((2, 96, 96),    InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),   #18        # 4.1 Divisible by 32
+            ((2, 13, 97),    InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),   #19        # 4.2 Prime numbers
+            
+            # 4-dimensional shape, microbatch_size = 1:
+            ((1, 2, 3, 4),   InputSourceFlags.FROM_DRAM_PROLOGUED, True),                  #20        # 3.1 Full tensor (i.e. full expected shape)
+            ((1, 17, 13, 4), InputSourceFlags.FROM_DRAM_NOT_PROLOGUED, False),             #21        # 3.1 Full tensor (i.e. full expected shape)
+            
+            # 4-dimensional shape, microbatch_size > 1:
+            ((2, 2, 3, 4),   InputSourceFlags.FROM_DRAM_PROLOGUED, True),                  #22        # 3.1 Full tensor (i.e. full expected shape)
+            ((2, 17, 13, 4), InputSourceFlags.FROM_DRAM_NOT_PROLOGUED, False),             #23        # 3.1 Full tensor (i.e. full expected shape)
+            ]
+
+
+@pytest.mark.parametrize("input_operator", get_eltwise_binary_ops_prologued())
+@pytest.mark.parametrize("input_model", ["model_op_src_from_dram_queue_prologued"])
+@pytest.mark.parametrize("input_shape, input_source_flag, should_prolog", get_input_shapes_prologued())
+def test_eltwise_binary_ops_per_test_plan_dram_prologued(
+    input_operator,
+    input_model,
+    input_shape,
+    input_source_flag,
+    should_prolog,
+    test_device,
+    dev_data_format=None,
+    input_math_fidelity=None
+):
+
+    verify(
+        test_device=test_device,
+        input_model=input_model,
+        input_operator=input_operator,
+        input_shape=input_shape,
+        number_of_operands=1,
+        input_source_flag=input_source_flag,
+        dev_data_format=dev_data_format,
+        math_fidelity=input_math_fidelity,
+    )
+
+    # netlist validation:
+    file_path = VerifyUtils.get_netlist_filename()
+    d = netlist_utils.read_netlist_value(file_path, "/programs/0/run_fwd_0/4/execute/queue_settings/input_0_" + input_operator + "0")
+    if should_prolog:
+        assert d['prologue']
+    else:
+        assert not d['prologue']
+
+
+# Operand Data Format (DF) and Math Fidelity (MF)
+# We will not test all combinations of Data Format and Math Fidelity
+# because it would be too much tests. 
+# Also, we will test DF and MF by fixing single shape.
+#
+#   1. First we will choose Data Format to be Float16_b and test all Math Fidelity values
+#   2. Then we will set Math Fidelity to HiFi4 and test all Data Formats. 
+
+### 1. ####################################################################################
+
+
+def get_single_shape(microbatch_size=1):
+    return (microbatch_size, 3, 3)        # Full tensor, small size
+
+#   5.4 Operand DFs
+
+dev_data_formats = [
+    pybuda.DataFormat.Float16_b,
+]
+
+#  6. Math fidelity - LoFi, HiFi2a, Hifi2b, Hifi3, Hifi4
+compiler_math_fidelity = [
+                            pybuda.MathFidelity.LoFi,       #00
+                            pybuda.MathFidelity.HiFi2,      #01
+                            pybuda.MathFidelity.HiFi3,      #02
+                            pybuda.MathFidelity.HiFi4,      #03
+                         ]
+
+
+@pytest.mark.parametrize("input_operator", get_eltwise_binary_ops())
+@pytest.mark.parametrize("input_model", ["model_op_src_from_another_op"])
+@pytest.mark.parametrize("dev_data_format", dev_data_formats)
+@pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
+def test_mf_eltwise_binary_ops_per_test_plan(input_operator, input_model, test_device, dev_data_format, math_fidelity):
+    test_eltwise_binary_ops_per_test_plan(
+        input_operator,
+        input_model,
+        get_single_shape(),
+        test_device,
+        dev_data_format,
+        math_fidelity,
+    )
+
+
+### 2. ####################################################################################
+
+#   5.4 Operand DFs
+
+dev_data_formats=[
+    pybuda.DataFormat.Bfp2,         #00
+    pybuda.DataFormat.Bfp2_b,       #01
+    pybuda.DataFormat.Bfp4,         #02
+    pybuda.DataFormat.Bfp4_b,       #03
+    pybuda.DataFormat.Bfp8,         #04
+    pybuda.DataFormat.Bfp8_b,       #05
+    pybuda.DataFormat.Float16,      #06
+    pybuda.DataFormat.Float16_b,    #07
+    pybuda.DataFormat.Float32,      #08
+    pybuda.DataFormat.Int8,         #09
+    pybuda.DataFormat.Lf8,          #10
+    pybuda.DataFormat.RawUInt16,    #11
+    pybuda.DataFormat.RawUInt32,    #12
+    pybuda.DataFormat.RawUInt8,     #13
+    pybuda.DataFormat.UInt16,       #14
+]
+
+#  6. Math fidelity
+compiler_math_fidelity = [
+    pybuda.MathFidelity.HiFi4,
+]
+
+
+@pytest.mark.parametrize("input_operator", get_eltwise_binary_ops())
+@pytest.mark.parametrize("input_model", ["model_op_src_from_another_op"])
+@pytest.mark.parametrize("dev_data_format", dev_data_formats)
+@pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
+def test_df_eltwise_binary_ops_per_test_plan(input_operator, input_model, test_device, dev_data_format, math_fidelity):
+    test_eltwise_binary_ops_per_test_plan(
+        input_operator,
+        input_model,
+        get_single_shape(),
+        test_device,
+        dev_data_format,
+        math_fidelity,
+    )
+
+
+# ------------------------------------------------------------------------------------------------------------
+# Old test implementation using not simplified test models:
+# (These old tests are deactivated)
+# ------------------------------------------------------------------------------------------------------------
 
 MODELS_PATH = "./pybuda/test/operators/eltwise_binary/models/"
 
@@ -54,7 +511,7 @@ if SHAPE_FIXED:
 @pytest.mark.parametrize("recompute", (True, False), ids=["Recompute", "NoRecompute"])
 @pytest.mark.parametrize("mode", ["Inference"])
 @pytest.mark.parametrize("model", [item.split(".")[0] for item in os.listdir(MODELS_PATH) if "model" in item])
-def test_eltwise_binary(
+def obsoleted_test_eltwise_binary(
     mode,
     recompute,
     operation,
