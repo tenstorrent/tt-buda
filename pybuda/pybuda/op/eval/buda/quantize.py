@@ -61,12 +61,12 @@ def shape(type, attr, ops, tile_height, tile_width):
             op1 = [1] + op1
         for dim in range(1, len(ops[0])):
             if ops[0][dim] != op1[dim]:
-                broadcast.append((1, dim - len(ops[0]), ops[0][dim]))
+                broadcast.append((1, dim, ops[0][dim]))
 
     if type == "requantization":
         for dim in range(1, len(ops[0])):
             if ops[0][dim] != ops[1][dim]:
-                broadcast.append((1, dim - len(ops[0]), ops[0][dim]))
+                broadcast.append((1, dim, ops[0][dim]))
 
     if type == "dequantization":
         op1 = list(ops[1])
@@ -74,7 +74,7 @@ def shape(type, attr, ops, tile_height, tile_width):
             op1 = [1] + op1
         for dim in range(1, len(ops[0])):
             if ops[0][dim] != op1[dim]:
-                broadcast.append((1, dim - len(ops[0]), ops[0][dim]))
+                broadcast.append((1, dim, ops[0][dim]))
 
     return ops[0], broadcast
 
