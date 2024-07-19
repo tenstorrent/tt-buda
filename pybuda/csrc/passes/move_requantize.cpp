@@ -110,7 +110,7 @@ void commute_through_requant(graphlib::Graph *graph, std::vector<graphlib::Node 
                 commute_through_eltwise(op, &commute_shape, &golden_transform);
             }
             else if (is_quantization_ops(op)) {
-                commute_through_quantization(op, &commute_shape, &golden_transform);
+                commute_through_quantization(op, first, false, &commute_shape, &golden_transform);
             }
             else 
             {
