@@ -80,7 +80,7 @@ def test_onnx_qdq_vit(test_device):
     if test_device.arch == BackendDevice.Grayskull:
         pytest.skip("Grayskull does not support quantized models")
 
-    save_path = "third_party/confidential_customer_models/bos/vit_b_16_ptq_qdq.onnx"
+    save_path = "third_party/confidential_customer_models/bos/bos_onnx_062524/priorityA/vit_b_16/vit_b_16_ptq_qdq.onnx"
 
     onnx_model = onnx.load(save_path)
     # onnx.checker.check_model(onnx_model)
