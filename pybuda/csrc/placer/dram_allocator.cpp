@@ -184,7 +184,7 @@ DramAllocator::DramAllocator(
     std::unordered_set<std::uint32_t> allocated_channels;
     switch (allocator_algorithm)
     {
-        case BEST_FIT:
+        case BEST_FIT: {
             std::size_t p2p_offset;
             std::size_t p2p_size;
 
@@ -208,11 +208,20 @@ DramAllocator::DramAllocator(
             // address is p2p_offset - 1.
             channel_allocators.push_back(std::make_unique<BestFitAllocator>(
                 dram_config.dram_config[0].initial_dram_offset, p2p_offset - 1, allocated_blocks[0]));
+
+            std::size_t limit_top_address = 0;
+            if (dram_config.device_config.is_blackhole()) 
+            {
+                // The top 16MB (0xFF00_0000 - 0xFFFF_FFFF) of DRAM are not accessible through the NOC on blackhole.
+                //
+                limit_top_address = 16 * 1024 * 1024;
+            }
+
             if (dram_config.device_config.is_wormhole_b0())
             {
                 channel_allocators.push_back(std::make_unique<BestFitAllocator>(
                     std::max(p2p_offset + p2p_size, dram_config.dram_config[0].initial_dram_offset),
-                    dram_config.dram_config[0].channel_size - 1,
+                    dram_config.dram_config[0].channel_size - 1 - limit_top_address,
                     allocated_blocks[0]));
             }
             allocated_channels.insert(0);  // 0 is done
@@ -237,7 +246,7 @@ DramAllocator::DramAllocator(
                         allocated_blocks[2 * dram_config.dram_config[i].channel]));
                     channel_allocators.push_back(std::make_unique<BestFitAllocator>(
                         std::max(dram_config.dram_config[i].initial_dram_offset, dram_config.dram_config[i].channel_size / 2),
-                        dram_config.dram_config[i].channel_size - 1,
+                        dram_config.dram_config[i].channel_size - 1 - limit_top_address,
                         allocated_blocks[(2 * dram_config.dram_config[i].channel) + 1]));
                 }
                 else
@@ -251,7 +260,7 @@ DramAllocator::DramAllocator(
             p2p_allocator =
                 std::make_unique<BestFitAllocator>(p2p_offset, p2p_offset + p2p_size - 1, allocated_blocks.back());
             break;
-
+        }
         default: TT_THROW("Unknown placement algorithm");
     }
 }
@@ -265,10 +274,10 @@ std::vector<Blocks> DramAllocator::get_blocks()
 }
 
 // Gets dram free space, both in p2p region (managed by p2p_allocator) and in regular part of dram (managed by channel_allocators)
-std::pair<uint32_t, uint32_t> DramAllocator::get_dram_free_space()
+std::pair<std::size_t, size_t> DramAllocator::get_dram_free_space()
 {
-    uint32_t regular_free_space = 0;
-    uint32_t p2p_free_space = 0;
+    size_t regular_free_space = 0;
+    size_t p2p_free_space = 0;
     for (std::size_t i = 0; i < channel_allocators.size(); i++)
     {
         regular_free_space += channel_allocators.at(i)->get_capacity();
@@ -454,8 +463,8 @@ bool DramAllocator::allocate_queues(
 
 QueueBufferPlacement DramAllocator::create_buffer_placement(
     std::uint32_t virtual_channel,
-    std::uint32_t channel_address,
-    std::uint32_t buffer_size,
+    std::size_t channel_address,
+    std::size_t buffer_size,
     bool in_p2p_region)
 {
     std::uint32_t real_channel = virtual_channel;
@@ -478,8 +487,8 @@ QueueBufferPlacement DramAllocator::create_buffer_placement(
 
 std::pair<bool, std::vector<QueueBufferPlacement>> DramAllocator::allocate_buffers(const QueueDRAMPlacementParameters &parameters)
 {
-    const std::uint32_t num_channels = channel_allocators.size();
-    const std::uint32_t buffer_size = parameters.queue_size;
+    const std::size_t num_channels = channel_allocators.size();
+    const std::size_t buffer_size = parameters.queue_size;
     TT_ASSERT(buffer_size > 0, "Buffer size for queue {} must be larger than 0", parameters.node->name());
 
     std::vector<QueueBufferPlacement> buffer_placement;
@@ -487,7 +496,7 @@ std::pair<bool, std::vector<QueueBufferPlacement>> DramAllocator::allocate_buffe
     {
         for (std::uint32_t col = 0; col < parameters.grid_shape.columns; col++)
         {
-            std::uint32_t allocated_address;
+            std::size_t allocated_address;
 
             if (parameters.in_p2p_region_soft or parameters.in_p2p_region_hard) 
             {

@@ -21,12 +21,12 @@ enum BudaQueueLocation { DRAM, HOST };
 
 struct BudaQueueDramLoc {
     std::uint32_t dram_channel;
-    std::uint32_t dram_address;
+    std::size_t dram_address;
 };
 
 struct BudaQueueHostLoc {
     std::uint32_t host_channel;
-    std::uint32_t host_address;
+    std::size_t host_address;
 };
 
 struct BudaQueue {
