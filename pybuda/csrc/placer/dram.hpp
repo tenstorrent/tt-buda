@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
-#include <cassert>
 
 #include "backend_api/device_config.hpp"
 #include "balancer/balancer.hpp"
@@ -157,7 +156,7 @@ struct QueueDRAMPlacementParameters
     bool in_p2p_region_hard;
     bool is_input;
     bool is_prologue;
-    std::uint32_t queue_size;
+    std::size_t queue_size;
 };
 
 using DRAMScheduleData = std::pair<QueuePlacement, QueueDRAMPlacementParameters>;
