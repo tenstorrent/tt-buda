@@ -37,9 +37,7 @@ def test_ddrnet(variant, test_device):
     # STEP 2: # Create PyBuda module from onnx weights
     model_name = f"{variant}_onnx"
 
-    load_path = (
-        f"third_party/confidential_customer_models/internal/ddrnet/files/onnx/{variant}.onnx"
-    )
+    load_path = f"third_party/confidential_customer_models/internal/ddrnet/files/onnx/{variant}.onnx"
 
     model = onnx.load(load_path)
     tt_model = pybuda.OnnxModule(model_name, model, load_path)
@@ -68,17 +66,12 @@ def test_ddrnet(variant, test_device):
             devtype=test_device.devtype,
             devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
-            pcc=(
-                0.98
-                if test_device.arch == BackendDevice.Grayskull
-                and variant != "ddrnet23s"
-                else 0.99
-            ),
+            pcc=(0.98 if test_device.arch == BackendDevice.Grayskull and variant != "ddrnet23s" else 0.99),
         ),
     )
 
 
-variants = ["ddrnet_23_slim_1024"]
+variants = ["ddrnet_23_slim_1024", "ddrnet23_cityscapes"]
 
 
 @pytest.mark.parametrize("variant", variants)
@@ -90,63 +83,36 @@ def test_ddrnet_semantic_segmentation_onnx(variant, test_device):
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
 
     if test_device.arch == BackendDevice.Wormhole_B0:
-        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "36864"
-        compiler_cfg.balancer_op_override(
-            "conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone931.dc.sparse_matmul.4.lc2",
-            "t_stream_shape",
-            (1, 8),
-        )
-        compiler_cfg.balancer_op_override(
-            "conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone925.dc.sparse_matmul.4.lc2",
-            "t_stream_shape",
-            (1, 8),
-        )
-        compiler_cfg.balancer_op_override(
-            "conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone11803.dc.sparse_matmul.4.lc2",
-            "t_stream_shape",
-            (1, 8),
-        )
-        compiler_cfg.balancer_op_override(
-            "conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone11809.dc.sparse_matmul.4.lc2",
-            "t_stream_shape",
-            (1, 8),
-        )
-        compiler_cfg.balancer_op_override(
-            "conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone11986.dc.sparse_matmul.4.lc2",
-            "t_stream_shape",
-            (1, 16),
-        )
-        compiler_cfg.balancer_op_override(
-            "conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone11980.dc.sparse_matmul.4.lc2",
-            "t_stream_shape",
-            (1, 8),
-        )
-        compiler_cfg.balancer_op_override(
-            "conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone11872.dc.sparse_matmul.4.lc2",
-            "t_stream_shape",
-            (1, 8),
-        )
-        compiler_cfg.balancer_op_override(
-            "conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone11866.dc.sparse_matmul.4.lc2",
-            "t_stream_shape",
-            (1, 8),
-        )
+        if variant == "ddrnet_23_slim_1024":
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "36864"
+            compiler_cfg.balancer_op_override("conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone931.dc.sparse_matmul.4.lc2", "t_stream_shape", (1, 8))
+            compiler_cfg.balancer_op_override("conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone925.dc.sparse_matmul.4.lc2", "t_stream_shape", (1, 8))
+            compiler_cfg.balancer_op_override("conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone11803.dc.sparse_matmul.4.lc2", "t_stream_shape", (1, 8))
+            compiler_cfg.balancer_op_override("conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone11809.dc.sparse_matmul.4.lc2", "t_stream_shape", (1, 8))
+            compiler_cfg.balancer_op_override("conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone11986.dc.sparse_matmul.4.lc2", "t_stream_shape", (1, 16))
+            compiler_cfg.balancer_op_override("conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone11980.dc.sparse_matmul.4.lc2", "t_stream_shape", (1, 8))
+            compiler_cfg.balancer_op_override("conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone11872.dc.sparse_matmul.4.lc2", "t_stream_shape", (1, 8))
+            compiler_cfg.balancer_op_override("conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone11866.dc.sparse_matmul.4.lc2", "t_stream_shape", (1, 8))
 
-    if test_device.arch == BackendDevice.Grayskull:
-        compiler_cfg.balancer_op_override(
-            "conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone931.dc.sparse_matmul.4.lc2",
-            "t_stream_shape",
-            (1, 32),
-        )
-        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "24576"
-        compiler_cfg.balancer_op_override(
-            "conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone11915.dc.sparse_matmul.4.lc2",
-            "t_stream_shape",
-            (1, 32),
-        )
+        elif variant == "ddrnet23_cityscapes":
+            compiler_cfg.balancer_op_override("conv2d_213.dc.conv2d.5.dc.reshape.0_operand_commute_clone1044.dc.sparse_matmul.4.lc2", "t_stream_shape", (1, 16))
+            compiler_cfg.balancer_op_override("conv2d_213.dc.conv2d.5.dc.reshape.0_operand_commute_clone1050.dc.sparse_matmul.4.lc2", "t_stream_shape", (1, 16))
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "153600"
+            os.environ["PYBUDA_FORK_JOIN_BUF_QUEUES"] = "1"
+            os.environ["PYBUDA_FORK_JOIN_EXPAND_OUTPUT_BUFFERS"] = "1"
+            os.environ["PYBUDA_FORK_JOIN_SKIP_EXPANDING_BUFFERS"] = "1"
+
+    elif test_device.arch == BackendDevice.Grayskull:
+        if variant == "ddrnet_23_slim_1024":
+            compiler_cfg.balancer_op_override("conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone931.dc.sparse_matmul.4.lc2", "t_stream_shape", (1, 32))
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "24576"
+            compiler_cfg.balancer_op_override("conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone11915.dc.sparse_matmul.4.lc2", "t_stream_shape", (1, 32))
 
     # Load and validate the model
-    load_path = f"third_party/confidential_customer_models/customer/model_0/files/cnn/ddrnet/{variant}.onnx"
+    if variant == "ddrnet_23_slim_1024":
+        load_path = f"third_party/confidential_customer_models/customer/model_0/files/cnn/ddrnet/{variant}.onnx"
+    else:
+        load_path = f"third_party/confidential_customer_models/internal/ddrnet/files/onnx/{variant}.onnx"
     model = onnx.load(load_path)
     onnx.checker.check_model(model)
     model_name = f"onnx_{variant}"
@@ -155,7 +121,8 @@ def test_ddrnet_semantic_segmentation_onnx(variant, test_device):
     # Prepare input
     image_path = "third_party/confidential_customer_models/internal/ddrnet/files/samples/road_scenes.png"
     input_image = Image.open(image_path)
-    input_image = transforms.Resize((1024, 1024))(input_image)
+    if variant == "ddrnet_23_slim_1024":
+        input_image = transforms.Resize((1024, 1024))(input_image)
     input_tensor = transforms.ToTensor()(input_image)
     input_batch = input_tensor.unsqueeze(0)
 
