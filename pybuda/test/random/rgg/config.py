@@ -29,6 +29,7 @@ def get_randomizer_config_default():
         op_size_per_dim_min=int(os.environ.get("MIN_OP_SIZE_PER_DIM", 16)),
         op_size_per_dim_max=int(os.environ.get("MAX_OP_SIZE_PER_DIM", 64)),  # by default run with smaller sizes
         # op_size_per_dim_max=int(os.environ.get("MAX_OP_SIZE_PER_DIM", 512)),
+        op_size_quantization=int(os.environ.get("OP_SIZE_QUANTIZATION", 1)),
         microbatch_size_min=int(os.environ.get("MIN_MICROBATCH_SIZE", 1)),
         microbatch_size_max=int(os.environ.get("MAX_MICROBATCH_SIZE", 8)),
         num_of_nodes_min=int(os.environ.get("NUM_OF_NODES_MIN", 5)),

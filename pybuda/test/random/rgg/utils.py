@@ -103,16 +103,31 @@ class RandomUtils:
         return {param.name: cls.random_value_for_param(param, rng_params) if param.name not in forward_kwargs else forward_kwargs[param.name] for param in operator.forward_params}
 
     @classmethod
+    def quantize(cls, value: int, quantization: int = 2) -> int:
+        '''Quantize the value to the nearest multiple of quantization
+
+        Args:
+            value (int): value to quantize
+            quantization (int, optional): quantization factor. Defaults to 2.
+
+        Returns:
+            int: quantized value
+        '''
+        # Using max to avoid quantizing to 0
+        return max(round(value / quantization) * quantization, quantization)
+
+    @classmethod
     def random_shape(cls,
                      rng_shape: random.Random,
                      dim_min: int,
                      dim_max: int,
                      op_size_min: int,
                      op_size_max: int,
+                     quantization: int,
                      microbatch_size_min: int,
                      microbatch_size_max: int,
         ) -> TensorShape:
-        shape = [rng_shape.randint(op_size_min, op_size_max) for _ in range(rng_shape.randint(dim_min - 1, dim_max - 1))]
+        shape = [cls.quantize(rng_shape.randint(op_size_min, op_size_max), quantization) for _ in range(rng_shape.randint(dim_min - 1, dim_max - 1))]
         microbatch_size = rng_shape.randint(microbatch_size_min, microbatch_size_max)
         shape.insert(0, microbatch_size)
         shape = tuple(shape)
@@ -123,6 +138,7 @@ class RandomUtils:
     def random_shape_from_config(cls, randomizer_config: RandomizerConfig, rng_shape: random.Random) -> TensorShape:
         op_size_min = randomizer_config.op_size_per_dim_min
         op_size_max = randomizer_config.op_size_per_dim_max
+        op_size_quantization = randomizer_config.op_size_quantization
 
         dim_min = randomizer_config.dim_min
         dim_max = randomizer_config.dim_max
@@ -136,6 +152,7 @@ class RandomUtils:
             dim_max=dim_max,
             op_size_min=op_size_min,
             op_size_max=op_size_max,
+            quantization=op_size_quantization,
             microbatch_size_min=microbatch_size_min,
             microbatch_size_max=microbatch_size_max,
         )
