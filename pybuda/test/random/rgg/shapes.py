@@ -4,11 +4,14 @@
 # Calculation of input shapes from output shapes for the specified operator
 
 
-from random import Random
 from typing import List
 
 from .datatypes import TensorShape
 from .datatypes import ShapeCalculationContext
+
+from .datatypes import RandomizerTestContext
+
+from .utils import RandomUtils
 
 
 class OperatorShapes:
@@ -21,53 +24,62 @@ class OperatorShapes:
 
     @staticmethod
     def linear_inputs(calculation_context: ShapeCalculationContext) -> List[TensorShape]:
-        output_shape, rng_shape = calculation_context.output_shape, calculation_context.rng_shape
+        output_shape = calculation_context.output_shape
+        test_context: RandomizerTestContext = calculation_context.test_context
         # linear layer changes the last dimension of the input shape
         batch_shape = output_shape[:-1]
         n = output_shape[-1]
-        n = randomize_size(n, rng_shape)
+        n = randomize_size(len(batch_shape), test_context)
         input_shapes = [batch_shape + (n,)]
         return input_shapes
 
     # FIXME: conv2d in PyTorch not working properly in all cases
     @staticmethod
     def conv2d_inputs(calculation_context: ShapeCalculationContext) -> List[TensorShape]:
-        output_shape, rng_shape = calculation_context.output_shape, calculation_context.rng_shape
+        output_shape = calculation_context.output_shape
+        test_context: RandomizerTestContext = calculation_context.test_context
         shape1 = output_shape[:1]
         shape2 = output_shape[2:]
         n = output_shape[1]
-        n = randomize_size(n, rng_shape)
+        n = randomize_size(len(shape1), test_context)
         input_shapes = [shape1 + (n,) + shape2]
         return input_shapes
 
     @staticmethod
     def matmul_inputs(calculation_context: ShapeCalculationContext) -> List[TensorShape]:
-        output_shape, rng_shape = calculation_context.output_shape, calculation_context.rng_shape
+        output_shape = calculation_context.output_shape
+        test_context: RandomizerTestContext = calculation_context.test_context
         batch_shape = output_shape[:-2]
         m = output_shape[-2]
         n = output_shape[-1]
         # calculates inner dimension based on one of output shape dimensions
-        q = randomize_size(n, rng_shape)
+        # dim is wrong for second operand
+        q = randomize_size(len(batch_shape) + 1, test_context)
         input_shapes = [batch_shape + (m,q), batch_shape + (q,n)]
         return input_shapes
 
 
-def randomize_size(n: int, rng_shape: Random) -> int:
-    '''Randomize size of an dimension based on size of another dimension.
-    Returns a random integer in the range [n/2, 3n/2] inclusive to keep the size of the dimension in a similar range.
+def randomize_size(dim: int, test_context: RandomizerTestContext) -> int:
+    '''Randomize size of a new dimension based operand size range
 
     Args:
-        n: size of an dimension
-        rng_shape: random number generator
+        dim (int): new dimension
+        test_context: RandomizerTestContext
 
     Returns:
         int: random size of an dimension
     '''
-    range = n // 2
-    diff = rng_shape.randint(-1 * range, max(range, 1))
-    new_value = n + diff
-    # logger.trace(f"Randomize size: {n} + {diff} -> {new_value}")
-    return new_value
+    rng_shape = test_context.rng_shape
+    randomizer_config = test_context.randomizer_config
+    op_size_min = randomizer_config.op_size_per_dim_min
+    op_size_max = randomizer_config.op_size_per_dim_max
+    quantization = randomizer_config.op_size_quantization
+
+    n = rng_shape.randint(op_size_min, op_size_max)
+    n = RandomUtils.quantize(n, quantization)
+    # logger.trace(f"Randomize size: dim = {dim}, quant = {quantization} -> {n}")
+
+    return n
 
 
 class AdjustParameters:

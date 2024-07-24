@@ -146,6 +146,7 @@ class RandomizerConfig:
     dim_max: int = 4
     op_size_per_dim_min: int = 16
     op_size_per_dim_max: int = 512
+    op_size_quantization: int = 1
     microbatch_size_min: int = 1
     microbatch_size_max: int = 8
     num_of_nodes_min: int = 5
