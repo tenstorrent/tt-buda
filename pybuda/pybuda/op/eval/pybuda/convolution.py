@@ -281,6 +281,9 @@ def decompose_conv2d_sparse_first(attr, dc, inputs):
 
     # Disallow depthwise path when training, needs BW ops implementation
     depthwise = depthwise and not dc.is_training_enabled() and not is_convtranspose2d
+    
+    # Disallow depthwise if we are force disabling it via env var
+    depthwise = depthwise and ("PYBUDA_DISABLE_DEPTHWISE_CONV2D_DECOMP" not in os.environ or os.environ["PYBUDA_DISABLE_DEPTHWISE_CONV2D_DECOMP"] != "1")
 
     if channel_last:
         activations = dc.op("reshape", [activations], (w, 1, y * x, cin), output_df=activations.output_df)

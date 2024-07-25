@@ -516,6 +516,80 @@ std::vector<Node *> topological_sort(const Graph &graph, std::function<bool(Node
     return result;
 }
 
+void fork_subgraph(Graph *graph, Node *node) {
+    TT_ASSERT(graph->data_users(node).size() > 1, "Node only has one user, do not fork.");
+
+    // If the node passed is an input node then just fork it
+    graphlib::InputNode *input = dynamic_cast<graphlib::InputNode *>(node);
+    graphlib::OpNode *op = dynamic_cast<graphlib::OpNode *>(node);
+    if (input) {
+        input->get_consteval_graph(graph, true, true); // create graph before clone so input node name is correct
+        std::vector<graphlib::Edge> user_edges = graph->user_data_edges(input);
+        TT_ASSERT(graph->data_operands(input).size() == 0, "Input can't have operands");
+        for (int i = 1; i < (int)user_edges.size(); i++)
+        {
+            graphlib::Edge const &user_edge = user_edges[i];
+            log_trace(
+                LogConstEval,
+                "fork_subgraph: cloning: {} -> {}",
+                input->name(),
+                graph->node_by_id(user_edge.consumer_node_id)->name());
+            
+            std::string clone_name = input->name() + "_subgraph_fork_clone_" + std::to_string(user_edge.edge_creation_id);
+            Node *clone = graph->add_node(
+                input->clone(clone_name), 
+                graph->get_subgraph_id_for_node(input->id()));
+
+            auto attr = graph->get_edge_attributes(user_edge);
+            graph->remove_edge(user_edge);
+            // Replace user operand_edge
+            Edge new_user_edge = Edge(clone->id(), user_edge.producer_output_port_id, user_edge.consumer_node_id, user_edge.consumer_input_port_id, user_edge.edge_type);
+            
+            graph->add_edge(new_user_edge, attr);
+        }
+    }
+    else if (op) {
+        std::vector<Edge> user_edges = graph->user_data_edges(op);
+        std::vector<Edge> operand_edges = graph->operand_data_edges(op);
+
+        // Clone this op once for every user
+        for (int i = 1; i < (int)user_edges.size(); i++)
+        {
+            graphlib::Edge const &user_edge = user_edges[i];
+            log_trace(
+                LogConstEval,
+                "fork_subgraph: cloning: {} -> {}",
+                op->name(),
+                graph->node_by_id(user_edge.consumer_node_id)->name());
+
+            std::string clone_name = op->name() + "_subgraph_fork_clone_" + std::to_string(user_edge.edge_creation_id);
+            Node *clone_op = graph->add_node(op->clone(clone_name), graph->get_subgraph_id_for_node(op->id()));
+
+            // Copy all the operand edges
+            for (int j = 0; j < (int)operand_edges.size(); j++) {
+                Edge operand_edge = operand_edges[j];
+                Edge new_edge = Edge(operand_edge.producer_node_id, operand_edge.producer_output_port_id, clone_op->id(), operand_edge.consumer_input_port_id, operand_edge.edge_type);
+                graph->add_edge(new_edge, graph->get_edge_attributes(operand_edge));
+            }
+
+            // Replace user operand_edge
+            Edge new_user_edge = Edge(clone_op->id(), i, user_edge.consumer_node_id, user_edge.consumer_input_port_id, user_edge.edge_type);
+            
+            graph->add_edge(new_user_edge, graph->get_edge_attributes(user_edge));
+            graph->remove_edge(user_edge);
+        }
+
+        // Fork the graph of each operand
+        for (auto operand_edge : graph->operand_data_edges(op)) {
+            fork_subgraph(graph, graph->node_by_id(operand_edge.producer_node_id));
+        }
+
+    }
+    else {
+        TT_ASSERT(false, "The node passed must be an InputNode or OpNode");
+    }
+}
+
 std::vector<Node *> visible_nodes(Graph const &graph, std::function<bool(Node *)> node_filter)
 {
     std::vector<Node *> result;

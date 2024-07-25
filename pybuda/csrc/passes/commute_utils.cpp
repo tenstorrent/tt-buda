@@ -209,7 +209,7 @@ bool are_compatible_ops(graphlib::Graph *graph, graphlib::OpNode *a, graphlib::O
     bool is_inverse = are_compatible_tms & (operand_shape == shape_to_check_on_b);
     auto operand_edges = graph->operand_data_edges(b);
     is_inverse |= are_inverse_with_broadcast(operand_shape, shape_to_check_on_b, total_broadcast_volume(graph, operand_edges[0])).first;
-    is_inverse &= not b->as<graphlib::TaggedNode>()->has_tag("dont_erase");
+    is_inverse &= not b->as<graphlib::TaggedNode>()->tag_value_or("dont_erase", false);
     if (not is_inverse)
         return false;
 
@@ -553,7 +553,7 @@ bool commute_through_reduce(
     std::pair<int, int> *operand_dims,
     graphlib::OpType *golden_transform,
     bool commute_up) 
-{
+{   
     TT_ASSERT(op->op_attrs().size() == 1);
     int reduce_dim = std::get<int>(op->op_attrs()[0]);
 
@@ -561,6 +561,7 @@ bool commute_through_reduce(
     if (reduce_dim < 0)
         reduce_dim += op->shape().size();
 
+    int original_reduce_dim = reduce_dim;
     // Check to see if this op has a user that is the same kind of reduce 
     bool can_commute = false;
 
@@ -574,114 +575,146 @@ bool commute_through_reduce(
         prev_nodes = op_users;
     }
 
-    for (graphlib::Node* next_node : next_nodes) {
-        graphlib::OpNode *next_op = dynamic_cast<graphlib::OpNode*>(next_node);
-        if (next_op == nullptr)
-            continue;
+    if (not commute_up and initial_op->op_name() == "transpose") {
+        int dim0 = initial_op->op_type().get_attr_as<int>("dim0");
+        int dim1 = initial_op->op_type().get_attr_as<int>("dim1");
 
-        // Check if the next op is a reduce, and the same type of reduce
-        if (next_op->op_name() != op->op_name())
-            continue;
+        if (dim0 < 0)
+            dim0 += initial_op->shape().size();
 
-        auto compare_shape = check_only ? graph->data_operands(op)[0]->shape() : *clone_shape;
+        if (dim1 < 0)
+            dim1 += initial_op->shape().size();
 
-        int next_reduce_dim = std::get<int>(next_op->op_attrs()[0]);
-        // Convert to positive indexing
-        if (next_reduce_dim < 0)
-            next_reduce_dim += next_op->shape().size();
-
-        int min_reduce_dim = std::min(reduce_dim, next_reduce_dim);
-        int max_reduce_dim = std::max(reduce_dim, next_reduce_dim);
-        int commute_max_reduce_dim = max_reduce_dim - (op->shape().size() - commute_shape->size()); // Adjust for commute shape
-
-        // This avoids the case where the reshape unflattens y into z. i.e (1, 1, 64, 4096) -> (1, 32, 2, 4096)
-        if (not commute_up)
+        if (dim0 == reduce_dim)
         {
-            if ((*commute_shape)[commute_max_reduce_dim] != compare_shape[min_reduce_dim] * compare_shape[max_reduce_dim]) {
-                TT_ASSERT(check_only, "Cannot perform commute if commute is not possible");
-                can_commute = false;
-                break;
-            }
+            reduce_dim = dim1;
         }
-        else {
-            if ((*commute_shape)[commute_max_reduce_dim] != 1) {
-                TT_ASSERT(check_only, "Cannot perform commute if commute is not possible");
-                can_commute = false;
-                break;
-            }
+        else if (dim1 == reduce_dim) {
+            reduce_dim = dim0;
         }
-        // If the next op is the same kind of reduce, and the reduce dim is one off, skip, next op we handle this case 
-        if (next_reduce_dim == reduce_dim+1 or next_reduce_dim == reduce_dim-1) {
+
+        if (reduce_dim < (int)op->shape().size()) {
             can_commute = true;
-            break;
+            auto reduce_shape = op->shape();
+            *clone_shape = reduce_shape;
+            reduce_shape[reduce_dim] = op->shape()[original_reduce_dim];
+            reduce_shape[original_reduce_dim] = op->shape()[reduce_dim];
+            *commute_shape = reduce_shape;
         }
+        
     }
+    else {
 
-    // Check to see if previous op is reduce
-    for(graphlib::Node* prev_node : prev_nodes)
-    {
-        graphlib::OpNode *prev_op = dynamic_cast<graphlib::OpNode*>(prev_node);
-        if (prev_op == nullptr)
-            continue;
-
-        if (prev_op->op_name() == op->op_name())
-        {
-            TT_ASSERT(prev_op->op_attrs().size() == 1);
-            int prev_reduce_dim = std::get<int>(prev_op->op_attrs()[0]);
-            // Convert to positive indexing
-            if (prev_reduce_dim < 0)
-                prev_reduce_dim += op->shape().size();
-
-            // If the previous op is the same kind of reduce, and the reduce dim is one off, then we can determine the commute shape after both ops
-            if (prev_reduce_dim == reduce_dim+1 or prev_reduce_dim == reduce_dim-1)
-            {
-                auto commute_dim = (uint32_t) std::max(prev_reduce_dim, reduce_dim);
-                auto commute_vec = commute_shape->as_vector();
-                while (commute_dim >= commute_vec.size())  
-                    commute_vec.push_back(1);
-                *commute_shape = graphlib::Shape::create(commute_vec);
-                if (commute_up)
-                    (*commute_shape)[commute_dim] = producer->shape()[reduce_dim] * producer->shape()[prev_reduce_dim];
-                else
-                    (*commute_shape)[commute_dim] = 1;
-                if (clone_shape != nullptr) {
-                    (*clone_shape)[reduce_dim] = 1;
-                    (*clone_shape)[prev_reduce_dim] = 1;
-                }
-                can_commute = true;
-            }
-        }
-    }
     
-    if (not can_commute)
-    {
-        auto [can_commute, new_dim] = can_commute_through_dim(initial_op, graph, reduce_dim, commute_up);
-        if (can_commute)
+        for (graphlib::Node* next_node : next_nodes) {
+            graphlib::OpNode *next_op = dynamic_cast<graphlib::OpNode*>(next_node);
+            if (next_op == nullptr)
+                continue;
+
+            // Check if the next op is a reduce, and the same type of reduce
+            if (next_op->op_name() != op->op_name())
+                continue;
+
+            auto compare_shape = check_only ? graph->data_operands(op)[0]->shape() : *clone_shape;
+
+            int next_reduce_dim = std::get<int>(next_op->op_attrs()[0]);
+            // Convert to positive indexing
+            if (next_reduce_dim < 0)
+                next_reduce_dim += next_op->shape().size();
+
+            int min_reduce_dim = std::min(reduce_dim, next_reduce_dim);
+            int max_reduce_dim = std::max(reduce_dim, next_reduce_dim);
+            int commute_max_reduce_dim = max_reduce_dim - (op->shape().size() - commute_shape->size()); // Adjust for commute shape
+
+            // This avoids the case where the reshape unflattens y into z. i.e (1, 1, 64, 4096) -> (1, 32, 2, 4096)
+            if (not commute_up)
+            {
+                if ((*commute_shape)[commute_max_reduce_dim] != compare_shape[min_reduce_dim] * compare_shape[max_reduce_dim]) {
+                    TT_ASSERT(check_only, "Cannot perform commute if commute is not possible");
+                    can_commute = false;
+                    break;
+                }
+            }
+            else {
+                if ((*commute_shape)[commute_max_reduce_dim] != 1) {
+                    TT_ASSERT(check_only, "Cannot perform commute if commute is not possible");
+                    can_commute = false;
+                    break;
+                }
+            }
+            // If the next op is the same kind of reduce, and the reduce dim is one off, skip, next op we handle this case 
+            if (next_reduce_dim == reduce_dim+1 or next_reduce_dim == reduce_dim-1) {
+                can_commute = true;
+                break;
+            }
+        }
+
+        // Check to see if previous op is reduce
+        for(graphlib::Node* prev_node : prev_nodes)
         {
-            graphlib::Shape updated_commute_shape = *commute_shape;
-            if (producer)
+            graphlib::OpNode *prev_op = dynamic_cast<graphlib::OpNode*>(prev_node);
+            if (prev_op == nullptr)
+                continue;
+
+            if (prev_op->op_name() == op->op_name())
             {
-                TT_ASSERT(commute_up, "Should only be using producer for shape if commuting up");
-                updated_commute_shape[new_dim] = producer->shape().as_vector()[reduce_dim];
+                TT_ASSERT(prev_op->op_attrs().size() == 1);
+                int prev_reduce_dim = std::get<int>(prev_op->op_attrs()[0]);
+                // Convert to positive indexing
+                if (prev_reduce_dim < 0)
+                    prev_reduce_dim += op->shape().size();
+
+                // If the previous op is the same kind of reduce, and the reduce dim is one off, then we can determine the commute shape after both ops
+                if (prev_reduce_dim == reduce_dim+1 or prev_reduce_dim == reduce_dim-1)
+                {
+                    auto commute_dim = (uint32_t) std::max(prev_reduce_dim, reduce_dim);
+                    auto commute_vec = commute_shape->as_vector();
+                    while (commute_dim >= commute_vec.size())  
+                        commute_vec.push_back(1);
+                    *commute_shape = graphlib::Shape::create(commute_vec);
+                    if (commute_up)
+                        (*commute_shape)[commute_dim] = producer->shape()[reduce_dim] * producer->shape()[prev_reduce_dim];
+                    else
+                        (*commute_shape)[commute_dim] = 1;
+                    if (clone_shape != nullptr) {
+                        (*clone_shape)[reduce_dim] = 1;
+                        (*clone_shape)[prev_reduce_dim] = 1;
+                    }
+                    can_commute = true;
+                }
             }
-            else
+        }
+        
+        if (not can_commute)
+        {
+            auto [can_commute, new_dim] = can_commute_through_dim(initial_op, graph, reduce_dim, commute_up);
+            if (can_commute)
             {
-                updated_commute_shape[new_dim] = op->shape().as_vector()[reduce_dim];
-            }
-            *commute_shape = updated_commute_shape;
-            if (clone_shape != nullptr)
-            {
-                graphlib::Shape updated_clone_shape = *clone_shape;
+                graphlib::Shape updated_commute_shape = *commute_shape;
                 if (producer)
                 {
                     TT_ASSERT(commute_up, "Should only be using producer for shape if commuting up");
-                    updated_clone_shape[reduce_dim] = producer->shape().as_vector()[reduce_dim];
+                    updated_commute_shape[new_dim] = producer->shape().as_vector()[reduce_dim];
                 }
                 else
                 {
-                    updated_clone_shape[reduce_dim] = op->shape().as_vector()[reduce_dim];
+                    updated_commute_shape[new_dim] = op->shape().as_vector()[reduce_dim];
                 }
-                *clone_shape = updated_clone_shape;
+                *commute_shape = updated_commute_shape;
+                if (clone_shape != nullptr)
+                {
+                    graphlib::Shape updated_clone_shape = *clone_shape;
+                    if (producer)
+                    {
+                        TT_ASSERT(commute_up, "Should only be using producer for shape if commuting up");
+                        updated_clone_shape[reduce_dim] = producer->shape().as_vector()[reduce_dim];
+                    }
+                    else
+                    {
+                        updated_clone_shape[reduce_dim] = op->shape().as_vector()[reduce_dim];
+                    }
+                    *clone_shape = updated_clone_shape;
+                }
             }
         }
     }
@@ -695,6 +728,22 @@ bool commute_through_reduce(
     TT_ASSERT(golden_transform, "golden_transform must be set");
     TT_ASSERT(next, "next must be set");
     TT_ASSERT(not commute_up, "Cannot perform commute upwards");
+
+    if (not commute_up and initial_op->op_name() == "transpose") {
+        auto op_attr = op->op_attrs();
+        auto reduce_shape = op->shape();
+
+        *clone_shape = reduce_shape;
+        reduce_shape[reduce_dim] = op->shape()[original_reduce_dim];
+        reduce_shape[original_reduce_dim] = op->shape()[reduce_dim];
+        *commute_shape = reduce_shape;
+
+        op_attr[0] = reduce_dim;
+        op->add_golden_transform(*golden_transform);
+        op->overwrite_op_attrs(op_attr);
+        op->set_shape(reduce_shape);
+        return true;
+    }
 
     if (graphlib::OpNode *next_as_op = dynamic_cast<graphlib::OpNode *>(next)) {
         if (op->op_name() == next_as_op->op_name()) {
@@ -859,23 +908,31 @@ bool commute_through_quantization(
     bool commute_up)
 {
     TT_ASSERT(is_quantization_ops(op), "op must be an quantization op");
-    if (commute_up)
-        return false;
-
+    (void)commute_up; // Avoid compiler warning.
     int axis = std::get<int>(op->op_attrs()[1]);
     int new_axis = axis;
     bool can_commute = false;
 
     if (initial_op->op_type().op == "reshape") {
+        
+        // axis of quantization must have the same volume to the left and right of it
+        if (new_axis < 0)
+            new_axis += op->shape().size();
 
-        if (not commute_up) {
-            // axis of quantization must have the same volume to the left and right of it
-            
-            if (new_axis < 0)
-                new_axis += op->shape().size();
-
-            // check if axis moved to the right (or in the same place)
-            while (new_axis < (int)commute_shape->size()) {
+        // check if axis moved to the right (or in the same place)
+        while (new_axis < (int)commute_shape->size()) {
+            if ((*commute_shape)[new_axis] == op->shape()[axis]) {
+                if (volume_above(commute_shape->as_vector(), new_axis) == volume_above(op->shape().as_vector(), axis)
+                    and volume_below(commute_shape->as_vector(), new_axis) == volume_below(op->shape().as_vector(), axis)) {
+                    can_commute = true;
+                }
+                break;
+            }
+            new_axis++;
+        }
+        if (not can_commute) {
+            new_axis = axis-1;
+            while (new_axis >= 0) {
                 if ((*commute_shape)[new_axis] == op->shape()[axis]) {
                     if (volume_above(commute_shape->as_vector(), new_axis) == volume_above(op->shape().as_vector(), axis)
                         and volume_below(commute_shape->as_vector(), new_axis) == volume_below(op->shape().as_vector(), axis)) {
@@ -883,22 +940,9 @@ bool commute_through_quantization(
                     }
                     break;
                 }
-                new_axis++;
+                new_axis--;
             }
-            if (not can_commute) {
-                new_axis = axis-1;
-                while (new_axis >= 0) {
-                    if ((*commute_shape)[new_axis] == op->shape()[axis]) {
-                        if (volume_above(commute_shape->as_vector(), new_axis) == volume_above(op->shape().as_vector(), axis)
-                            and volume_below(commute_shape->as_vector(), new_axis) == volume_below(op->shape().as_vector(), axis)) {
-                            can_commute = true;
-                        }
-                        break;
-                    }
-                    new_axis--;
-                }
-            }
-        }
+        } 
     } 
     else if (initial_op->op_type().op == "transpose") 
     {   
@@ -951,7 +995,8 @@ bool is_elementwise(graphlib::OpNode *op)
 
 bool is_quantization_ops(graphlib::OpNode *op)
 {
-    return op->op_name() == "buda_quantize" or op->op_name() == "buda_dequantize" or op->op_name() == "buda_requantize";
+    return op->op_name() == "buda_quantize" or op->op_name() == "buda_dequantize" or op->op_name() == "buda_requantize" 
+           or op->op_name() == "quantize" or op->op_name() == "dequantize" or op->op_name() == "requantize" ;
 }
 
 

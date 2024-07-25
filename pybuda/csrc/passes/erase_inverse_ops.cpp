@@ -387,7 +387,7 @@ bool erase_inverse_ops(graphlib::Graph *graph)
             if (not op)
                 continue;
 
-            if (op->as<graphlib::TaggedNode>()->has_tag("dont_erase"))
+            if (op->as<graphlib::TaggedNode>()->tag_value_or("dont_erase", false))
                 continue;
 
             if (match_fns.find(op->op_name()) == match_fns.end())

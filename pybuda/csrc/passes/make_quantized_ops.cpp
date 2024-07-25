@@ -82,6 +82,10 @@ bool is_quantizeable_conv2d(graphlib::Graph *graph, graphlib::Node *conv2d) {
         if (operand_op->op_type().op != "dequantize")
             return false;
     }
+    
+    // If three is no bias then it is quantizeable, since we already know the act and weight are dequantize ops
+    if (graph->data_operands(conv2d).size() == 2)
+        return true;
 
     // The scale of the bias dequant must be equal to the product of the scales of the act and weight
     graphlib::OpNode *deq_act = dynamic_cast<graphlib::OpNode *>(graph->data_operands(conv2d)[0]);
@@ -227,11 +231,15 @@ void make_quantized_conv2d(graphlib::Graph *graph, graphlib::OpNode *conv2d) {
 
     graphlib::OpNode *deq_act = dynamic_cast<graphlib::OpNode *>(graph->data_operands(conv2d)[0]);
     graphlib::OpNode *deq_weight = dynamic_cast<graphlib::OpNode *>(graph->data_operands(conv2d)[1]);
-    graphlib::OpNode *deq_bias = dynamic_cast<graphlib::OpNode *>(graph->data_operands(conv2d)[2]);
+    graphlib::OpNode *deq_bias = nullptr;
+    if (graph->data_operands(conv2d).size() == 3)
+        deq_bias = dynamic_cast<graphlib::OpNode *>(graph->data_operands(conv2d)[2]);
 
     graphlib::Node *deq_act_scale = graph->data_operands(deq_act)[1];
     graphlib::Node *deq_weight_scale = graph->data_operands(deq_weight)[1];
-    graphlib::Node *deq_bias_scale = graph->data_operands(deq_bias)[1];
+    graphlib::Node *deq_bias_scale = nullptr;
+    if (graph->data_operands(conv2d).size() == 3)
+        deq_bias_scale = graph->data_operands(deq_bias)[1];
 
     // We convert the dequant axis to to a negative index because the conv
     // shape size might be larger than the shape of deq1 
@@ -293,14 +301,16 @@ void make_quantized_conv2d(graphlib::Graph *graph, graphlib::OpNode *conv2d) {
     // Remove scale edges so that bypass node works (it requires that the node has one operand)
     graphlib::Edge old_deq_act_scale_edge = retrieve_between_edge(graph, deq_act_scale, deq_act);
     graphlib::Edge old_deq_weight_scale_edge = retrieve_between_edge(graph, deq_weight_scale, deq_weight);
-    graphlib::Edge old_deq_bias_scale_edge = retrieve_between_edge(graph, deq_bias_scale, deq_bias);
     graph->remove_edge(old_deq_act_scale_edge);
     graph->remove_edge(old_deq_weight_scale_edge);
-    graph->remove_edge(old_deq_bias_scale_edge);
-
+    if (deq_bias) {
+        graphlib::Edge old_deq_bias_scale_edge = retrieve_between_edge(graph, deq_bias_scale, deq_bias);
+        graph->remove_edge(old_deq_bias_scale_edge);
+    }
     bypass_node(graph, deq_act, true);
     bypass_node(graph, deq_weight, true);
-    bypass_node(graph, deq_bias, true);
+    if (deq_bias)
+        bypass_node(graph, deq_bias, true);
     conv2d->set_output_df(DataFormat::Int32);
 }
 
