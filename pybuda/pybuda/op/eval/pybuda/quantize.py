@@ -21,7 +21,7 @@ STRING_TO_TORCH_DTYPE = {
 }
 
 STRING_TO_LOWER_LIMIT = {
-    "torch.int8": -127,
+    "torch.int8": -128,
     "torch.uint8": 0,
     "torch.int32": -2147483648,
     "torch.float32": -3.4028234663852886e+38,

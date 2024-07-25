@@ -195,7 +195,7 @@ bool fuse_tm_sequences(tt::graphlib::Graph* graph,TMPatternPairs& pattern_map) {
                 if (not op)
                     continue;
 
-                if (op->as<graphlib::TaggedNode>()->has_tag("dont_erase"))
+                if (op->as<graphlib::TaggedNode>()->tag_value_or("dont_erase", false))
                     continue;
 
                 if (not is_tm(op->op_type()).cast<bool>())
