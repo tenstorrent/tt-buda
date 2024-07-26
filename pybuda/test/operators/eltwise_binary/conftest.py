@@ -34,6 +34,13 @@ def pytest_addoption(parser):
         default=[1, 16, 32, 64], 
         help="Shape of the tensor."
     )
+    # shape prologued
+    parser.addoption(
+        "--bin_shape_prologued", 
+        action="store", 
+        default='((2, 3, 3), InputSourceFlags.FROM_DRAM_NOT_PROLOGUED, False)', 
+        help="Shape of the tensor, input source plag, should prolog flag."
+    )
     # operation
     parser.addoption(
         "--bin_op",
@@ -59,6 +66,10 @@ def pytest_generate_tests(metafunc):
 	option_shape = metafunc.config.option.bin_shape
 	if 'bin_shape' in metafunc.fixturenames and option_shape is not None:
 		metafunc.parametrize("bin_shape", [option_shape])
+		
+	option_shape_prologued = metafunc.config.option.bin_shape_prologued
+	if 'bin_shape_prologued' in metafunc.fixturenames and option_shape_prologued is not None:
+		metafunc.parametrize("bin_shape_prologued", [option_shape_prologued])
 
 	option_op = metafunc.config.option.bin_op
 	if 'bin_op' in metafunc.fixturenames and option_op is not None:
