@@ -575,7 +575,11 @@ bool commute_through_reduce(
         prev_nodes = op_users;
     }
 
-    if (not commute_up and initial_op->op_name() == "transpose") {
+    // NOTE: We only allow this commute to happen if the transpose we are attempting to commute is Int32
+    // This is because this commute can reduce perf on some models. The reason we allow it if the df is
+    // Int32 is because Int32 transpose is not feasible on silicon, and so we must allow efforts to 
+    // commute these transposes out of quantized regions to go forward.
+    if (not commute_up and initial_op->op_name() == "transpose" and initial_op->output_df() == tt::DataFormat::Int32) {
         int dim0 = initial_op->op_type().get_attr_as<int>("dim0");
         int dim1 = initial_op->op_type().get_attr_as<int>("dim1");
 
