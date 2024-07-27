@@ -85,8 +85,8 @@ class ModelFromAnotherOp(PyBudaModule):
     model_name = "model_op_src_from_another_op"
 
     def __init__(self, operator, opname, shape, kwargs):
-        super().__init__("Element-wise binary operator " + opname + " test _ op src from another op")
-        self.testname = "Element-wise binary operator " + opname + " test _ op src from another op"
+        super().__init__("Element_wise_binary_operator_" + opname + "_test_op_src_from_another_op")
+        self.testname = "Element_wise_binary_operator_" + opname + "_test_op_src_from_another_op"
         self.operator = operator
         self.opname = opname
         self.shape = shape
@@ -105,8 +105,8 @@ class ModelFromHost(PyBudaModule):
     model_name = "model_op_src_from_host"
 
     def __init__(self, operator, opname, shape, kwargs):
-        super().__init__("Element-wise binary operator " + opname + " test _ op src from host")
-        self.testname = "Element-wise binary operator " + opname + " test _ op src from host"
+        super().__init__("Element_wise_binary_operator_" + opname + "_test_op_src_from_host")
+        self.testname = "Element_wise_binary_operator_" + opname + "_test_op_src_from_host"
         self.operator = operator
         self.opname = opname
         self.shape = shape
@@ -122,8 +122,8 @@ class ModelFromDramQueue(PyBudaModule):
     model_name = "model_op_src_from_dram_queue"
 
     def __init__(self, operator, opname, shape, kwargs):
-        super().__init__("Element-wise binary operator " + opname + " test _ op src from dram queue")
-        self.testname = "Element-wise binary operator " + opname + " test _ op src from dram queue"
+        super().__init__("Element_wise_binary_operator_" + opname + "_test_op_src_from_dram_queue")
+        self.testname = "Element_wise_binary_operator_" + opname + "_test_op_src_from_dram_queue"
         self.operator = operator
         self.opname = opname
         self.shape = shape
@@ -139,8 +139,8 @@ class ModelFromDramQueuePrologued(PyBudaModule):
     model_name = "model_op_src_from_dram_queue_prologued"
 
     def __init__(self, operator, opname, shape, kwargs):
-        super().__init__("Element-wise binary operator " + opname + " test _ op src from dram queue prologued")
-        self.testname = "Element-wise binary operator " + opname + " test _ op src from dram queue prologued"
+        super().__init__("Element_wise_binary_operator_" + opname + "_test_op_src_from_dram_queue_prologued")
+        self.testname = "Element_wise_binary_operator_" + opname + "_test_op_src_from_dram_queue_prologued"
         self.operator = operator
         self.opname = opname
         self.shape = shape
@@ -164,8 +164,8 @@ class ModelConstEvalPass(PyBudaModule):
     model_name = "model_op_src_const_eval_pass"
 
     def __init__(self, operator, opname, shape, kwargs):
-        super().__init__("Element-wise binary operator " + opname + " test _ op src const eval pass")
-        self.testname = "Element-wise binary operator " + opname + " test _ op src const eval pass"
+        super().__init__("Element_wise_binary_operator_" + opname + "_test_op_src_const_eval_pass")
+        self.testname = "Element_wise_binary_operator_" + opname + "_test_op_src_const_eval_pass"
         self.operator = operator
         self.opname = opname
         self.shape = shape
@@ -199,8 +199,8 @@ class ModelOpSrcFromTmEdge1(PyBudaModule):
     model_name = "model_op_src_from_tm_edge1"
 
     def __init__(self, operator, opname, shape, kwargs):
-        super().__init__("Element-wise binary operator " + opname + " test _ op src from tm edge1")
-        self.testname = "Element-wise binary operator " + opname + " test _ op src from tm edge1"
+        super().__init__("Element_wise_binary_operator_" + opname + "_test_op_src_from_tm_edge1")
+        self.testname = "Element_wise_binary_operator_" + opname + "_test_op_src_from_tm_edge1"
         self.operator = operator
         self.opname = opname
         self.shape = shape
@@ -218,8 +218,8 @@ class ModelOpSrcFromTmEdge2(PyBudaModule):
     model_name = "model_op_src_from_tm_edge2"
 
     def __init__(self, operator, opname, shape, kwargs):
-        super().__init__("Element-wise binary operator " + opname + " test _ op src from tm edge2")
-        self.testname = "Element-wise binary operator " + opname + " test _ op src from tm edge2"
+        super().__init__("Element_wise_binary_operator_" + opname + "_test_op_src_from_tm_edge2")
+        self.testname = "Element_wise_binary_operator_" + opname + "_test_op_src_from_tm_edge2"
         self.operator = operator
         self.opname = opname
         self.shape = shape
