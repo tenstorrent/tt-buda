@@ -13,6 +13,7 @@ from .utils import DebugUtils
 from .base import Framework, GraphBuilder, ModelBuilder
 from .base import RandomizerRunner, RandomizerCodeGenerator, process_test
 from .frameworks import Frameworks
+from .frameworks import FrameworkTestUtils
 from .algorithms import GraphNodeSetup
 from .algorithms import RandomGraphAlgorithm
 
@@ -37,6 +38,7 @@ __all__ = [
     "RandomizerCodeGenerator",
     "process_test",
     "Frameworks",
+    "FrameworkTestUtils"
     "GraphNodeSetup",
     "RandomGraphAlgorithm",
 ]
