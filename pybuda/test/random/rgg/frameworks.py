@@ -6,10 +6,12 @@
 
 from enum import Enum
 
-from typing import Tuple
+from loguru import logger
+from typing import Tuple, Type
 from copy import copy
 
-from .base import Framework
+from .base import Framework, ModelBuilder
+from .shapes import OperatorShapes
 
 from .pybuda.model import PyBudaModelBuilder
 from .pytorch.model import PyTorchModelBuilder
@@ -17,6 +19,7 @@ from .pytorch.model import PyTorchModelBuilder
 from pybuda.op_repo import pybuda_operator_repository
 from pybuda.op_repo import pytorch_operator_repository
 from pybuda.op_repo import OperatorDefinition
+from pybuda.op_repo import OperatorRepository
 
 
 class FrameworkTestUtils:
@@ -53,16 +56,42 @@ class FrameworkTestUtils:
         operators[i] = operator
         return operator
 
+    @classmethod
+    def set_calc_input_shapes(cls, framework: Framework, allow_operators: Tuple[str] = []) -> None:
+        ''' Implicitly set calc_input_shapes for all operators in the framework '''
+        logger.debug(f"Setting calc_input_shapes for framework {framework.framework_name}")
+        for operator in framework.operator_repository.operators:
+            function_name = f"{operator.name}_inputs"
+            if function_name in OperatorShapes.__dict__:
+                logger.debug(f"Found method {function_name} for {operator.name}")
+                operator.calc_input_shapes = OperatorShapes.__dict__[function_name]
+            else:
+                operator.calc_input_shapes = OperatorShapes.same_input_shapes
+
 
 class Frameworks(Enum):
     ''' Register of all frameworks '''
 
-    PYBUDA = Framework(
+    @staticmethod
+    def build_framework(framework_name: str, ModelBuilderType: Type[ModelBuilder], operator_repository: OperatorRepository):
+        framework = Framework(
+            framework_name=framework_name,
+            ModelBuilderType=ModelBuilderType,
+            operator_repository=operator_repository,
+        )
+
+        framework = FrameworkTestUtils.copy_framework(framework=framework, skip_operators=())
+
+        FrameworkTestUtils.set_calc_input_shapes(framework)
+
+        return framework
+
+    PYBUDA = build_framework(
         framework_name="PyBuda",
         ModelBuilderType=PyBudaModelBuilder,
         operator_repository=pybuda_operator_repository,
     )
-    PYTORCH = Framework(
+    PYTORCH = build_framework(
         framework_name="PyTorch",
         ModelBuilderType=PyTorchModelBuilder,
         operator_repository=pytorch_operator_repository,
