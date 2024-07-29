@@ -640,7 +640,6 @@ def populate_conv2d_transpose_args(graph, nid, compiler_cfg):
             in_channel = input_node["attrs"]["shape"][0][0][0]
             break
     groups = int(node["attrs"]["groups"][0][0])
-    assert groups == 1 or (in_channel is not None and groups == in_channel), "Only supports group of 1 or in_channel"
     args.append(("groups", f"{groups}",))
 
     kernel_size = [int(kernel) for kernel in node["attrs"]["kernel_size"][0]]
@@ -1743,6 +1742,7 @@ def compile_tvm_to_python(framework_mod, graph_name, inputs, module_name=None, c
         graph_input_names = {}
         params = {}
         constants = {}
+        removed_zp_nids = []
         ops = {}
         returns = {}
         returns_requiring_batch_dim_fix = []
@@ -1831,7 +1831,7 @@ def compile_tvm_to_python(framework_mod, graph_name, inputs, module_name=None, c
                                 f"Node: {nid} shape: {node['buda_shape']} name: {node['buda_name']} type: Constant"
                             )
 
-            elif node["op"] == "const":
+            elif node["op"] == "const" or node["op"] == "constant":
                 if isinstance(json_graph["params"][node["name"]], np.ndarray):
                     tensor = torch.from_numpy(json_graph["params"][node["name"]])
                 else:
@@ -1907,21 +1907,6 @@ def compile_tvm_to_python(framework_mod, graph_name, inputs, module_name=None, c
                 if node["name"] == "qnn.quantize":
                     assert int(node["attrs"]["num_inputs"]) == 3
                     zp_node = graph["nodes"][node["inputs"][2][0]]
-                    zp_node_name = zp_node['name']
-                    assert zp_node['nid'] in constants
-                    zp_value = json_graph["params"][zp_node_name]
-                    del constants[zp_node["nid"]]
-                    if zp_value.size == 1:
-                        args.append(("zero_point", f"{float(zp_value.item())}"))
-                    else:
-                        args.append(("zero_point", f"{float(zp_value[0].item())}"))
-                    node["attrs"]["num_inputs"] = '2'
-
-                if node["name"] == "qnn.dequantize":
-                    assert int(node["attrs"]["num_inputs"]) == 3
-
-                    zp_node = graph["nodes"][node["inputs"][2][0]]
-                    
                     # In case tvm added an op (such as cast) between zp and dequantize
                     if zp_node['op'] != 'constant':
                         if 'inputs' in zp_node:
@@ -1938,8 +1923,42 @@ def compile_tvm_to_python(framework_mod, graph_name, inputs, module_name=None, c
                         zp_node_name = zp_node['name']
                         zp_value = json_graph["params"][zp_node_name]
 
-                    assert zp_node['nid'] in constants
-                    del constants[zp_node["nid"]]
+                    if zp_node['nid'] in constants:
+                        assert zp_node['nid'] not in removed_zp_nids
+                        del constants[zp_node["nid"]]
+
+                    removed_zp_nids.append(zp_node["nid"])
+                    if zp_value.size == 1:
+                        args.append(("zero_point", f"{float(zp_value.item())}"))
+                    else:
+                        args.append(("zero_point", f"{float(zp_value[0].item())}"))
+                    node["attrs"]["num_inputs"] = '2'
+
+                if node["name"] == "qnn.dequantize":
+                    assert int(node["attrs"]["num_inputs"]) == 3
+
+                    zp_node = graph["nodes"][node["inputs"][2][0]]
+                    # In case tvm added an op (such as cast) between zp and dequantize
+                    if zp_node['op'] != 'constant':
+                        if 'inputs' in zp_node:
+                            zp_node_input = graph['nodes'][zp_node['inputs'][0][0]]
+                            if zp_node_input['op'] == 'constant':
+                                zp_node = zp_node_input
+                                zp_value = torch.tensor([0])
+                                if 'users' in zp_node:
+                                    users = zp_node['users']
+                                    for user in users:
+                                        if user in ops:
+                                            del ops[user]
+                    else:
+                        zp_node_name = zp_node['name']
+                        zp_value = json_graph["params"][zp_node_name]
+
+                    if zp_node['nid'] in constants:
+                        assert zp_node['nid'] not in removed_zp_nids
+                        del constants[zp_node["nid"]]
+
+                    removed_zp_nids.append(zp_node["nid"])
                     if zp_value.size == 1:
                         args.append(("zero_point", f"{zp_value.item()}"))
                     else:
