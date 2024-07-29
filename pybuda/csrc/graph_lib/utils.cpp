@@ -517,8 +517,6 @@ std::vector<Node *> topological_sort(const Graph &graph, std::function<bool(Node
 }
 
 void fork_subgraph(Graph *graph, Node *node) {
-    TT_ASSERT(graph->data_users(node).size() > 1, "Node only has one user, do not fork.");
-
     // If the node passed is an input node then just fork it
     graphlib::InputNode *input = dynamic_cast<graphlib::InputNode *>(node);
     graphlib::OpNode *op = dynamic_cast<graphlib::OpNode *>(node);
@@ -526,7 +524,8 @@ void fork_subgraph(Graph *graph, Node *node) {
         input->get_consteval_graph(graph, true, true); // create graph before clone so input node name is correct
         std::vector<graphlib::Edge> user_edges = graph->user_data_edges(input);
         TT_ASSERT(graph->data_operands(input).size() == 0, "Input can't have operands");
-        for (int i = 1; i < (int)user_edges.size(); i++)
+        std::vector<graphlib::Node *> removed_to_forked;
+        for (int i = 0; i < (int)user_edges.size(); i++)
         {
             graphlib::Edge const &user_edge = user_edges[i];
             log_trace(
@@ -546,7 +545,15 @@ void fork_subgraph(Graph *graph, Node *node) {
             Edge new_user_edge = Edge(clone->id(), user_edge.producer_output_port_id, user_edge.consumer_node_id, user_edge.consumer_input_port_id, user_edge.edge_type);
             
             graph->add_edge(new_user_edge, attr);
+            removed_to_forked.push_back(clone);
         }
+
+        graphlib::Node *first_forked = removed_to_forked[0];
+        auto removed_node = graph->remove_node(input);
+
+        // Need to maintain original name because user can access it by name
+        first_forked->set_name(removed_node->name());
+        
     }
     else if (op) {
         std::vector<Edge> user_edges = graph->user_data_edges(op);
