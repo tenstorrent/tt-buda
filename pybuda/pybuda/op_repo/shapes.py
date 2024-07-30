@@ -7,16 +7,18 @@
 from random import Random
 from typing import List
 
-from .datatypes import OperatorDefinition
 from .datatypes import TensorShape
+from .datatypes import ShapeCalculationContext
 
 
-def same_input_shapes(operator_definition: OperatorDefinition, output_shape: TensorShape, rng_shape: Random) -> List[TensorShape]:
+def same_input_shapes(calculation_context: ShapeCalculationContext) -> List[TensorShape]:
+    operator, output_shape = calculation_context.operator, calculation_context.output_shape
     # each input operand has the same shape as the output
-    return [output_shape for _ in range(operator_definition.input_num)]
+    return [output_shape for _ in range(operator.input_num)]
 
 
-def linear_inputs(operator_definition: OperatorDefinition, output_shape: TensorShape, rng_shape: Random) -> List[TensorShape]:
+def linear_inputs(calculation_context: ShapeCalculationContext) -> List[TensorShape]:
+    output_shape, rng_shape = calculation_context.output_shape, calculation_context.rng_shape
     # linear layer changes the last dimension of the input shape
     batch_shape = output_shape[:-1]
     n = output_shape[-1]
@@ -26,7 +28,8 @@ def linear_inputs(operator_definition: OperatorDefinition, output_shape: TensorS
 
 
 # FIXME: conv2d in PyTorch not working properly in all cases
-def conv2d_inputs(operator_definition: OperatorDefinition, output_shape: TensorShape, rng_shape: Random) -> List[TensorShape]:
+def conv2d_inputs(calculation_context: ShapeCalculationContext) -> List[TensorShape]:
+    output_shape, rng_shape = calculation_context.output_shape, calculation_context.rng_shape
     shape1 = output_shape[:1]
     shape2 = output_shape[2:]
     n = output_shape[1]
@@ -35,7 +38,8 @@ def conv2d_inputs(operator_definition: OperatorDefinition, output_shape: TensorS
     return input_shapes
 
 
-def matmul_inputs(operator_definition: OperatorDefinition, output_shape: TensorShape, rng_shape: Random) -> List[TensorShape]:
+def matmul_inputs(calculation_context: ShapeCalculationContext) -> List[TensorShape]:
+    output_shape, rng_shape = calculation_context.output_shape, calculation_context.rng_shape
     batch_shape = output_shape[:-2]
     m = output_shape[-2]
     n = output_shape[-1]

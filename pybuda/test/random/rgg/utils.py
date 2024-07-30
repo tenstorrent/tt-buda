@@ -18,6 +18,7 @@ from pybuda.op_repo import OperatorParam, OperatorDefinition, OperatorParamNumbe
 
 from .datatypes import TensorShape
 from .datatypes import RandomizerConfig, RandomizerTestContext, RandomizerNode, RandomizerGraph
+from .datatypes import NodeShapeCalculationContext
 
 
 class StrUtils:
@@ -209,8 +210,8 @@ class NodeUtils:
         return [node for node in nodes if cls.is_open(node) and cls.has_open_input_with_input_shape(node, input_shape)]
 
     @classmethod
-    def calc_input_shapes(cls, node: RandomizerNode, rng_shape: random.Random) -> List[TensorShape]:
-        return node.operator.calc_input_shapes(node.operator, node.output_shape, rng_shape)
+    def calc_input_shapes(cls, node: RandomizerNode, shape_calculation_context: NodeShapeCalculationContext) -> List[TensorShape]:
+        return node.operator.calc_input_shapes(shape_calculation_context)
 
 
 class DebugUtils:

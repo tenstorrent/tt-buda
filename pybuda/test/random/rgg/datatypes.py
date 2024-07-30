@@ -4,17 +4,15 @@
 # Generic test model randomizer
 
 
-from typing import Dict, List, Optional, Final, Tuple
+from typing import Dict, List, Optional, Final
 from dataclasses import dataclass, field
 import random
 import torch
 
+from pybuda.op_repo import TensorShape
 from pybuda.op_repo import OperatorDefinition
+from pybuda.op_repo import ShapeCalculationContext
 from test.conftest import TestDevice
-
-
-# Defining a type for tensor shape
-TensorShape = Tuple[int, ...]
 
 
 @dataclass
@@ -67,6 +65,33 @@ class RandomizerNode:
     @property
     def node_info(self):
         return f"{self.node_name} {self.name}"
+
+
+class NodeShapeCalculationContext(ShapeCalculationContext):
+
+    def __init__(self, node: RandomizerNode, test_context: 'RandomizerTestContext'):
+        self.node = node
+        self.test_context = test_context
+
+    @property
+    def operator(self) -> OperatorDefinition:
+        return self.node.operator
+
+    @property
+    def constructor_kwargs(self) -> Dict[str, object]:
+        return self.node.constructor_kwargs
+
+    @property
+    def forward_kwargs(self) -> Dict[str, object]:
+        return self.node.forward_kwargs
+
+    @property
+    def output_shape(self) -> TensorShape:
+        return self.node.output_shape
+
+    @property
+    def rng_shape(self) -> random.Random:
+        return self.test_context.rng_shape
 
 
 @dataclass
