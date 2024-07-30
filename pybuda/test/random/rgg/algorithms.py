@@ -10,6 +10,7 @@ from loguru import logger
 from pybuda.op_repo import OperatorDefinition
 
 from .datatypes import RandomizerGraph, RandomizerTestContext
+from .datatypes import NodeShapeCalculationContext
 from .datatypes import RandomizerInputNode
 from .datatypes import RandomizerConstantNode
 from .base import RandomizerNode, GraphBuilder
@@ -251,6 +252,9 @@ class RandomGraphAlgorithm(GraphBuilder):
         constant_input_rate_limitter = RateLimitter(rng_shape, 100, test_context.randomizer_config.constant_input_rate)
         same_inputs_rate_limitter = RateLimitter(rng_shape, 100, test_context.randomizer_config.same_inputs_percent_limit)
 
+        # Context object for shape calculation, node will be set later in the loop
+        shape_calculation_context = NodeShapeCalculationContext(node=None, test_context=test_context)
+
         # Building the graph with number of nodes between num_of_nodes_min and num_of_nodes_max
         num_of_nodes = rng_graph.randint(self.randomizer_config.num_of_nodes_min, self.randomizer_config.num_of_nodes_max) 
         for node_index in range(num_of_nodes, 0, -1):
@@ -315,7 +319,8 @@ class RandomGraphAlgorithm(GraphBuilder):
             # Creating new node
             node = RandomizerNode(operator=op1, output_shape=output_shape)
             # Saving input shapes for the new node
-            node.input_shapes = NodeUtils.calc_input_shapes(node, rng_shape)
+            shape_calculation_context.node = node
+            node.input_shapes = NodeUtils.calc_input_shapes(node, shape_calculation_context)
 
             # Initializing default constructor parameters based on input and output shapes
             self._init_default_constructor_params(node)
