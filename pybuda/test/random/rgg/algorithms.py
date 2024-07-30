@@ -136,25 +136,21 @@ class GraphNodeSetup:
                 constant_node.out_value = f"iconst{iconst_index}"
 
     @classmethod
-    def init_nodes_params(cls, test_context: RandomizerTestContext):
+    def init_node_params(cls, node: RandomizerNode, test_context: RandomizerTestContext):
         """
-        Generates random parameters for each node.
+        Generates random parameters for specified node.
 
         Args:
+            node (RandomizerNode): The node.
             test_context (RandomizerTestContext): The test context.
 
         Returns:
             None
         """
-        nodes = test_context.graph.nodes
         rng_params = test_context.rng_params
 
-        logger.trace("Generating random settings for operator parameters")
-        # Generate random values for operator parameters
-        for node in nodes:
-            node.constructor_kwargs = RandomUtils.constructor_kwargs(node.operator, node.constructor_kwargs, rng_params)
-            node.forward_kwargs = RandomUtils.forward_kwargs(node.operator, node.forward_kwargs, rng_params)
-        logger.trace("Random settings for operator parameters generated")
+        node.constructor_kwargs = RandomUtils.constructor_kwargs(node.operator, node.constructor_kwargs, rng_params)
+        node.forward_kwargs = RandomUtils.forward_kwargs(node.operator, node.forward_kwargs, rng_params)
 
     @classmethod
     def validate_graph(cls, graph: RandomizerGraph):
@@ -190,7 +186,6 @@ class GraphNodeSetup:
         logger.trace("Initializing nodes")
         cls.init_nodes_names(test_context)
         cls.init_nodes_inputs(test_context)
-        cls.init_nodes_params(test_context)
         logger.trace("Nodes initialized")
 
         logger.trace("Validating graph")
@@ -318,6 +313,11 @@ class RandomGraphAlgorithm(GraphBuilder):
 
             # Creating new node
             node = RandomizerNode(operator=op1, output_shape=output_shape)
+
+            # Initializing node parameters
+            # Calculating input shapes may require input parameters for its calculation
+            GraphNodeSetup.init_node_params(node, test_context)
+
             # Saving input shapes for the new node
             shape_calculation_context.node = node
             node.input_shapes = NodeUtils.calc_input_shapes(node, shape_calculation_context)
