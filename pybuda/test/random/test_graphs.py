@@ -37,6 +37,9 @@ class FrameworksHealthy(Enum):
             "binary_stack",  # bug
             "power",  # occasionally fails
             "logical_and",  # bug
+
+            # Nary operators
+            "where",  # pcc?
         )
 
         framework = FrameworkTestUtils.copy_framework(Frameworks.PYBUDA.value, SKIP_OPERATORS)
@@ -90,7 +93,30 @@ class FrameworksCustom(Enum):
 
         return framework
 
+    @staticmethod
+    def pybuda_nary():
+        SKIP_OPERATORS = (
+        )
+
+        framework = FrameworkTestUtils.copy_framework(Frameworks.PYBUDA.value, SKIP_OPERATORS)
+
+        ALLOW_OPERATORS = (
+            # "relu",
+            "tanh",
+            "add",
+            "matmul",  # Skip matmul to increase chance for stack operator
+            "interleave",
+            # "where",  # pcc?
+            "concatenate",
+            "stack",
+        )
+
+        FrameworkTestUtils.allow_operators(framework, ALLOW_OPERATORS)
+
+        return framework
+
     PYBUDA_MATMUL_JOINS = pybuda_matmul_joins()
+    PYBUDA_NARY = pybuda_nary()
 
 
 @pytest.mark.parametrize("framework", [
@@ -173,3 +199,32 @@ def test_random_graph_algorithm_pybuda_matmul_joins(test_index, random_seeds, te
     # TODO random_seed instead of random_seeds
     random_seed = random_seeds[test_index]
     process_test("Matmul Joins", test_index, random_seed, test_device, randomizer_config, graph_builder_type=RandomGraphAlgorithm, framework=framework)
+
+
+# @pytest.mark.xfail(reason="Nary operators are buggy")
+@pytest.mark.parametrize("framework", [
+    FrameworksCustom.PYBUDA_NARY.value,
+])
+def test_random_graph_algorithm_pybuda_nary(test_index, random_seeds, test_device, randomizer_config: RandomizerConfig, framework):
+    # adjust randomizer_config
+    randomizer_config = copy(randomizer_config)
+    # randomizer_config.debug_shapes = True
+    # randomizer_config.verify_shapes = True
+    randomizer_config.dim_min = 3
+    randomizer_config.dim_max = 4
+    randomizer_config.op_size_per_dim_min = 2  # avoid failing tests with smaller dimensions?
+    # randomizer_config.op_size_per_dim_min = 4
+    # randomizer_config.op_size_per_dim_min = 16
+    randomizer_config.op_size_per_dim_max = 8
+    # randomizer_config.op_size_per_dim_max = 64
+    # randomizer_config.op_size_per_dim_max = 256
+    randomizer_config.op_size_quantization = 2
+    randomizer_config.microbatch_size_min = 1
+    randomizer_config.microbatch_size_max = 8
+    randomizer_config.num_of_nodes_min = 10
+    randomizer_config.num_of_nodes_max = 15
+    randomizer_config.num_fork_joins_max = 10
+
+    # TODO random_seed instead of random_seeds
+    random_seed = random_seeds[test_index]
+    process_test("Nary", test_index, random_seed, test_device, randomizer_config, graph_builder_type=RandomGraphAlgorithm, framework=framework)
