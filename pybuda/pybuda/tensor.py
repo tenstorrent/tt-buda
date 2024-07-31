@@ -15,6 +15,7 @@ import copy
 import jaxlib
 import jax.numpy as jnp
 import json
+import transformers
 
 from .pybudaglobal import TILE_DIM, align_up_tile, round_up_div
 from pybuda._C import DataFormat
@@ -1078,6 +1079,8 @@ def to_pt_tensors(tensors: Union[Tuple[Union[torch.Tensor, Tensor, tf.Tensor], .
             pytorch_tensors.append(torch.Tensor(t))
         elif isinstance(t, mxnet.ndarray.ndarray.NDArray):
             pytorch_tensors.append(torch.Tensor(t.asnumpy()))
+        elif isinstance(t, transformers.cache_utils.Cache):
+            raise RuntimeError(f"Unsupported input tensor type: {type(t)}. If you wish to use transformers past-cache, please use legacy cache.")
         elif isinstance(t, jaxlib.xla_extension.DeviceArray):
             pytorch_tensors.append(torch.Tensor(np.array(t)))
         else:
