@@ -74,7 +74,7 @@ class RandomizerCodeGenerator:
         return StrUtils.kwargs_str(**node.constructor_kwargs)
 
     def forward_args(self, node: RandomizerNode) -> str:
-        args_str = ", ".join([f"inputs[{i}]" for i in range(node.operator.input_num)])
+        args_str = ", ".join([f"inputs[{i}]" for i in range(node.input_num)])
         return args_str
     
     def forward_kwargs(self, node: RandomizerNode) -> str:

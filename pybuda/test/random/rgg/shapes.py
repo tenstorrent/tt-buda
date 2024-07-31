@@ -15,9 +15,9 @@ class OperatorShapes:
 
     @staticmethod
     def same_input_shapes(calculation_context: ShapeCalculationContext) -> List[TensorShape]:
-        operator, output_shape = calculation_context.operator, calculation_context.output_shape
+        input_num, output_shape = calculation_context.input_num, calculation_context.output_shape
         # each input operand has the same shape as the output
-        return [output_shape for _ in range(operator.input_num)]
+        return [output_shape for _ in range(input_num)]
 
     @staticmethod
     def linear_inputs(calculation_context: ShapeCalculationContext) -> List[TensorShape]:
