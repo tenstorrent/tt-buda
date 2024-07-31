@@ -59,7 +59,22 @@ _OPERATORS = [
     OperatorDefinition("not_equal", "pybuda.op.NotEqual", 2),
     OperatorDefinition("logical_and", "pybuda.op.LogicalAnd", 2),
 
+    # Nary operators
+    OperatorDefinition("where", "pybuda.op.Where", 3),
+    # OperatorDefinition("index_copy", "pybuda.op.IndexCopy", 3),  # Bug #2705
+    OperatorDefinition("interleave", "pybuda.op.Interleave", (1,10), forward_params=[
+        OperatorParamNumber("axis", int, -3, -3),
+        OperatorParamNumber("stride", int, 1, 1),
+    ]),
+    OperatorDefinition("concatenate", "pybuda.op.Concatenate", (1, 10), forward_params=[
+        OperatorParamNumber("axis", int, -10, 10),
+    ]),
+    OperatorDefinition("stack", "pybuda.op.Stack", (2,4), forward_params=[
+        OperatorParamNumber("axis", int, 1, 10),
+    ]),
+
     OperatorDefinition("matmul", "pybuda.op.Matmul", 2),
+    # OperatorDefinition("sparse_matmul", "pybuda.op.SparseMatmul", 2),
 ]
 
 
