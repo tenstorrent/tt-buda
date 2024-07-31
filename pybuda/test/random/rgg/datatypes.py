@@ -132,6 +132,7 @@ class RandomizerConfig:
     # build_model_from_code: bool = False  # TODO remove obsoleted
     debug_shapes: bool = False,
     verify_shapes: bool = False,
+    verification_timeout: int = 60
     dim_min: int = 3
     dim_max: int = 4
     op_size_per_dim_min: int = 16

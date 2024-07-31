@@ -21,6 +21,7 @@ def get_randomizer_config_default():
         # build_model_from_code = False,
         debug_shapes = False,
         verify_shapes = False,
+        verification_timeout = int(os.environ.get("VERIFICATION_TIMEOUT", 60)),
         # TODO ranges
         # dim_min=int(os.environ.get("MIN_DIM", 3)),
         dim_min=int(os.environ.get("MIN_DIM", 4)),  # Until #2722 is resolved

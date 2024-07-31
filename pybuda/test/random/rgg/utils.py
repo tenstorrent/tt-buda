@@ -5,6 +5,7 @@
 
 
 import random
+import signal
 from typing import Callable, Generator, List, Dict
 from dataclasses import asdict
 from loguru import logger
@@ -249,3 +250,31 @@ class RateLimitter:
             return f"{self.current_value} < {self.current_limit}"
         else:
             return f"{self.current_value} >= {self.current_limit}"
+
+
+class TimeoutException(Exception):
+    pass
+
+
+# Handler for timeout signal
+def timeout_handler(signum, frame):
+    raise TimeoutException
+
+
+# Decorator for time limiting
+def timeout(seconds):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            # Set signal handler
+            signal.signal(signal.SIGALRM, timeout_handler)
+            # Set alarm
+            signal.alarm(seconds)
+            try:
+                result = func(*args, **kwargs)
+            finally:
+                # Shutdown alarm
+                signal.alarm(0)
+            return result
+        return wrapper
+    return decorator
+
