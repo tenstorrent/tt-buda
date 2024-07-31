@@ -180,7 +180,7 @@ class NodeUtils:
 
     @classmethod
     def num_of_closed_inputs(cls, node: RandomizerNode) -> int:
-        return node.operator.input_num - cls.num_of_open_inputs(node)
+        return node.input_num - cls.num_of_open_inputs(node)
 
     @classmethod
     def is_open(cls, node: RandomizerNode) -> bool:

@@ -35,6 +35,7 @@ class RandomizerNode:
     index: Optional[int] = None
     out_value: Optional[str] = None
     operator: Optional[OperatorDefinition] = None
+    input_num: int = field(init=False)
     inputs: List['RandomizerNode'] = field(init=False)
     constructor_kwargs: Dict[str, object] = field(default_factory=dict)
     forward_kwargs: Dict[str, object] = field(default_factory=dict)
@@ -44,7 +45,11 @@ class RandomizerNode:
     def __post_init__(self):
         # List of input nodes is initialized with None values for each input
         # Inputs will be set later during graph construction
-        self.inputs = [None for _ in range(self.operator.input_num)]
+        self.input_num = self.operator.input_num_range.operands_min
+        self.init_inputs()
+
+    def init_inputs(self):
+        self.inputs = [None for _ in range(self.input_num)]
 
     @property
     def operator_name(self):
@@ -76,6 +81,10 @@ class NodeShapeCalculationContext(ShapeCalculationContext):
     @property
     def operator(self) -> OperatorDefinition:
         return self.node.operator
+    
+    @property
+    def input_num(self) -> int:
+        return self.node.input_num
 
     @property
     def constructor_kwargs(self) -> Dict[str, object]:

@@ -173,9 +173,9 @@ class GraphNodeSetup:
 
         # Validation of input configuration
         for node in nodes:
-            if node.operator.input_num and node.operator.input_num > 1:
+            if node.input_num and node.input_num > 1:
                 if NodeUtils.num_of_open_inputs(node) > 0:
-                    raise Exception(f"Closed {NodeUtils.num_of_closed_inputs(node)}/{node.operator.input_num} inputs, missing {NodeUtils.num_of_open_inputs(node)} inputs for node {node.node_info}")
+                    raise Exception(f"Closed {NodeUtils.num_of_closed_inputs(node)}/{node.input_num} inputs, missing {NodeUtils.num_of_open_inputs(node)} inputs for node {node.node_info}")
 
         # Validation of operator and layer types
         for node in nodes:
