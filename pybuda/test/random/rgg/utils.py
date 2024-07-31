@@ -214,6 +214,16 @@ class NodeUtils:
     def calc_input_shapes(cls, node: RandomizerNode, shape_calculation_context: NodeShapeCalculationContext) -> List[TensorShape]:
         return node.operator.calc_input_shapes(shape_calculation_context)
 
+    @classmethod
+    def get_random_input_num(cls, node: RandomizerNode, test_context: RandomizerTestContext) -> int:
+        input_num_range = node.operator.input_num_range
+        return test_context.rng_graph.randint(input_num_range.operands_min, input_num_range.operands_max)
+
+    @classmethod
+    def init_random_inputs(cls, node: RandomizerNode, test_context: RandomizerTestContext) -> None:
+        node.input_num = cls.get_random_input_num(node, test_context)
+        node.init_inputs()
+
 
 class DebugUtils:
 

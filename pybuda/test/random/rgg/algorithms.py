@@ -318,6 +318,9 @@ class RandomGraphAlgorithm(GraphBuilder):
             # Calculating input shapes may require input parameters for its calculation
             GraphNodeSetup.init_node_params(node, test_context)
 
+            # Initializing random inputs based on operand num range
+            NodeUtils.init_random_inputs(node, test_context)
+
             # Saving input shapes for the new node
             shape_calculation_context.node = node
             node.input_shapes = NodeUtils.calc_input_shapes(node, shape_calculation_context)
