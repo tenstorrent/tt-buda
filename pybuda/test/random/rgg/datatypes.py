@@ -170,3 +170,9 @@ class RandomizerTestContext:
     rng_shape: Optional[random.Random] = None
     # random number generators for parameters
     rng_params: Optional[random.Random] = None
+
+
+class InvalidShape(Exception):
+
+    def __init__(self, message):
+        super().__init__(message)

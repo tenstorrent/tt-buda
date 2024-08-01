@@ -13,10 +13,12 @@ from .datatypes import RandomizerGraph, RandomizerTestContext
 from .datatypes import NodeShapeCalculationContext
 from .datatypes import RandomizerInputNode
 from .datatypes import RandomizerConstantNode
+from .datatypes import InvalidShape
 from .base import RandomizerNode, GraphBuilder
 from .base import Framework
 from .utils import RandomUtils, StrUtils, NodeUtils
 from .utils import RateLimitter
+from .shapes import AdjustParameters
 
 
 class GraphNodeSetup:
@@ -223,6 +225,17 @@ class RandomGraphAlgorithm(GraphBuilder):
         if len([param for param in node.operator.constructor_params if param.name == "out_channels"]) == 1:
             node.constructor_kwargs["out_channels"] = node.output_shape[1]
 
+    @classmethod
+    def _adjust_params(cls, node: RandomizerNode, test_context: RandomizerTestContext):
+
+        function_name = f"{node.operator.name}_adjust"
+        if function_name in AdjustParameters.__dict__:
+            logger.trace(f"Found method {function_name}")
+            adjust_params_method = AdjustParameters.__dict__[function_name]
+            adjust_params_method(node, test_context)
+        else:
+            pass
+
     # Build graph of random operators via random graph building algorithm
     # Graph contains between num_of_nodes_min and num_of_nodes_max nodes
     # Graph is constructed backwards starting from end node
@@ -253,10 +266,12 @@ class RandomGraphAlgorithm(GraphBuilder):
         # Building the graph with number of nodes between num_of_nodes_min and num_of_nodes_max
         num_of_nodes = rng_graph.randint(self.randomizer_config.num_of_nodes_min, self.randomizer_config.num_of_nodes_max) 
         for node_index in range(num_of_nodes, 0, -1):
-            first_node = node_index == num_of_nodes
+            first_node = len(nodes) == 0
 
             # Choose operator randomly based on rng
             op1 = self._get_random_operator(rng_graph)
+
+            node_name = f"op{node_index}[{op1.name}]"
 
             # Find all open nodes
             open_nodes = NodeUtils.get_open_nodes(nodes)
@@ -295,7 +310,7 @@ class RandomGraphAlgorithm(GraphBuilder):
                 # Increase fork join counter
                 new_fork_join = subset_count - 1
                 if new_fork_join > 0:
-                    logger.trace(f"Constructing {new_fork_join} new fork join(s) from operator op{node_index} {op1.name}")
+                    logger.trace(f"Constructing {new_fork_join} new fork join(s) from operator {node_name}")
                 fork_join_counter += new_fork_join
 
                 # Select random subset of open nodes to close
@@ -303,7 +318,7 @@ class RandomGraphAlgorithm(GraphBuilder):
 
                 if len(random_nodes) > 1:
                     for random_node in random_nodes[1:]:
-                        logger.trace(f"Constructing new fork join from operator op{node_index} {op1.name} -> {random_node.name}")
+                        logger.trace(f"Constructing new fork join from operator {node_name} -> {random_node.name}")
 
             else:
                 random_nodes = []
@@ -321,9 +336,24 @@ class RandomGraphAlgorithm(GraphBuilder):
             # Initializing random inputs based on operand num range
             NodeUtils.init_random_inputs(node, test_context)
 
+            try:
+                # Try to adjust parameters to avoid invalid shapes
+                self._adjust_params(node, test_context)
+            except InvalidShape as e:
+                # Skip node if shape doesn't support fixing
+                logger.warning(f"Invalid shape -> Skip node {node_name} because params adjustment failed: {e}")
+                # TODO repeat node generation with different operator
+                continue
+
             # Saving input shapes for the new node
             shape_calculation_context.node = node
-            node.input_shapes = NodeUtils.calc_input_shapes(node, shape_calculation_context)
+            try:
+                node.input_shapes = NodeUtils.calc_input_shapes(node, shape_calculation_context)
+            except InvalidShape as e:
+                # Skip node if shape is invalid
+                logger.warning(f"Invalid shape calculation -> Skip node {node_name}: {e}")
+                # TODO repeat node generation with different operator
+                continue
 
             # Initializing default constructor parameters based on input and output shapes
             self._init_default_constructor_params(node)

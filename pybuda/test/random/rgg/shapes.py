@@ -68,3 +68,9 @@ def randomize_size(n: int, rng_shape: Random) -> int:
     new_value = n + diff
     # logger.trace(f"Randomize size: {n} + {diff} -> {new_value}")
     return new_value
+
+
+class AdjustParameters:
+    '''Adjust parameters for operators based on output shape'''
+    # TODO Introduce adjustment method in operator definition similar to calc_input_shapes
+
