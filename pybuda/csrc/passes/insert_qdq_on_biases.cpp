@@ -18,7 +18,7 @@ namespace tt::passes
 {
 
 bool can_insert_on_conv2d_bias(graphlib::Graph *graph, graphlib::OpNode *conv2d) {
-    if (conv2d->op_type().op != "conv2d")
+    if (conv2d->op_type().op != "conv2d" and conv2d->op_type().op != "conv2d_transpose")
         return false;
 
     if (graph->data_operands(conv2d).size() != 3)
@@ -63,6 +63,15 @@ bool can_insert_on_matmul_bias(graphlib::Graph *graph, graphlib::OpNode *add) {
         return false;
     }
 
+    // The first non-TM op above the dequantize must be a matmul, or else this isnt a matmul bias-add
+    py::object eval_module = py::module_::import("pybuda.op.eval.pybuda");
+    py::function is_tm = eval_module.attr("is_tm");
+    graphlib::OpNode *operand = dynamic_cast<graphlib::OpNode *>(graph->data_operands(deq)[0]);
+    while (operand and is_tm(operand->op_type()).cast<bool>() and graph->data_operands(operand).size() == 1) {
+        operand = dynamic_cast<graphlib::OpNode *>(graph->data_operands(operand)[0]);
+    }
+    if (not operand or operand->op_name() != "matmul")
+        return false;
     
     // For now, the way we know this is a bias-add is if the dequantize nodes input has output_df Int32 
     // This is because the quantized matmul above returns an Int32.
@@ -97,6 +106,7 @@ bool insert_qdq_on_matmul_bias(graphlib::Graph *graph, graphlib::OpNode *add) {
         bias = graph->data_operands(add)[0];
         bias_is_rhs = false;
     }
+
     int axis = std::get<int>(deq->op_attrs()[1]);
     // Insert unsqueezes to to match the rank of add
     handle_change_rank(graph, add);
@@ -107,8 +117,13 @@ bool insert_qdq_on_matmul_bias(graphlib::Graph *graph, graphlib::OpNode *add) {
         bias = graph->data_operands(add)[0];
     }
 
-
     graphlib::Node *scale = graph->data_operands(deq)[1];
+    // Find matching dim for axis
+    for (uint32_t i = 0; i < bias->shape().size(); i++) {
+        if (bias->shape()[i] == scale->shape()[0])
+            axis = (int)i;
+    }
+
     graphlib::Edge add_bias_edge = retrieve_between_edge(graph, bias, add);
     std::vector<graphlib::OpType::Attr> quant_attrs{0.0f, axis, std::string("torch.int32")};
     std::vector<graphlib::OpType::Attr> dequant_attrs{0.0f, axis};
@@ -226,9 +241,10 @@ bool insert_qdq_on_conv2d_bias(graphlib::Graph *graph, graphlib::OpNode *conv2d)
     return true;
 }
 
-const std::array<std::string, 2> quantizeable_ops{
+const std::array<std::string, 3> quantizeable_ops{
     "add",
-    "conv2d"
+    "conv2d",
+    "conv2d_transpose"
 };
 bool insert_qdq_on_biases(graphlib::Graph *graph) {
     

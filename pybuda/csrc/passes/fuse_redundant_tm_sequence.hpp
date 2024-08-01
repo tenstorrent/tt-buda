@@ -47,7 +47,7 @@ namespace tt::passes
     };
 
     using TMPattern = std::vector<OpTypeItem>;
-    using TMPatternPairs = std::vector<std::pair<TMPattern, TMPattern>>;
+    using TMPatternPairs = std::vector<std::pair<TMPattern, std::vector<TMPattern>>>;
 
     // PreDefine TM sequence pattern
     static TMPattern pattern_0 = {
@@ -240,45 +240,175 @@ namespace tt::passes
         OpTypeItem("reshape", {1, 28, 28, 36}, false),
     };
 
+    static TMPattern replace_4_10 = {
+        OpTypeItem("reshape", {1, 56, 56, 96}, false),
+    };
+
+    static TMPattern replace_4_11 = {
+        OpTypeItem("reshape", {1, 14, 14, 384}, false),
+    };
+
+    static TMPattern replace_4_12 = {
+        OpTypeItem("reshape", {1, 7, 7, 768}, false),
+    };
+
+    static TMPattern replace_4_13 = {
+        OpTypeItem("reshape", {1, 28, 28, 192}, false),
+    };
+
+    static TMPattern pattern_5 = {
+        OpTypeItem("reshape", {}, false),
+        OpTypeItem("transpose", {-3, -1, -1}, true),
+        OpTypeItem("transpose", {-2, -1, -1}, true),
+        OpTypeItem("transpose", {-3, -2, -1}, true),
+        OpTypeItem("transpose", {-2, -1, -1}, true),
+    };
+
+    static TMPattern replace_5_0 = {
+        OpTypeItem("reshape", {1, 56, 56, 96}, false),
+    };
+
+    static TMPattern pattern_6 = {
+        OpTypeItem("reshape", {}, false),
+        OpTypeItem("transpose", {-3, -1, -1}, true),
+        OpTypeItem("transpose", {-2, -1, -1}, true),
+        OpTypeItem("reshape", {}, false),
+        OpTypeItem("transpose", {-2, -1, -1}, true),
+    };
+
+    static TMPattern replace_6_0 = {
+        OpTypeItem("reshape", {1, 1, 3136, 96}, false),
+    };
+
+    static TMPattern replace_6_1 = {
+        OpTypeItem("reshape", {1, 1, 784, 192}, false),
+    };
+
+    static TMPattern replace_6_2 = {
+        OpTypeItem("reshape", {1, 1, 196, 384}, false),
+    };
+
+    static TMPattern pattern_7 {
+        OpTypeItem("transpose", {-3, -1, -1}, true),
+        OpTypeItem("transpose", {-2, -1, -1}, true),
+        OpTypeItem("reshape", {}, false),
+        OpTypeItem("transpose", {-2, -1, -1}, true),
+    };
+
+    static TMPattern replace_7_0 = {
+        OpTypeItem("reshape", {1, 1, 3136, 96}, false),
+    };
+
+    static TMPattern replace_7_1 = {
+        OpTypeItem("reshape", {1, 1, 784, 192}, false),
+    };
+
+    static TMPattern replace_7_2 = {
+        OpTypeItem("reshape", {1, 1, 196, 384}, false),
+    };
+
+    static TMPattern pattern_8 {
+        OpTypeItem("transpose", {-2, -1, -1}, true),
+        OpTypeItem("reshape", {}, false),
+        OpTypeItem("reshape", {}, false),
+        OpTypeItem("transpose", {-2, -1, -1}, true),
+    };
+
+    static TMPattern replace_8_0 = {
+        OpTypeItem("reshape", {1, 1, 784, 192}, false),
+    };
+
+    static TMPattern pattern_9 = {
+        OpTypeItem("reshape", {}, false),
+        OpTypeItem("transpose", {-3, -1, -1}, true),
+        OpTypeItem("transpose", {-2, -1, -1}, true),
+        OpTypeItem("reshape", {}, false),
+        OpTypeItem("transpose", {-1, -2, -1}, true),
+    };
+
+    static TMPattern replace_9_0 = {
+        OpTypeItem("reshape", {1, 1, 196, 384}, false),
+    };
+
+    static TMPattern pattern_10 = {
+        OpTypeItem("reshape", {}, false),
+        OpTypeItem("transpose", {-3, -1, -1}, true),
+        OpTypeItem("transpose", {-2, -1, -1}, true),
+        OpTypeItem("transpose", {-2, -1, -1}, true),
+        OpTypeItem("transpose", {-3, -1, -1}, true),
+    };
+
+    static TMPattern replace_10_0 = {
+        OpTypeItem("reshape", {1, 14, 14, 384}, false),
+    };
+    
     static TMPatternPairs pattern_map = {
-        {pattern_0, replace_0},
-        {pattern_1, replace_1},
-        {pattern_2, replace_2_0},
-        {pattern_2, replace_2_1},
-        {pattern_2, replace_2_2},
-        {pattern_2, replace_2_3},
-        {pattern_2, replace_2_4},
-        {pattern_2, replace_2_5},
-        {pattern_2, replace_2_6},
-        {pattern_2, replace_2_7},
-        {pattern_2, replace_2_8},
-        {pattern_2, replace_2_9},
-        {pattern_2, replace_2_10},
-        {pattern_2, replace_2_11},
-        {pattern_2, replace_2_12},
-        {pattern_2, replace_2_13},
-        {pattern_2, replace_2_14},
-        {pattern_2, replace_2_15},
-        {pattern_3, replace_3_0},
-        {pattern_3, replace_3_1},
-        {pattern_3, replace_3_2},
-        {pattern_3, replace_3_3},
-        {pattern_3, replace_3_4},
-        {pattern_3, replace_3_5},
-        {pattern_3, replace_3_6},
-        {pattern_3, replace_3_7},
-        {pattern_3, replace_3_8},
-        {pattern_3, replace_3_9},
-        {pattern_4, replace_4_0},
-        {pattern_4, replace_4_1},
-        {pattern_4, replace_4_2},
-        {pattern_4, replace_4_3},
-        {pattern_4, replace_4_4},
-        {pattern_4, replace_4_5},
-        {pattern_4, replace_4_6},
-        {pattern_4, replace_4_7},
-        {pattern_4, replace_4_8},
-        {pattern_4, replace_4_9},
+        {pattern_0, {replace_0}},
+        {pattern_1, {replace_1}},
+        {pattern_2, {
+            replace_2_0,
+            replace_2_1,
+            replace_2_2,
+            replace_2_3,
+            replace_2_4,
+            replace_2_5,
+            replace_2_6,
+            replace_2_7,
+            replace_2_8,
+            replace_2_9,
+            replace_2_10,
+            replace_2_11,
+            replace_2_12,
+            replace_2_13,
+            replace_2_14,
+            replace_2_15,
+        }},
+        {pattern_3, {
+            replace_3_0,
+            replace_3_1,
+            replace_3_2,
+            replace_3_3,
+            replace_3_4,
+            replace_3_5,
+            replace_3_6,
+            replace_3_7,
+            replace_3_8,
+            replace_3_9,
+        }},
+        {pattern_4, {
+            replace_4_0,
+            replace_4_1,
+            replace_4_2,
+            replace_4_3,
+            replace_4_4,
+            replace_4_5,
+            replace_4_6,
+            replace_4_7,
+            replace_4_8,
+            replace_4_9,
+            replace_4_10,
+            replace_4_11,
+            replace_4_12,
+            replace_4_13,
+        }},
+        {pattern_5, {replace_5_0}},
+        {pattern_6, {
+            replace_6_0,
+            replace_6_1,
+            replace_6_2,
+        }},
+        {pattern_7, {
+            replace_7_0,
+            replace_7_1,
+            replace_7_2,
+        }},
+        {pattern_8, {replace_8_0}},
+        {pattern_9, {
+            replace_9_0,
+        }},
+        {pattern_10, {
+            replace_10_0,
+        }},
     };
 
     bool fuse_tm_sequences(tt::graphlib::Graph* graph, TMPatternPairs& pattern_map_ = pattern_map);

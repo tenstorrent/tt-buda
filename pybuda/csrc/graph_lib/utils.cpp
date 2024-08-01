@@ -535,10 +535,11 @@ void fork_subgraph(Graph *graph, Node *node) {
                 graph->node_by_id(user_edge.consumer_node_id)->name());
             
             std::string clone_name = input->name() + "_subgraph_fork_clone_" + std::to_string(user_edge.edge_creation_id);
-            Node *clone = graph->add_node(
+            TaggedNode *clone = graph->add_node(
                 input->clone(clone_name), 
-                graph->get_subgraph_id_for_node(input->id()));
+                graph->get_subgraph_id_for_node(input->id()))->as<TaggedNode>();
 
+            clone->tag("forked_from", input->name());
             auto attr = graph->get_edge_attributes(user_edge);
             graph->remove_edge(user_edge);
             // Replace user operand_edge
@@ -1458,6 +1459,7 @@ void handle_change_rank(graphlib::Graph *graph, graphlib::Edge edge)
         change_rank->set_shape(producer->shape().as_rank(rank));
         change_rank->tag("dont_erase", true);
         auto [incoming_edge, outgoing_edge] = insert_node_on_edge(graph, edge, change_rank);
+        change_rank->set_output_df_from_operands(graph);
         if (try_consteval_op(graph, change_rank))
             return graph->operand_data_edges(consumer)[0];
 

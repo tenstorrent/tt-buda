@@ -152,6 +152,9 @@ def shape(type, attr, ops):
             elif op0[dim] == 1:  # We broadcast even if dims are both one in order to use unsqueeze from broadcast function
                 broadcast.append((1, dim, 1))
 
+    if "buda" in type:
+        assert attr[1] == -1, "decomposed quantization ops must have their axis set to be invalid (-1)."
+
     return ops[0], []
 
 
@@ -199,7 +202,7 @@ def decompose(type, attr, dc, inputs):
                 scale = dc.op("broadcast", [scale], attrs=(i-len(scale_shape), act.shape[i]), output_df=scale.output_df)
                 scale_shape = list(scale.shape)
 
-        out = dc.op("buda_quantize", [inputs[0], scale], attrs=attr, output_df=buda_dtype)
+        out = dc.op("buda_quantize", [inputs[0], scale], attrs=[zero_point, -1, out_dtype], output_df=buda_dtype)
         dc.fuse(out)
         return
 
@@ -249,7 +252,7 @@ def decompose(type, attr, dc, inputs):
 
         torch_dtype = STRING_TO_TORCH_DTYPE[out_dtype]
         buda_dtype = pytorch_dtype_to_buda_dataformat(torch_dtype)
-        out = dc.op("buda_requantize", [act, new_scale], attrs=(out_zp, axis, rounding, out_dtype),output_df=buda_dtype)
+        out = dc.op("buda_requantize", [act, new_scale], attrs=(out_zp, -1, rounding, out_dtype),output_df=buda_dtype)
         dc.fuse(out)
         return
 
@@ -278,6 +281,6 @@ def decompose(type, attr, dc, inputs):
                 scale = dc.op("broadcast", [scale], attrs=(i-len(scale_shape), act.shape[i]), output_df=scale.output_df)
                 scale_shape = list(scale.shape)
 
-        out = dc.op("buda_dequantize", [act, scale], attrs=attr,)
+        out = dc.op("buda_dequantize", [act, scale], attrs=[zero_point, -1],)
         dc.fuse(out)
         return

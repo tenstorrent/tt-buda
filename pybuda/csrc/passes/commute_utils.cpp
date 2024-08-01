@@ -607,7 +607,7 @@ bool commute_through_reduce(
         }
         
     }
-    else {
+    else if (initial_op->op_name() != "transpose") {
 
     
         for (graphlib::Node* next_node : next_nodes) {
@@ -691,14 +691,18 @@ bool commute_through_reduce(
         
         if (not can_commute)
         {
-            auto [can_commute, new_dim] = can_commute_through_dim(initial_op, graph, reduce_dim, commute_up);
+            // auto can_comm_new_dim = can_commute_through_dim(initial_op, graph, reduce_dim, commute_up);
+            auto can_comm_new_dim = can_commute_through_dim(initial_op, graph, reduce_dim, commute_up);
+            can_commute = std::get<0>(can_comm_new_dim);
+            auto new_dim = std::get<1>(can_comm_new_dim);
             if (can_commute)
             {
                 graphlib::Shape updated_commute_shape = *commute_shape;
-                if (producer)
+                if (commute_up)
                 {
-                    TT_ASSERT(commute_up, "Should only be using producer for shape if commuting up");
-                    updated_commute_shape[new_dim] = producer->shape().as_vector()[reduce_dim];
+                    // Producer may not be passed but we still need its shape
+                    graphlib::Shape producer_shape = graph->data_operands(op)[0]->shape();
+                    updated_commute_shape[new_dim] = producer_shape[reduce_dim];
                 }
                 else
                 {
@@ -708,10 +712,11 @@ bool commute_through_reduce(
                 if (clone_shape != nullptr)
                 {
                     graphlib::Shape updated_clone_shape = *clone_shape;
-                    if (producer)
+                    if (commute_up)
                     {
-                        TT_ASSERT(commute_up, "Should only be using producer for shape if commuting up");
-                        updated_clone_shape[reduce_dim] = producer->shape().as_vector()[reduce_dim];
+                        // Producer may not be passed but we still need its shape
+                        graphlib::Shape producer_shape = graph->data_operands(op)[0]->shape();
+                        updated_clone_shape[reduce_dim] = producer_shape[reduce_dim];
                     }
                     else
                     {
@@ -918,7 +923,8 @@ bool commute_through_quantization(
     bool can_commute = false;
 
     if (initial_op->op_type().op == "reshape") {
-        
+        if (axis == -1)
+            can_commute = true;
         // axis of quantization must have the same volume to the left and right of it
         if (new_axis < 0)
             new_axis += op->shape().size();
@@ -967,10 +973,12 @@ bool commute_through_quantization(
 
     TT_ASSERT(can_commute, "Should not have called this if it is incommutable.");
 
-    std::vector<graphlib::OpType::Attr> op_attrs = op->op_attrs();
-    op_attrs[1] = new_axis;
+    if (axis != -1) {
+        std::vector<graphlib::OpType::Attr> op_attrs = op->op_attrs();
+        op_attrs[1] = new_axis;
+        op->overwrite_op_attrs(op_attrs);
+    }
     op->set_shape(*commute_shape);
-    op->overwrite_op_attrs(op_attrs);
     op->add_golden_transform(*golden_transform);
     return true;
 }

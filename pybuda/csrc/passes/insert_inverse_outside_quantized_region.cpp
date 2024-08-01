@@ -86,8 +86,8 @@ static std::tuple<std::vector<graphlib::Edge>, graphlib::Shape, graphlib::Shape>
 
     graphlib::OpNode *iter = initial_op;
 
-    auto clone_shape = initial_op->shape();
-    auto commute_shape = shape_of_only_operand(graph, initial_op);
+    auto commute_shape = initial_op->shape();
+    auto clone_shape = shape_of_only_operand(graph, initial_op);
 
     bool found_quantize = false;
     while (not found_quantize) {
@@ -119,7 +119,7 @@ static std::tuple<std::vector<graphlib::Edge>, graphlib::Shape, graphlib::Shape>
             for (graphlib::Edge operand_edge : operand_edges) {
                 // If the operand of this edge is already an inverse to this op, dont bother returning the edge
                 graphlib::OpNode *operand = dynamic_cast<graphlib::OpNode *>(graph->node_by_id(operand_edge.producer_node_id));
-                if (operand and not are_compatible_ops(graph, initial_op, operand, &commute_shape))
+                if (not (operand and are_compatible_ops(graph, initial_op, operand, &commute_shape)))
                     operands_outside.push_back(operand_edge);
             }
         }
@@ -169,7 +169,7 @@ void insert_inverse_transpose_pair(graphlib::Graph *graph, graphlib::OpNode *tra
         graphlib::Shape clone_shape = operand->shape();
         clone_op->set_shape(clone_shape);
         if (below)
-            clone_op->tag("dont_erase", "true");
+            clone_op->tag("dont_erase", true);
     }
     
 }
@@ -183,9 +183,11 @@ void insert_inverse_reshape_pair(graphlib::Graph *graph, graphlib::OpNode *resha
         auto *clone_inverse = graph->add_node(reshape_op->clone(inverse_name), graph->get_subgraph_id_for_node(edge.consumer_node_id));
         graphlib::OpNode *clone_inverse_op = dynamic_cast<graphlib::OpNode *>(clone_inverse);
         clone_inverse_op->set_shape(commute_shape);
-        if (not below)
-            clone_inverse_op->tag("dont_erase", true);
         update_reshape_attr(clone_inverse_op, commute_shape);
+        if (not below) {
+            clone_inverse_op->tag("dont_erase", true);
+        }
+        
         auto [incoming_edge, outgoing_edge] = insert_node_on_edge(graph, edge, clone_inverse_op);
         clone_inverse_op->set_output_df_from_operands(graph);
 
@@ -195,10 +197,19 @@ void insert_inverse_reshape_pair(graphlib::Graph *graph, graphlib::OpNode *resha
         graphlib::OpNode *clone_op = dynamic_cast<graphlib::OpNode *>(clone);
         clone_op->set_shape(clone_shape);
         update_reshape_attr(clone_op, clone_shape);
-        insert_node_on_edge(graph, outgoing_edge, clone_op);
-        clone_op->set_output_df_from_operands(graph);
-        if (below)
+        if (below) {
             clone_op->tag("dont_erase", true);
+        }
+        insert_node_on_edge(graph, outgoing_edge, clone_op);
+        handle_change_rank(graph, clone_op);
+        clone_op->set_output_df_from_operands(graph);
+        auto *input = dynamic_cast<graphlib::InputNode *>(graph->node_by_id(edge.producer_node_id));
+        if (input)
+        {
+            try_consteval_op(graph, clone_inverse_op, true);
+        } else {
+            handle_change_rank(graph, clone_inverse_op);
+        }
     }
 }
 
