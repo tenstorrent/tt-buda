@@ -5,6 +5,7 @@
 from typing import Dict, List, Any, Tuple, Optional
 from dataclasses import dataclass, field
 from enum import Enum
+from loguru import logger
 import inspect
 import os
 import json
@@ -215,8 +216,8 @@ class CompiledGraphState:
             ordered_target_tile_broadcast_dims = ordered_target_tile_broadcast_dims + ordered_target_tile_broadcast_dims
             ordered_bw_input_tile_broadcast_dims = ordered_bw_input_tile_broadcast_dims + ordered_bw_input_tile_broadcast_dims
 
-            print(f"ordered_output_names = {ordered_output_names}")
-            print(f"ordered_output_shapes = {ordered_output_shapes}") #TODO: probably double here
+            logger.debug("ordered_output_names = {}", ordered_output_names)
+            logger.debug("ordered_output_shapes = {}", ordered_output_shapes)
 
         return CompiledGraphState(
             microbatch=graph.get_microbatch(),
