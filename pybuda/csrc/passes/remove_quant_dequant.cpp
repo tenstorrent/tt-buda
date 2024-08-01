@@ -85,11 +85,11 @@ void bypass_qdq_pair(graphlib::Graph *graph, graphlib::OpNode *quantize, graphli
 
         uint32_t max_scale_shape = std::max<uint32_t>(dequant_scale->shape()[0], quant_scale->shape()[0]);
         graphlib::Shape scale_miltiply_shape = graphlib::Shape::create(std::vector<uint32_t>{max_scale_shape});
-        scale_multiply->set_shape(scale_miltiply_shape);
 
         graph->add_edge(dequant_scale, scale_multiply);
         graph->add_edge(quant_scale_recip, scale_multiply);
         scale_multiply->set_output_df_from_operands(graph);
+        scale_multiply->set_shape(dequant_scale->shape());
 
         // Potentially add broadcast on scale edge if one of the scales is not shaped [1]
         if (dequant_scale->shape()[0] != quant_scale->shape()[0]) {
@@ -113,10 +113,10 @@ void bypass_qdq_pair(graphlib::Graph *graph, graphlib::OpNode *quantize, graphli
         graphlib::Node *bias = graph->data_operands(quantize)[0];
         graph->add_edge(scale_multiply, bias_multiply);
         bias_multiply->set_shape(bias->shape());
-        bias_multiply->set_output_df_from_operands(graph);
 
         graphlib::Edge bias_quant_edge = retrieve_between_edge(graph, bias, quantize);
         insert_node_on_edge(graph, bias_quant_edge, bias_multiply);
+        bias_multiply->set_output_df_from_operands(graph);
         
         graph->remove_edge(dequant_scale_edge);
         graph->remove_edge(quant_scale_edge);
@@ -151,11 +151,6 @@ bool remove_quant_dequant(graphlib::Graph *graph) {
             // Must be a dequantize followed by a quantize
             if (op_node->op_type().op != "quantize" or op_child->op_type().op != "dequantize")
                 continue;
-
-
-            // Quantize should be producing an int8
-            // if (std::get<std::string>(op_child->op_attrs()[4]) != std::string("torch.int8"))
-            //     continue;
 
             bypass_qdq_pair(graph, op_node, op_child);
             graph_changed = true;

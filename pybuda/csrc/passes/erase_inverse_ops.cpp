@@ -256,19 +256,7 @@ void commute_and_bypass(graphlib::Graph *graph, std::vector<graphlib::Node *> co
             log_trace(LogGraphCompiler, "  Operand commute clone: {} -> between {} and {} ", name, consumer->name(), graph->node_by_id(operand_edge.producer_node_id)->name());
 
             // Special case for operand clones on a quantization scale
-            auto *consumer_op = dynamic_cast<graphlib::OpNode *>(consumer);
-            if (is_quantization_ops(consumer_op) and operand_index == 1) {
-                
-                // The shape should be all 1's except for (possiby) the quantization axis
-                auto updated_commute_shape = commute_shape;
-                int quant_axis = std::get<int>(consumer_op->op_attrs()[1]);
-                updated_commute_shape[quant_axis] = consumer_op->shape()[quant_axis];
-                update_reshape_attr(op, updated_commute_shape);
-                clone->set_shape(updated_commute_shape);
-                log_trace(LogGraphCompiler, "  Operand commute clone shape: {}", updated_commute_shape);
-                
-            }
-            else if (retain_operand_dim)
+            if (retain_operand_dim)
             {
                 auto updated_commute_shape = commute_shape;
                 updated_commute_shape[operand_dims.second] = graph->node_by_id(operand_edge.producer_node_id)->shape()[operand_dims.first];
@@ -327,7 +315,6 @@ void commute_and_bypass(graphlib::Graph *graph, std::vector<graphlib::Node *> co
             auto [in_edge, out_edge] = insert_node_on_edge(graph, operand_edge, clone);
             // Set dataformat to match producer on operand edge
             clone->set_output_df(graph->node_by_id(in_edge.producer_node_id)->output_df());
-
             handle_change_rank(graph, clone);
             try_commute_bcast_through_clone(graph, op);
             if (graphlib::InputNode *input = dynamic_cast<graphlib::InputNode *>(graph->data_operands(clone)[0]))

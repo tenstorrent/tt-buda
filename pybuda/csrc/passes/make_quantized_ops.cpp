@@ -195,9 +195,11 @@ void make_quantized_add(graphlib::Graph *graph, graphlib::OpNode *add) {
     graphlib::Node *scale = graph->data_operands(deq0)[1];
 
     int new_deq_axis = std::get<int>(deq1->op_attrs()[1]);
-    if (new_deq_axis >= 0)
-        new_deq_axis = new_deq_axis - deq1->shape().size() + add->shape().size();
-
+    // Find matching dim for axis
+    for (uint32_t i = 0; i < add->shape().size(); i++) {
+        if (add->shape()[i] == scale->shape()[0])
+            new_deq_axis = (int)i;
+    }
     
     std::vector<graphlib::OpType::Attr> dequant_attrs{0.0f, new_deq_axis};
     for (graphlib::Edge consumer_edge : graph->user_data_edges(add)) {

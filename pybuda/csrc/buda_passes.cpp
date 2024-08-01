@@ -11,6 +11,7 @@
 #include "graph_lib/node_types.hpp"
 #include "graph_lib/query.hpp"
 #include "graph_lib/utils.hpp"
+#include "passes/commute_utils.hpp"
 #include "passes/bind_reshape_to_io.hpp"
 #include "passes/constant_folding.hpp"
 #include "passes/dataformat.hpp"
@@ -187,6 +188,8 @@ void run_optimization_graph_passes(graphlib::Graph *graph, const DeviceConfig &d
     while(attempt_update) {
         passes::insert_inverse_outside_quantized_region(graph);
         attempt_update = passes::erase_inverse_ops(graph);
+        if (not attempt_update)
+            attempt_update = passes::fuse_tm_sequences(graph);
     }
 
     recalculate_shapes(graph);
