@@ -40,7 +40,7 @@ See: [Docs](https://docs.tenstorrent.com/tenstorrent/v/tt-buda)
 
 ## Build
 
-https://docs.tenstorrent.com/tenstorrent/v/tt-buda/installation
+See: [TT-Buda Installation](https://github.com/tenstorrent/tt-buda-demos/blob/main/first_5_steps/1_install_tt_buda.md)
 
 ## Env setup
 
