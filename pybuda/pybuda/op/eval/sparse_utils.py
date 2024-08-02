@@ -324,7 +324,7 @@ def create_conv2d_picker_matrix(y, x, y_shift, x_shift, stride, tile_align=False
 
 
 def create_conv2d_sparse_picker_matrix(
-    y, x, y_shift, x_shift, k_y, k_x, stride, padding, dilation, tile_align=False, pad_x_only=False, sparse_r_pad=0, sparse_c_pad=0
+    y, x, y_shift, x_shift, k_y, k_x, stride, padding, dilation, tile_align=False, pad_x_only=False, sparse_r_pad=0, sparse_c_pad=0, is_convtranspose2d=False, yout_transpose=None, xout_transpose=None
 ):
     cols = torch.arange(start=1, end=y * x + 1).view(y, x)
 
@@ -340,6 +340,9 @@ def create_conv2d_sparse_picker_matrix(
     out_y, out_x = calculate_conv2d_output_dimensions(
         y, x, [k_y, k_x], stride, padding, dilation
     )
+    if is_convtranspose2d:
+        out_y = yout_transpose
+        out_x = xout_transpose
 
     cols = torch.nn.functional.pad(
         cols, (0, out_x - cols.shape[1], 0, out_y - cols.shape[0])

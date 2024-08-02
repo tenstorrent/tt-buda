@@ -70,7 +70,7 @@ bool is_quantizeable_conv2d(graphlib::Graph *graph, graphlib::Node *conv2d) {
     if (not conv_op)
         return false;
 
-    if (conv_op->op_type().op != "conv2d")
+    if (conv_op->op_type().op != "conv2d" and conv_op->op_type().op != "conv2d_transpose")
         return false;
 
     // All inputs must be dequantize nodes
@@ -226,7 +226,7 @@ void make_quantized_add(graphlib::Graph *graph, graphlib::OpNode *add) {
 
 void make_quantized_conv2d(graphlib::Graph *graph, graphlib::OpNode *conv2d) {
     TT_ASSERT(conv2d, "Null OpNode pointer given.");
-    TT_ASSERT(conv2d->op_type().op == "conv2d", "OpNode is not conv2d");
+    TT_ASSERT(conv2d->op_type().op == "conv2d" or conv2d->op_type().op == "conv2d_transpose", "OpNode is not conv2d or conv2d_transpose");
     TT_ASSERT(is_quantizeable_conv2d(graph, conv2d), "conv2d is not quantizeable.");
 
     graphlib::OpNode *deq_act = dynamic_cast<graphlib::OpNode *>(graph->data_operands(conv2d)[0]);
@@ -314,9 +314,10 @@ void make_quantized_conv2d(graphlib::Graph *graph, graphlib::OpNode *conv2d) {
     conv2d->set_output_df(DataFormat::Int32);
 }
 
-const std::array<std::string, 3> quantizeable_ops{
+const std::array<std::string, 4> quantizeable_ops{
     "matmul",
     "conv2d",
+    "conv2d_transpose",
     "add"
 };
 bool make_quantized_ops(graphlib::Graph *graph) {

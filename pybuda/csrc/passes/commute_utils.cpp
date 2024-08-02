@@ -926,10 +926,7 @@ bool commute_through_quantization(
         // check if axis moved to the right (or in the same place)
         while (new_axis < (int)commute_shape->size()) {
             if ((*commute_shape)[new_axis] == op->shape()[axis]) {
-                if (volume_above(commute_shape->as_vector(), new_axis) == volume_above(op->shape().as_vector(), axis)
-                    and volume_below(commute_shape->as_vector(), new_axis) == volume_below(op->shape().as_vector(), axis)) {
-                    can_commute = true;
-                }
+                can_commute = true;
                 break;
             }
             new_axis++;
@@ -938,10 +935,7 @@ bool commute_through_quantization(
             new_axis = axis-1;
             while (new_axis >= 0) {
                 if ((*commute_shape)[new_axis] == op->shape()[axis]) {
-                    if (volume_above(commute_shape->as_vector(), new_axis) == volume_above(op->shape().as_vector(), axis)
-                        and volume_below(commute_shape->as_vector(), new_axis) == volume_below(op->shape().as_vector(), axis)) {
-                        can_commute = true;
-                    }
+                    can_commute = true;
                     break;
                 }
                 new_axis--;

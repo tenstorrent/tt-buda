@@ -220,35 +220,35 @@ def rotate_convtranspose2d_weights(dc, weights, cin, cout, depthwise, groups, kH
     # Conv2dTranspose has shape (cin, cout, kH, kW), need to transpose (0,1) first
     # Note: weights for regular conv are (out_channels, in_channels/groups, kH, kW)
     # Note: weights for transpo conv are (in_channels, out_channels/groups, kH, kW)
-    weights = dc.op(TransposeTM.create(0, 1), [weights])
-    weights = dc.op("reshape", [weights], (1, cout, cin // groups, kH * kW))
-    weights = dc.op(TransposeTM.create(2, 3), [weights]) # Transpose weight
+    weights = dc.op(TransposeTM.create(0, 1), [weights], output_df=weights.output_df)
+    weights = dc.op("reshape", [weights], (1, cout, cin // groups, kH * kW), output_df=weights.output_df)
+    weights = dc.op(TransposeTM.create(2, 3), [weights], output_df=weights.output_df) # Transpose weight
 
     # Create weight dident to rotate last 2 dims by 180 degrees
     # eg. [[1,2] ,[3,4]] -> [[4,3] ,[2,1]]
     if cout > 1:
-        weights = dc.op("hstack", [weights], (cout,))
+        weights = dc.op("hstack", [weights], (cout,), output_df=weights.output_df)
     weight_dident = create_conv2d_transpose_weight_dident(kH, kW, tile_align=False).unsqueeze(0).unsqueeze(0)
     weight_dident_tensor = dc.tensor(weight_dident)
-    weights = dc.op("sparse_matmul", [weight_dident_tensor, weights])
+    weights = dc.op("sparse_matmul", [weight_dident_tensor, weights], output_df=weights.output_df)
 
     if cout > 1:
         row_after_hslice = weights.shape[-1] // cout
         if row_after_hslice % TILE_DIM != 0:
             orig_w_shape = weights.shape
-            weights = dc.op("reshape", [weights], (orig_w_shape[-4], orig_w_shape[-3], orig_w_shape[-2]*cout, row_after_hslice))
-            weights = dc.op("pad_tile", [weights], (-1, weights.shape[-1]))
-            weights = dc.op("reshape", [weights], (orig_w_shape[-4], orig_w_shape[-3], orig_w_shape[-2], align_up_tile(row_after_hslice)*cout))
-            weights = dc.op("hslice", [weights], (cout,))
-            weights = dc.op("narrow", [weights], (-1, 0, row_after_hslice, weights.shape[-1]))
+            weights = dc.op("reshape", [weights], (orig_w_shape[-4], orig_w_shape[-3], orig_w_shape[-2]*cout, row_after_hslice), output_df=weights.output_df)
+            weights = dc.op("pad_tile", [weights], (-1, weights.shape[-1]), output_df=weights.output_df)
+            weights = dc.op("reshape", [weights], (orig_w_shape[-4], orig_w_shape[-3], orig_w_shape[-2], align_up_tile(row_after_hslice)*cout), output_df=weights.output_df)
+            weights = dc.op("hslice", [weights], (cout,), output_df=weights.output_df)
+            weights = dc.op("narrow", [weights], (-1, 0, row_after_hslice, weights.shape[-1]), output_df=weights.output_df)
         else:
-            weights = dc.op("hslice", [weights], (cout,))
-    weights = dc.op(TransposeTM.create(2, 3), [weights]) # Transpose weight
+            weights = dc.op("hslice", [weights], (cout,), output_df=weights.output_df)
+    weights = dc.op(TransposeTM.create(2, 3), [weights], output_df=weights.output_df) # Transpose weight
     # Reshape into conv2d weight shape
     if depthwise:
-        weights = dc.op("reshape", [weights], (cin, cout // groups, kH, kW))
+        weights = dc.op("reshape", [weights], (cin, cout // groups, kH, kW), output_df=weights.output_df)
     else:
-        weights = dc.op("reshape", [weights], (cout // groups, cin, kH, kW))
+        weights = dc.op("reshape", [weights], (cout // groups, cin, kH, kW), output_df=weights.output_df)
 
     return weights
 
@@ -363,7 +363,11 @@ def decompose_conv2d_sparse_first(attr, dc, inputs):
                 # pickers are created row-major, starting from top-left kernel pixel
                 y_shift = ((kH - 1) // 2) - kY
                 x_shift = ((kW - 1) // 2) - kX
-                picker = create_conv2d_sparse_picker_matrix(y, x, y_shift, x_shift, kH, kW, stride, padding, dilation, tile_align=True, sparse_r_pad=padded_r, sparse_c_pad=padded_c)
+                if is_convtranspose2d:
+                    picker = create_conv2d_sparse_picker_matrix(y, x, y_shift, x_shift, kH, kW, stride, padding, dilation, tile_align=True, sparse_r_pad=padded_r, sparse_c_pad=padded_c, is_convtranspose2d=is_convtranspose2d, yout_transpose=yout_transpose, xout_transpose= xout_transpose)
+                else:
+                    picker = create_conv2d_sparse_picker_matrix(y, x, y_shift, x_shift, kH, kW, stride, padding, dilation, tile_align=True, sparse_r_pad=padded_r, sparse_c_pad=padded_c)
+
                 if is_convtranspose2d and stride_transpose > 1:
                     picker = torch.sparse.mm(picker, transpose_tensor)
                 pickers.append(picker)
