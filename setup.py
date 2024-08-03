@@ -22,7 +22,7 @@ bbe_files = {
     },
     "bin": {
         "path": "build/bin" ,
-        "files": ["net2pipe", "pipegen2", "op_model", "dpnra"],
+        "files": ["net2pipe", "pipegen2", "blobgen2", "op_model", "dpnra"],
     },
     "device_descriptors": {
         "path": "device",
@@ -42,6 +42,8 @@ bbe_files = {
             "blackhole_1x1.yaml",
             "blackhole_8x10.yaml",
             "blackhole_80_arch.yaml",
+            "blackhole_10x14.yaml",
+            "blackhole_10x14_no_eth.yaml",
 
         ]
     },
@@ -130,9 +132,17 @@ bbe_files = {
             "vcdparse.py",
         ]
     },
+    # TODO: cleanup, this is deprecated.
     "overlay": {
-        "path": "src/overlay",
+        "path": "tb/llk_tb/overlay",
         "files": "*" # TODO, clean-up, don't need everything
+    },
+    # TODO: cleanup, see if this should be on some other section.
+    "blobgen2_cpp_overlay": {
+        "path": "src/blobgen2",
+        "files": [
+            "blob_init.hex.static"
+        ]
     },
     "versim_lib": { # TODO, remove
         "path": "common_lib",

@@ -2,10 +2,11 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 #include "placer/best_fit_allocator.hpp"
+#include <cstdint>
 
 namespace tt::placer {
 
-BestFitAllocator::BestFitAllocator(std::uint32_t start_addr, std::uint32_t end_addr, Blocks pre_allocated_blocks) : ChannelAllocator()
+BestFitAllocator::BestFitAllocator(std::size_t start_addr, std::size_t end_addr, Blocks pre_allocated_blocks) : ChannelAllocator()
 {
     if (pre_allocated_blocks.free_blocks_start.size() > 0) {
         blocks = pre_allocated_blocks;
@@ -21,9 +22,9 @@ void BestFitAllocator::add_free_block(const Block &block)
     blocks.free_blocks_end[block.addr + block.size] = block;
 }
 
-std::uint32_t BestFitAllocator::get_capacity()
+std::size_t BestFitAllocator::get_capacity()
 {
-    std::uint32_t capacity = 0;
+    std::size_t capacity = 0;
     for (auto free_block : blocks.free_blocks_start) {
         capacity += free_block.second.size;
     }
@@ -32,16 +33,16 @@ std::uint32_t BestFitAllocator::get_capacity()
 
 void BestFitAllocator::remove_free_block(const Block &block) 
 {
-    std::uint32_t end = block.addr + block.size;
+    std::size_t end = block.addr + block.size;
     blocks.free_blocks_start.erase(block.addr);
     blocks.free_blocks_end.erase(end);
 }
 
-bool BestFitAllocator::allocate(std::uint32_t size, std::uint32_t &addr)
+bool BestFitAllocator::allocate(std::size_t size, std::size_t &addr)
 {
     // Find the free block with the closest >= size
     Block closest_block;
-    std::uint32_t diff = UINT32_MAX;
+    std::size_t diff = SIZE_MAX;
     for (auto it = blocks.free_blocks_start.rbegin(); it != blocks.free_blocks_start.rend(); it++) 
     {
         if (it->second.size >= size) 
@@ -56,10 +57,9 @@ bool BestFitAllocator::allocate(std::uint32_t size, std::uint32_t &addr)
         }
     }
 
-    if (diff == UINT32_MAX)
+    if (diff == SIZE_MAX)
         return false;
 
-    addr = closest_block.addr;
     // Since we allocate new block from right to left, end of the free block will be the end of our new allocated block
     addr = closest_block.addr + closest_block.size - size;
     remove_free_block(closest_block);
@@ -73,7 +73,7 @@ bool BestFitAllocator::allocate(std::uint32_t size, std::uint32_t &addr)
     return true;
 }
 
-void BestFitAllocator::deallocate(std::uint32_t addr) 
+void BestFitAllocator::deallocate(std::size_t addr) 
 {
     //return;
     auto it = blocks.allocated_blocks.find(addr);
@@ -107,7 +107,7 @@ void BestFitAllocator::clear_allocated_blocks()
     Blocks blocks = get_blocks();
     for (const auto& address_block_pair : blocks.allocated_blocks)
     {
-        std::uint32_t start_address = address_block_pair.first;
+        std::size_t start_address = address_block_pair.first;
         deallocate(start_address);
     }
 }

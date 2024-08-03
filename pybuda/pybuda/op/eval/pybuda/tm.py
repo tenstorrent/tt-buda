@@ -183,8 +183,14 @@ def eval(type, attr, ops):
         tensor = t_ops[0]
         dim = attr[0]
         size = attr[1]
-        while len(tensor.shape) <= ((-dim - 1) if dim < 0 else dim):
-            tensor = tensor.unsqueeze(0)
+
+        if dim < 0:
+            while len(tensor.shape) <= ((-dim - 1)):
+                tensor = tensor.unsqueeze(0)
+        else:
+            while len(tensor.shape) <=  dim:
+                tensor = tensor.unsqueeze(-1)
+        
         target_shape = list(tensor.shape)
         assert dim < len(
             target_shape

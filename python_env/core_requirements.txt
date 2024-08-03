@@ -26,8 +26,8 @@ multiprocess==0.70.13
 mxnet==1.9.1
 networkx==2.8.5
 numpy==1.23.1
-onnx==1.15.0
-onnxruntime==1.16.3
+onnx==1.16.0
+onnxruntime==1.18.1
 opencv-python-headless==4.6.0.66
 # This is needed to avoid issue https://yyz-gitlab.local.tenstorrent.com/devops/devops/-/issues/95
 pandas==1.5.3

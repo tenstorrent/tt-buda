@@ -38,10 +38,20 @@ static bool input_can_consteval(graphlib::Graph *graph, graphlib::InputNode *inp
         return op->op_name() == "broadcast" or op->op_name() == "repeat" or op->op_name() == "repeat_dim";
     };
 
+    // We want to go from weights->quantize->dequantize to quantized_weights->dequantize
+    // without constevaling dequantize, as it would cancel the quantize op
+    auto is_dequantize = [](graphlib::Node *node) {
+        graphlib::OpNode *op = dynamic_cast<graphlib::OpNode *>(node);
+        if (not op)
+            return false;
+
+        return op->op_name() == "dequantize" or op->op_name() == "buda_dequantize";
+    };
+
     TT_ASSERT(graphlib::is_consteval_capable_input_type(input));
     std::vector<graphlib::Node *> users = graph->data_users(input);
-    auto user_can_consteval = [graph, is_broadcast_or_repeat](graphlib::Node *n) {
-        return graphlib::is_consteval_capable_op(graph, n, true /*allow_forks*/) and not is_broadcast_or_repeat(n);
+    auto user_can_consteval = [graph, is_broadcast_or_repeat, is_dequantize](graphlib::Node *n) {
+        return graphlib::is_consteval_capable_op(graph, n, true /*allow_forks*/) and not is_broadcast_or_repeat(n) and not is_dequantize(n);
     };
     return not has_same_fork_destinations(users) and std::all_of(users.begin(), users.end(), user_can_consteval);
     // TODO: nsmith enable this

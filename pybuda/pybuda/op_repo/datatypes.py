@@ -36,9 +36,11 @@ class OperatorDefinition:
     operands: List[str] = field(default_factory=list)  # TODO describe operand and shapes
     calc_input_shapes: Optional[Callable[["OperatorDefinition", TensorShape, Random], List[TensorShape]]] = None  # calculate input shapes from output shape
 
+    @property
     def is_operator(self) -> bool:
         return not self.instantiate
 
+    @property
     def is_layer(self) -> bool:
         return self.instantiate
 

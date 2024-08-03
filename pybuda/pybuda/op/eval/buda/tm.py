@@ -138,13 +138,13 @@ def eval(type, attr, ops):
 
     if type == "broadcast":
 
-        assert len(attr) <= 3, "Broadcast should have two attributes - dim and size"
+        assert len(attr) <= 3, "Broadcast should have two attributes - dim and factor"
         dim = attr[0]
         factor = attr[1]
         assert dim > 0, "Don't support broadcasting on w"
 
         if t_ops[0].is_sparse:
-            return bcast_sparse_picker_matrix(t_ops[0], dim, size)
+            return bcast_sparse_picker_matrix(t_ops[0], dim, factor)
 
         sizes = [1] * len(t_ops[0].shape)
         sizes[dim] = factor

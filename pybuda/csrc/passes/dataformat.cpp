@@ -562,7 +562,7 @@ void fix_data_formats(graphlib::Graph *graph, bool fp32_acc_supported)
                         op->accumulate_df());
                     op->set_accumulate_df(DataFormat::Int32);
                 }
-                if (op->output_df() != DataFormat::Int32)
+                if (op->output_df() != DataFormat::Int32 and op->op_name() != "dequantization")
                 {
                     // Requantization must be applied
                     if (not (op->buda_attrs().find("has_requant") != op->buda_attrs().end() and

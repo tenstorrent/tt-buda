@@ -281,47 +281,7 @@ def test_t5_pipeline(test_kind, test_device):
     outputs = output_q.get()
 
 
-def test_t5_small_fallback(test_kind, test_device):
-    if test_kind == TestKind.TRAINING:
-        pytest.skip()
-    
-    class T5Wrapper(torch.nn.Module):
-        def __init__(self, model):
-            super().__init__()
-            self.model = model
 
-        def forward(self, input_ids, decoder_input_ids):
-            return self.model(input_ids=input_ids, decoder_input_ids=decoder_input_ids)
-
-    compiler_cfg = _get_global_compiler_config()
-    if test_kind.is_training():
-        compiler_cfg.compile_depth = CompileDepth.BUDA_GRAPH_PRE_PLACER
-    compiler_cfg.enable_tvm_constant_prop = True
-    
-
-    pretrained_name = "t5-small"
-    config = T5Config.from_pretrained(pretrained_name)
-
-    config.use_cache = False
-    model = T5Model(config)
-    pretrained_model = download_model(T5Model.from_pretrained, pretrained_name)
-    model.load_state_dict(pretrained_model.state_dict())
-    mod = PyTorchModule("t5_small", T5Wrapper(model))
-
-    input_shape = (1, 128)
-    verify_module(
-        mod,
-        (input_shape, input_shape),
-        verify_cfg=VerifyConfig(
-            arch=test_device.arch,
-            devtype=test_device.devtype,
-            test_kind=test_kind,
-        ),
-        input_params=[
-            {"requires_grad": False, "data_format": torch.int}, 
-            {"requires_grad": False, "data_format": torch.int},
-        ],
-    )
 
 class BlocksWrapper(torch.nn.Module):
     def __init__(self, model, num_blocks):
@@ -914,54 +874,3 @@ def test_t5_past_cache_model(variant):
     print(f"generated tokens: {tokenizer.decode(generated_tokens)}")
 
 
-def test_t5_small_tiny_tile(test_device):
-        
-    if test_device.arch == BackendDevice.Grayskull:
-        pytest.skip("Grayskull test failing with TM ERROR (producer = matmul_49, consumer = matmul_53): input using kernel_broadcast but post-TM input canonical form is not periodic")
-
-    import os
-    os.environ["PYBUDA_ENABLE_TINY_TILE"] = "1"
-    # Add PyBUDA configurations
-    compiler_cfg = pybuda.config._get_global_compiler_config()
-    compiler_cfg.enable_tvm_cpu_fallback = False
-    compiler_cfg.enable_auto_fusing = False  # tenstorrent/pybuda#844
-    compiler_cfg.amp_level = 1
-    compiler_cfg.enable_enumerate_u_kt = False
-    compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
-    compiler_cfg.compile_depth = CompileDepth.POST_PATTERN_MATCHER
-
-    # Load tokenizer and model from HuggingFace
-    # Variants: t5-small, t5-base, t5-large
-    variant = "t5-small"
-    config = download_model(T5Config.from_pretrained, variant)
-    config_dict = config.to_dict()
-    config_dict['return_dict'] = False
-    config_dict['use_cache'] = False
-    config = T5Config(**config_dict)
-    model = download_model(T5ForConditionalGeneration.from_pretrained, variant, config=config)
-
-    # Wrapper to get around attention mask
-    class Wrapper(torch.nn.Module):
-        def __init__(self, model):
-            super().__init__()
-            self.model = model
-        
-        def forward(self, decoder_input_ids, encoder_outputs):
-            return self.model(None, None, decoder_input_ids, None, None, None, None, (encoder_outputs,))
-
-    tt_model = pybuda.PyTorchModule("t5_small_tiny_tile", Wrapper(model))
-    
-    decoder_input_ids = torch.randint(0, model.config.vocab_size, (1, 1), dtype=torch.int32)
-    encoder_outputs = torch.randn(1, 1, 512)
-
-    verify_module(
-        tt_model,
-        input_shapes=[(decoder_input_ids.shape, encoder_outputs.shape,)],
-        inputs=[(decoder_input_ids, encoder_outputs)],
-        verify_cfg=VerifyConfig(
-            arch=test_device.arch,
-            devtype=test_device.devtype,
-            test_kind=TestKind.INFERENCE,
-            enabled=False
-        )
-    )

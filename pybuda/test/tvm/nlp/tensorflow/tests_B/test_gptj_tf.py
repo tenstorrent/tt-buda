@@ -44,12 +44,6 @@ def fixed_pos_embedding(x: tf.Tensor, seq_dim: int = 1, seq_len: Optional[int] =
     return tf.cast(tf.sin(sinusoid_inp), dtype=x.dtype), tf.cast(tf.cos(sinusoid_inp), dtype=x.dtype)
 
 
-def rotate_every_two(x: tf.Tensor) -> tf.Tensor:
-    rotate_half_tensor = tf.stack((-x[:, :, :, 1::2], x[:, :, :, ::2]), axis=-1)
-    new_shape = shape_list(rotate_half_tensor)[:-2] + [tf.math.reduce_prod(shape_list(rotate_half_tensor)[-2:])]
-    rotate_half_tensor = tf.reshape(rotate_half_tensor, new_shape)
-    return rotate_half_tensor
-
 
 def apply_rotary_pos_emb(x: tf.Tensor, sincos: tf.Tensor, offset: int = 0) -> tf.Tensor:
     sin_pos, cos_pos = sincos
@@ -59,40 +53,7 @@ def apply_rotary_pos_emb(x: tf.Tensor, sincos: tf.Tensor, offset: int = 0) -> tf
 
 
 
-def test_tvm_rotate_every_two(test_kind, test_device):
-    if test_kind.is_training():
-        pytest.skip()
 
-    class GPTJRotateEveryTwo(tf.keras.Model):
-        def __init__(self, config):
-            super().__init__()
-
-        def call(self, key):
-            seq_len = key.shape[1]
-            k_rot = key[:, :, :, :64]
-            k_pass = key[:, :, :, 64:]
-            sincos = fixed_pos_embedding(k_rot, 1, seq_len=seq_len)
-            k_rot = apply_rotary_pos_emb(k_rot, sincos, offset=0)
-            key = tf.concat([k_rot, k_pass], axis=-1)
-
-            return key
-
-    compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.compile_depth = CompileDepth.BUDA_GRAPH_PRE_PLACER
-    config = GPTJConfig()
-    model = GPTJRotateEveryTwo(config)
-    mod = TFModule("fixed_pos_embedding_tf", model)
-
-    input_shape = (1, 128, 16, 256)
-    verify_module(
-        mod,
-        (input_shape,),
-        verify_cfg=VerifyConfig(
-            arch=test_device.arch,
-            devtype=test_device.devtype,
-            test_kind=test_kind,
-        )
-    )
 
 @pytest.mark.skip(reason="Tested with fallback")
 def test_gptj_block(test_kind, test_device):

@@ -4,6 +4,7 @@
 
 
 from .datatypes import TensorShape
+from .datatypes import RandomizerConstantNode
 from .datatypes import RandomizerInputNode, RandomizerNode, ExecutionContext, RandomizerParameters, RandomizerGraph, RandomizerConfig
 from .datatypes import RandomizerTestContext
 from .config import get_randomizer_config_default
@@ -17,6 +18,7 @@ from .algorithms import RandomGraphAlgorithm
 
 __all__ = [
     "TensorShape",
+    "RandomizerConstantNode",
     "RandomizerInputNode",
     "RandomizerNode",
     "ExecutionContext",

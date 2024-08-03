@@ -112,6 +112,7 @@ def test_clip_pytorch(test_device):
     # to check this out in more details:
     # tenstorrent/pybuda#1828
     os.environ["PYBUDA_DECOMPOSE_SIGMOID"] = "1"
+    os.environ["PYBUDA_DISABLE_MASKED_FILL_V2"] = "1"
 
     # Load processor and model from HuggingFace
     model_ckpt = "openai/clip-vit-base-patch32"

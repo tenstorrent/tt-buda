@@ -354,6 +354,11 @@ def shape(type, attr, ops, tile_height, tile_width):
             print(ops)
             assert False, f"If inner dimension is not the same for matmul, one of operands must have it be {TILE_DIM}."
 
+    if len(ops) == 3:
+        for i in range(len(output_shape)):
+            if output_shape[i] != ops[2][i]:
+                broadcast.append((2, i, output_shape[i]))
+
     if accumulate:
         output_shape[-3] = 1
 

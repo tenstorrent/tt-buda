@@ -89,7 +89,7 @@ class PythonWriter():
             self.file = open(os.path.join(self.module_directory, self.filename), "w")
         self.indent = 0
         self.module_name = module_name
-        self.class_name = module_name.title().replace("_", "")
+        self.class_name = module_name.title().replace("_", "").replace("-", "")
 
     def wl(self, text):
         indent = self.indent * "    "

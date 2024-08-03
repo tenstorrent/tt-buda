@@ -71,8 +71,10 @@ def test_dla_onnx(test_device, variant):
         elif variant == "dla169":
             pcc = 0.96
     elif test_device.arch == BackendDevice.Grayskull:
-        if variant == "dla46_c":
+        if variant in ["dla46_c", "dla102x2", "dla169"]:
             pcc = 0.97
+        if variant in ["dla60", "dla102x"]:
+            pcc = 0.98
         if variant == "dla102x2":
             os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
 

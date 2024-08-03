@@ -167,6 +167,7 @@ def test_yolox_onnx(variant, test_device):
 
             elif variant == "yolox_darknet":
 
+                compiler_cfg.place_on_new_epoch("_fused_op_34")
                 compiler_cfg.place_on_new_epoch("conv2d_199.dc.matmul.11")
                 compiler_cfg.balancer_op_override("concatenate_222.dc.concatenate.7.before_padded_node.nop_0", "grid_shape", (1, 1))
                 compiler_cfg.place_on_new_epoch("concatenate_222.dc.sparse_matmul.11.lc2")
@@ -205,7 +206,7 @@ def test_yolox_onnx(variant, test_device):
     img_tensor = img_tensor.unsqueeze(0)
 
     # Load and validate the ONNX model
-    onnx_model_path = f"third_party/confidential_customer_models/generated/files/{variant}.onnx"
+    onnx_model_path = f"third_party/confidential_customer_models/internal/yolox/files/onnx/{variant}.onnx"
     onnx_model = onnx.load(onnx_model_path)
     onnx.checker.check_model(onnx_model)
     model_name = f"onnx_{variant}"

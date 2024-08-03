@@ -56,7 +56,7 @@ def test_mlp_mixer_timm_pytorch(variant, test_device):
             elif variant == "mixer_l16_224_in21k":
                 pytest.skip("Bus Error during placer/balancer")
             elif variant == "mixer_s16_224":
-                pytest.skip("/home/jenkinsad/pybuda/third_party/budabackend//src/overlay/blob_gen.rb:250:in `ParseStreamString': undefined method `map' for nil:NilClass (NoMethodError)")
+                pytest.skip("/home/jenkinsad/pybuda/third_party/budabackend//tb/llk_tb/overlay/blob_gen.rb:250:in `ParseStreamString': undefined method `map' for nil:NilClass (NoMethodError)")
             elif variant == "mixer_s32_224":
                 pytest.skip("Hangs on Grayskull")
 

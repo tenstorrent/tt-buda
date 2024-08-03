@@ -1765,9 +1765,8 @@ void insert_user_defined_queues(
 }
 
 // return ops to add epoch breaks on
-std::vector<std::string> insert_dataparallel_nops(graphlib::Graph *graph)
+void insert_dataparallel_nops(graphlib::Graph *graph)
 {
-    std::vector<std::string> dp_nops_to_epoch_break;
     for (Node *n: graph->nodes_by_type(graphlib::NodeType::kOutput))
     {
         auto output_node = n->as<graphlib::OutputNode>();
@@ -1784,7 +1783,7 @@ std::vector<std::string> insert_dataparallel_nops(graphlib::Graph *graph)
                     graph->get_subgraph_id_for_node(n->id()));
             nop->copy_parent_op_attributes(source->as<graphlib::BudaOpNode>());
             nop->as<graphlib::TaggedNode>()->add_tags(source->as<graphlib::TaggedNode>()->get_tags());
-            dp_nops_to_epoch_break.emplace_back(source->name() + "_dp_nop." + std::to_string(dp_idx));
+            nop->set_data_parallel_nop(true);
             if (dp_idx == 0) {
                 graphlib::insert_node_on_edge(graph, edges[0], nop);
             } else {
@@ -1801,7 +1800,6 @@ std::vector<std::string> insert_dataparallel_nops(graphlib::Graph *graph)
             }
         }
     }
-    return dp_nops_to_epoch_break;
 }
 
 }  // namespace tt

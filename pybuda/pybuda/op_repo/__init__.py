@@ -11,11 +11,12 @@
 #  - TVM python_codegen.py
 
 
-from .datatypes import OperatorParam, OperatorParamNumber, OperatorDefinition, OperatorRepository
+from .datatypes import TensorShape, OperatorParam, OperatorParamNumber, OperatorDefinition, OperatorRepository
 from .pybuda_operators import pybuda_operator_repository
 from .pytorch_operators import pytorch_operator_repository
 
 __ALL__ = [
+    "TensorShape",
     "OperatorParam",
     "OperatorParamNumber",
     "OperatorDefinition",

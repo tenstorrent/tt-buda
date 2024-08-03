@@ -13,13 +13,14 @@ from pybuda import VerifyConfig
 import sys
 from pybuda._C.backend_api import BackendDevice
 
-sys.path.append("third_party/confidential_customer_models/generated/scripts/")
+sys.path.append("third_party/confidential_customer_models/internal/ddrnet/scripts/image_classification")
 from model_ddrnet import DualResNet_23, DualResNet_39, BasicBlock
 
 sys.path.append(
-    "third_party/confidential_customer_models/cv_demos/ddrnet/semantic_segmentation/model"
+    "third_party/confidential_customer_models/internal/ddrnet/scripts/semantic_segmentation"
 )
 from semseg import DualResNet, BasicBlock_seg
+
 
 variants = ["ddrnet23s", "ddrnet23", "ddrnet39"]
 
@@ -52,7 +53,7 @@ def test_ddrnet_pytorch(variant, test_device):
         )
 
     state_dict_path = (
-        f"third_party/confidential_customer_models/generated/files/{variant}.pth"
+        f"third_party/confidential_customer_models/internal/ddrnet/files/weights/{variant}.pth"
     )
 
     state_dict = torch.load(state_dict_path, map_location=torch.device("cpu"))
@@ -116,6 +117,8 @@ def test_ddrnet_semantic_segmentation_pytorch(variant, test_device):
     ):
         compiler_cfg.enable_auto_fusing = False
         compiler_cfg.amp_level = 2
+        os.environ["PYBUDA_BALANCER_USE_DRAM_BW_ESTIMATES"] = "1"
+        os.environ["PYBUDA_BALANCER_USE_NOC_BW_ESTIMATES"] = "1"
 
     # prepare model
     if variant == "ddrnet23s_cityscapes":
@@ -140,7 +143,7 @@ def test_ddrnet_semantic_segmentation_pytorch(variant, test_device):
             augment=True,
         )
 
-    state_dict_path = f"third_party/confidential_customer_models/cv_demos/ddrnet/semantic_segmentation/weights/{variant}.pth"
+    state_dict_path = f"third_party/confidential_customer_models/internal/ddrnet/files/weights/{variant}.pth"
     state_dict = torch.load(state_dict_path, map_location=torch.device("cpu"))
     model.load_state_dict(state_dict, strict=False)
     model.eval()
@@ -148,7 +151,7 @@ def test_ddrnet_semantic_segmentation_pytorch(variant, test_device):
     tt_model = pybuda.PyTorchModule(model_name, model)
 
     # prepare input
-    image_path = "third_party/confidential_customer_models/cv_demos/ddrnet/semantic_segmentation/image/road_scenes.png"
+    image_path = "third_party/confidential_customer_models/internal/ddrnet/files/samples/road_scenes.png"
     input_image = Image.open(image_path)
     input_tensor = transforms.ToTensor()(input_image)
     input_batch = input_tensor.unsqueeze(0)

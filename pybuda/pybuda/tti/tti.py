@@ -130,9 +130,9 @@ class TTDeviceImage:
         return device_image
 
     @staticmethod
-    def load_from_disk(tti_file_path: str, device_id_override: Optional[int] = None) -> "TTDeviceImage":
+    def load_from_disk(tti_file_path: str, device_id_overrides: Optional[List[int]] = None) -> "TTDeviceImage":
         from .archive import TTIArchive
-        return TTIArchive.load_from_disk(tti_file_path, device_id_override)
+        return TTIArchive.load_from_disk(tti_file_path, device_id_overrides)
 
     @staticmethod
     def save_to_disk(

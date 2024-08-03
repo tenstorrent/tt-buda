@@ -162,7 +162,8 @@ def test_blaze_palm_pytorch_1x1(test_device):
     # Set PyBDUA environment variable
     os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "wormhole_b0_1x1.yaml"
     os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
-
+    os.environ["PYBUDA_FORK_JOIN_BUF_QUEUES"] = "1"
+    
     # Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"

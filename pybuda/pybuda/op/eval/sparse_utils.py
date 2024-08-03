@@ -713,42 +713,19 @@ def create_nearest_neighbor_upsample_picker_matrix(
         )
 
 def create_nearest_neighbor_downsample_picker_matrix(
-    scale_factor, shape, tile_align=False, channel_last=False,
+    scale_factor, shape, tile_align=False,
 ):
-    if channel_last:
-        rows = torch.arange((shape[-3] // scale_factor) * (shape[-2] // scale_factor))
-        rows = scale_factor * (rows // scale_factor)
-        cols = []
-        for i in range(shape[-3]):
-            col = (
-                torch.arange(shape[-2]).repeat_interleave(scale_factor).repeat(scale_factor)
-                + i * align_up_tile(shape[-2])
-            )
-            cols.append(col)
+    cols = torch.arange(shape[-2] // scale_factor)*scale_factor
+    rows = cols // scale_factor
+    sparse_r = cols.shape[0]
+    sparse_c = shape[-2]
+    if tile_align:
+        sparse_r = align_up_tile(sparse_r)
+        sparse_c = align_up_tile(sparse_c)
 
-        cols = torch.concat(cols)
-
-        sparse_r = rows.shape[0]
-        sparse_c = align_up_tile(shape[-2]) * shape[-3]
-        if tile_align:
-            sparse_r = align_up_tile(sparse_r)
-            sparse_c = align_up_tile(sparse_c)
-
-        return torch.sparse_coo_tensor(
-            [rows.tolist(), cols.tolist()], torch.ones(cols.shape[0]), (sparse_r, sparse_c)
-        )
-    else:
-        cols = torch.arange(shape[-2] // scale_factor)*scale_factor
-        rows = cols // scale_factor
-        sparse_r = cols.shape[0]
-        sparse_c = shape[-1]
-        if tile_align:
-            sparse_r = align_up_tile(sparse_r)
-            sparse_c = align_up_tile(sparse_c)
-
-        return torch.sparse_coo_tensor(
-            [rows.tolist(), cols.tolist()], torch.ones(cols.shape[0]), (sparse_r, sparse_c)
-        )
+    return torch.sparse_coo_tensor(
+        [rows.tolist(), cols.tolist()], torch.ones(cols.shape[0]), (sparse_r, sparse_c)
+    )
 
 
 def create_bilinear_upsample_picker_matrix(

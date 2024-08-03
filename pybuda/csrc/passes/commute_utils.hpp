@@ -123,9 +123,21 @@ bool commute_through_eltwise(
     graphlib::OpType *golden_transform=nullptr);
 
 bool commute_through_quantization(
+    graphlib::OpNode* op, 
+    graphlib::OpNode* initial_op,
+    bool check_only,
+    graphlib::Shape* commute_shape,
+    graphlib::OpType* golden_transform=nullptr,
+    bool commute_up=false);
+
+bool commute_through_squeeze(
     graphlib::OpNode* op,
-    graphlib::Shape *commute_shape=nullptr,
-    graphlib::OpType *golden_transform=nullptr);
+    graphlib::OpNode* initial_op,
+    graphlib::Shape* commute_shape,
+    graphlib::Shape* clone_shape,
+    graphlib::OpType* golden_transform,
+    bool commute_up,
+    bool check_only);
 
 bool is_elementwise(graphlib::OpNode *op);
 bool is_quantization_ops(graphlib::OpNode *op);

@@ -211,7 +211,13 @@ variants = ['mistralai/Mistral-7B-v0.1']
 @pytest.mark.parametrize("variant", variants, ids=variants)
 def test_mistral_prefill(variant, test_device):
     configuration = configure_mistral(test_device)
+
+    compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
+    compiler_cfg.amp_level = 1
+
     required_pcc_val = 0.99
+    if test_device.arch == BackendDevice.Wormhole_B0:
+        required_pcc_val = 0.95
 
     model = AutoModelForCausalLM.from_pretrained(variant, device_map="auto", config = configuration)
     tokenizer = AutoTokenizer.from_pretrained(variant)

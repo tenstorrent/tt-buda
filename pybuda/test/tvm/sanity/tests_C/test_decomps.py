@@ -821,6 +821,90 @@ def test_downsample_nearest(input_shape, scale_factor):
         verify_cfg=VerifyConfig(),
     )
 
+
+input_shapes = [list((1, 3, dim, dim*2)) for dim in range(4, 20)]
+scale_factors = list(range(2, 10))
+@pytest.mark.parametrize("input_shape", input_shapes)
+@pytest.mark.parametrize("scale_factor", scale_factors)
+def test_downsample_2d_nearest_channel_first_pytorch(test_device, input_shape, scale_factor):
+
+    if input_shape[-1] % scale_factor != 0 or input_shape[-2] % scale_factor != 0:
+        pytest.skip("input_shape must be divisible by scale_factor")
+
+    # Set PyBuda configuration parameters
+    compiler_cfg = pybuda.config._get_global_compiler_config()
+    compiler_cfg.balancer_policy = "Ribbon"
+    compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
+
+    class downsample_2d_model(torch.nn.Module):
+        def __init__(self, scale_factor):
+            super().__init__()
+            self.scale_factor = scale_factor
+
+        def forward(self, input_tensor):
+            return torch.nn.functional.interpolate(input_tensor, scale_factor=1/self.scale_factor, mode='nearest')
+
+    model = downsample_2d_model(scale_factor=scale_factor)
+    model.eval()
+
+    # Create PyBuda module from PyTorch model
+    tt_model = pybuda.PyTorchModule(
+        "pt_downsample_2d", model
+    )
+
+    input_sample = torch.rand(input_shape)
+
+    # Run inference on Tenstorrent device
+    verify_module(
+        tt_model,
+        input_shapes=[(input_sample.shape,)],
+        inputs=[(input_sample,)],
+        verify_cfg=VerifyConfig(
+            arch=test_device.arch,
+            devtype=test_device.devtype,
+            devmode=test_device.devmode,
+            test_kind=TestKind.INFERENCE,
+            verify_pybuda_codegen_vs_framework=True,
+            verify_tvm_compile=True,
+        ),
+    )
+
+
+input_shapes = [list((1, dim, dim*2, 3)) for dim in range(4, 20)]
+scale_factors = list(range(2, 10))
+@pytest.mark.parametrize("input_shape", input_shapes)
+@pytest.mark.parametrize("scale_factor", scale_factors)
+def test_downsample_2d_nearest_channel_last_pytorch(test_device, input_shape, scale_factor):
+
+    if input_shape[1] % scale_factor != 0 or input_shape[2] % scale_factor != 0:
+        pytest.skip("input_shape must be divisible by scale_factor")
+
+    # Set PyBuda configuration parameters
+    compiler_cfg = pybuda.config._get_global_compiler_config()
+    compiler_cfg.balancer_policy = "Ribbon"
+    compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
+    class Downsample2d(PyBudaModule):
+        def __init__(self, name):
+            super().__init__(name)
+
+        def forward(self, input):
+            return pybuda.op.Resize2d("", input, sizes=[input_shape[1] // scale_factor, input_shape[2] // scale_factor], method="nearest_neighbor", channel_last=True)
+
+    model = Downsample2d("Downsample2d_channel_last")
+
+
+    verify_module(
+            model,
+            (input_shape,),
+            verify_cfg=VerifyConfig(
+            arch=test_device.arch,
+            devtype=test_device.devtype,
+            devmode=test_device.devmode,
+            test_kind=TestKind.INFERENCE,
+            )
+    )
+
+
 def get_factorization(n):
     factors = []
     i = 2

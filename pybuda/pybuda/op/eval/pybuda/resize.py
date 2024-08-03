@@ -290,25 +290,48 @@ def decompose_downsample_2d(attr, dc, inputs, resize_method):
     if channel_last:
         cin = shape[-1]
         scale_factor = shape[-3] // attr[0]
+        # Transpose the activation to have channels as the first dimension.
+        # (N, H, W, C) -> transpose(-3, -1) -> (N, C, W, H)
         activations = dc.op(TransposeTM.create(-3, -1), [activations])
+
+        # (N, C, W, H) -> transpose(-2, -1) -> (N, C, H, W)
         activations = dc.op(TransposeTM.create(-2, -1), [activations])
     else:
         cin = shape[-3]
         scale_factor = shape[-2] // attr[0]
     
     if resize_method == "nearest":
-        dident = create_nearest_neighbor_downsample_picker_matrix(scale_factor, shape, channel_last=channel_last)
+        dident_1 = create_nearest_neighbor_downsample_picker_matrix(scale_factor, activations.shape)
     else:
         raise NotImplementedError("Only nearest neighbor downsample is supported")
-    
-    dident = dident.unsqueeze(0).unsqueeze(0)
-    dident = torch.cat([dident]*cin, dim=-3)
-    
-    dident_tensor = dc.tensor(dident)
-    result = dc.op("sparse_matmul", [dident_tensor, activations])
-    result = dc.op(TransposeTM.create(-2, -1), [result])
-    result = dc.op("sparse_matmul", [dident_tensor, result]) # z, x ,y
 
+    dident_1 = dident_1.unsqueeze(0).unsqueeze(0)
+    dident_1 = torch.cat([dident_1]*cin, dim=-3)
+    dident_1_tensor = dc.tensor(dident_1)
+    
+    # Eg: activation_shape = (1, 3, 4, 8)
+    #     scale_factor = 2
+    #     channel_last = False
+
+    #   matmul_1    =   dident_1_tensor     x       activations
+    # (1, 3, 2, 8)  =     (1, 3, 2, 4)      x       (1, 3, 4, 8)
+    result = dc.op("sparse_matmul", [dident_1_tensor, activations])
+
+    #  transpose_1     =    matmul_1.tranpose(-2, -1)
+    #  (1, 3, 8, 2)  <---   (1, 3, 2, 8)
+    result = dc.op(TransposeTM.create(-2, -1), [result])
+    
+    dident_2 = create_nearest_neighbor_downsample_picker_matrix(scale_factor, result.shape)
+    dident_2 = dident_2.unsqueeze(0).unsqueeze(0)
+    dident_2 = torch.cat([dident_2]*cin, dim=-3)
+    dident_2_tensor = dc.tensor(dident_2)
+
+    #   matmul_2    =   dident_2_tensor     x       transpose_1
+    # (1, 3, 4, 2)  =    (1, 3, 4, 8)       x      (1, 3, 8, 2)
+    result = dc.op("sparse_matmul", [dident_2_tensor, result]) # z, x ,y
+
+    #  transpose_2     =    matmul_2.tranpose(-2, -1)
+    #  (1, 3, 2, 4)   <---   (1, 3, 4, 2)
     if channel_last:
         result = dc.op(TransposeTM.create(-3, -1), [result]) # y, x, z
     else:

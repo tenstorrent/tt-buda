@@ -797,15 +797,149 @@ bool commute_through_eltwise(
     return true;
 }
 
-bool commute_through_quantization(
+bool commute_through_squeeze(
     graphlib::OpNode* op,
-    graphlib::Shape *commute_shape,
-    graphlib::OpType *golden_transform)
-{
-    TT_ASSERT(is_quantization_ops(op), "op must be an quantization op");
+    graphlib::OpNode* initial_op,
+    graphlib::Shape* commute_shape,
+    graphlib::Shape* clone_shape,
+    graphlib::OpType* golden_transform,
+    bool commute_up,
+    bool check_only) 
+{   
+    TT_ASSERT(op->op_name() == "squeeze", "Op is not a squeeze op");
+    if (commute_up)
+        return false;
+
+    // Only commute transpose through squeeze for now
+    if (initial_op->op_name() != "transpose")
+        return false;
+
+    std::vector<graphlib::OpType::Attr> op_attrs = op->op_attrs();
+
+    // Commute only if squeeze dim is 0 for now
+    if (std::get<int>(op_attrs[0]) != 0)
+        return false;
+
+    if ((*commute_shape)[0] != 1)
+        return false;
+
+    if (check_only)
+        return true;
+
+    auto updated_commute_shape = commute_shape->as_vector();
+    updated_commute_shape.erase(updated_commute_shape.begin());
+    *commute_shape = graphlib::Shape::create(updated_commute_shape);
     op->set_shape(*commute_shape);
     op->add_golden_transform(*golden_transform);
+
+    auto updated_clone_shape = clone_shape->as_vector();
+    updated_clone_shape.erase(updated_clone_shape.begin());
+    *clone_shape = graphlib::Shape::create(updated_clone_shape);
+
     return true;
+}
+
+bool can_commute_through_squeeze(
+    graphlib::OpNode* op,
+    graphlib::OpNode* initial_op,
+    graphlib::Shape* commute_shape,
+    graphlib::Shape* clone_shape,
+    bool commute_up) 
+{
+    return commute_through_squeeze(op, initial_op, commute_shape, clone_shape, nullptr, commute_up, true);
+}
+
+
+bool commute_through_quantization(
+    graphlib::OpNode* op, 
+    graphlib::OpNode* initial_op,
+    bool check_only,
+    graphlib::Shape* commute_shape,
+    graphlib::OpType* golden_transform,
+    bool commute_up)
+{
+    TT_ASSERT(is_quantization_ops(op), "op must be an quantization op");
+    if (commute_up)
+        return false;
+
+    int axis = std::get<int>(op->op_attrs()[1]);
+    int new_axis = axis;
+    bool can_commute = false;
+
+    if (initial_op->op_type().op == "reshape") {
+
+        if (not commute_up) {
+            // axis of quantization must have the same volume to the left and right of it
+            
+            if (new_axis < 0)
+                new_axis += op->shape().size();
+
+            // check if axis moved to the right (or in the same place)
+            while (new_axis < (int)commute_shape->size()) {
+                if ((*commute_shape)[new_axis] == op->shape()[axis]) {
+                    if (volume_above(commute_shape->as_vector(), new_axis) == volume_above(op->shape().as_vector(), axis)
+                        and volume_below(commute_shape->as_vector(), new_axis) == volume_below(op->shape().as_vector(), axis)) {
+                        can_commute = true;
+                    }
+                    break;
+                }
+                new_axis++;
+            }
+            if (not can_commute) {
+                new_axis = axis-1;
+                while (new_axis >= 0) {
+                    if ((*commute_shape)[new_axis] == op->shape()[axis]) {
+                        if (volume_above(commute_shape->as_vector(), new_axis) == volume_above(op->shape().as_vector(), axis)
+                            and volume_below(commute_shape->as_vector(), new_axis) == volume_below(op->shape().as_vector(), axis)) {
+                            can_commute = true;
+                        }
+                        break;
+                    }
+                    new_axis--;
+                }
+            }
+        }
+    } 
+    else if (initial_op->op_type().op == "transpose") 
+    {   
+        can_commute = true;
+        if (new_axis < 0)
+            new_axis += op->shape().size();
+        
+        int transpose_dim0 = initial_op->op_type().get_attr_as<int>("dim0");
+        int transpose_dim1 = initial_op->op_type().get_attr_as<int>("dim1");
+        if (transpose_dim0 < 0)
+            transpose_dim0 += commute_shape->size();
+
+        if (transpose_dim1 < 0)
+            transpose_dim1 += commute_shape->size();
+
+        if (new_axis == transpose_dim0)
+            new_axis = transpose_dim1;
+        else if (new_axis == transpose_dim1)
+            new_axis = transpose_dim0;
+    }
+        
+    if (check_only)
+        return can_commute;
+
+    TT_ASSERT(can_commute, "Should not have called this if it is incommutable.");
+
+    std::vector<graphlib::OpType::Attr> op_attrs = op->op_attrs();
+    op_attrs[1] = new_axis;
+    op->set_shape(*commute_shape);
+    op->overwrite_op_attrs(op_attrs);
+    op->add_golden_transform(*golden_transform);
+    return true;
+}
+
+bool can_commute_through_quantize(
+    graphlib::OpNode* op, 
+    graphlib::OpNode* initial_op,
+    graphlib::Shape* commute_shape,
+    bool commute_up)
+{
+    return commute_through_quantization(op, initial_op, true, commute_shape, nullptr, commute_up);
 }
 
 bool is_elementwise(graphlib::OpNode *op)
@@ -846,8 +980,14 @@ bool can_commute_past_op(
         bool can_commute = can_commute_through_select(graph, op, initial_op, producer, commute_shape, clone_shape, commute_up);
         return can_commute;
     }
+    else if (is_quantization_ops(op)) {
+        bool can_commute = can_commute_through_quantize(op, initial_op, commute_shape, commute_up);
+        return can_commute;
+    } else if (op->op_name() == "squeeze") {
+        return can_commute_through_squeeze(op, initial_op, commute_shape, clone_shape, commute_up);
+    }
 
-    return (is_elementwise(op) and op->op_name() != "interleave") or is_quantization_ops(op);
+    return (is_elementwise(op) and op->op_name() != "interleave");
 }
 
 void update_reshape_attr(graphlib::OpNode *reshape, graphlib::Shape new_shape)

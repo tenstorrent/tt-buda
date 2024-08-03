@@ -17,6 +17,7 @@ def get_randomizer_config_default():
         print_code = True,
         run_test = True,
         save_tests = True,
+        save_failing_tests = True,
         # build_model_from_code = False,
         debug_shapes = False,
         verify_shapes = False,
@@ -32,5 +33,7 @@ def get_randomizer_config_default():
         num_of_nodes_min=int(os.environ.get("NUM_OF_NODES_MIN", 5)),
         num_of_nodes_max=int(os.environ.get("NUM_OF_NODES_MAX", 10)),
         num_fork_joins_max=int(os.environ.get("NUM_OF_FORK_JOINS_MAX", 50)),
+        constant_input_rate=int(os.environ.get("CONSTANT_INPUT_RATE", 20)),
+        same_inputs_percent_limit=int(os.environ.get("SAME_INPUTS_PERCENT_LIMIT", 10)),
     )
     return randomizer_config

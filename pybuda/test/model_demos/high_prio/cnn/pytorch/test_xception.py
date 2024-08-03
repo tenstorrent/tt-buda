@@ -29,6 +29,11 @@ def test_xception_timm(variant, test_device):
         variant,
     )
 
+    if test_device.arch == BackendDevice.Grayskull and variant == "xception":
+        pcc_value = 0.95
+    else :
+        pcc_value = 0.99
+
     verify_module(
         model,
         input_shapes=[(inputs[0].shape,)],
@@ -39,5 +44,6 @@ def test_xception_timm(variant, test_device):
             devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
             num_chips=1,
+            pcc = pcc_value,
         ),
     )

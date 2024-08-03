@@ -38,7 +38,7 @@ def test_ddrnet(variant, test_device):
     model_name = f"{variant}_onnx"
 
     load_path = (
-        f"third_party/confidential_customer_models/generated/files/{variant}.onnx"
+        f"third_party/confidential_customer_models/internal/ddrnet/files/onnx/{variant}.onnx"
     )
 
     model = onnx.load(load_path)
@@ -153,7 +153,7 @@ def test_ddrnet_semantic_segmentation_onnx(variant, test_device):
     tt_model = pybuda.OnnxModule(model_name, model, load_path)
 
     # Prepare input
-    image_path = "third_party/confidential_customer_models/cv_demos/ddrnet/semantic_segmentation/image/road_scenes.png"
+    image_path = "third_party/confidential_customer_models/internal/ddrnet/files/samples/road_scenes.png"
     input_image = Image.open(image_path)
     input_image = transforms.Resize((1024, 1024))(input_image)
     input_tensor = transforms.ToTensor()(input_image)

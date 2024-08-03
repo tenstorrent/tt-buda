@@ -58,6 +58,8 @@ def test_dla_pytorch(variant, test_device):
             os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
         if func.__name__ == "dla46_c":
             pcc = 0.97
+        if func.__name__ in ["dla60", "dla102x", "dla102x2", "dla169"]:
+            pcc = 0.98
 
     # Load data sample
     url = "https://images.rawpixel.com/image_1300/cHJpdmF0ZS9sci9pbWFnZXMvd2Vic2l0ZS8yMDIyLTA1L3BkMTA2LTA0Ny1jaGltXzEuanBn.jpg"

@@ -289,11 +289,11 @@ struct OpPlacement
 struct QueueBufferPlacement
 {
     uint32_t dram_channel;
-    uint32_t dram_address;
+    size_t dram_address;
 
     // Not strictly needed to set placement, but convenient to have here
     Coord dram_channel_location;
-    uint32_t buffer_size;
+    size_t buffer_size;
     bool allocated_in_p2p_region;
 
     // methods
@@ -303,8 +303,8 @@ struct QueueBufferPlacement
 struct QueueHostBufferPlacement
 {
     uint32_t channel;
-    uint32_t address;
-    uint32_t buffer_size;
+    size_t address;
+    size_t buffer_size;
 
     // methods
     json to_json() const;
