@@ -200,6 +200,46 @@ namespace tt::passes
         OpTypeItem("transpose", {-2, -1, -1}, true),
     };
 
+    static TMPattern replace_4_0 = {
+        OpTypeItem("reshape", {1, 2, 2, 720}, false),
+    };
+
+    static TMPattern replace_4_1 = {
+        OpTypeItem("reshape", {1, 14, 14, 36}, false),
+    };
+
+    static TMPattern replace_4_2 = {
+        OpTypeItem("reshape", {1, 7, 7, 720}, false),
+    };
+
+    static TMPattern replace_4_3 = {
+        OpTypeItem("reshape", {1, 7, 7, 36}, false),
+    };
+    
+    static TMPattern replace_4_4 = {
+        OpTypeItem("reshape", {1, 4, 4, 720}, false),
+    };
+
+    static TMPattern replace_4_5 = {
+        OpTypeItem("reshape", {1, 4, 4, 36}, false),
+    };
+
+    static TMPattern replace_4_6 = {
+        OpTypeItem("reshape", {1, 14, 14, 720}, false),
+    };
+
+    static TMPattern replace_4_7 = {
+        OpTypeItem("reshape", {1, 2, 2, 36}, false),
+    };
+
+    static TMPattern replace_4_8 = {
+        OpTypeItem("reshape", {1, 28, 28, 720}, false),
+    };
+
+    static TMPattern replace_4_9 = {
+        OpTypeItem("reshape", {1, 28, 28, 36}, false),
+    };
+
     static TMPatternPairs pattern_map = {
         {pattern_0, replace_0},
         {pattern_1, replace_1},
@@ -229,6 +269,16 @@ namespace tt::passes
         {pattern_3, replace_3_7},
         {pattern_3, replace_3_8},
         {pattern_3, replace_3_9},
+        {pattern_4, replace_4_0},
+        {pattern_4, replace_4_1},
+        {pattern_4, replace_4_2},
+        {pattern_4, replace_4_3},
+        {pattern_4, replace_4_4},
+        {pattern_4, replace_4_5},
+        {pattern_4, replace_4_6},
+        {pattern_4, replace_4_7},
+        {pattern_4, replace_4_8},
+        {pattern_4, replace_4_9},
     };
 
     bool fuse_tm_sequences(tt::graphlib::Graph* graph, TMPatternPairs& pattern_map_ = pattern_map);
