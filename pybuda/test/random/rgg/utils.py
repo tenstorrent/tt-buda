@@ -240,7 +240,7 @@ class RateLimitter:
 
     def is_allowed(self) -> bool:
         '''Check if the operation is allowed by the rate limit factor and current random value'''
-        self.current_value = self.rng.randint(0, 100)
+        self.current_value = self.rng.randint(0, self.max_limit)
         return self.current_value < self.current_limit
     
     def limit_info(self) -> str:
