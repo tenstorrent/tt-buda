@@ -8,8 +8,10 @@ from types import SimpleNamespace
 
 import cv2
 import os
+import sys
+sys.path = list(set(sys.path + ["third_party/confidential_customer_models/internal/tri_basic_2/"]))
 
-from test.model_demos.models.tri_basic_2.model.semseg import resnet34_semseg
+from scripts.semseg import resnet34_semseg
 
 from pybuda.verify.backend import verify_module
 from pybuda import VerifyConfig
