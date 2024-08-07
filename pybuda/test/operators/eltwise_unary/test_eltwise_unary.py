@@ -67,6 +67,7 @@ from pybuda import TTDevice, BackendType, pybuda_compile, VerifyConfig, Compiler
 from pybuda.verify.config import TestKind
 
 from test.operators.utils import netlist_utils, InputSourceFlags, VerifyUtils
+from test.operators.utils import FailingReasons
 from test.conftest import TestDevice
 
 from pybuda.module import PyBudaModule
@@ -255,7 +256,7 @@ def get_input_shapes():
             (10, 10, 10000, 1),             #73     # 4.4 Extreme ratios between height/width       
             (11, 32, 32, 64),               #74     # 4.1 Divisible by 32  
             #Fatal Python error: Segmentation fault 
-            pytest.param((12, 64, 160, 96), marks=pytest.mark.skip(reason="Inference fail due to seg fault")), #75     # 4.1 Divisible by 32          
+            pytest.param((12, 64, 160, 96), marks=pytest.mark.skip(reason=FailingReasons.SEG_FAULT)), #75     # 4.1 Divisible by 32          
             (13, 11, 17, 41),               #76     # 4.2 Prime numbers      
             (14, 13, 89, 3),                #77     # 4.2 Prime numbers      
     ]
@@ -271,93 +272,93 @@ def xfail_test(input_operator, input_shape, input_model, input_kwargs):
         case "Argmax":
             if(len(input_shape) == 2 and micro_batch_size > 1 and input_model in ("model_op_src_from_another_op", "model_op_src_from_tm_edge2")):
                 # E           AssertionError: Error during inference
-                pytest.xfail("Inference failed")
+                pytest.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)
             elif(input_shape in ((s[16],) + (s[20],) + (s[21],)) and input_model == "model_op_src_from_tm_edge1"):
                 # E           AssertionError: Error during inference
-                pytest.xfail("Inference failed")
+                pytest.xfail(reason=FailingReasons.BUGGY_SHAPE)
             elif(input_shape in ((s[31],) + (s[33],) + (s[36],) + (s[44],) + (s[46],) + (s[49],)+ (s[56],) + (s[57],) + (s[59],) + tuple(s[60:63]) + (s[69],) + (s[70],) + tuple(s[72:75]))):
                 # E           RuntimeError: 1/2/3 Nodes have no valid grids, exiting
-                pytest.xfail("RuntimeError")
+                pytest.xfail(reason=FailingReasons.BUGGY_SHAPE)
         case "Dropout":
             # Error message: E       AssertionError: Data mismatch detected
-            pytest.xfail("Data mismatch")
+            pytest.xfail(reason=FailingReasons.DATA_MISMATCH)
         case "LogicalNot":
             # Error message: E               KeyError: 'logical_not'
-            pytest.xfail("Not implemented operator")
+            pytest.xfail(reason=FailingReasons.NOT_IMPLEMENTED)
         case "Tilize":
             # Error message: E       AttributeError: module 'torch' has no attribute 'tensors'
-            pytest.xfail("Inference failed")
+            pytest.xfail(reason=FailingReasons.INFERENCE_FAILED)
         case "CumSum":
             if input_model in ("model_op_src_from_dram", "model_op_src_from_host", "model_op_src_from_another_op"):
                 # E               RuntimeError: Input operand not mapped to new graph during lowering: CumSum1
-                pytest.xfail("RuntimeError")
+                pytest.xfail(reason=FailingReasons.COMPILATION_FAILED)
             elif input_model in ("model_op_src_const_inputs1", "model_op_src_from_tm_edge1", "model_op_src_from_tm_edge2"):
                 # E               RuntimeError: TT_ASSERT @ pybuda/csrc/passes/lowering_context.cpp:28: old_node->node_type() != graphlib::NodeType::kPyOp
-                pytest.xfail("RuntimeError")
+                pytest.xfail(reason=FailingReasons.COMPILATION_FAILED)
         case "Pow":
             if(micro_batch_size > 1):
                 if(input_kwargs['exponent'] not in (1000, 10000) and len(input_shape) == 2):
                     # E           AssertionError: Error during inference
-                    pytest.xfail("Inference failed")
+                    pytest.xfail(reason=FailingReasons.INFERENCE_FAILED)
                 elif(input_kwargs['exponent'] == 1000):
                     if(input_shape in (tuple(s[13:26]))):
                         # E           AssertionError: Error during inference
-                        pytest.xfail('Inference failed')
+                        pytest.xfail(reason=FailingReasons.INFERENCE_FAILED)
                     elif(input_model in ("model_op_src_from_host", "model_op_src_from_tm_edge1", "model_op_src_from_dram") and input_shape in ((s[39],) + (s[41],) + (s[66],))):
                         # E           AssertionError: Data mismatch detected
-                        pytest.xfail('Data missmatch')
+                        pytest.xfail(reason=FailingReasons.DATA_MISMATCH)
                     elif(input_model in ("model_op_src_const_inputs1") and input_shape in (s[39],)):
                         # E           AssertionError: Data mismatch detected
-                        pytest.xfail('Data missmatch')
+                        pytest.xfail(reason=FailingReasons.DATA_MISMATCH)
                 elif(input_kwargs['exponent'] == 10000):
                     if(input_shape in (tuple(s[13:26]))):
                         # E           AssertionError: Error during inference
-                        pytest.xfail('Inference failed')
+                        pytest.xfail(reason=FailingReasons.INFERENCE_FAILED)
                     elif(input_model in ("model_op_src_from_host", "model_op_src_from_tm_edge1", "model_op_src_from_dram") and input_shape in (tuple(s[39:52]) + tuple(s[65:69]) + tuple(s[71:75]) + tuple(s[76:78]))):
                         # E           AssertionError: Data mismatch detected
-                        pytest.xfail('Data missmatch')
+                        pytest.xfail(reason=FailingReasons.DATA_MISMATCH)
                     elif(input_model in ("model_op_src_const_inputs1") and input_shape in ((s[39],) + (s[41],) + (s[66],))):
                         # E           AssertionError: Data mismatch detected
-                        pytest.xfail('Data missmatch')
+                        pytest.xfail(reason=FailingReasons.DATA_MISMATCH)
             else:
                 match input_model:
                     case "model_op_src_from_host":
                         if (input_kwargs['exponent'] == 1000 and input_shape in (tuple(s[0:5]) + tuple(s[9:13]) + (s[26],) + (s[28],) + (s[29],) + (s[38],) + (s[52],) + (s[54],)) ):
                             # E           AssertionError: Data mismatch detected
-                            pytest.xfail('Data missmatch')
+                            pytest.xfail(reason=FailingReasons.DATA_MISMATCH)
                         elif (input_kwargs['exponent'] == 10000 and input_shape in (tuple(s[0:13]) + tuple(s[26:39]) + tuple(s[52:65]))):
                             # E           AssertionError: Data mismatch detected
-                            pytest.xfail('Data missmatch')
+                            pytest.xfail(reason=FailingReasons.DATA_MISMATCH)
                     case "model_op_src_from_dram":
                         if (input_kwargs['exponent'] == 1000 and input_shape in (tuple(s[0:5]) + tuple(s[9:13]) + (s[26],) + (s[28],) + (s[29],) + (s[38],) + (s[52],) + (s[54],))):
                             # E           AssertionError: Data mismatch detected
-                            pytest.xfail('Data missmatch')
+                            pytest.xfail(reason=FailingReasons.DATA_MISMATCH)
                         elif (input_kwargs['exponent'] == 10000 and input_shape in (tuple(s[0:13]) + tuple(s[26:39]) + tuple(s[52:65]))):
                             # E           AssertionError: Data mismatch detected
-                            pytest.xfail('Data missmatch')
+                            pytest.xfail(reason=FailingReasons.DATA_MISMATCH)
                     case "model_op_src_const_inputs1":
                         if (input_kwargs['exponent'] == 160 and input_shape in (s[3],)):
                             # E           AssertionError: Data mismatch detected
-                            pytest.xfail('Data missmatch')
+                            pytest.xfail(reason=FailingReasons.DATA_MISMATCH)
                         elif (input_kwargs['exponent'] == 1000 and input_shape in (tuple(s[0:2]) + (s[3],) + (s[12],) + (s[26],))):
                             # E           AssertionError: Data mismatch detected
-                            pytest.xfail('Data missmatch')
+                            pytest.xfail(reason=FailingReasons.DATA_MISMATCH)
                         elif (input_kwargs['exponent'] == 10000 and input_shape in (tuple(s[0:4]) + tuple(s[11:13]) + (s[26],) + (s[28],) + (s[52],))):
                             # E           AssertionError: Data mismatch detected
-                            pytest.xfail('Data missmatch')
+                            pytest.xfail(reason=FailingReasons.DATA_MISMATCH)
                     case "model_op_src_from_tm_edge1":
                         if (input_kwargs['exponent'] == 1000 and input_shape in (tuple(s[0:5]) + tuple(s[9:13]) + (s[26],) + (s[28],) + (s[29],) + (s[38],) + (s[52],) + (s[54],))):
                             # E           AssertionError: Data mismatch detected
-                            pytest.xfail('Data missmatch')
+                            pytest.xfail(reason=FailingReasons.DATA_MISMATCH)
                         elif (input_kwargs['exponent'] == 10000 and input_shape in (tuple(s[0:13]) + tuple(s[26:39]) + tuple(s[52:65]))):
                             # E           AssertionError: Data mismatch detected
-                            pytest.xfail('Data missmatch')
+                            pytest.xfail(reason=FailingReasons.DATA_MISMATCH)
                     case "model_op_src_from_another_op", "model_op_src_from_tm_edge2":
                         return
         case _:
             if(len(input_shape) == 2 and micro_batch_size > 1):
                 # E           AssertionError: Error during inference
-                pytest.xfail('Inference failed')
+                pytest.xfail(reason=FailingReasons.INFERENCE_FAILED)
 
 
 
@@ -400,7 +401,7 @@ def get_pow_kwargs():
     return [
         # Error message: E                RuntimeError: TT_ASSERT @ pybuda/csrc/graph_lib/shape.cpp:34: values.size() >= BUDA_DIM_COUNT and values.size() <= BUDA_MAX_DIM_COUNT
         # 18 are always xpassed
-        pytest.param(0.9336911808323198,    marks=pytest.mark.xfail(reason="RuntimeError")),  
+        pytest.param(0.9336911808323198,    marks=pytest.mark.xfail(reason=FailingReasons.COMPILATION_FAILED)),
         0,
         1,
         2,
@@ -451,7 +452,8 @@ def get_clip_kwargs():
         (0.4992656851851959, None),
         (None, 0.9336911808323198),
         # Error message: E               RuntimeError: yaml-cpp: error at line 22, column 70: bad conversion
-        pytest.param(None, None,    marks=pytest.mark.xfail(reason="RuntimeError")),  
+        # Error message: E               RuntimeError: Unexpected index
+        pytest.param(None, None,    marks=pytest.mark.xfail(reason=FailingReasons.COMPILATION_FAILED)),
     ]
 @pytest.mark.parametrize("input_shape", get_input_shapes())
 @pytest.mark.parametrize("input_model", [item.split(".")[0] for item in os.listdir(TEST_PLAN_MODELS_PATH) if "model" in item])
@@ -490,7 +492,7 @@ def get_cum_sum_kwargs_exclusive():
     return [
         False,
         # Error message:E   Assertion error: Currently not supported
-        pytest.param(True,    marks=pytest.mark.xfail(reason="Unsupported parameter value"))
+        pytest.param(True,    marks=pytest.mark.xfail(reason=FailingReasons.UNSUPPORTED_PARAMETER_VALUE)),
     ]
 @pytest.mark.parametrize("input_shape", get_input_shapes())
 @pytest.mark.parametrize("input_model", [item.split(".")[0] for item in os.listdir(TEST_PLAN_MODELS_PATH) if "model" in item])

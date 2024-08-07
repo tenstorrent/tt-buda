@@ -85,6 +85,7 @@ from test.test_sanity import get_device_intermediates
 from pybuda.op.eval.common import compare_tensor_to_golden
 
 from test.operators.utils import netlist_utils
+from test.operators.utils import FailingReasons
 
 from .models import generic
 from .models import custom
@@ -199,21 +200,28 @@ def test_matmul_according_to_pytorch_docs(
     test_device
 ):
 
+    # TODO Unify models 11 to 15 by parametrizing the input shapes
+
     #BUG
     if model in ("model_11", ):
-        pytest.xfail("Matmul op when two input tensors are vectors is not supported. Error: pybuda/pybuda/op/eval/pybuda/matmul.py:135: E    IndexError: list index out of range")
+        # Matmul op when two input tensors are vectors is not supported. Error: pybuda/pybuda/op/eval/pybuda/matmul.py:135: E    IndexError: list index out of range
+        pytest.xfail(reason=FailingReasons.UNSUPPORTED_SPECIAL_CASE)
     #BUG
     if model in ("model_12", ):
-        pytest.xfail("Matmul op when two input tensors are matrix(without microbatch size) is not supported. Error: pybuda/pybuda/op/eval/pybuda/matmul.py:29: E     RuntimeError: mat1 and mat2 shapes cannot be multiplied (1x3 and 1x7)")
+        # Matmul op when two input tensors are matrix(without microbatch size) is not supported. Error: pybuda/pybuda/op/eval/pybuda/matmul.py:29: E     RuntimeError: mat1 and mat2 shapes cannot be multiplied (1x3 and 1x7)
+        pytest.xfail(reason=FailingReasons.UNSUPPORTED_SPECIAL_CASE)
     #BUG
     if model in ("model_13", ):
-        pytest.xfail("Matmul op if the first argument is 1-dimensional and the second argument is 2-dimensional is not supported. Error: pybuda/pybuda/tensor.py:383: E    AssertionError: Setting a tensor value of incorrect shape: (1, 7) vs torch.Size([7])")
+        # Matmul op if the first argument is 1-dimensional and the second argument is 2-dimensional is not supported. Error: pybuda/pybuda/tensor.py:383: E    AssertionError: Setting a tensor value of incorrect shape: (1, 7) vs torch.Size([7])
+        pytest.xfail(reason=FailingReasons.UNSUPPORTED_SPECIAL_CASE)
     #BUG
     if model in ("model_14", ):
-        pytest.xfail("Matmul op if the first argument is 2-dimensional and the second argument is 1-dimensional is not suppported. Error: pybuda/pybuda/op/eval/pybuda/matmul.py:29: E    RuntimeError: size mismatch, got input (1), mat (1x64), vec (1)")
+        # Matmul op if the first argument is 2-dimensional and the second argument is 1-dimensional is not suppported. Error: pybuda/pybuda/op/eval/pybuda/matmul.py:29: E    RuntimeError: size mismatch, got input (1), mat (1x64), vec (1)
+        pytest.xfail(reason=FailingReasons.UNSUPPORTED_SPECIAL_CASE)
     #BUG
     if model in ("model_15", ):
-        pytest.xfail("Matmul op when one of the arguments is 1-dimensional and the other one is N-dimensional is not suppported. Error: pybuda/pybuda/op/eval/pybuda/matmul.py:29: E    RuntimeError: size mismatch, got input (32), mat (32x64), vec (1)")
+        # Matmul op when one of the arguments is 1-dimensional and the other one is N-dimensional is not suppported. Error: pybuda/pybuda/op/eval/pybuda/matmul.py:29: E    RuntimeError: size mismatch, got input (32), mat (32x64), vec (1)
+        pytest.xfail(reason=FailingReasons.UNSUPPORTED_SPECIAL_CASE)
 
     architecture = f'special_cases.{model}.BudaMatmulTest()'
     model = eval(architecture)
@@ -287,7 +295,8 @@ def test_matmul_according_to_test_plan(
             "model_op_src_const_inputs2",
             "model_op_src_from_host",
         ):
-        pytest.xfail("Error for input shape (1, 1, 10000, 1). Error message: RuntimeError: TT_ASSERT @ pybuda/csrc/placer/lower_to_placer.cpp:245:")
+        # Error for input shape (1, 1, 10000, 1). Error message: RuntimeError: TT_ASSERT @ pybuda/csrc/placer/lower_to_placer.cpp:245:
+        pytest.xfail(reason=FailingReasons.COMPILATION_FAILED)
 
     # generate input shapes for every model
     opernad_num = 0
@@ -431,7 +440,8 @@ def test_matmul_dram_prologued(
     model = "model_op_src_const_inputs2"
     #BUG: when input shape is (2, 1, 10000, 1) or (2, 10000, 1) - extreme ratios between height/width; it works for input shape when one dimension is 9920 or less, everything above(like 10000) throws error
     if (input_shape == (2, 1, 10000, 1) or input_shape == (2, 10000, 1)) and model == "model_op_src_const_inputs2":
-        pytest.xfail("Error for input shape (1, 1, 10000, 1). Error message: RuntimeError: TT_ASSERT @ pybuda/csrc/placer/lower_to_placer.cpp:245:")
+        # Error for input shape (1, 1, 10000, 1). Error message: RuntimeError: TT_ASSERT @ pybuda/csrc/placer/lower_to_placer.cpp:245:
+        pytest.xfail(reason=FailingReasons.COMPILATION_FAILED)
    
     # generate input shapes
     opernad_num = 0

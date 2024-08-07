@@ -72,6 +72,7 @@ from pybuda import PyBudaModule
 from pybuda.op_repo import TensorShape
 from test.operators.utils import netlist_utils, InputSourceFlags, VerifyUtils
 from test.operators.utils import ShapeUtils
+from test.operators.utils import FailingReasons
 from test.conftest import TestDevice
 
 from pybuda import TTDevice, pybuda_compile, VerifyConfig, CompilerConfig
@@ -313,30 +314,31 @@ def get_input_shapes():
             
             # 2-dimensional shape, microbatch_size > 1:
             # All shapes fails for all operators
+            # Skip shapes where microbatchsize > 1
             pytest.param((3, 4),        #13      # 3.1 Full tensor (i.e. full expected shape)
-                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+                         marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
             pytest.param((45, 17),      #14      # 3.1 Full tensor (i.e. full expected shape)
-                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+                         marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
             pytest.param((64, 1),       #15      # 3.2 Tensor reduce on one or more dims to 1
-                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+                         marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
             pytest.param((100, 100),    #16      # 4.3 Very large (thousands, 10s of thousands)
-                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+                         marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
             pytest.param((1000, 100),   #17      # 4.3 Very large (thousands, 10s of thousands)
-                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+                         marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
             pytest.param((10, 1000),    #18      # 4.4 Extreme ratios between height/width
-                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+                         marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
             pytest.param((9920, 1),     #19      # 4.4 Extreme ratios between height/width  
-                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+                         marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
             pytest.param((10000, 1),    #20      # 4.4 Extreme ratios between height/width 
-                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+                         marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
             pytest.param((32, 64),      #21      # 4.1 Divisible by 32
-                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+                         marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
             pytest.param((160, 96),     #22      # 4.1 Divisible by 32
-                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+                         marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
             pytest.param((17, 41),      #23      # 4.2 Prime numbers
-                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+                         marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
             pytest.param((89, 3),       #24      # 4.2 Prime numbers
-                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+                         marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
 
             # 3-dimensional shape, microbatch_size = 1:
             (1, 3, 4),                  #25     # 3.1 Full tensor (i.e. full expected shape)
@@ -392,8 +394,9 @@ def get_input_shapes():
             (9, 1, 9920, 1),                  #69     # 4.4 Extreme ratios between height/width
             (10, 10, 10000, 1),               #70     # 4.4 Extreme ratios between height/width
             (11, 32, 32, 64),                 #71     # 4.1 Divisible by 32
+            # RuntimeError: Fatal Python error: Segmentation fault
             pytest.param((12, 64, 160, 96),   #72     # 4.1 Divisible by 32
-                         marks=pytest.mark.skip(reason="RuntimeError: Fatal Python error: Segmentation fault")),
+                         marks=pytest.mark.skip(reason=FailingReasons.SEG_FAULT)),
             (13, 11, 17, 41),                 #73     # 4.2 Prime numbers
             (14, 13, 89, 3),                  #74     # 4.2 Prime numbers
     ]
@@ -418,22 +421,24 @@ def test_eltwise_binary_ops_per_test_plan(
         # Error Message: "RuntimeError: TT_ASSERT @ pybuda/csrc/balancer/policies/policy_utils.cpp:2221: " + 
         #                "graph ->get_edges( graph->get_node_by_name(nopInsertInst->src), " +
         #                "graph->get_node_by_name(nopInsertInst->dest)) .size() == 1"
-        pytest.xfail(reason="Buggy shapes for ModelOpSrcFromTmEdge1.")
+        pytest.xfail(reason=FailingReasons.BUGGY_SHAPE)
     # 2. input_shape in ((1, 9920, 1), (1, 1, 9920, 1), (9, 1, 9920, 1)):
     if model_type == ModelFromAnotherOp and input_operator in ["Equal", "NotEqual"] and input_shape in (s[32], s[56], s[69]):
         # Error Mesage: "RuntimeError: Fatal balancer error: Could not reconcile constraints: path[Add0 -> _fused_op_0]"
-        pytest.xfail(reason="Buggy shapes for ModelFromAnotherOp.")
+        pytest.xfail(reason=FailingReasons.BUGGY_SHAPE)
     # 3. BinaryStack bugs:
     if input_operator == "BinaryStack":
         if len(input_shape) in (2, 3):
             # input_shapes are 2-dimensional and 3-dimensional:
-            pytest.xfail(reason="BinaryStack operator is not working for 2D and 3D shapes.")
+            # BinaryStack operator is not working for 2D and 3D shapes
+            pytest.xfail(reason=FailingReasons.UNSUPPORTED_DIMENSION)
         elif model_type == ModelConstEvalPass:
             # model_type is ModelConstEvalPass:
-            pytest.xfail(reason="BinaryStack operator is not working for ModelConstEvalPass.")
+            pytest.xfail(reason=FailingReasons.UNSUPPORTED_INPUT_SOURCE)
         elif input_shape in (s[55], s[56], s[57], s[68], s[69], s[70]):
             # input_shapes are all with extreme ratios between height/width:
-            pytest.xfail(reason="BinaryStack operator is not working for shapes that have extreme ratios between height/width")
+            # BinaryStack operator is not working for shapes that have extreme ratios between height/width
+            pytest.xfail(reason=FailingReasons.BUGGY_SHAPE)
     # ------------------------------------------------------------------------------------------------------------------------------------
 
 
@@ -477,8 +482,9 @@ def get_eltwise_binary_ops_prologued():
         pytest.param("Add"),              #00
         pytest.param("Max"),              #01
         pytest.param("Min"),              #02
+        # Validation error caused by pcc threshold
         pytest.param("Power",             #03
-                     marks=pytest.mark.xfail(reason="Validation error caused by pcc threshold.")),
+                     marks=pytest.mark.xfail(reason=FailingReasons.DATA_MISMATCH)),
         pytest.param("Subtract"),         #04
         pytest.param("Multiply"),         #05
         pytest.param("Heaviside"),        #06
@@ -500,10 +506,11 @@ def get_input_shapes_prologued():
             ((1, 17),        InputSourceFlags.FROM_DRAM_NOT_PROLOGUED, False),             #01        # 3.1 Full tensor (i.e. full expected shape)
             
             # 2-dimensional shape, microbatch_size > 1:
+            # "Doesn't work for microbatchsize > 1 and two dimensions.
             pytest.param((4, 16), InputSourceFlags.FROM_DRAM_PROLOGUED, True,              #02        # 3.1 Full tensor (i.e. full expected shape)
-                    marks=pytest.mark.xfail(reason="Doesn't work for microbatchsize > 1 and two dimensions.")),
+                    marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
             pytest.param((3, 17), InputSourceFlags.FROM_DRAM_NOT_PROLOGUED, False,         #03        # 3.1 Full tensor (i.e. full expected shape)
-                    marks=pytest.mark.xfail(reason="Doesn't work for microbatchsize > 1 and two dimensions.")),
+                    marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
             
             # 3-dimensional shape:
             ((2, 3, 3),      InputSourceFlags.FROM_DRAM_NOT_PROLOGUED, False),             #04        # 3.1 Full tensor (i.e. full expected shape)
@@ -551,7 +558,8 @@ def test_eltwise_binary_ops_per_test_plan_dram_prologued(
     # 1. BinaryStack bugs:
     if input_operator == "BinaryStack" and len(input_shape) in (2, 3):
         # input_shapes are 2-dimensional and 3-dimensional:
-        pytest.xfail(reason="BinaryStack operator is not working for 2D and 3D shapes.")
+        # BinaryStack operator is not working for 2D and 3D shapes.
+        pytest.xfail(reason=FailingReasons.UNSUPPORTED_DIMENSION)
     # -----------------------------------------------------------------------------------------------------------------------------------
 
     # Divide behaves differently from another operators for this shape
@@ -675,7 +683,7 @@ def test_df_eltwise_binary_ops_per_test_plan(input_operator, model_type, test_de
 # Error Message: "Compile error: 'logical_and'"
 # ...
 # Error Message: "KeyError: 'logical_and'"
-@pytest.mark.xfail(reason="Not implemented")
+@pytest.mark.xfail(reason=FailingReasons.NOT_IMPLEMENTED)
 def test_eltwise_binary_logicaland_operator(test_device):
 
     verify(
@@ -690,7 +698,8 @@ def test_eltwise_binary_logicaland_operator(test_device):
 # It is not clear what the operator should do, because the documentation is missing - it is copied from Max operator.
 # Case with dim=-1 is covered with other operators in test "test_eltwise_binary_ops_per_test_plan".
 # This test covers all other values for dim parameter.
-@pytest.mark.xfail(reason="Operator is not working for dim parameter different than -1.")
+# Operator is not working for dim parameter different than -1.
+@pytest.mark.xfail(reason=FailingReasons.UNSUPORTED_AXIS)
 @pytest.mark.parametrize("shape", [(1, 3, 3, 3)])
 @pytest.mark.parametrize("dim", [-2, 0, 1, 2])
 @pytest.mark.parametrize("model", [ModelFromHost, ModelFromAnotherOp])
