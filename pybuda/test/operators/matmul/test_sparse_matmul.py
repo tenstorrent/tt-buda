@@ -70,6 +70,7 @@ from pybuda.verify.config import VerifyConfig, TestKind
 import torch
 
 from test.operators.utils import netlist_utils
+from test.operators.utils import FailingReasons
 
 
 
@@ -347,18 +348,21 @@ def test_smm_operand_src_from_tm_edge2(
                     pytest.param((1, 64, 1, 23),        (23, 1)),                                                               #3        # 3.2 Tensor reduce on one or more dims to 1
                     pytest.param((1, 64, 100, 100),     (100, 100)),                                                            #5        # 4.3 Very large (thousands, 10s of thousands)
 
-                    pytest.param((1, 64, 45, 17),       (17, 45),    marks=pytest.mark.xfail(reason="Error message: E           AssertionError: Error during inference")),        #2        # 3.1 Full tensor (i.e. full expected shape)    
-                    pytest.param((1, 64, 64, 1),        (1, 64),     marks=pytest.mark.xfail(reason="Error message: E           AssertionError: Error during inference")),        #4        # 3.2 Tensor reduce on one or more dims to 1    
-                    pytest.param((1, 64, 1000, 100),    (100, 1000), marks=pytest.mark.xfail(reason="Error message: E           AssertionError: Error during inference")),        #6        # 4.3 Very large (thousands, 10s of thousands)  
-                    pytest.param((1, 64, 160, 96),      (96, 160),   marks=pytest.mark.xfail(reason="Error message: E           AssertionError: Error during inference")),        #11       # 4.1 Divisible by 32                           
-                    pytest.param((1, 64, 89, 3),        (3, 89),     marks=pytest.mark.xfail(reason="Error message: E           AssertionError: Error during inference")),        #13       # 4.2 Prime numbers                             
+                    # Error message: E           AssertionError: Error during inference
+                    pytest.param((1, 64, 45, 17),       (17, 45),    marks=pytest.mark.xfail(reason=FailingReasons.INFERENCE_FAILED)),        #2        # 3.1 Full tensor (i.e. full expected shape)    
+                    pytest.param((1, 64, 64, 1),        (1, 64),     marks=pytest.mark.xfail(reason=FailingReasons.INFERENCE_FAILED)),        #4        # 3.2 Tensor reduce on one or more dims to 1    
+                    pytest.param((1, 64, 1000, 100),    (100, 1000), marks=pytest.mark.xfail(reason=FailingReasons.INFERENCE_FAILED)),        #6        # 4.3 Very large (thousands, 10s of thousands)  
+                    pytest.param((1, 64, 160, 96),      (96, 160),   marks=pytest.mark.xfail(reason=FailingReasons.INFERENCE_FAILED)),        #11       # 4.1 Divisible by 32                           
+                    pytest.param((1, 64, 89, 3),        (3, 89),     marks=pytest.mark.xfail(reason=FailingReasons.INFERENCE_FAILED)),        #13       # 4.2 Prime numbers                             
             
-                    pytest.param((1, 64, 10, 1000),     (1000, 10),  marks=pytest.mark.xfail(reason="Error message: E           AssertionError: Data mismatch detected")),           #7        # 4.4 Extreme ratios between height/width       
-                    pytest.param((1, 64, 32, 64),       (64, 32),    marks=pytest.mark.xfail(reason="Error message: E           AssertionError: Data mismatch detected")),           #10       # 4.1 Divisible by 32                           
-                    pytest.param((1, 64, 17, 41),       (41, 17),    marks=pytest.mark.xfail(reason="Error message: E           AssertionError: Data mismatch detected")),           #12       # 4.2 Prime numbers                             
+                    # "Error message: E           AssertionError: Data mismatch detected"
+                    pytest.param((1, 64, 10, 1000),     (1000, 10),  marks=pytest.mark.xfail(reason=FailingReasons.DATA_MISMATCH)),           #7        # 4.4 Extreme ratios between height/width       
+                    pytest.param((1, 64, 32, 64),       (64, 32),    marks=pytest.mark.xfail(reason=FailingReasons.DATA_MISMATCH)),           #10       # 4.1 Divisible by 32                           
+                    pytest.param((1, 64, 17, 41),       (41, 17),    marks=pytest.mark.xfail(reason=FailingReasons.DATA_MISMATCH)),           #12       # 4.2 Prime numbers                             
             
-                    pytest.param((1, 64, 9920, 1),      (1, 9920),   marks=pytest.mark.skip(reason="Fatal python error - xfail does not work; UserWarning: resource_tracker: There appear to be 26 leaked semaphore objects to clean up at shutdown")),      #8        # 4.4 Extreme ratios between height/width     
-                    pytest.param((1, 64, 10000, 1),     (1, 10000),  marks=pytest.mark.skip(reason="Fatal python error - xfail does not work; UserWarning: resource_tracker: There appear to be 26 leaked semaphore objects to clean up at shutdown")),      #9        # 4.4 Extreme ratios between height/width     
+                    # "Fatal python error - xfail does not work; UserWarning: resource_tracker: There appear to be 26 leaked semaphore objects to clean up at shutdown"
+                    pytest.param((1, 64, 9920, 1),      (1, 9920),   marks=pytest.mark.skip(reason=FailingReasons.SEMAPHORE_LEAK)),           #8        # 4.4 Extreme ratios between height/width     
+                    pytest.param((1, 64, 10000, 1),     (1, 10000),  marks=pytest.mark.skip(reason=FailingReasons.SEMAPHORE_LEAK)),           #9        # 4.4 Extreme ratios between height/width     
         ])
 def test_smm_operand_src_from_tm_edge3(
     input_shape_dense,
@@ -411,7 +415,8 @@ def get_input_shapes_prologued():
             ((2, 64, 1, 23),     (23, 1),       None,   True) ,  #25       # 3.2 Tensor reduce on one or more dims to 1
             ((2, 64, 64, 1),     (1, 64),       None,   True) ,  #26       # 3.2 Tensor reduce on one or more dims to 1
             ((2, 64, 100, 100),  (100, 100),    None,   True) ,  #27       # 4.3 Very large (thousands, 10s of thousands)
-            pytest.param((2, 64, 1000, 100), (100, 1000),   None,   True, marks=pytest.mark.skip(reason="Fatal python error - xfail does not work. Error message: Fatal Python error: Segmentation fault; UserWarning: resource_tracker: There appear to be 26 leaked semaphore objects to clean up at shutdown")),  # 4.3 Very large (thousands, 10s of thousands)         
+            # "Fatal python error - xfail does not work. Error message: Fatal Python error: Segmentation fault; UserWarning: resource_tracker: There appear to be 26 leaked semaphore objects to clean up at shutdown"
+            pytest.param((2, 64, 1000, 100), (100, 1000),   None,   True, marks=pytest.mark.skip(reason=FailingReasons.SEMAPHORE_LEAK)),  # 4.3 Very large (thousands, 10s of thousands)         
             ((2, 64, 10, 1000),  (1000, 10),    None,   True) ,  #29       # 4.4 Extreme ratios between height/width        
             ((2, 64, 9920, 1),   (1, 9920),     None,   True) ,  #30       # 4.4 Extreme ratios between height/width 
             ((2, 64, 10000, 1),  (1, 10000),    None,   True) ,  #31       # 4.4 Extreme ratios between height/width   

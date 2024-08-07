@@ -64,6 +64,7 @@ from pybuda import PyBudaModule, VerifyConfig
 from pybuda.config import _get_global_compiler_config
 from pybuda.verify import TestKind, verify_module
 from test.operators.utils import netlist_utils
+from test.operators.utils import FailingReasons
 
 
 # Concatenate operator doesn't work for axis is equal to 0.
@@ -87,7 +88,8 @@ input_shapes = [
                  (1, 3, 3, 3),      # shape4 - test fails. Message: "pybuda._C.UnsupportedHWOpsError: Splice op can only operate on dims 1, 2, or 3"
                  (1, 3, 3, 3, 3)    # shape5 - test fails. Message: "pybuda._C.UnsupportedHWOpsError: Splice op can only operate on dims 1, 2, or 3"
                ]
-@pytest.mark.xfail(reason="Concatenate operator doesn't work for axis value of 0.")
+# Concatenate operator doesn't work for axis value of 0.
+@pytest.mark.xfail(reason=FailingReasons.UNSUPORTED_AXIS)
 @pytest.mark.parametrize("axis", axises)
 @pytest.mark.parametrize("input_shape", input_shapes)
 def test_concatenate_invalid_axis(test_device, axis, input_shape, input_params=[], math_fidelity=None):
@@ -283,7 +285,8 @@ def test_concatenate_inputs_from_dram_queue(test_device, axis, input_shape, inpu
 #   2.4 From DRAM, but prologued (constant)
 #    - Constants must be small enough to fit into L1
 #    - Input are not prologued for microbatch size = 1
-@pytest.mark.parametrize("axis", [pytest.param(-3, marks=pytest.mark.xfail(reason="FAILING FOR axis=[-3], but pass fo")),
+# FAILING FOR axis=[-3], but pass for others
+@pytest.mark.parametrize("axis", [pytest.param(-3, marks=pytest.mark.xfail(reason=FailingReasons.UNSUPORTED_AXIS)),
                                   pytest.param(-2),
                                   pytest.param(-1),
                                   pytest.param(1),
@@ -300,11 +303,16 @@ def test_concatenate_inputs_from_dram_queue(test_device, axis, input_shape, inpu
     pytest.param((2, 1, 15),     None, True),                                                                   # 3.2 Tensor reduce on one or more dims to 1    - FAILING FOR axis=[-3]
     pytest.param((2, 50, 1),     None, True),                                                                   # 3.2 Tensor reduce on one or more dims to 1    - FAILING FOR axis=[-3]
     pytest.param((2, 100, 100),  None, True),                                                                   # 4.3 Very large (thousands, 10s of thousands)  - FAILING FOR axis=[-3]
-    pytest.param((2, 100, 1000), None, False, marks=pytest.mark.xfail(reason="FAILING FOR axis=[-3, -1, 2]")),  # 4.3 Very large (thousands, 10s of thousands)
-    pytest.param((2, 1, 4991),   None, False, marks=pytest.mark.xfail(reason="FAILING FOR for all axises")),    # 4.4 Extreme ratios between height/width
-    pytest.param((2, 1, 10000),  None, False, marks=pytest.mark.xfail(reason="FAILING FOR axis=[-3, -1, 2]")),  # 4.4 Extreme ratios between height/width
-    pytest.param((2, 8191, 1),   None, False, marks=pytest.mark.xfail(reason="FAILING FOR for all axises")),    # 4.4 Extreme ratios between height/width
-    pytest.param((2, 10000, 1),  None, False, marks=pytest.mark.xfail(reason="FAILING FOR axis=[-3, -1, 2]")),  # 4.4 Extreme ratios between height/width
+    # FAILING FOR axis=[-3, -1, 2]
+    pytest.param((2, 100, 1000), None, False, marks=pytest.mark.xfail(reason=FailingReasons.BUGGY_SHAPE)),  # 4.3 Very large (thousands, 10s of thousands)
+    # FAILING FOR for all axises
+    pytest.param((2, 1, 4991),   None, False, marks=pytest.mark.xfail(reason=FailingReasons.BUGGY_SHAPE)),  # 4.4 Extreme ratios between height/width
+    # FAILING FOR axis=[-3, -1, 2]
+    pytest.param((2, 1, 10000),  None, False, marks=pytest.mark.xfail(reason=FailingReasons.BUGGY_SHAPE)),  # 4.4 Extreme ratios between height/width
+    # FAILING FOR for all axises
+    pytest.param((2, 8191, 1),   None, False, marks=pytest.mark.xfail(reason=FailingReasons.BUGGY_SHAPE)),  # 4.4 Extreme ratios between height/width
+    # FAILING FOR axis=[-3, -1, 2]
+    pytest.param((2, 10000, 1),  None, False, marks=pytest.mark.xfail(reason=FailingReasons.BUGGY_SHAPE)),  # 4.4 Extreme ratios between height/width
     pytest.param((2, 32, 32),    None, True),                                                                   # 4.1 Divisible by 32                           - FAILING FOR axis=[-3]
     pytest.param((2, 96, 96),    None, True),                                                                   # 4.1 Divisible by 32                           - FAILING FOR axis=[-3]
     pytest.param((2, 13, 97),    None, True),                                                                   # 4.2 Prime numbers                             - FAILING FOR axis=[-3]
@@ -449,8 +457,8 @@ def test_concatenate_inputs_from_host_2(test_device, axis, input_shape, input_pa
 
 number_of_operands = [
                        pytest.param(3),   # all passes.
-                       pytest.param(4, marks=pytest.mark.xfail(reason="fails only for GOLDEN_WORMHOLE_BO=1")),   # fails only for GOLDEN_WORMHOLE_BO=1
-                       pytest.param(7, marks=pytest.mark.xfail(reason="fails in any case")),   
+                       pytest.param(4, marks=pytest.mark.xfail(reason=FailingReasons.INFERENCE_FAILED)),   # fails only for GOLDEN_WORMHOLE_BO=1
+                       pytest.param(7, marks=pytest.mark.xfail(reason=FailingReasons.INFERENCE_FAILED)),   # fails in any case
                             # Error message:
                             # ...
                             # [Golden-7-input_shape6--1] - RuntimeError: 1 Nodes have no valid grids, exiting
@@ -458,7 +466,7 @@ number_of_operands = [
                             # [Golden-7-input_shape7--2] - RuntimeError: 1 Nodes have no valid grids, exiting
                             # [Golden-7-input_shape7-1] - RuntimeError: 1 Nodes have no valid grids, exiting
                             # ...
-                       pytest.param(15, marks=pytest.mark.xfail(reason="fails in any case")),   
+                       pytest.param(15, marks=pytest.mark.xfail(reason=FailingReasons.INFERENCE_FAILED)),  # fails in any case
                             # Error message:
                             # ...
                             # [Golden-15-input_shape6--1] - RuntimeError: TT_ASSERT @ pybuda/csrc/balancer/balancer_utils.cpp:238: shape.ct % factor == 0

@@ -9,6 +9,7 @@ from .utils import VerifyUtils
 from .utils import NetlistValidation
 from .utils import LoggerUtils
 from .netlist_utils import read_netlist_value
+from .failing_reasons import FailingReasons
 
 __all__ = [
     'read_netlist_value',
@@ -19,4 +20,5 @@ __all__ = [
     'VerifyUtils',
     'NetlistValidation',
     'LoggerUtils',
+    "FailingReasons",
 ]
