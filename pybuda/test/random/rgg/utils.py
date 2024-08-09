@@ -257,6 +257,7 @@ class DebugUtils:
         logger.info(f"inputs: {cls.format_tensors(inputs)}")
 
 
+# TODO: rename to RateLimiter
 class RateLimitter:
     '''Rate limitter class to limit the number of allowed operations by a rate limit factor'''
 

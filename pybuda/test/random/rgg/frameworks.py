@@ -69,22 +69,22 @@ class FrameworkTestUtils:
                 operator.calc_input_shapes = OperatorShapes.same_input_shapes
 
 
+def build_framework(framework_name: str, ModelBuilderType: Type[ModelBuilder], operator_repository: OperatorRepository):
+    framework = Framework(
+        framework_name=framework_name,
+        ModelBuilderType=ModelBuilderType,
+        operator_repository=operator_repository,
+    )
+
+    framework = FrameworkTestUtils.copy_framework(framework=framework, skip_operators=())
+
+    FrameworkTestUtils.set_calc_input_shapes(framework)
+
+    return framework
+
+
 class Frameworks(Enum):
     ''' Register of all frameworks '''
-
-    @staticmethod
-    def build_framework(framework_name: str, ModelBuilderType: Type[ModelBuilder], operator_repository: OperatorRepository):
-        framework = Framework(
-            framework_name=framework_name,
-            ModelBuilderType=ModelBuilderType,
-            operator_repository=operator_repository,
-        )
-
-        framework = FrameworkTestUtils.copy_framework(framework=framework, skip_operators=())
-
-        FrameworkTestUtils.set_calc_input_shapes(framework)
-
-        return framework
 
     PYBUDA = build_framework(
         framework_name="PyBuda",

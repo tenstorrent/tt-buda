@@ -12,6 +12,7 @@ import pytest
 from typing import List, Dict, Type
 from loguru import logger
 
+import random
 import torch
 import pybuda
 import pybuda.op
@@ -20,6 +21,7 @@ from pybuda.op_repo import TensorShape
 from test.operators.utils import netlist_utils, InputSourceFlags, VerifyUtils
 from test.operators.utils import ShapeUtils
 from test.conftest import TestDevice
+from test.random.rgg import RateLimitter
 
 
 class ModelFromAnotherOp(torch.nn.Module):
@@ -200,25 +202,25 @@ def get_eltwise_binary_ops():
     return [
         "add",                      #00
         "div",                      #01
-        "divide",                   #02
+        "divide",                   #02     - Alias for div.
         "mul",                      #03
-        "multiply",                 #04
+        "multiply",                 #04     - Alias for mul.
         "sub",                      #05
-        "subtract",                 #06
-        "true_divide",              #07
+        "subtract",                 #06     - Alias for sub.
+        "true_divide",              #07     - Alias for div with rounding_mode=None.
         "eq",                       #08
         "ne",                       #09
         "le",                       #10
         "ge",                       #11
-        "greater",                  #12
-        "greater_equal",            #13
+        "greater",                  #12    - Alias for gt.
+        "greater_equal",            #13    - Alias for ge.
         "gt",                       #14
-        "less_equal",               #15
+        "less_equal",               #15    - Alias for le.
         "lt",                       #16
-        "less",                     #17
+        "less",                     #17    - Alias for lt.
         "maximum",                  #18
         "minimum",                  #19
-        "not_equal",                #20
+        "not_equal",                #20    - Alias for ne.
     ]
 
 def get_input_shapes():
@@ -353,12 +355,21 @@ def test_pytorch_eltwise_binary_ops_per_test_plan(
     if model_type == ModelFromDramQueue:
         input_source_flag = InputSourceFlags.FROM_DRAM
 
+    kwargs = {}
+    if input_operator in ["add", "sub", "substract"] and kwargs_limiter.is_allowed():
+        kwargs['alpha'] = random.uniform(0.5, 1000)
+    elif input_operator in ["div", "divide"]:
+        rounding_modes = ['trunc', 'floor', None]
+        kwargs['rounding_mode'] = rounding_modes[random.randint(0, 2)]
+
+
     verify(
         test_device=test_device,
         model_type=model_type,
         input_operator=input_operator,
         input_shape=input_shape,
         number_of_operands=2,
+        kwargs=kwargs,
         input_source_flag=input_source_flag,
         dev_data_format=dev_data_format,
         math_fidelity=input_math_fidelity,
@@ -379,6 +390,10 @@ def test_pytorch_eltwise_binary_ops_per_test_plan(
             if key == "target_device":
                 continue
             assert input_operator not in key
+
+
+rng_limiter = random.Random(0)
+kwargs_limiter = RateLimitter(rng_limiter, 100, 50)
 
 
 def get_not_implemented_pytorch_binary_ops():
