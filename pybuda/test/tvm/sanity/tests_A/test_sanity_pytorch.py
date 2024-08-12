@@ -41,6 +41,9 @@ input_shapes = [(1, 1, 8, 64)]
 linear_features_in = [64]
 linear_features_out = [64]
 
+import onnx
+import onnxruntime
+import scipy.stats
 
 @pytest.mark.parametrize(
     "input_shape", input_shapes, ids=[f"input{str(s)}" for s in input_shapes]
@@ -3793,3 +3796,75 @@ def test_tvm_scaled_dot_product_attention(test_device, mha, prefill):
         )
     )
 
+@pytest.mark.parametrize("mask", [
+    torch.tensor([[0.0, 0.0, 0.1, 0.2, 0.3, 0.4]]).to(torch.float32),
+    torch.tensor([[0.00, 0.00, 0.02, 0.07, 0.03, 0.04]]).to(torch.float32),
+    torch.tensor([[0.000, 0.000, 0.002, 0.007, 0.003, 0.004]]).to(torch.float32),
+    torch.tensor([[0, 0, torch.finfo(torch.float32).min, -torch.finfo(torch.float32).min, torch.finfo(torch.float32).min, -torch.finfo(torch.float32).min]]).to(torch.float32),
+])
+
+def test_where(test_device, mask):
+    
+    # Set PyBuda configuration parameters
+    compiler_cfg = pybuda.config._get_global_compiler_config()
+    compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
+    compiler_cfg.balancer_policy = "Ribbon"
+    
+    class Masked_fill(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            
+        def forward(self, input_tensor, mask):
+            output = input_tensor.masked_fill(mask.bool(), torch.finfo(torch.float32).min)
+            return output
+    
+    input_tensor = torch.tensor([[0, 0, 0, 0, torch.finfo(torch.float32).min, 0]]).to(torch.float32)
+    model = Masked_fill()
+    model.eval()
+
+    # pytorch inference
+    torch_output = model(input_tensor,mask)
+    model_file = "sanity_where_onnx.onnx"
+    
+    # Export to ONNX model
+    torch.onnx.export(
+        model,
+        (input_tensor,mask),
+        model_file,
+        export_params=True,
+        opset_version=16,
+        do_constant_folding=True,
+        input_names=['input_tensor','mask'],
+        output_names=['output'],
+
+    )
+    
+    onnx_model = onnx.load(model_file)
+    onnx.checker.check_model(onnx_model)
+    
+    tt_model = pybuda.OnnxModule('sanity_where_onnx',onnx_model, model_file)
+
+    # ONNX inference
+    ort_session = onnxruntime.InferenceSession(model_file)
+    onnx_input = {"input_tensor": input_tensor.numpy(),"mask": mask.numpy()}
+    onnx_output = ort_session.run(None, onnx_input)
+
+    # pcc
+    for pt, on in zip(torch_output, onnx_output):
+        correlation_coefficient, _ = scipy.stats.pearsonr(pt.detach().numpy().reshape(-1), on.reshape(-1))
+        print("torch vs onnx pcc = ",correlation_coefficient)
+    
+    verify_module(
+        tt_model,
+        input_shapes=[(input_tensor.shape, mask.shape, )],
+        inputs=[(input_tensor, mask,)],
+        verify_cfg=VerifyConfig(
+            arch=test_device.arch,
+            devtype=test_device.devtype,
+            devmode=test_device.devmode,
+            test_kind=TestKind.INFERENCE,
+            verify_all=True,
+        )
+    )
+    
+    os.remove(model_file)
