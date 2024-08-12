@@ -6,6 +6,7 @@
 
 #include "graph_lib/node_types.hpp"
 #include "graph_lib/utils.hpp"
+#include "passes/commute_utils.hpp"
 #include "utils/logger.hpp"
 #include "python_bindings_common.hpp"
 #include "graph_lib/node.hpp"
@@ -298,6 +299,7 @@ void make_quantized_conv2d(graphlib::Graph *graph, graphlib::OpNode *conv2d) {
         dequant->set_shape(conv2d->shape());
         insert_node_on_edge(graph, consumer_edge, dequant);
         graph->add_edge(scale_multiply, dequant);
+        dequant->set_output_df(DataFormat::Float32);
     }
 
     // Remove scale edges so that bypass node works (it requires that the node has one operand)
@@ -314,6 +316,62 @@ void make_quantized_conv2d(graphlib::Graph *graph, graphlib::OpNode *conv2d) {
     if (deq_bias)
         bypass_node(graph, deq_bias, true);
     conv2d->set_output_df(DataFormat::Int32);
+}
+
+
+void separate_conv2d_bias(graphlib::Graph *graph) {
+    bool attempt_update = true;
+    while (attempt_update) {
+        attempt_update = false;
+        for (tt::graphlib::Node *node : graphlib::topological_sort(*graph)) {
+            graphlib::OpNode *op_node = dynamic_cast<graphlib::OpNode *>(node);
+            if (not op_node)
+                continue;
+            if (op_node->op_name() != "conv2d" and op_node->op_name() != "conv2d_transpose")
+                continue;
+
+            if (graph->data_operands(op_node).size() < 3)
+                continue;
+
+            graphlib::Node *bias = graph->data_operands(op_node)[2];
+            graphlib::Edge bias_edge = graph->operand_data_edges(op_node)[2];
+            
+
+            uint32_t out_channels = bias->shape()[0];
+            uint32_t r_bcast = op_node->shape()[-2];
+            uint32_t c_bcast = op_node->shape()[-1];
+            std::vector<graphlib::OpType> tms;
+            if (r_bcast > 1) {
+                tms.push_back(graphlib::OpType("broadcast", {(int)-2, (int)r_bcast, true}));
+            }
+
+            if (c_bcast > 1) {
+                tms.push_back(graphlib::OpType("broadcast", {(int)-1, (int)c_bcast, true}));
+            }
+
+            graphlib::Shape new_bias_shape = graphlib::Shape::create({1, out_channels, 1, 1});
+
+            std::string reshape_name = op_node->name() + "_separate_bias_rank_match" + std::to_string(bias_edge.edge_creation_id);
+            graphlib::OpNode *reshape = graph->add_node<graphlib::OpNode>(graphlib::create_node<graphlib::PyOpNode>(reshape_name, "reshape"), graph->get_subgraph_id_for_node(node->id()));
+            update_reshape_attr(reshape, new_bias_shape);
+            reshape->set_shape(new_bias_shape);
+            graph->add_edge(bias, reshape);
+
+            for (graphlib::Edge user_edge : graph->user_data_edges(op_node)) {
+                std::string add_name = op_node->name() + "_separate_bias_add" + std::to_string(user_edge.edge_creation_id);
+                graphlib::OpNode *add = graph->add_node<graphlib::OpNode>(graphlib::create_node<graphlib::PyOpNode>(add_name, "add"), graph->get_subgraph_id_for_node(node->id()));
+                graph->add_edge(reshape, add);
+                graphlib::Edge new_edge = graph->operand_data_edges(add)[0];
+                graph->get_edge_attributes(new_edge)->set_tms(tms);
+                add->set_shape(op_node->shape());
+                insert_node_on_edge(graph, user_edge, add);
+                add->set_output_df(bias->output_df());
+            }
+            graph->remove_edge(bias_edge);
+            attempt_update = true;
+
+        }
+    }   
 }
 
 const std::array<std::string, 4> quantizeable_ops{
