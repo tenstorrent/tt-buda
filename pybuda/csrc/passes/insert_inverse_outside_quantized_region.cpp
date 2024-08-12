@@ -30,10 +30,10 @@ bool is_op_in_quantized_region(graphlib::OpNode *op)
     return std::find(int_types.begin(), int_types.end(), op->output_df()) != int_types.end();
 }
 
-static std::tuple<std::vector<graphlib::Edge>, graphlib::Shape, graphlib::Shape> find_downward_path_out(graphlib::Graph *graph, graphlib::OpNode *initial_op) {
+static std::tuple<std::vector<graphlib::Edge>, graphlib::Shape, graphlib::Shape> find_downward_path_out(graphlib::Graph *graph, graphlib::OpNode *initial_op, graphlib::OpNode *current_node=nullptr) {
     std::vector<graphlib::Edge> users_outside;
 
-    graphlib::OpNode *iter = initial_op;
+    graphlib::OpNode *iter = current_node == nullptr ? initial_op : current_node;
 
     auto clone_shape = initial_op->shape();
     auto commute_shape = shape_of_only_operand(graph, initial_op);
@@ -45,11 +45,31 @@ static std::tuple<std::vector<graphlib::Edge>, graphlib::Shape, graphlib::Shape>
 
         // For now if there are multiple children then dont commute
         std::vector<graphlib::Edge> user_edges = graph->user_data_edges(op);
-        if (user_edges.size() > 1 and op->op_name() != "buda_dequantize")
-            break;
 
         graphlib::Edge user_edge = user_edges[0];
-        
+        bool all_forks_have_path_out = true;
+        for (int user_idx = 1; user_idx < (int)user_edges.size(); user_idx++) {
+            graphlib::OpNode *user = dynamic_cast<graphlib::OpNode *>(graph->node_by_id(user_edges[user_idx].consumer_node_id));
+            
+            if (not user) {
+                all_forks_have_path_out = false;
+                break;
+            }
+            else {
+                auto fork_edges = std::get<0>(find_downward_path_out(graph, initial_op, user));
+                if (fork_edges.size() == 0)
+                {
+                    all_forks_have_path_out = false;
+                    break;
+                }
+                users_outside.insert(users_outside.end(), fork_edges.begin(), fork_edges.end());
+            }
+        }
+        if (not all_forks_have_path_out) {
+            users_outside.clear();
+            break;
+        }
+            
         // For now, if there are any edge tms just dont commute
         if (op != initial_op) {
             std::vector<graphlib::OpType> tms = graph->get_edge_attributes(user_edge)->get_tms();
@@ -57,7 +77,6 @@ static std::tuple<std::vector<graphlib::Edge>, graphlib::Shape, graphlib::Shape>
                 break;
             }
         }
-
 
         bool can_commute = can_commute_past_op(op, initial_op, graph, &commute_shape, &clone_shape, false);
         if (not can_commute and op != initial_op) {

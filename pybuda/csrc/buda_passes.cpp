@@ -105,6 +105,8 @@ run_post_initial_graph_passes(graphlib::Graph *graph, py::object compiler_cfg_ob
     bool attempt_update = true;
     while (attempt_update) {
         attempt_update = passes::move_dequantize(graph);
+        if (env_as<bool>("PYBUDA_DISABLE_CONV_BIAS_QDQ_INSERTION"))
+            passes::separate_conv2d_bias(graph);
         attempt_update |= passes::make_quantized_ops(graph);
         attempt_update |= passes::insert_qdq_on_biases(graph);
         attempt_update |= passes::dequant_quant_to_requant(graph);

@@ -24,6 +24,9 @@ bool can_insert_on_conv2d_bias(graphlib::Graph *graph, graphlib::OpNode *conv2d)
     if (graph->data_operands(conv2d).size() != 3)
         return false;
 
+    if (env_as<bool>("PYBUDA_DISABLE_CONV_BIAS_QDQ_INSERTION"))
+        return false;
+
     // Both act and weight must have a dequant node as input and the bias cannot
     graphlib::OpNode *act = dynamic_cast<graphlib::OpNode *>(graph->data_operands(conv2d)[0]);
     graphlib::OpNode *weight = dynamic_cast<graphlib::OpNode *>(graph->data_operands(conv2d)[1]);
