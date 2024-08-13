@@ -11,7 +11,7 @@ from .datatypes import RandomizerTestContext
 from .config import get_randomizer_config_default
 from .utils import StrUtils, GraphUtils
 from .utils import DebugUtils
-from .utils import RateLimitter
+from .utils import RateLimiter
 from .base import Framework, GraphBuilder, ModelBuilder
 from .base import RandomizerRunner, RandomizerCodeGenerator, process_test
 from .frameworks import Frameworks
@@ -34,7 +34,7 @@ __all__ = [
     "StrUtils",
     "GraphUtils",
     "DebugUtils",
-    "RateLimitter",
+    "RateLimiter",
     "Framework",
     "GraphBuilder",
     "ModelBuilder",

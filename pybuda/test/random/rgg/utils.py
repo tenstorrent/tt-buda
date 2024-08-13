@@ -257,9 +257,8 @@ class DebugUtils:
         logger.info(f"inputs: {cls.format_tensors(inputs)}")
 
 
-# TODO: rename to RateLimiter
-class RateLimitter:
-    '''Rate limitter class to limit the number of allowed operations by a rate limit factor'''
+class RateLimiter:
+    '''Rate limiter class to limit the number of allowed operations by a rate limit factor'''
 
     def __init__(self, rng: random.Random, max_limit: int, current_limit: int):
         self.rng = rng
