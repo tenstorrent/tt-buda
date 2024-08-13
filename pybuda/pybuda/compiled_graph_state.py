@@ -190,7 +190,8 @@ class CompiledGraphState:
             ordered_parameter_node_names
         )
 
-        if os.getenv("PYBUDA_N300_DATA_PARALLEL", 0):
+        is_data_parallel = int(os.getenv("PYBUDA_N300_DATA_PARALLEL", "0"))
+        if is_data_parallel:
             def replicate_items(items_to_replicate):
                 dev0 = { f"{k}.0" : v for k,v in items_to_replicate.items() }
                 dev1 = { f"{k}.1" : v for k,v in items_to_replicate.items() }
@@ -218,6 +219,16 @@ class CompiledGraphState:
 
             logger.debug("ordered_output_names = {}", ordered_output_names)
             logger.debug("ordered_output_shapes = {}", ordered_output_shapes)
+
+        if is_data_parallel:
+            real_output_host_tms = {}
+            for key, val in compile_results.pass_specific_output_kwargs["output_host_tms"].items():
+                if "_dp_out_1" in key:
+                    search_key = key.split("_dp_out_1")[0]
+                    if search_key in compile_results.pass_specific_output_kwargs["output_host_tms"].keys():
+                        real_output_host_tms[f"{search_key}.0"] = compile_results.pass_specific_output_kwargs["output_host_tms"][search_key]
+                        real_output_host_tms[f"{search_key}.1"] = val
+            compile_results.pass_specific_output_kwargs["output_host_tms"].update(real_output_host_tms)
 
         return CompiledGraphState(
             microbatch=graph.get_microbatch(),
