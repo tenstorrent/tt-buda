@@ -21,7 +21,7 @@ from pybuda.op_repo import TensorShape
 from test.operators.utils import netlist_utils, InputSourceFlags, VerifyUtils
 from test.operators.utils import ShapeUtils
 from test.conftest import TestDevice
-from test.random.rgg import RateLimitter
+from test.random.rgg import RateLimiter
 
 
 class ModelFromAnotherOp(torch.nn.Module):
@@ -393,7 +393,7 @@ def test_pytorch_eltwise_binary_ops_per_test_plan(
 
 
 rng_limiter = random.Random(0)
-kwargs_limiter = RateLimitter(rng_limiter, 100, 50)
+kwargs_limiter = RateLimiter(rng_limiter, 100, 50)
 
 
 def get_not_implemented_pytorch_binary_ops():
