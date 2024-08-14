@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "passes/fuse_redundant_tm_sequence.hpp"
 #include "passes/commute_utils.hpp"
+#include "reportify/reportify.hpp"
+#include "autograd/binding.hpp"
 
 using tt::LogTMFusion;
 namespace tt::passes
@@ -201,7 +203,7 @@ bool replace_pattern_with_new_pattern(
     bool multiple_user = false;
     std::vector<graphlib::Node *> users;
     graphlib::Node * fuse_node = nullptr;
-    graphlib::Node *terminal_node = pattern_sequence.back();
+    graphlib::OpNode *terminal_node = pattern_sequence.back();
     pattern_sequence.pop_back();
 
     // Check whether the matched pattern has multiple user or not
@@ -246,6 +248,18 @@ bool replace_pattern_with_new_pattern(
         }
     }
 
+    std::string message = "Found replaceable TM sequence. Fuse from " + std::to_string(current_pattern.size()) + " tms into " + std::to_string(replace_pattern.size()) + " tms.";
+    message = message + " Input Shape: " + sequence_producer->shape().as_string();
+    message = message + " Pattern: ";
+
+    for (auto *op : pattern_sequence) {
+        message = message + op->op_type().as_string() + " -> ";
+    }
+    message = message + terminal_node->op_type().as_string() + " ===> ";
+    for (auto item : replace_pattern) {
+        message = message + " " + item.as_op_type().as_string() + " ";
+    }
+
     // remove the edges of the users if it is same op and same shape
     if (multiple_user) {
         for (auto& user : users) {
@@ -269,6 +283,12 @@ bool replace_pattern_with_new_pattern(
         std::string name = sequence_producer->name() + "_fused_tm_op_" + std::to_string(current_edge.edge_creation_id);
         auto new_node = graph->add_node(
             std::make_unique<graphlib::PyOpNode>(name, op.as_op_type()), graph->get_subgraph_id_for_node(sequence_producer->id()));
+
+        std::vector<graphlib::Shape> operand_shapes{graph->node_by_id(current_edge.producer_node_id)->shape()};
+        std::tuple<graphlib::Shape, std::vector<graphlib::DimBroadcast>> shape_data = get_op_shape(op.as_op_type(), operand_shapes, false, operand_shapes[0].get_tile_dim());
+
+        graphlib::Shape node_shape = std::get<0>(shape_data);
+        new_node->set_shape(node_shape);
         fuse_node = new_node;
         auto [new_in_edge, new_out_edge] = graphlib::insert_node_on_edge(graph, current_edge, new_node);
         current_edge = new_out_edge;
@@ -280,13 +300,18 @@ bool replace_pattern_with_new_pattern(
     // connect the edge of the users to the fused op
     if (multiple_user) {
         for (auto& user : users){
-            if (user != terminal_node)
+            if (user != terminal_node) {
                 graph->add_edge(fuse_node, user);
+            }
         }
     }
 
-    recalculate_shapes(graph);
-    log_info(LogTMFusion, "Found replaceable TM sequence. Fuse from {} tms into {} tms.", current_pattern.size(), replace_pattern.size());
+    for (graphlib::Edge user_edge : graph->user_data_edges(fuse_node)) {
+        handle_change_rank(graph, user_edge);
+    }
+    
+    log_info(LogTMFusion, "{}", message);
+    
     return true;
 }
 
