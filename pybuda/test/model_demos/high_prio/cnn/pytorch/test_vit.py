@@ -116,8 +116,11 @@ def test_vit_classification_1x1_demo(test_device, mode, variant):
         pytest.skip("Not supported")
 
     # Setup for 1x1 grid
-    os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "wormhole_b0_1x1.yaml"
-    
+    if test_device.arch == BackendDevice.Wormhole_B0:
+        os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "wormhole_b0_1x1.yaml"
+    elif test_device.arch == BackendDevice.Blackhole:
+        os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "blackhole_1x1.yaml"
+
     # Configurations
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"
