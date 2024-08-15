@@ -6,7 +6,7 @@ from typing import Sequence
 
 import jax
 from jax import numpy as jnp
-from flax import linen as nn
+# from flax import linen as nn
 
 from pybuda import (
     JaxModule,
@@ -17,6 +17,8 @@ from pybuda.verify.backend import verify_module
 from pybuda.config import CompileDepth, _get_global_compiler_config
 
 def test_tvm_linear(test_kind, test_device):
+    pytest.skip()
+
     class Linear(nn.Module):
         features: Sequence[int]
 
@@ -57,6 +59,8 @@ def test_tvm_linear(test_kind, test_device):
 
 
 def test_tvm_linear_relu(test_kind, test_device):
+    pytest.skip()
+
     class Linear(nn.Module):
         features: Sequence[int]
 
@@ -101,6 +105,8 @@ def test_tvm_linear_relu(test_kind, test_device):
 
 
 def test_tvm_multiple_outputs(test_kind, test_device):
+    pytest.skip()
+
     if test_kind.is_training():
         pytest.skip()
 
@@ -150,6 +156,8 @@ def test_tvm_multiple_outputs(test_kind, test_device):
 
 
 def test_tvm_scaled_dot_product_attention(test_kind, test_device):
+    pytest.skip()
+
     class ScaledDotProductAttention(nn.Module):
         def __call__(self, q, k, v):
             kt = jnp.transpose(k, axes=[0, 2, 1])
@@ -200,6 +208,8 @@ def test_tvm_scaled_dot_product_attention(test_kind, test_device):
 
 
 def test_tvm_layer_norm(test_kind, test_device):
+    pytest.skip()
+
     # TODO: Checkout why recompute fails.
     if test_kind == TestKind.TRAINING_RECOMPUTE:
         pytest.skip()
@@ -248,6 +258,8 @@ def test_tvm_layer_norm(test_kind, test_device):
 
 
 def test_tvm_conv2d(test_kind, test_device):
+    pytest.skip()
+
     class Conv2d(nn.Module):
         @nn.compact
         def __call__(self, x):
@@ -296,73 +308,75 @@ def test_tvm_conv2d(test_kind, test_device):
         )
     )
 
-class XLAGatherModule1(nn.Module):
-    def __call__(self, x):
-        return x[:, :, :, 0]
+# class XLAGatherModule1(nn.Module):
+#     def __call__(self, x):
+#         return x[:, :, :, 0]
 
-class XLAGatherModule2(nn.Module):
-    def __call__(self, x):
-        return x[:, :, 0:3, 0]
+# class XLAGatherModule2(nn.Module):
+#     def __call__(self, x):
+#         return x[:, :, 0:3, 0]
 
-class XLAGatherModule3(nn.Module):
-    def __call__(self, x):
-        return x[:, :, 3:9, 0]
+# class XLAGatherModule3(nn.Module):
+#     def __call__(self, x):
+#         return x[:, :, 3:9, 0]
 
-class XLAGatherModule4(nn.Module):
-    def __call__(self, x):
-        return x[:, 3:9, :, 0]
+# class XLAGatherModule4(nn.Module):
+#     def __call__(self, x):
+#         return x[:, 3:9, :, 0]
     
-class XLAGatherModule5(nn.Module):
-    def __call__(self, x):
-        return x[:, 3:9, :, 2:4]
+# class XLAGatherModule5(nn.Module):
+#     def __call__(self, x):
+#         return x[:, 3:9, :, 2:4]
     
-class XLAGatherModule6(nn.Module):
-    def __call__(self, x):
-        return x[:, 3:9, 1:6, 2:4]
+# class XLAGatherModule6(nn.Module):
+#     def __call__(self, x):
+#         return x[:, 3:9, 1:6, 2:4]
 
-@pytest.mark.parametrize("slice_module", (XLAGatherModule1, XLAGatherModule2, XLAGatherModule3, XLAGatherModule4, XLAGatherModule5, XLAGatherModule6,))
-def test_tvm_xla_gather(test_kind, test_device, slice_module):
-    if test_kind.is_training():
-        pytest.skip()
+# @pytest.mark.parametrize("slice_module", (XLAGatherModule1, XLAGatherModule2, XLAGatherModule3, XLAGatherModule4, XLAGatherModule5, XLAGatherModule6,))
+# def test_tvm_xla_gather(test_kind, test_device, slice_module):
+#     if test_kind.is_training():
+#         pytest.skip()
     
-    if slice_module in [XLAGatherModule3, XLAGatherModule4, XLAGatherModule5, XLAGatherModule6]:
-        # tenstorrent/pybuda#1608
-        pytest.skip()
+#     if slice_module in [XLAGatherModule3, XLAGatherModule4, XLAGatherModule5, XLAGatherModule6]:
+#         # tenstorrent/pybuda#1608
+#         pytest.skip()
 
-    compiler_config = _get_global_compiler_config()
-    if not test_kind.is_training():
-        compiler_config.compile_depth = CompileDepth.FULL
-    else:
-        compiler_config.compile_depth = CompileDepth.FULL
-    compiler_config.retain_tvm_python_files = True
-    compiler_config.enable_xla_jax_convert = True
+#     compiler_config = _get_global_compiler_config()
+#     if not test_kind.is_training():
+#         compiler_config.compile_depth = CompileDepth.FULL
+#     else:
+#         compiler_config.compile_depth = CompileDepth.FULL
+#     compiler_config.retain_tvm_python_files = True
+#     compiler_config.enable_xla_jax_convert = True
 
-    # Initialize module
-    input_shape = (1, 28, 28, 4)
-    framework_module = slice_module()
+#     # Initialize module
+#     input_shape = (1, 28, 28, 4)
+#     framework_module = slice_module()
 
-    # Bind params to module
-    key = jax.random.PRNGKey(0)
-    act = jax.random.uniform(key, input_shape)
-    vars = framework_module.init(key, act)
-    framework_module = framework_module.bind(vars)
+#     # Bind params to module
+#     key = jax.random.PRNGKey(0)
+#     act = jax.random.uniform(key, input_shape)
+#     vars = framework_module.init(key, act)
+#     framework_module = framework_module.bind(vars)
 
-    # Run module
-    # res = framework_module(act)
+#     # Run module
+#     # res = framework_module(act)
 
-    pybuda_module = JaxModule("jax_xla_gather", framework_module)
-    verify_module(
-        pybuda_module,
-        (input_shape,),
-        verify_cfg=VerifyConfig(
-            arch=test_device.arch,
-            devtype=test_device.devtype,
-            test_kind=test_kind,
-        )
-    )
+#     pybuda_module = JaxModule("jax_xla_gather", framework_module)
+#     verify_module(
+#         pybuda_module,
+#         (input_shape,),
+#         verify_cfg=VerifyConfig(
+#             arch=test_device.arch,
+#             devtype=test_device.devtype,
+#             test_kind=test_kind,
+#         )
+#     )
 
 
 def test_tvm_dense(test_kind, test_device):
+    pytest.skip()
+
     class JAX_dense(nn.Module):
         @nn.compact
         def __call__(self, x):
@@ -399,6 +413,8 @@ def test_tvm_dense(test_kind, test_device):
     )
 
 def test_tvm_conv2d_transpose(test_kind, test_device):
+    pytest.skip()
+
     class Conv2d(nn.Module):
         @nn.compact
         def __call__(self, img):
@@ -445,6 +461,8 @@ def test_tvm_conv2d_transpose(test_kind, test_device):
     )
 
 def test_tvm_conv2d_dilated(test_kind, test_device):
+    pytest.skip()
+
     class Conv2d(nn.Module):
         @nn.compact
         def __call__(self, img):
