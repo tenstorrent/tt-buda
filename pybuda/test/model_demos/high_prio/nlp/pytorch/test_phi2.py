@@ -2,6 +2,7 @@ import pybuda
 from pybuda.verify.backend import verify_module
 from pybuda import VerifyConfig
 from pybuda.verify.config import TestKind
+from pybuda._C.backend_api import BackendType, BackendDevice
 import torch
 from transformers import PhiForCausalLM, AutoTokenizer, PhiConfig
 import os
@@ -24,6 +25,9 @@ def test_phi2_clm(test_device, variant):
     os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "20480"
     compiler_cfg.amp_level = 1
     os.environ["PYBUDA_LEGACY_UBLOCK_SHAPE"] = "1"
+
+    if test_device.arch == BackendDevice.Blackhole:
+        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{32*1024}"
 
     # Load PhiConfig from pretrained variant, disable return_dict and caching.
     config = PhiConfig.from_pretrained(variant)

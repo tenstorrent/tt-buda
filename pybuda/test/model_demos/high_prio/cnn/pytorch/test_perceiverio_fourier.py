@@ -64,6 +64,20 @@ def test_perceiverio_fourier_imgcls_pytorch(test_device):
         if test_device.devtype == pybuda.BackendType.Silicon:
             verify_enabled = False
 
+    elif test_device.arch == pybuda.BackendDevice.Blackhole:
+        os.environ["PYBUDA_DISABLE_PADDING_PASS"] = "1"
+        compiler_cfg.enable_auto_fusing = False
+        compiler_cfg.balancer_op_override(
+            "hslice_41.dc.sparse_matmul.2.lc2", "t_stream_shape", (1, 4)
+        )
+        # compiler_cfg.balancer_op_override("add_33", "t_stream_shape", (1, 2))
+        compiler_cfg.place_on_new_epoch("matmul_30")
+        compiler_cfg.place_on_new_epoch("hslice_41.dc.sparse_matmul.2.lc2")
+        compiler_cfg.place_on_new_epoch("multiply_32")
+        compiler_cfg.place_on_new_epoch("matmul_45")
+        if test_device.devtype == pybuda.BackendType.Silicon:
+            pcc_value = 0.96
+
     # Sample Image
     pixel_values = get_sample_data(variant)
 

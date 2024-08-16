@@ -182,6 +182,18 @@ def test_yolo_v5_480x480_onnx(test_device, variant):
                     (1, 1),
                 )
 
+    elif test_device.arch == BackendDevice.Blackhole:
+
+        if variant == "yolov5n":
+            compiler_cfg.place_on_new_epoch("_fused_op_7")
+        elif variant == "yolov5l":
+            compiler_cfg.place_on_new_epoch("_fused_op_11")
+            compiler_cfg.place_on_new_epoch("_fused_op_12")
+            compiler_cfg.place_on_new_epoch("_fused_op_25")
+        elif variant == "yolov5x":
+            compiler_cfg.place_on_new_epoch("conv2d_44.dc.matmul.11")
+            compiler_cfg.place_on_new_epoch("_fused_op_13")
+
     input_size = 480
 
     # Load the ONNX model
@@ -290,6 +302,35 @@ def test_yolo_v5_640x640_onnx(test_device, variant):
                     "grid_shape",
                     (1, 1),
                 )
+
+    elif test_device.arch == BackendDevice.Blackhole:
+
+        os.environ["PYBUDA_INSERT_SLICE_FOR_CONCAT"] = "1"
+        os.environ["PYBUDA_CONCAT_SLICE_Y"] = "10"
+
+        if variant == "yolov5n":
+            compiler_cfg.balancer_op_override("concatenate_259.dc.concatenate.7", "grid_shape", (1, 1))
+
+        elif variant == "yolov5s":
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{112*1024}"
+            compiler_cfg.balancer_op_override("concatenate_259.dc.concatenate.7", "grid_shape", (1, 1))
+
+        elif variant == "yolov5m":
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{112*1024}"
+            compiler_cfg.balancer_op_override("concatenate_332.dc.concatenate.7", "grid_shape", (1, 1))
+            compiler_cfg.balancer_op_override("concatenate_332.dc.concatenate.7", "t_stream_shape", (1, 1))
+
+        elif variant == "yolov5l":
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{112*1024}"
+            os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
+            compiler_cfg.balancer_op_override("concatenate_405.dc.concatenate.7", "grid_shape", (1, 1))
+
+        elif variant == "yolov5x":
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{374*1024}"
+            compiler_cfg.enable_auto_fusing = False
+            compiler_cfg.place_on_new_epoch("concatenate_40.dc.concatenate.30.dc.concatenate.0.dc.concatenate.12")
+            compiler_cfg.place_on_new_epoch("concatenate_478.dc.sparse_matmul.10.lc2")
+            compiler_cfg.balancer_op_override("concatenate_478.dc.concatenate.7", "grid_shape", (1, 1))
 
     input_size = 640
 

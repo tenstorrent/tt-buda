@@ -364,7 +364,12 @@ def test_gemma_2b_1x1(test_device, variant):
     # Configurations
     compiler_cfg = pybuda.config._get_global_compiler_config()
 
-    os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "wormhole_b0_1x1.yaml"
+    if test_device.arch == BackendDevice.Wormhole_B0:
+        os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "wormhole_b0_1x1.yaml"
+
+    elif test_device.arch == BackendDevice.Blackhole:
+        os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "blackhole_1x1.yaml"
+    
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
 

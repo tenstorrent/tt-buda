@@ -159,8 +159,13 @@ def test_blaze_palm_pytorch_1x1(test_device):
     if test_device.arch == BackendDevice.Grayskull:
         pytest.skip()
 
+    elif test_device.arch == BackendDevice.Wormhole_B0:
+        os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "wormhole_b0_1x1.yaml"
+
+    elif test_device.arch == BackendDevice.Blackhole:
+        os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "blackhole_1x1.yaml"
+
     # Set PyBDUA environment variable
-    os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "wormhole_b0_1x1.yaml"
     os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
     os.environ["PYBUDA_FORK_JOIN_BUF_QUEUES"] = "1"
     
@@ -207,7 +212,11 @@ def test_blaze_hand_pytorch_1x1(test_device):
         pytest.skip()
 
     # Set PyBDUA environment variable
-    os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "wormhole_b0_1x1.yaml"
+    elif test_device.arch == BackendDevice.Wormhole_B0:
+        os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "wormhole_b0_1x1.yaml"
+
+    elif test_device.arch == BackendDevice.Blackhole:
+        os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "blackhole_1x1.yaml"
 
     # Set PyBuda configuration parameters
     compiler_cfg = pybuda.config._get_global_compiler_config()

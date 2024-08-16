@@ -53,6 +53,10 @@ def test_vit_classify_224_hf_pytorch(variant, test_device):
         test_device, variant,
     )
 
+    if test_device.arch == BackendDevice.Blackhole:
+        if variant == "google/vit-large-patch16-224":
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{20*1024}"
+
     if "PYBUDA_NEB_GALAXY_CI" in os.environ:
         chip_ids = [0, 11, 10, 9, 8, 7, 19, 20, 21, 22, 23, 24, 6, 5, 14, 13, 12, 16, 15, 3, 4, 26, 25, 32, 31, 30, 29, 28, 27, 1, 2, 18, 17]
     else:
@@ -79,7 +83,12 @@ def test_vit_classify_224_hf_pytorch_1x1(variant, test_device):
     if test_device.arch == BackendDevice.Grayskull:
         pytest.skip()
 
-    os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "wormhole_b0_1x1.yaml"
+    elif test_device.arch == BackendDevice.Wormhole_B0:
+        os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "wormhole_b0_1x1.yaml"
+
+    elif test_device.arch == BackendDevice.Blackhole:
+        os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "blackhole_1x1.yaml"
+        
     if "large" in variant:
         os.environ["PYBUDA_EXTRA_L1_MARGIN"] = "20000"
 
@@ -116,11 +125,12 @@ def test_vit_classification_1x1_demo(test_device, mode, variant):
         pytest.skip("Not supported")
 
     # Setup for 1x1 grid
-    if test_device.arch == BackendDevice.Wormhole_B0:
+    elif test_device.arch == BackendDevice.Wormhole_B0:
         os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "wormhole_b0_1x1.yaml"
+
     elif test_device.arch == BackendDevice.Blackhole:
         os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "blackhole_1x1.yaml"
-
+    
     # Configurations
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.balancer_policy = "Ribbon"

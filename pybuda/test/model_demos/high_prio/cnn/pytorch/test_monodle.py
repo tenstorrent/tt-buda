@@ -25,6 +25,8 @@ def test_monodle_pytorch(test_device):
     elif test_device.arch == pybuda.BackendDevice.Grayskull:
         os.environ["PYBUDA_DISABLE_CONSTANT_FOLDING"] = "1"
         pcc = 0.93
+    elif test_device.arch == pybuda.BackendDevice.Blackhole:
+        pcc = 0.97
 
     model_name = "monodle_pytorch"
 

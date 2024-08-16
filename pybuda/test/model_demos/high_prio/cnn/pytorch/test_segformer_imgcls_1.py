@@ -64,6 +64,10 @@ def test_segformer_imgcls_pytorch_1(test_device, variant):
         ):
             pcc_value = 0.97
 
+    if test_device.arch == pybuda.BackendDevice.Blackhole:
+        if variant == "nvidia/mit-b0" and test_device.devtype == pybuda.BackendType.Silicon:
+            pcc_value = 0.97
+
     # Set model configurations
     config = SegformerConfig.from_pretrained(variant)
     config_dict = config.to_dict()
