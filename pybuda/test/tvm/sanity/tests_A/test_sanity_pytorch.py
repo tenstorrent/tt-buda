@@ -3868,3 +3868,40 @@ def test_where(test_device, mask):
     )
     
     os.remove(model_file)
+
+@pytest.mark.parametrize("diagonal", [1, 0, -1, 2, -2047, 1024])
+def test_tril(diagonal, test_device):
+
+    class Tril(torch.nn.Module):
+        def __init__(self, diagonal):
+            super().__init__()
+            self.diagonal = diagonal
+
+        def forward(self, mask):
+            mask = mask[0]
+            context_mask = torch.tril(mask, diagonal=self.diagonal)
+            return context_mask
+
+    # Set PyBuda configuration parameters
+    compiler_cfg = pybuda.config._get_global_compiler_config()
+    compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
+    compiler_cfg.balancer_policy = "Ribbon"
+
+    # Define the input tensor and model
+    mask = torch.tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]]).to(torch.float32)
+    model = Tril(diagonal)
+    model.eval()
+    mask = mask.unsqueeze(0)
+
+    verify_module(
+        pybuda.PyTorchModule("tril", model),
+        input_shapes=[(mask.shape,)],
+        inputs=[(mask,)],
+        verify_cfg=VerifyConfig(
+            arch=test_device.arch,
+            devtype=test_device.devtype,
+            devmode=test_device.devmode,
+            test_kind=TestKind.INFERENCE,
+            verify_all=True,
+        ),
+    )
