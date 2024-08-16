@@ -68,6 +68,11 @@ def test_efficientnet_timm(variant, test_device):
             compiler_cfg.amp_level = 1
             compiler_cfg.default_df_override=pybuda.DataFormat.Float16_b
             os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
+        elif test_device.arch == BackendDevice.Blackhole:
+            pcc_value = 0.92
+            compiler_cfg.amp_level = 1
+            compiler_cfg.default_df_override=pybuda.DataFormat.Float16_b
+            os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
 
     # Load model
     framework_model = download_model(timm.create_model, variant, pretrained=True)

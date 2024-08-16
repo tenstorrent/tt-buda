@@ -129,6 +129,37 @@ def test_whisper_enc_dec(test_device, variant):
         #    compiler_cfg.enable_enumerate_u_kt = False
             os.environ["PYBUDA_TEMP_RIBBON2_LEGACY_UTIL_EVAL"] = "1"
 
+    if test_device.arch == BackendDevice.Blackhole:
+        compiler_cfg.amp_level = 1
+        os.environ["PYBUDA_PAD_OUTPUT_BUFFER"] = "1"
+        os.environ["PYBUDA_PAD_OUTPUT_BUFFER_THRESHOLD_TILES"] = "1536"
+
+        os.environ["TT_BACKEND_MULTI_THREADED_PUSH"] = "1"
+        os.environ["TT_BACKEND_DRAM_POLLING_FREQUENCY"] = "64"
+        os.environ["PYBUDA_NOP_ON_DIRECT_SHORT_PATH"] = "1"
+        os.environ["PYBUDA_SKIP_SMALL_UKT"] = "1"
+
+
+        if variant == "openai/whisper-base":
+            os.environ["PYBUDA_GRAPHSOLVER_SELF_CUT_TYPE"] = "None"
+            compiler_cfg.enable_auto_fusing = False
+
+        if variant == "openai/whisper-small":
+            os.environ["PYBUDA_DISABLE_SELF_CUT_FOR_SUBGRAPHS"] = "1, 2"
+            compiler_cfg.enable_auto_fusing = False
+
+        if variant == "openai/whisper-medium":
+            os.environ["PYBUDA_GRAPHSOLVER_SELF_CUT_TYPE"] = "None"
+            compiler_cfg.enable_auto_fusing = False
+            compiler_cfg.balancer_op_override("layernorm_66.dc.add.14", "t_stream_shape", (1,1))
+            compiler_cfg.balancer_op_override("layernorm_1193.dc.add.14", "t_stream_shape", (1,1))
+        
+        if variant == "openai/whisper-large":
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "0"
+            os.environ["PYBUDA_TEMP_ELT_UNARY_ESTIMATES_LEGACY"] = "1"
+            compiler_cfg.enable_auto_fusing = False
+            compiler_cfg.place_on_new_epoch("matmul_2818")
+
     run_encoder_on_tt = ("tiny" in variant) or ("base" in variant) or ("small" in variant) or ("medium" in variant)
 
     pad_model = True

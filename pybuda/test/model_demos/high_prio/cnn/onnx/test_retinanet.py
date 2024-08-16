@@ -169,6 +169,10 @@ def test_retinanet_onnx(variant, test_device):
             compiler_cfg.balancer_op_override("conv2d_393.dc.matmul.11", "t_stream_shape", (1,1))
             compiler_cfg.balancer_op_override("conv2d_371.dc.matmul.11", "t_stream_shape", (1,1))
  
+    if test_device.arch == BackendDevice.Blackhole:
+        if variant == "retinanet_rn50fpn" or variant == "retinanet_rn152fpn":
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{72*1024}"
+
     # Prepare model
     load_path = (
         f"third_party/confidential_customer_models/internal/retinanet/files/onnx/{variant}.onnx"

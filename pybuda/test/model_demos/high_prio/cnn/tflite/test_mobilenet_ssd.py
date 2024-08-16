@@ -27,7 +27,12 @@ def test_mobilenet_ssd_1x1(test_device):
     if test_device.arch == BackendDevice.Grayskull:
         pytest.skip()
 
-    os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "wormhole_b0_1x1.yaml"
+    elif test_device.arch == BackendDevice.Wormhole_B0:
+        os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "wormhole_b0_1x1.yaml"
+
+    elif test_device.arch == BackendDevice.Blackhole:
+        os.environ["PYBUDA_OVERRIDE_DEVICE_YAML"] = "blackhole_1x1.yaml"
+        
     os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
 
     compiler_cfg = _get_global_compiler_config()

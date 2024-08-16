@@ -191,6 +191,68 @@ def test_yolox_onnx(variant, test_device):
                 compiler_cfg.balancer_op_override("conv2d_7.dc.conv2d.3.dc.reshape.0.dc.sparse_matmul.10.lc2", "t_stream_shape", (1, 8))
                 compiler_cfg.place_on_new_epoch("concatenate_512.dc.sparse_matmul.11.lc2")
 
+    if test_device.arch == BackendDevice.Blackhole:
+
+        if variant in ["yolox_nano", "yolox_tiny"]:
+
+            compiler_cfg.place_on_new_epoch("conv2d_7.dc.conv2d.1.dc.reshape.0.dc.sparse_matmul.14.lc2")
+            compiler_cfg.place_on_new_epoch("conv2d_7.dc.conv2d.5.dc.reshape.0.dc.sparse_matmul.14.lc2")
+            compiler_cfg.balancer_op_override("conv2d_7.dc.conv2d.5.dc.reshape.0.dc.sparse_matmul.4.lc2", "t_stream_shape", (1, 2))
+            compiler_cfg.balancer_op_override("conv2d_7.dc.conv2d.1.dc.reshape.0.dc.sparse_matmul.4.lc2", "t_stream_shape", (1, 2))
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "81920"
+
+        elif variant == "yolox_s":
+
+            compiler_cfg.balancer_op_override("conv2d_7.dc.conv2d.5.dc.reshape.0.dc.sparse_matmul.4.lc2", "t_stream_shape", (1, 4))
+            compiler_cfg.balancer_op_override("conv2d_7.dc.conv2d.1.dc.reshape.0.dc.sparse_matmul.4.lc2", "t_stream_shape", (1, 4))
+            compiler_cfg.balancer_op_override("conv2d_7.dc.conv2d.3.dc.reshape.0.dc.sparse_matmul.10.lc2", "t_stream_shape", (1, 4))
+            compiler_cfg.balancer_op_override("conv2d_33.dc.matmul.8", "t_stream_shape", (1, 1))
+            compiler_cfg.place_on_new_epoch("concatenate_275.dc.sparse_matmul.11.lc2")
+
+        elif variant == "yolox_m":
+
+            os.environ["PYBUDA_TEMP_ENABLE_NEW_FUSED_ESTIMATES"] = "0"
+            os.environ["PYBUDA_TEMP_ENABLE_NEW_SPARSE_ESTIMATES"] = "0"
+            os.environ["PYBUDA_TEMP_SCALE_SPARSE_ESTIMATE_ARGS"] = "0"
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "4096"
+
+            compiler_cfg.place_on_new_epoch("conv2d_187.dc.matmul.8")
+            compiler_cfg.balancer_op_override("conv2d_7.dc.conv2d.3.dc.reshape.0.dc.sparse_matmul.4.lc2", "t_stream_shape", (1, 4))
+            compiler_cfg.balancer_op_override("conv2d_7.dc.conv2d.1.dc.sparse_matmul.9.dc.sparse_matmul.1.lc2", "t_stream_shape", (5, 1))
+            compiler_cfg.balancer_op_override("conv2d_7.dc.conv2d.1.dc.reshape.0.dc.sparse_matmul.10.lc2", "t_stream_shape", (1, 4))
+            compiler_cfg.balancer_op_override("conv2d_7.dc.conv2d.5.dc.reshape.0.dc.sparse_matmul.10.lc2", "t_stream_shape", (1, 4))
+            compiler_cfg.place_on_new_epoch("concatenate_354.dc.sparse_matmul.11.lc2")
+
+        elif variant in ["yolox_l", "yolox_darknet", "yolox_x"]:
+
+            os.environ["PYBUDA_FORK_JOIN_BUF_QUEUES"] = "1"
+            os.environ["PYBUDA_FORK_JOIN_EXPAND_OUTPUT_BUFFERS"] = "1"
+            os.environ["PYBUDA_FORK_JOIN_SKIP_EXPANDING_BUFFERS"] = "1"
+
+            if variant == "yolox_l":
+
+                os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
+                compiler_cfg.balancer_op_override("conv2d_7.dc.conv2d.5.dc.reshape.0.dc.sparse_matmul.4.lc2", "t_stream_shape", (1, 4))
+                compiler_cfg.balancer_op_override("conv2d_7.dc.conv2d.3.dc.reshape.0.dc.sparse_matmul.4.lc2", "t_stream_shape", (1, 4))
+                compiler_cfg.balancer_op_override("conv2d_7.dc.conv2d.1.dc.reshape.0.dc.sparse_matmul.10.lc2", "t_stream_shape", (1, 4))
+                compiler_cfg.place_on_new_epoch("concatenate_433.dc.sparse_matmul.11.lc2")
+
+            elif variant == "yolox_darknet":
+
+                compiler_cfg.balancer_op_override("conv2d_28.dc.matmul.8", "t_stream_shape", (1, 1))
+                compiler_cfg.balancer_op_override("conv2d_33.dc.matmul.8", "t_stream_shape", (1, 1))
+                compiler_cfg.place_on_new_epoch("concatenate_222.dc.sparse_matmul.11.lc2")
+                os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "53248"
+
+            elif variant == "yolox_x":
+
+                compiler_cfg.balancer_op_override("conv2d_7.dc.conv2d.3.dc.reshape.0.dc.sparse_matmul.4.lc2", "t_stream_shape", (1, 4))
+                compiler_cfg.balancer_op_override("conv2d_7.dc.conv2d.5.dc.reshape.0.dc.sparse_matmul.10.lc2", "t_stream_shape", (1, 4))
+                compiler_cfg.balancer_op_override("conv2d_7.dc.conv2d.1.dc.reshape.0.dc.sparse_matmul.10.lc2", "t_stream_shape", (1, 4))
+                compiler_cfg.place_on_new_epoch("concatenate_512.dc.sparse_matmul.11.lc2")
+                compiler_cfg.place_on_new_epoch("conv2d_379.dc.matmul.8")
+                os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "4096"
+
     # prepare input
     if variant in ["yolox_nano", "yolox_tiny"]:
         input_shape = (416, 416)
@@ -213,7 +275,7 @@ def test_yolox_onnx(variant, test_device):
     tt_model = pybuda.OnnxModule(model_name, onnx_model, onnx_model_path)
 
     # PCC
-    if test_device.arch == BackendDevice.Wormhole_B0:
+    if test_device.arch in [BackendDevice.Wormhole_B0, BackendDevice.Blackhole]:
         if variant == "yolox_nano":
             pcc = 0.93
         else:

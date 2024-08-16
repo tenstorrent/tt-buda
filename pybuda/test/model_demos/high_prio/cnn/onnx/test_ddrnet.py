@@ -108,6 +108,11 @@ def test_ddrnet_semantic_segmentation_onnx(variant, test_device):
             os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "24576"
             compiler_cfg.balancer_op_override("conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone11915.dc.sparse_matmul.4.lc2", "t_stream_shape", (1, 32))
 
+    elif test_device.arch == BackendDevice.Blackhole:
+        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{32*1024}"
+        compiler_cfg.balancer_op_override("conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone931.dc.sparse_matmul.4.lc2", "t_stream_shape", (1, 8))
+        compiler_cfg.balancer_op_override("conv2d_197.dc.conv2d.5.dc.reshape.0_operand_commute_clone925.dc.sparse_matmul.4.lc2", "t_stream_shape", (1, 8))
+
     # Load and validate the model
     if variant == "ddrnet_23_slim_1024":
         load_path = f"third_party/confidential_customer_models/customer/model_0/files/cnn/ddrnet/{variant}.onnx"

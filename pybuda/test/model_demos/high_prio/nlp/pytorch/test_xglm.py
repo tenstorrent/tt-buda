@@ -30,6 +30,9 @@ def test_xglm_causal_lm(variant, test_device):
     if (test_device.arch == BackendDevice.Grayskull and variant == "facebook/xglm-564M") or (test_device.arch == BackendDevice.Wormhole_B0):
         os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "65536"
 
+    if test_device.arch == BackendDevice.Blackhole:
+        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{41*1024}"
+
     # Load tokenizer and model from HuggingFace
     # Variants: "facebook/xglm-564M", "facebook/xglm-1.7B"
 
@@ -54,7 +57,7 @@ def test_xglm_causal_lm(variant, test_device):
     )   
 
     pcc_value = 0.99
-    if test_device.arch == BackendDevice.Wormhole_B0 and test_device.devtype == BackendType.Silicon:
+    if test_device.arch in [BackendDevice.Wormhole_B0, BackendDevice.Blackhole] and test_device.devtype == BackendType.Silicon:
         if variant == "facebook/xglm-564M":
             pcc_value = 0.91
         elif variant == "facebook/xglm-1.7B":

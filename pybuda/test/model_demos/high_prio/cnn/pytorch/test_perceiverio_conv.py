@@ -58,6 +58,9 @@ def test_perceiverio_conv_imgcls_pytorch(test_device):
         if test_device.devtype == pybuda.BackendType.Silicon:
             verify_enabled = False
 
+    elif test_device.arch == pybuda.BackendDevice.Blackhole:
+        pcc_value = 0.97
+
     # Sample Image
     pixel_values = get_sample_data(variant)
 

@@ -138,6 +138,36 @@ def test_pidnet_pytorch(variant, test_device):
                 (1, 16),
             )
 
+    if test_device.arch == pybuda.BackendDevice.Blackhole:
+        if variant == "pidnet_s":
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "217088"
+            compiler_cfg.balancer_op_override(
+                "conv2d_214.dc.reshape.12.dc.sparse_matmul.1.lc2", "t_stream_shape", (1, 4)
+            )
+            compiler_cfg.amp_level = 1
+            compiler_cfg.balancer_op_override(
+                "conv2d_377.dc.conv2d.5.dc.reshape.0_operand_commute_clone132.dc.sparse_matmul.4.lc2",
+                "t_stream_shape",
+                (1, 8),
+            )
+            compiler_cfg.balancer_op_override(
+                "conv2d_377.dc.conv2d.5.dc.reshape.0_operand_commute_clone107_operand_commute_clone134.dc.sparse_matmul.4.lc2",
+                "t_stream_shape",
+                (1, 8),
+            )
+            compiler_cfg.balancer_op_override(
+                "conv2d_1010.dc.reshape.0_operand_commute_clone513_operand_commute_clone607.dc.sparse_matmul.4.lc2",
+                "t_stream_shape",
+                (1, 8),
+            )
+            compiler_cfg.place_on_new_epoch("conv2d_960.dc.reshape.12.dc.sparse_matmul.10.lc2")
+            compiler_cfg.balancer_op_override(
+                "conv2d_1010.dc.reshape.0_operand_commute_clone605.dc.sparse_matmul.4.lc2",
+                "t_stream_shape",
+                (1, 8),
+            )
+            compiler_cfg.place_on_new_epoch("resize2d_353.dc.reshape.5.dc.sparse_matmul.10.lc2")
+
     # Load model
     cfg_model_pretrained, cfg_model_state_file = update_model_config(variant)
     model = get_seg_model(variant, cfg_model_pretrained, imgnet_pretrained=True)
