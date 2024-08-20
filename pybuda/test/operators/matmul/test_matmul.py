@@ -84,7 +84,7 @@ from test.test_sanity import get_device_intermediates
 
 from pybuda.op.eval.common import compare_tensor_to_golden
 
-from test.operators.utils import netlist_utils
+from test.operators.utils import NetlistValidation
 from test.operators.utils import FailingReasons
 
 from .models import generic
@@ -376,13 +376,13 @@ def test_matmul_according_to_test_plan(
         input_params=[input_params],
     )
 
-    file_path = pybuda.pybudaglobal.get_devices()[0]._compile_output.netlist_filename
+    netlist = NetlistValidation()
     match model:
         case "model_op_src_from_dram2":
-            assert netlist_utils.read_netlist_value(file_path, "/queues/x1/loc") == 'dram'
-            assert netlist_utils.read_netlist_value(file_path, "/queues/x2/loc") == 'dram'
+            assert netlist.get_value("/queues/x1/loc") == 'dram'
+            assert netlist.get_value("/queues/x2/loc") == 'dram'
         case "model_op_src_const_inputs1":
-            d = netlist_utils.read_netlist_value(file_path, "/graphs/fwd_0_0_temporal_epoch_0")
+            d = netlist.get_value("/graphs/fwd_0_0_temporal_epoch_0")
             for key in d.keys():
                 assert "Matmul" not in key
 
@@ -476,8 +476,8 @@ def test_matmul_dram_prologued(
         ),
     )
 
-    file_path = pybuda.pybudaglobal.get_devices()[0]._compile_output.netlist_filename
-    d = netlist_utils.read_netlist_value(file_path, "/programs/0/run_fwd_0/4/execute/queue_settings/input_0_mm1")
+    netlist = NetlistValidation()
+    d = netlist.get_value("/programs/0/run_fwd_0/4/execute/queue_settings/input_0_mm1")
     if prologue:
         assert d['prologue']
     else:

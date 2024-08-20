@@ -66,7 +66,8 @@ import pybuda.op
 from pybuda import TTDevice, BackendType, pybuda_compile, VerifyConfig, CompilerConfig
 from pybuda.verify.config import TestKind
 
-from test.operators.utils import netlist_utils, InputSourceFlags, VerifyUtils
+from test.operators.utils import InputSourceFlags, VerifyUtils
+from test.operators.utils import NetlistValidation
 from test.operators.utils import FailingReasons
 from test.conftest import TestDevice
 
@@ -124,12 +125,12 @@ def verify(
         math_fidelity=input_math_fidelity,
     )
 
-    file_path = VerifyUtils.get_netlist_filename() 
+    netlist = NetlistValidation()
     match model:
         case "model_op_src_from_dram":
-            assert netlist_utils.read_netlist_value(file_path, "/queues/x1/loc") == 'dram'
+            assert netlist.get_value("/queues/x1/loc") == 'dram'
         case "model_op_src_const_inputs1":
-            d = netlist_utils.read_netlist_value(file_path, "/graphs/fwd_0_0_temporal_epoch_0")
+            d = netlist.get_value("/graphs/fwd_0_0_temporal_epoch_0")
             for key in d.keys():
                 assert input_operator not in key
 
