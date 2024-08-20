@@ -697,10 +697,10 @@ std::pair<int, int> get_epoch_allocate_deallocate(graphlib::Node *q, const place
 }
 
 // Find out the updated epoch id after inserting empty epochs, only applies to n300 data parallel
-size_t get_updated_epoch_id(size_t epoch_id, const vector<size_t>& dp_epochs)
+uint32_t get_updated_epoch_id(uint32_t epoch_id, const vector<uint32_t>& dp_epochs)
 {
-    size_t num_of_insertions = 0;
-    for (size_t dp_epoch: dp_epochs)
+    uint32_t num_of_insertions = 0;
+    for (uint32_t dp_epoch: dp_epochs)
     {
         if (epoch_id > dp_epoch)
             num_of_insertions++;
@@ -708,9 +708,76 @@ size_t get_updated_epoch_id(size_t epoch_id, const vector<size_t>& dp_epochs)
     return epoch_id + num_of_insertions;
 }
 
+// Modifications over PlacerSolution::temporal_epoch_id(string)
+uint32_t get_dp_updated_temporal_epoch_id(
+        const std::string &node_name, const placer::PlacerSolution &placer_solution,
+        const vector<uint32_t> &dp_epochs)
+{
+    uint32_t global_epoch_id = placer_solution.name_to_op_placement.at(node_name).epoch_id();
+    uint32_t updated_global_epoch_id = get_updated_epoch_id(global_epoch_id, dp_epochs);
+    return placer_solution.epoch_id_to_epoch_info.at(updated_global_epoch_id).temporal_epoch_id;
+}
+
+// Modifications over get_consumer_epoch_ids()
+std::vector<std::uint32_t> get_updated_consumer_epoch_ids(
+    const graphlib::Graph *graph, const graphlib::Node *node, const placer::PlacerSolution &placer_solution,
+    const vector<uint32_t> &dp_epochs)
+{
+    std::vector<std::uint32_t> consumer_epoch_ids;
+    std::vector<graphlib::Node *> users = graph->data_users(node);
+    try
+    {
+        for (Node *user : users)
+        {
+            uint32_t temporal_epoch_id = get_dp_updated_temporal_epoch_id(user->name(), placer_solution, dp_epochs);
+            consumer_epoch_ids.push_back(get_updated_epoch_id(temporal_epoch_id, dp_epochs));
+        }
+        return consumer_epoch_ids;
+    }
+    catch (std::out_of_range &e)
+    {
+        log_fatal("Placement missing for a user of {}", node->name());
+        return {};
+    }
+}
+
+// Modifications over get_last_epoch_use()
+std::uint32_t get_updated_last_epoch_use(
+        const graphlib::Graph *graph, const graphlib::Node *node, const placer::PlacerSolution &placer_solution,
+        const vector<uint32_t> &dp_epochs)
+{
+    std::vector<std::uint32_t> consumer_epoch_ids = get_updated_consumer_epoch_ids(graph, node, placer_solution, dp_epochs);
+    return *std::max_element(consumer_epoch_ids.begin(), consumer_epoch_ids.end());
+}
+
+// Modifications over get_first_epoch_producer()
+std::uint32_t get_updated_first_epoch_producer(
+    const graphlib::Graph *graph, const graphlib::Node *node, const placer::PlacerSolution &placer_solution,
+    const vector<uint32_t> &dp_epochs)
+{
+    std::vector<graphlib::Node *> operands = graph->operands(node);
+    try
+    {
+        std::uint32_t min_epoch = get_dp_updated_temporal_epoch_id(operands[0]->name(), placer_solution, dp_epochs);
+        for (std::uint32_t i = 1; i < operands.size(); i++)
+        {
+            std::uint32_t epoch = get_dp_updated_temporal_epoch_id(operands[i]->name(), placer_solution, dp_epochs);
+            if (epoch < min_epoch)
+                min_epoch = epoch;
+        }
+        return min_epoch;
+    }
+    catch (std::out_of_range &e)
+    {
+        log_fatal("Placement missing for an operand of {}", node->name());
+        return 0;
+    }
+}
+
+
 std::vector<program::Program> create_programs(
     Graph *graph, placer::PlacerSolution &placer_solution, BudaGraph &buda_graph, const std::string &arch_string,
-    const vector<size_t> &dp_epochs)
+    const vector<uint32_t> &dp_epochs)
 {
     std::vector<program::Program> programs;
 
@@ -1015,11 +1082,11 @@ std::vector<program::Program> create_programs(
                     bool read_global;
                     if (q->as<graphlib::QueueNode>()->is_output())
                     {
-                        read_global = (temporal_epoch_id == get_first_epoch_producer(graph, q, placer_solution));
+                        read_global = (temporal_epoch_id == get_updated_first_epoch_producer(graph, q, placer_solution, dp_epochs));
                     }
                     else
                     {
-                        read_global = (temporal_epoch_id == get_last_epoch_use(graph, q, placer_solution));
+                        read_global = (temporal_epoch_id == get_updated_last_epoch_use(graph, q, placer_solution, dp_epochs));
                     }
                     auto [epoch_allocate, epoch_deallocate] = get_epoch_allocate_deallocate(q, placer_solution);
 
@@ -1450,7 +1517,8 @@ static std::vector<std::size_t> get_input_dram_io_buf_size_tiles(
             return input_dram_io_buf_size_tiles;
         }
 
-        const int pipegen_available_dram_io_space_per_stream = free_l1_space / num_dram_readers; // try /2 TODO
+        const int scale_for_n300_dataparallel = env_as<bool>("PYBUDA_N300_DATA_PARALLEL") ? 2 : 1;
+        const int pipegen_available_dram_io_space_per_stream = free_l1_space / num_dram_readers / scale_for_n300_dataparallel;
         int current_stream_available_dram_io_space = pipegen_available_dram_io_space_per_stream;
 
         for (std::size_t input_idx = 0; input_idx < operands.size(); ++input_idx)
@@ -1686,9 +1754,9 @@ BudaNetlist lower_to_buda_netlist(
         }
     }
 
-    vector<size_t> dp_epochs;
-    unordered_map<int, tt::placer::EpochInfo> epoch_info_map;
-    for (size_t epoch_id = 0; epoch_id < epoch_count; ++epoch_id)
+    vector<uint32_t> dp_epochs;
+    unordered_map<int, tt::placer::EpochInfo> epoch_info_map; // will replace placer_solution.epoch_id_to_epoch_info
+    for (uint32_t epoch_id = 0; epoch_id < epoch_count; ++epoch_id)
     {
         int chip_id = placer_solution.epoch_id_to_chip.at(epoch_id);
         bool is_dp_epoch = false;
@@ -1706,6 +1774,7 @@ BudaNetlist lower_to_buda_netlist(
             }
 
             auto epoch_info = placer_solution.epoch_id_to_epoch_info.at(epoch_id);
+            epoch_info.global_epoch_id += dp_epochs.size(); // number of inserted epochs so far
             epoch_info_map[epoch_id + dp_epochs.size()] = epoch_info;
 
             if (is_dp_epoch)
@@ -1719,15 +1788,17 @@ BudaNetlist lower_to_buda_netlist(
                 buda_graph.epoch_types.insert(buda_graph.epoch_types.begin() + epoch_id + dp_epochs.size(), buda_graph.epoch_types.at(epoch_id));
                 buda_graph.epoch_target_devices.push_back({BudaDevice(1)});
 
+                // create a new epoch_info for inserted epoch
                 epoch_info_map[epoch_id + dp_epochs.size()] = {
-                    .global_epoch_id = epoch_info.global_epoch_id,
-                    .temporal_epoch_id = epoch_info.temporal_epoch_id,
+                    .global_epoch_id = epoch_info.global_epoch_id + 1, // ensure global id is unique
+                    .temporal_epoch_id = epoch_info.temporal_epoch_id, // same as dp epoch
                     .spatial_epoch_id = 1,
                     .epoch_type = epoch_info.epoch_type
                 };
             }
             else
             {
+                // not a dp epoch, place it on both devices
                 buda_graph.epoch_target_devices.push_back({BudaDevice(0), BudaDevice(1)});
             }
         }
