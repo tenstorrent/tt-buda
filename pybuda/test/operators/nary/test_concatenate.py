@@ -60,11 +60,42 @@ import pytest
 import pybuda
 import torch
 
-from pybuda import PyBudaModule, VerifyConfig
-from pybuda.config import _get_global_compiler_config
-from pybuda.verify import TestKind, verify_module
+from typing import List, Dict
+from loguru import logger
+
+from pybuda import PyBudaModule
+from pybuda.op_repo import TensorShape
+from test.operators.utils import InputSourceFlags, VerifyUtils
+from test.operators.utils import ShapeUtils
 from test.operators.utils import NetlistValidation
 from test.operators.utils import FailingReasons
+from test.conftest import TestDevice
+
+
+def verify(
+    test_device: TestDevice,
+    model: PyBudaModule,
+    input_shape: TensorShape,
+    number_of_operands: int,
+    input_params: List[Dict] = [],
+    input_source_flag: InputSourceFlags = None,
+    dev_data_format: pybuda.DataFormat = None,
+    math_fidelity: pybuda.MathFidelity = None,
+):
+    '''Common verification function for all tests'''
+
+    input_shapes = tuple([input_shape for _ in range(number_of_operands)])
+    logger.trace(f"***input_shapes: {input_shapes}")
+
+    VerifyUtils.verify(
+        model=model,
+        test_device=test_device,
+        input_shapes=input_shapes,
+        input_params=input_params,
+        input_source_flag=input_source_flag,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
+    )
 
 
 # Concatenate operator doesn't work for axis is equal to 0.
@@ -92,7 +123,7 @@ input_shapes = [
 @pytest.mark.xfail(reason=FailingReasons.UNSUPORTED_AXIS)
 @pytest.mark.parametrize("axis", axises)
 @pytest.mark.parametrize("input_shape", input_shapes)
-def test_concatenate_invalid_axis(test_device, axis, input_shape, input_params=[], math_fidelity=None):
+def test_concatenate_invalid_axis(test_device, axis, input_shape, dev_data_format=None, math_fidelity=None):
 
     class Model(PyBudaModule):
         def __init__(self, name):
@@ -103,22 +134,16 @@ def test_concatenate_invalid_axis(test_device, axis, input_shape, input_params=[
             return output
 
     mod = Model("test_concatenate_invalid_axis_model")
-    input_shapes = tuple([input_shape for _ in range(2)])
 
-    if(math_fidelity is not None):
-        compiler_cfg = _get_global_compiler_config()
-        compiler_cfg.default_math_fidelity = math_fidelity
-
-    verify_module(
-        mod,
-        input_shapes=input_shapes,
-        verify_cfg=VerifyConfig(
-            test_kind=TestKind.INFERENCE,
-            devtype=test_device.devtype,
-            arch=test_device.arch,
-        ),
-        input_params=[input_params],
+    verify(
+        test_device=test_device,
+        model=mod,
+        input_shape=input_shape,
+        number_of_operands=2,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
     )
+
 
 # setup of axises and shapes for all tests:
 axises = [-3, -2, -1, 1, 2]
@@ -143,7 +168,7 @@ def get_input_shapes(microbatch_size=1):
 #   2.1 From another op
 @pytest.mark.parametrize("axis", axises)
 @pytest.mark.parametrize("input_shape", get_input_shapes(microbatch_size=1))
-def test_concatenate_inputs_from_another_operand(test_device, axis, input_shape, input_params=[], math_fidelity=None):
+def test_concatenate_inputs_from_another_operand(test_device, axis, input_shape, dev_data_format=None, math_fidelity=None):
 
     class Model(PyBudaModule):
         def __init__(self, name):
@@ -157,21 +182,14 @@ def test_concatenate_inputs_from_another_operand(test_device, axis, input_shape,
             return output
         
     mod = Model("test_concatenate_inputs_from_another_operand_model")
-    input_shapes = tuple([input_shape for _ in range(2)])
 
-    if(math_fidelity is not None):
-        compiler_cfg = _get_global_compiler_config()
-        compiler_cfg.default_math_fidelity = math_fidelity
-
-    verify_module(
-        mod,
-        input_shapes=input_shapes,
-        verify_cfg=VerifyConfig(
-            test_kind=TestKind.INFERENCE,
-            devtype=test_device.devtype,
-            arch=test_device.arch,
-        ),
-        input_params=[input_params],
+    verify(
+        test_device=test_device,
+        model=mod,
+        input_shape=input_shape,
+        number_of_operands=2,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
     )
 
 
@@ -179,7 +197,7 @@ def test_concatenate_inputs_from_another_operand(test_device, axis, input_shape,
 #    - Combination: operator -> tm -> input
 @pytest.mark.parametrize("axis", axises)
 @pytest.mark.parametrize("input_shape", get_input_shapes(microbatch_size=1))
-def test_concatenate_inputs_from_tm_edge1(test_device, axis, input_shape, input_params=[], math_fidelity=None):
+def test_concatenate_inputs_from_tm_edge1(test_device, axis, input_shape, dev_data_format=None, math_fidelity=None):
 
     class Model(PyBudaModule):
         def __init__(self, name):
@@ -192,21 +210,14 @@ def test_concatenate_inputs_from_tm_edge1(test_device, axis, input_shape, input_
             return v3
         
     mod = Model("test_concatenate_inputs_from_tm_edge1_model")
-    input_shapes = tuple([input_shape for _ in range(2)])
 
-    if(math_fidelity is not None):
-        compiler_cfg = _get_global_compiler_config()
-        compiler_cfg.default_math_fidelity = math_fidelity
-
-    verify_module(
-        mod,
-        input_shapes=input_shapes,
-        verify_cfg=VerifyConfig(
-            test_kind=TestKind.INFERENCE,
-            devtype=test_device.devtype,
-            arch=test_device.arch,
-        ),
-        input_params=[input_params],
+    verify(
+        test_device=test_device,
+        model=mod,
+        input_shape=input_shape,
+        number_of_operands=2,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
     )
 
 
@@ -214,7 +225,7 @@ def test_concatenate_inputs_from_tm_edge1(test_device, axis, input_shape, input_
 #    - tm -> input
 @pytest.mark.parametrize("axis", axises)
 @pytest.mark.parametrize("input_shape", get_input_shapes(microbatch_size=1))
-def test_concatenate_inputs_from_tm_edge2(test_device, axis, input_shape, input_params=[], math_fidelity=None):
+def test_concatenate_inputs_from_tm_edge2(test_device, axis, input_shape, dev_data_format=None, math_fidelity=None):
 
     class Model(PyBudaModule):
         def __init__(self, name):
@@ -227,21 +238,14 @@ def test_concatenate_inputs_from_tm_edge2(test_device, axis, input_shape, input_
             return v3
         
     mod = Model("test_concatenate_inputs_from_tm_edge2_model")
-    input_shapes = tuple([input_shape for _ in range(2)])
 
-    if(math_fidelity is not None):
-        compiler_cfg = _get_global_compiler_config()
-        compiler_cfg.default_math_fidelity = math_fidelity
-
-    verify_module(
-        mod,
-        input_shapes=input_shapes,
-        verify_cfg=VerifyConfig(
-            test_kind=TestKind.INFERENCE,
-            devtype=test_device.devtype,
-            arch=test_device.arch,
-        ),
-        input_params=[input_params],
+    verify(
+        test_device=test_device,
+        model=mod,
+        input_shape=input_shape,
+        number_of_operands=2,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
     )
 
 
@@ -249,7 +253,7 @@ def test_concatenate_inputs_from_tm_edge2(test_device, axis, input_shape, input_
 #    - input_queue flag = false
 @pytest.mark.parametrize("axis", axises)
 @pytest.mark.parametrize("input_shape", get_input_shapes(microbatch_size=1))
-def test_concatenate_inputs_from_dram_queue(test_device, axis, input_shape, input_params=[], math_fidelity=None):
+def test_concatenate_inputs_from_dram_queue(test_device, axis, input_shape, dev_data_format=None, math_fidelity=None):
 
     class Model(PyBudaModule):
         def __init__(self, name):
@@ -259,23 +263,17 @@ def test_concatenate_inputs_from_dram_queue(test_device, axis, input_shape, inpu
             return pybuda.op.Concatenate("Concatenate0", x, y, axis=axis)
         
     mod = Model("test_concatenate_inputs_from_dram_queue_model")
-    input_shapes = tuple([input_shape for _ in range(2)])
 
-    compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.input_queues_on_host = False
-    if(math_fidelity is not None):
-        compiler_cfg.default_math_fidelity = math_fidelity
-
-    verify_module(
-        mod,
-        input_shapes=input_shapes,
-        verify_cfg=VerifyConfig(
-            test_kind=TestKind.INFERENCE,
-            devtype=test_device.devtype,
-            arch=test_device.arch,
-        ),
-        input_params=[input_params],
+    verify(
+        test_device=test_device,
+        model=mod,
+        input_shape=input_shape,
+        number_of_operands=2,
+        input_source_flag=InputSourceFlags.FROM_DRAM,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
     )
+
     netlist = NetlistValidation()
     assert netlist.get_value("/queues/x/loc") == 'dram'
     assert netlist.get_value("/queues/y/loc") == 'dram'
@@ -292,32 +290,32 @@ def test_concatenate_inputs_from_dram_queue(test_device, axis, input_shape, inpu
                                   pytest.param(1),
                                   pytest.param(2)
                                   ])
-@pytest.mark.parametrize("input_shape, default_dram_params, should_prolog", [
-    pytest.param((2, 3, 3),      True, False),                                                                  # 3.1 Full tensor (i.e. full expected shape)    - FAILING FOR axis=[-3]
-    pytest.param((2, 3, 3),      False, True),                                                                  # 3.1 Full tensor (i.e. full expected shape)    - FAILING FOR axis=[-3]
-    pytest.param((2, 3, 3),      None, True),                                                                   # 3.1 Full tensor (i.e. full expected shape)    - FAILING FOR axis=[-3]
-    pytest.param((1, 3, 3),      True, False),                                                                  # 3.1 Full tensor (i.e. full expected shape)    - PASS
-    pytest.param((1, 3, 3),      False, True),                                                                  # 3.1 Full tensor (i.e. full expected shape)    - PASS
-    pytest.param((1, 3, 3),      None, True),                                                                   # 3.1 Full tensor (i.e. full expected shape)    - PASS - but not according to documentation!
-    pytest.param((2, 10, 5),     None, True),                                                                   # 3.1 Full tensor (i.e. full expected shape)    - FAILING FOR axis=[-3]
-    pytest.param((2, 1, 15),     None, True),                                                                   # 3.2 Tensor reduce on one or more dims to 1    - FAILING FOR axis=[-3]
-    pytest.param((2, 50, 1),     None, True),                                                                   # 3.2 Tensor reduce on one or more dims to 1    - FAILING FOR axis=[-3]
-    pytest.param((2, 100, 100),  None, True),                                                                   # 4.3 Very large (thousands, 10s of thousands)  - FAILING FOR axis=[-3]
+@pytest.mark.parametrize("input_shape, input_source_flag, should_prolog", [
+    pytest.param((2, 3, 3),      InputSourceFlags.FROM_DRAM_NOT_PROLOGUED,            False),                                                              # 3.1 Full tensor (i.e. full expected shape)    - FAILING FOR axis=[-3]
+    pytest.param((2, 3, 3),      InputSourceFlags.FROM_DRAM_PROLOGUED,                True),                                                               # 3.1 Full tensor (i.e. full expected shape)    - FAILING FOR axis=[-3]
+    pytest.param((2, 3, 3),      InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),                                                               # 3.1 Full tensor (i.e. full expected shape)    - FAILING FOR axis=[-3]
+    pytest.param((1, 3, 3),      InputSourceFlags.FROM_DRAM_NOT_PROLOGUED,            False),                                                              # 3.1 Full tensor (i.e. full expected shape)    - PASS
+    pytest.param((1, 3, 3),      InputSourceFlags.FROM_DRAM_PROLOGUED,                True),                                                               # 3.1 Full tensor (i.e. full expected shape)    - PASS
+    pytest.param((1, 3, 3),      InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),                                                               # 3.1 Full tensor (i.e. full expected shape)    - PASS - but not according to documentation!
+    pytest.param((2, 10, 5),     InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),                                                               # 3.1 Full tensor (i.e. full expected shape)    - FAILING FOR axis=[-3]
+    pytest.param((2, 1, 15),     InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),                                                               # 3.2 Tensor reduce on one or more dims to 1    - FAILING FOR axis=[-3]
+    pytest.param((2, 50, 1),     InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),                                                               # 3.2 Tensor reduce on one or more dims to 1    - FAILING FOR axis=[-3]
+    pytest.param((2, 100, 100),  InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),                                                               # 4.3 Very large (thousands, 10s of thousands)  - FAILING FOR axis=[-3]
     # FAILING FOR axis=[-3, -1, 2]
-    pytest.param((2, 100, 1000), None, False, marks=pytest.mark.xfail(reason=FailingReasons.BUGGY_SHAPE)),  # 4.3 Very large (thousands, 10s of thousands)
+    pytest.param((2, 100, 1000), InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, False, marks=pytest.mark.xfail(reason=FailingReasons.BUGGY_SHAPE)),  # 4.3 Very large (thousands, 10s of thousands)
     # FAILING FOR for all axises
-    pytest.param((2, 1, 4991),   None, False, marks=pytest.mark.xfail(reason=FailingReasons.BUGGY_SHAPE)),  # 4.4 Extreme ratios between height/width
+    pytest.param((2, 1, 4991),   InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, False, marks=pytest.mark.xfail(reason=FailingReasons.BUGGY_SHAPE)),  # 4.4 Extreme ratios between height/width
     # FAILING FOR axis=[-3, -1, 2]
-    pytest.param((2, 1, 10000),  None, False, marks=pytest.mark.xfail(reason=FailingReasons.BUGGY_SHAPE)),  # 4.4 Extreme ratios between height/width
+    pytest.param((2, 1, 10000),  InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, False, marks=pytest.mark.xfail(reason=FailingReasons.BUGGY_SHAPE)),  # 4.4 Extreme ratios between height/width
     # FAILING FOR for all axises
-    pytest.param((2, 8191, 1),   None, False, marks=pytest.mark.xfail(reason=FailingReasons.BUGGY_SHAPE)),  # 4.4 Extreme ratios between height/width
+    pytest.param((2, 8191, 1),   InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, False, marks=pytest.mark.xfail(reason=FailingReasons.BUGGY_SHAPE)),  # 4.4 Extreme ratios between height/width
     # FAILING FOR axis=[-3, -1, 2]
-    pytest.param((2, 10000, 1),  None, False, marks=pytest.mark.xfail(reason=FailingReasons.BUGGY_SHAPE)),  # 4.4 Extreme ratios between height/width
-    pytest.param((2, 32, 32),    None, True),                                                                   # 4.1 Divisible by 32                           - FAILING FOR axis=[-3]
-    pytest.param((2, 96, 96),    None, True),                                                                   # 4.1 Divisible by 32                           - FAILING FOR axis=[-3]
-    pytest.param((2, 13, 97),    None, True),                                                                   # 4.2 Prime numbers                             - FAILING FOR axis=[-3]
+    pytest.param((2, 10000, 1),  InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, False, marks=pytest.mark.xfail(reason=FailingReasons.BUGGY_SHAPE)),  # 4.4 Extreme ratios between height/width
+    pytest.param((2, 32, 32),    InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),                                                               # 4.1 Divisible by 32                           - FAILING FOR axis=[-3]
+    pytest.param((2, 96, 96),    InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),                                                               # 4.1 Divisible by 32                           - FAILING FOR axis=[-3]
+    pytest.param((2, 13, 97),    InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),                                                               # 4.2 Prime numbers                             - FAILING FOR axis=[-3]
 ])
-def test_concatenate_inputs_from_dram_prologued(test_device, axis, input_shape, default_dram_params, should_prolog, input_params=[], math_fidelity=None):
+def test_concatenate_inputs_from_dram_prologued(test_device, axis, input_shape, input_source_flag, should_prolog, dev_data_format=None, math_fidelity=None):
     
     class Model(PyBudaModule):
         def __init__(self, name):
@@ -326,8 +324,7 @@ def test_concatenate_inputs_from_dram_prologued(test_device, axis, input_shape, 
             def my_rand(*shape, requires_grad=False):
                 return (torch.rand(*shape, requires_grad=requires_grad) - 0.5).detach()
 
-            t = input_shape[1:]
-            self.shape_input = (1, *t)
+            self.shape_input = ShapeUtils.reduce_microbatch_size(input_shape)
 
             self.add_constant("c")
             self.set_constant("c", pybuda.Tensor.create_from_torch(my_rand(*self.shape_input), constant=True))
@@ -338,22 +335,16 @@ def test_concatenate_inputs_from_dram_prologued(test_device, axis, input_shape, 
         
     mod = Model("test_concatenate_inputs_from_dram_prologued_model")
 
-    compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.default_dram_parameters = default_dram_params
-    compiler_cfg.input_queues_on_host = False
-    if(math_fidelity is not None):
-        compiler_cfg.default_math_fidelity = math_fidelity
-
-    verify_module(
-        mod,
-        input_shapes=[input_shape],
-        verify_cfg=VerifyConfig(
-            test_kind=TestKind.INFERENCE,
-            devtype=test_device.devtype,
-            arch=test_device.arch,
-        ),
-        input_params=[input_params],
+    verify(
+        test_device=test_device,
+        model=mod,
+        input_shape=input_shape,
+        number_of_operands=1,
+        input_source_flag=input_source_flag,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
     )
+
     netlist = NetlistValidation()
     d = netlist.get_value("/programs/0/run_fwd_0/4/execute/queue_settings/input_0_Concatenate0")
     if should_prolog:
@@ -365,7 +356,7 @@ def test_concatenate_inputs_from_dram_prologued(test_device, axis, input_shape, 
 #   2.5 Const Inputs (const eval pass)
 @pytest.mark.parametrize("axis", axises)
 @pytest.mark.parametrize("input_shape", get_input_shapes(microbatch_size=1))
-def test_concatenate_inputs_from_constants(test_device, axis, input_shape, input_params=[], math_fidelity=None):
+def test_concatenate_inputs_from_constants(test_device, axis, input_shape, dev_data_format=None, math_fidelity=None):
      
     class Model(PyBudaModule):
         def __init__(self, name):
@@ -374,17 +365,13 @@ def test_concatenate_inputs_from_constants(test_device, axis, input_shape, input
             def my_rand(*shape, requires_grad=False):
                 return (torch.rand(*shape, requires_grad=requires_grad) - 0.5).detach()
 
-            self.shape_input = input_shape
+            self.shape_input = ShapeUtils.reduce_microbatch_size(input_shape)
 
             self.add_constant("c1")
             self.set_constant("c1", pybuda.Tensor.create_from_torch(my_rand(*self.shape_input), constant=True))
 
             self.add_constant("c2")
             self.set_constant("c2", pybuda.Tensor.create_from_torch(my_rand(*self.shape_input), constant=True))
-       
-            self.inputs = [
-                pybuda.Tensor.create_from_torch(my_rand(*self.shape_input))
-            ]
 
         def forward(self, x, y):
             v1 = pybuda.op.Concatenate("Concatenate0", self.get_constant("c1"), self.get_constant("c2"), axis=axis)
@@ -402,22 +389,16 @@ def test_concatenate_inputs_from_constants(test_device, axis, input_shape, input
         i_shape = list(input_shape)
         i_shape[axis] = 2 * i_shape[axis]
         i_shape = tuple(i_shape)
-    input_shapes = tuple([i_shape for _ in range(2)])
-    
-    if(math_fidelity is not None):
-        compiler_cfg = _get_global_compiler_config()
-        compiler_cfg.default_math_fidelity = math_fidelity
 
-    verify_module(
-        mod,
-        input_shapes=input_shapes,
-        verify_cfg=VerifyConfig(
-            test_kind=TestKind.INFERENCE,
-            devtype=test_device.devtype,
-            arch=test_device.arch,
-        ),
-        input_params=[input_params],
+    verify(
+        test_device=test_device,
+        model=mod,
+        input_shape=i_shape,
+        number_of_operands=2,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
     )
+
     # Here we check there is no key with "Concatenate" in the netlist in graphs section
     netlist = NetlistValidation()
     d = netlist.get_value("/graphs/fwd_0_0_temporal_epoch_0")
@@ -428,7 +409,7 @@ def test_concatenate_inputs_from_constants(test_device, axis, input_shape, input
 #   2.6 From host - case of two tensors as input
 @pytest.mark.parametrize("axis", axises)
 @pytest.mark.parametrize("input_shape", get_input_shapes(microbatch_size=1))
-def test_concatenate_inputs_from_host_2(test_device, axis, input_shape, input_params=[], math_fidelity=None):
+def test_concatenate_inputs_from_host_2(test_device, axis, input_shape, dev_data_format=None, math_fidelity=None):
 
     class Model(PyBudaModule):
         def __init__(self, name):
@@ -438,21 +419,14 @@ def test_concatenate_inputs_from_host_2(test_device, axis, input_shape, input_pa
             return pybuda.op.Concatenate("Concatenate0", x, y, axis=axis)
         
     mod = Model("test_concatenate_inputs_from_host_2_model")
-    input_shapes = tuple([input_shape for _ in range(2)])
 
-    if(math_fidelity is not None):
-        compiler_cfg = _get_global_compiler_config()
-        compiler_cfg.default_math_fidelity = math_fidelity
-
-    verify_module(
-        mod,
-        input_shapes=input_shapes,
-        verify_cfg=VerifyConfig(
-            test_kind=TestKind.INFERENCE,
-            devtype=test_device.devtype,
-            arch=test_device.arch,
-        ),
-        input_params=[input_params],
+    verify(
+        test_device=test_device,
+        model=mod,
+        input_shape=input_shape,
+        number_of_operands=2,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
     )
 
 number_of_operands = [
@@ -480,7 +454,7 @@ number_of_operands = [
 @pytest.mark.parametrize("axis", axises)
 @pytest.mark.parametrize("input_shape", get_input_shapes(microbatch_size=1))
 @pytest.mark.parametrize("number_of_operands", number_of_operands)
-def test_concatenate_inputs_from_host_multiple_operands(test_device, axis, input_shape, number_of_operands, input_params=[], math_fidelity=None):
+def test_concatenate_inputs_from_host_multiple_operands(test_device, axis, input_shape, number_of_operands, dev_data_format=None, math_fidelity=None):
 
     class Model(PyBudaModule):
         def __init__(self, name):
@@ -490,21 +464,14 @@ def test_concatenate_inputs_from_host_multiple_operands(test_device, axis, input
             return pybuda.op.Concatenate("Concatenate0", *x, axis=axis)
         
     mod = Model("test_concatenate_inputs_from_host_multiple_operands")
-    input_shapes = tuple([input_shape for _ in range(number_of_operands)])
 
-    if(math_fidelity is not None):
-        compiler_cfg = _get_global_compiler_config()
-        compiler_cfg.default_math_fidelity = math_fidelity
-
-    verify_module(
-        mod,
-        input_shapes=input_shapes,
-        verify_cfg=VerifyConfig(
-            test_kind=TestKind.INFERENCE,
-            devtype=test_device.devtype,
-            arch=test_device.arch,
-        ),
-        input_params=[input_params],
+    verify(
+        test_device=test_device,
+        model=mod,
+        input_shape=input_shape,
+        number_of_operands=number_of_operands,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
     )
 
 
@@ -523,9 +490,9 @@ def get_single_shape(microbatch_size=1):
 ### 1. ####################################################################################
 
 #   5.4 Operand DFs
-verify_input_params=[ 
-                        {"dev_data_format": pybuda.DataFormat.Float16_b},
-                    ]
+dev_data_formats=[ 
+    pybuda.DataFormat.Float16_b,
+]
 
 #  6. Math fidelity - LoFi, HiFi2a, Hifi2b, Hifi3, Hifi4
 compiler_math_fidelity = [
@@ -536,36 +503,40 @@ compiler_math_fidelity = [
                          ]
 
 
+@pytest.mark.parametrize("dev_data_format", dev_data_formats)
 @pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
-def test_concatenate_mf_inputs_from_another_operand(test_device, math_fidelity):
-    test_concatenate_inputs_from_another_operand(test_device, axis, get_single_shape(), verify_input_params, math_fidelity)
+def test_concatenate_mf_inputs_from_another_operand(test_device, dev_data_format, math_fidelity):
+    test_concatenate_inputs_from_another_operand(test_device, axis, get_single_shape(), dev_data_format, math_fidelity)
 
 
 ### 2. ####################################################################################
 
 #   5.4 Operand DFs
-verify_input_params=[
-                        {"dev_data_format": pybuda.DataFormat.Bfp2},
-                        {"dev_data_format": pybuda.DataFormat.Bfp2_b},
-                        {"dev_data_format": pybuda.DataFormat.Bfp4},
-                        {"dev_data_format": pybuda.DataFormat.Bfp4_b},
-                        {"dev_data_format": pybuda.DataFormat.Bfp8},
-                        {"dev_data_format": pybuda.DataFormat.Bfp8_b},
-                        {"dev_data_format": pybuda.DataFormat.Float16},  
-                        {"dev_data_format": pybuda.DataFormat.Float16_b},
-                        {"dev_data_format": pybuda.DataFormat.Float32},
-                        {"dev_data_format": pybuda.DataFormat.Int8},
-                        {"dev_data_format": pybuda.DataFormat.Lf8},
-                        {"dev_data_format": pybuda.DataFormat.RawUInt16},
-                        {"dev_data_format": pybuda.DataFormat.RawUInt32},
-                        {"dev_data_format": pybuda.DataFormat.RawUInt8},
-                        {"dev_data_format": pybuda.DataFormat.UInt16},
-                    ]
+dev_data_formats=[
+    pybuda.DataFormat.Bfp2,
+    pybuda.DataFormat.Bfp2_b,
+    pybuda.DataFormat.Bfp4,
+    pybuda.DataFormat.Bfp4_b,
+    pybuda.DataFormat.Bfp8,
+    pybuda.DataFormat.Bfp8_b,
+    pybuda.DataFormat.Float16,
+    pybuda.DataFormat.Float16_b,
+    pybuda.DataFormat.Float32,
+    pybuda.DataFormat.Int8,
+    pybuda.DataFormat.Lf8,
+    pybuda.DataFormat.RawUInt16,
+    pybuda.DataFormat.RawUInt32,
+    pybuda.DataFormat.RawUInt8,
+    pybuda.DataFormat.UInt16,
+]
 
 #  6. Math fidelity
-compiler_math_fidelity = pybuda.MathFidelity.HiFi4
+compiler_math_fidelity = [
+    pybuda.MathFidelity.HiFi4,
+]
 
 
-@pytest.mark.parametrize("input_params", verify_input_params)
-def test_concatenate_df_inputs_from_another_operand(test_device, input_params):
-    test_concatenate_inputs_from_another_operand(test_device, axis, get_single_shape(), input_params, compiler_math_fidelity)
+@pytest.mark.parametrize("dev_data_format", dev_data_formats)
+@pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
+def test_concatenate_df_inputs_from_another_operand(test_device, dev_data_format, math_fidelity):
+    test_concatenate_inputs_from_another_operand(test_device, axis, get_single_shape(), dev_data_format, math_fidelity)
