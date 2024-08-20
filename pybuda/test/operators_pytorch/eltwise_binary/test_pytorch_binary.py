@@ -20,6 +20,7 @@ import pybuda.op
 from pybuda.op_repo import TensorShape
 from test.operators.utils import netlist_utils, InputSourceFlags, VerifyUtils
 from test.operators.utils import ShapeUtils
+from test.operators.utils import FailingReasons
 from test.conftest import TestDevice
 from test.random.rgg import RateLimiter
 
@@ -243,40 +244,40 @@ def get_input_shapes():
             # 2-dimensional shape, microbatch_size > 1:
             # All shapes fails for all operators
             pytest.param((3, 4),        #13      # 3.1 Full tensor (i.e. full expected shape)
-                         marks=[pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1"),
+                         marks=[pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED),
                                 pytest.mark.run_in_pp]),
             pytest.param((45, 17),      #14      # 3.1 Full tensor (i.e. full expected shape)
-                         marks=[pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1"),
+                         marks=[pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED),
                                 pytest.mark.slow]),
             pytest.param((64, 1),       #15      # 3.2 Tensor reduce on one or more dims to 1
-                         marks=[pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1"),
+                         marks=[pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED),
                                 pytest.mark.slow]),
             pytest.param((100, 100),    #16      # 4.3 Very large (thousands, 10s of thousands)
-                         marks=[pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1"),
+                         marks=[pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED),
                                 pytest.mark.slow]),
             pytest.param((1000, 100),   #17      # 4.3 Very large (thousands, 10s of thousands)
-                         marks=[pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1"),
+                         marks=[pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED),
                                 pytest.mark.slow]),
             pytest.param((10, 1000),    #18      # 4.4 Extreme ratios between height/width
-                         marks=[pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1"),
+                         marks=[pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED),
                                 pytest.mark.slow]),
             pytest.param((9920, 1),     #19      # 4.4 Extreme ratios between height/width  
-                         marks=[pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1"),
+                         marks=[pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED),
                                 pytest.mark.slow]),
             pytest.param((10000, 1),    #20      # 4.4 Extreme ratios between height/width 
-                         marks=[pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1"),
+                         marks=[pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED),
                                 pytest.mark.slow]),
             pytest.param((32, 64),      #21      # 4.1 Divisible by 32
-                         marks=[pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1"),
+                         marks=[pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED),
                                 pytest.mark.slow]),
             pytest.param((160, 96),     #22      # 4.1 Divisible by 32
-                         marks=[pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1"),
+                         marks=[pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED),
                                 pytest.mark.slow]),
             pytest.param((17, 41),      #23      # 4.2 Prime numbers
-                         marks=[pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1"),
+                         marks=[pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED),
                                 pytest.mark.run_in_pp]),
             pytest.param((89, 3),       #24      # 4.2 Prime numbers
-                         marks=[pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1"),
+                         marks=[pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED),
                                 pytest.mark.slow]),
 
             # 3-dimensional shape, microbatch_size = 1:
@@ -423,7 +424,7 @@ input_shapes=[
 @pytest.mark.parametrize("input_operator", get_not_implemented_pytorch_binary_ops())
 @pytest.mark.parametrize("model_type", MODEL_TYPES)
 @pytest.mark.parametrize("input_shape", input_shapes)
-@pytest.mark.xfail(reason="Skip not implemented operators")
+@pytest.mark.xfail(reason=FailingReasons.NOT_IMPLEMENTED)
 def test_not_implemented_pytorch_eltwise_binary_ops_per_test_plan(
     input_operator,
     model_type,
