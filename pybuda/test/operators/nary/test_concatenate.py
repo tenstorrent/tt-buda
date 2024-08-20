@@ -63,7 +63,7 @@ import torch
 from pybuda import PyBudaModule, VerifyConfig
 from pybuda.config import _get_global_compiler_config
 from pybuda.verify import TestKind, verify_module
-from test.operators.utils import netlist_utils
+from test.operators.utils import NetlistValidation
 from test.operators.utils import FailingReasons
 
 
@@ -276,9 +276,9 @@ def test_concatenate_inputs_from_dram_queue(test_device, axis, input_shape, inpu
         ),
         input_params=[input_params],
     )
-    file_path = pybuda.pybudaglobal.get_devices()[0]._compile_output.netlist_filename
-    assert netlist_utils.read_netlist_value(file_path, "/queues/x/loc") == 'dram'
-    assert netlist_utils.read_netlist_value(file_path, "/queues/y/loc") == 'dram'
+    netlist = NetlistValidation()
+    assert netlist.get_value("/queues/x/loc") == 'dram'
+    assert netlist.get_value("/queues/y/loc") == 'dram'
 
 
 
@@ -354,8 +354,8 @@ def test_concatenate_inputs_from_dram_prologued(test_device, axis, input_shape, 
         ),
         input_params=[input_params],
     )
-    file_path = pybuda.pybudaglobal.get_devices()[0]._compile_output.netlist_filename
-    d = netlist_utils.read_netlist_value(file_path, "/programs/0/run_fwd_0/4/execute/queue_settings/input_0_Concatenate0")
+    netlist = NetlistValidation()
+    d = netlist.get_value("/programs/0/run_fwd_0/4/execute/queue_settings/input_0_Concatenate0")
     if should_prolog:
         assert d['prologue']
     else:
@@ -419,8 +419,8 @@ def test_concatenate_inputs_from_constants(test_device, axis, input_shape, input
         input_params=[input_params],
     )
     # Here we check there is no key with "Concatenate" in the netlist in graphs section
-    file_path = pybuda.pybudaglobal.get_devices()[0]._compile_output.netlist_filename
-    d = netlist_utils.read_netlist_value(file_path, "/graphs/fwd_0_0_temporal_epoch_0")
+    netlist = NetlistValidation()
+    d = netlist.get_value("/graphs/fwd_0_0_temporal_epoch_0")
     for key in d.keys():
         assert "Concatenate" not in key
 

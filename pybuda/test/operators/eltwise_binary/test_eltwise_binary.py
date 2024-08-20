@@ -70,8 +70,9 @@ import pybuda.op
 
 from pybuda import PyBudaModule
 from pybuda.op_repo import TensorShape
-from test.operators.utils import netlist_utils, InputSourceFlags, VerifyUtils
+from test.operators.utils import InputSourceFlags, VerifyUtils
 from test.operators.utils import ShapeUtils
+from test.operators.utils import NetlistValidation
 from test.operators.utils import FailingReasons
 from test.conftest import TestDevice
 
@@ -464,15 +465,15 @@ def test_eltwise_binary_ops_per_test_plan(
 
     # netlist validations:
 
-    file_path = VerifyUtils.get_netlist_filename()
+    netlist = NetlistValidation()
 
     if model_type == ModelFromDramQueue:
-        assert netlist_utils.read_netlist_value(file_path, "/queues/x/loc") == 'dram'
-        assert netlist_utils.read_netlist_value(file_path, "/queues/y/loc") == 'dram'
+        assert netlist.get_value("/queues/x/loc") == 'dram'
+        assert netlist.get_value("/queues/y/loc") == 'dram'
 
     if model_type == ModelConstEvalPass:
         # Here we check there is no key with operator name in the netlist in graphs section
-        d = netlist_utils.read_netlist_value(file_path, "/graphs/fwd_0_0_temporal_epoch_0")
+        d = netlist.get_value("/graphs/fwd_0_0_temporal_epoch_0")
         for key in d.keys():
             assert input_operator not in key
 
@@ -583,8 +584,8 @@ def test_eltwise_binary_ops_per_test_plan_dram_prologued(
     )
 
     # netlist validation:
-    file_path = VerifyUtils.get_netlist_filename()
-    d = netlist_utils.read_netlist_value(file_path, "/programs/0/run_fwd_0/4/execute/queue_settings/input_0_" + input_operator + "0")
+    netlist = NetlistValidation()
+    d = netlist.get_value("/programs/0/run_fwd_0/4/execute/queue_settings/input_0_" + input_operator + "0")
     if should_prolog:
         assert d['prologue']
     else:

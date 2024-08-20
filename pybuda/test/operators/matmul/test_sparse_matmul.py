@@ -46,7 +46,6 @@
 # (+) 6. Math fidelity - LoFi, HiFi2a, Hifi2b, Hifi3, Hifi4
 # (/) 7. Special attributes - if applicable.. like approx_mode for Exp, for example
 
-import os
 import pytest
 
 from pybuda.config import _get_global_compiler_config
@@ -61,15 +60,9 @@ from test.common import run
 
 from pybuda.module import PyBudaModule
 
-from pybuda.module import PyBudaModule
-
-from pybuda import pybuda
-
 from pybuda.verify.backend import verify_module
-from pybuda.verify.config import VerifyConfig, TestKind
-import torch
 
-from test.operators.utils import netlist_utils
+from test.operators.utils import NetlistValidation
 from test.operators.utils import FailingReasons
 
 
@@ -180,8 +173,8 @@ def test_smm_operand_src_from_dram(
         ),
         input_params=[input_params],
     )
-    file_path = pybuda.pybudaglobal.get_devices()[0]._compile_output.netlist_filename
-    assert netlist_utils.read_netlist_value(file_path, "/queues/dense/loc") == 'dram'
+    netlist = NetlistValidation()
+    assert netlist.get_value("/queues/dense/loc") == 'dram'
 
 @pytest.mark.parametrize("input_shape_dense, input_shape_sparse", get_input_shapes())
 def test_smm_operand_src_from_const_inputs_const_eval(
@@ -224,8 +217,8 @@ def test_smm_operand_src_from_const_inputs_const_eval(
         ),
         input_params=[input_params],
     )
-    file_path = pybuda.pybudaglobal.get_devices()[0]._compile_output.netlist_filename
-    d = netlist_utils.read_netlist_value(file_path, "/graphs/fwd_0_0_temporal_epoch_0")
+    netlist = NetlistValidation()
+    d = netlist.get_value("/graphs/fwd_0_0_temporal_epoch_0")
     for key in d.keys():
         assert "Matmul" not in key
 
@@ -463,8 +456,8 @@ def test_smm_operand_src_from_const_inputs_prologue(
         ),
         input_params=[input_params],
     )
-    file_path = pybuda.pybudaglobal.get_devices()[0]._compile_output.netlist_filename
-    d = netlist_utils.read_netlist_value(file_path, "/programs/0/run_fwd_0/4/execute/queue_settings/lc.input_tensor.smm1.0")
+    netlist = NetlistValidation()
+    d = netlist.get_value("/programs/0/run_fwd_0/4/execute/queue_settings/lc.input_tensor.smm1.0")
     if prologue:
         assert d['prologue']
     else:
