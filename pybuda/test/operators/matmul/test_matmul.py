@@ -84,8 +84,13 @@ from test.test_sanity import get_device_intermediates
 
 from pybuda.op.eval.common import compare_tensor_to_golden
 
+from pybuda.op_repo import TensorShape
+
+from test.operators.utils import InputSourceFlags, VerifyUtils
+from test.operators.utils import ShapeUtils
 from test.operators.utils import NetlistValidation
 from test.operators.utils import FailingReasons
+from test.conftest import TestDevice
 
 from .models import generic
 from .models import custom
@@ -99,6 +104,28 @@ MODELS_GENERIC_PATH = MODELS_PATH + "generic/"
 MODELS_CUSTOM_PATH = MODELS_PATH + "custom/"
 MODELS_SPECIAL_CASES_PATH = MODELS_PATH + "special_cases/"
 MODELS_TEST_PLAN_PATH = MODELS_PATH + "test_plan/"
+
+
+def verify(
+    test_device: TestDevice,
+    model: PyBudaModule,
+    input_shapes: List[TensorShape],
+    input_params: List[Dict] = [],
+    input_source_flag: InputSourceFlags = None,
+    dev_data_format: pybuda.DataFormat = None,
+    math_fidelity: pybuda.MathFidelity = None,
+):
+    '''Common verification function for all tests'''
+
+    VerifyUtils.verify(
+        model=model,
+        test_device=test_device,
+        input_shapes=input_shapes,
+        input_params=input_params,
+        input_source_flag=input_source_flag,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
+    )
 
 
 SHAPE_NO = 1
@@ -228,16 +255,12 @@ def test_matmul_according_to_pytorch_docs(
 
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_training = False
-    compiler_cfg.input_queues_on_host = True
 
-    verify_module(
-        model,
+    verify(
+        test_device=test_device,
+        model=model,
         input_shapes=model.shapes,
-        verify_cfg=VerifyConfig(
-            test_kind=TestKind.INFERENCE,
-            devtype=test_device.devtype,
-            arch=test_device.arch,
-        ),
+        input_source_flag=InputSourceFlags.FROM_HOST,
     )
 
 
@@ -281,7 +304,7 @@ def test_matmul_according_to_test_plan(
     model,
     input_shape,
     test_device,
-    input_params=[], 
+    dev_data_format=None, 
     math_fidelity=None
 ):
     if(model == "model_op_src_const_inputs2" and math_fidelity == None):
@@ -340,14 +363,14 @@ def test_matmul_according_to_test_plan(
 
     match model:
         case "model_op_src_from_dram1":
-            input_shape = (1,) + input_shape[1:]
+            input_shape = ShapeUtils.reduce_microbatch_size(input_shape)
             architecture = f'test_plan.{model}.BudaMatmulTest({input_shape})'
         case "model_op_src_const_inputs1": 
-            input_shape = (1,) + input_shape[1:]
-            tr = (1,) + tr[1:]
+            input_shape = ShapeUtils.reduce_microbatch_size(input_shape)
+            tr = ShapeUtils.reduce_microbatch_size(tr)
             architecture = f'test_plan.{model}.BudaMatmulTest({input_shape}, {tr})'
         case "model_op_src_const_inputs2":
-            input_shape = (1,) + input_shape[1:]
+            input_shape = ShapeUtils.reduce_microbatch_size(input_shape)
             architecture = f'test_plan.{model}.BudaMatmulTest({input_shape})'
         case _:
             architecture = f'test_plan.{model}.BudaMatmulTest()'
@@ -359,21 +382,17 @@ def test_matmul_according_to_test_plan(
     compiler_cfg.enable_training = False
     match model:
         case "model_op_src_from_dram2":
-            compiler_cfg.input_queues_on_host = False
+            input_source_flag = InputSourceFlags.FROM_DRAM
         case _:
-            compiler_cfg.input_queues_on_host = True
-    if (math_fidelity is not None):
-        compiler_cfg.default_math_fidelity = math_fidelity
-    
-    verify_module(
-        model_eval,
+            input_source_flag = InputSourceFlags.FROM_HOST
+
+    verify(
+        test_device=test_device,
+        model=model_eval,
         input_shapes=input_shapes,
-        verify_cfg=VerifyConfig(
-            test_kind=TestKind.INFERENCE,
-            devtype=test_device.devtype,
-            arch=test_device.arch,
-        ),
-        input_params=[input_params],
+        input_source_flag=input_source_flag,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
     )
 
     netlist = NetlistValidation()
@@ -391,49 +410,49 @@ def test_matmul_according_to_test_plan(
 def get_input_shapes_prologued():
                                               # Here we cover interesting combinations of input shapes:
     return [
-            ((2, 3, 4),         True, False),  #0        # 3.1 Full tensor (i.e. full expected shape)
-            ((2, 3, 4),         False, True),  #1        # 3.1 Full tensor (i.e. full expected shape)
-            ((2, 3, 4),         None, True),   #2        # 3.1 Full tensor (i.e. full expected shape)
-            ((1, 3, 4),         True, False),  #3        # 3.1 Full tensor (i.e. full expected shape)
-            ((1, 3, 4),         False, True),  #4        # 3.1 Full tensor (i.e. full expected shape)
-            ((1, 3, 4),         None, True),   #5        # 3.1 Full tensor (i.e. full expected shape) ! not working as described in docs
-            ((2, 45, 17),       None, True),   #6        # 3.1 Full tensor (i.e. full expected shape)
-            ((2, 1, 23),        None, True),   #7        # 3.2 Tensor reduce on one or more dims to 1
-            ((2, 64, 1),        None, True),   #8        # 3.2 Tensor reduce on one or more dims to 1
-            ((2, 100, 100),     None, True),   #9        # 4.3 Very large (thousands, 10s of thousands)
-            ((2, 1000, 100),    None, True),   #10       # 4.3 Very large (thousands, 10s of thousands)
-            ((2, 10, 1000),     None, True),   #11       # 4.4 Extreme ratios between height/width
-            ((2, 9920, 1),      None, True),   #12       # 4.4 Extreme ratios between height/width
-            ((2, 10000, 1),     None, False),  #13       # 4.4 Extreme ratios between height/width
-            ((2, 32, 64),       None, True),   #14       # 4.1 Divisible by 32
-            ((2, 160, 96),      None, True),   #15       # 4.1 Divisible by 32
-            ((2, 17, 41),       None, True),   #16       # 4.2 Prime numbers
-            ((2, 89, 3),        None, True),   #17       # 4.2 Prime numbers
+            ((2, 3, 4),         InputSourceFlags.FROM_DRAM_NOT_PROLOGUED,            False),  #0        # 3.1 Full tensor (i.e. full expected shape)
+            ((2, 3, 4),         InputSourceFlags.FROM_DRAM_PROLOGUED,                True),   #1        # 3.1 Full tensor (i.e. full expected shape)
+            ((2, 3, 4),         InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),   #2        # 3.1 Full tensor (i.e. full expected shape)
+            ((1, 3, 4),         InputSourceFlags.FROM_DRAM_NOT_PROLOGUED,            False),  #3        # 3.1 Full tensor (i.e. full expected shape)
+            ((1, 3, 4),         InputSourceFlags.FROM_DRAM_PROLOGUED,                True),   #4        # 3.1 Full tensor (i.e. full expected shape)
+            ((1, 3, 4),         InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),   #5        # 3.1 Full tensor (i.e. full expected shape) ! not working as described in docs
+            ((2, 45, 17),       InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),   #6        # 3.1 Full tensor (i.e. full expected shape)
+            ((2, 1, 23),        InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),   #7        # 3.2 Tensor reduce on one or more dims to 1
+            ((2, 64, 1),        InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),   #8        # 3.2 Tensor reduce on one or more dims to 1
+            ((2, 100, 100),     InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),   #9        # 4.3 Very large (thousands, 10s of thousands)
+            ((2, 1000, 100),    InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),   #10       # 4.3 Very large (thousands, 10s of thousands)
+            ((2, 10, 1000),     InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),   #11       # 4.4 Extreme ratios between height/width
+            ((2, 9920, 1),      InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),   #12       # 4.4 Extreme ratios between height/width
+            ((2, 10000, 1),     InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, False),  #13       # 4.4 Extreme ratios between height/width
+            ((2, 32, 64),       InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),   #14       # 4.1 Divisible by 32
+            ((2, 160, 96),      InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),   #15       # 4.1 Divisible by 32
+            ((2, 17, 41),       InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),   #16       # 4.2 Prime numbers
+            ((2, 89, 3),        InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),   #17       # 4.2 Prime numbers
 
-            ((2, 1, 3, 4),      True, False),  #18       # 3.1 Full tensor (i.e. full expected shape)
-            ((2, 1, 3, 4),      False, True),  #19       # 3.1 Full tensor (i.e. full expected shape)
-            ((2, 1, 3, 4),      None, True) ,  #20       # 3.1 Full tensor (i.e. full expected shape)
-            ((1, 1, 3, 4),      True, False),  #21       # 3.1 Full tensor (i.e. full expected shape)
-            ((1, 1, 3, 4),      False, True),  #22       # 3.1 Full tensor (i.e. full expected shape)
-            ((1, 1, 3, 4),      None, True),   #23       # 3.1 Full tensor (i.e. full expected shape) ! not working as described in docs
-            ((2, 1, 45, 17),    None, True) ,  #24       # 3.1 Full tensor (i.e. full expected shape)
-            ((2, 1, 1, 23),     None, True) ,  #25       # 3.2 Tensor reduce on one or more dims to 1
-            ((2, 1, 64, 1),     None, True) ,  #26       # 3.2 Tensor reduce on one or more dims to 1
-            ((2, 1, 100, 100),  None, True) ,  #27       # 4.3 Very large (thousands, 10s of thousands)
-            ((2, 1, 1000, 100), None, True) ,  #28       # 4.3 Very large (thousands, 10s of thousands)
-            ((2, 1, 10, 1000),  None, True) ,  #29       # 4.4 Extreme ratios between height/width
-            ((2, 1, 9920, 1),   None, True) ,  #30       # 4.4 Extreme ratios between height/width 
-            ((2, 1, 10000, 1),  None, True) ,  #31       # 4.4 Extreme ratios between height/width   
-            ((2, 1, 32, 64),    None, True) ,  #32       # 4.1 Divisible by 32
-            ((2, 1, 160, 96),   None, True) ,  #33       # 4.1 Divisible by 32
-            ((2, 1, 17, 41),    None, True) ,  #34       # 4.2 Prime numbers
-            ((2, 1, 89, 3),     None, True) ,  #35       # 4.2 Prime numbers
+            ((2, 1, 3, 4),      InputSourceFlags.FROM_DRAM_NOT_PROLOGUED,            False),  #18       # 3.1 Full tensor (i.e. full expected shape)
+            ((2, 1, 3, 4),      InputSourceFlags.FROM_DRAM_PROLOGUED,                True),   #19       # 3.1 Full tensor (i.e. full expected shape)
+            ((2, 1, 3, 4),      InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True) ,  #20       # 3.1 Full tensor (i.e. full expected shape)
+            ((1, 1, 3, 4),      InputSourceFlags.FROM_DRAM_NOT_PROLOGUED,            False),  #21       # 3.1 Full tensor (i.e. full expected shape)
+            ((1, 1, 3, 4),      InputSourceFlags.FROM_DRAM_PROLOGUED,                True),   #22       # 3.1 Full tensor (i.e. full expected shape)
+            ((1, 1, 3, 4),      InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True),   #23       # 3.1 Full tensor (i.e. full expected shape) ! not working as described in docs
+            ((2, 1, 45, 17),    InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True) ,  #24       # 3.1 Full tensor (i.e. full expected shape)
+            ((2, 1, 1, 23),     InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True) ,  #25       # 3.2 Tensor reduce on one or more dims to 1
+            ((2, 1, 64, 1),     InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True) ,  #26       # 3.2 Tensor reduce on one or more dims to 1
+            ((2, 1, 100, 100),  InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True) ,  #27       # 4.3 Very large (thousands, 10s of thousands)
+            ((2, 1, 1000, 100), InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True) ,  #28       # 4.3 Very large (thousands, 10s of thousands)
+            ((2, 1, 10, 1000),  InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True) ,  #29       # 4.4 Extreme ratios between height/width
+            ((2, 1, 9920, 1),   InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True) ,  #30       # 4.4 Extreme ratios between height/width 
+            ((2, 1, 10000, 1),  InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True) ,  #31       # 4.4 Extreme ratios between height/width   
+            ((2, 1, 32, 64),    InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True) ,  #32       # 4.1 Divisible by 32
+            ((2, 1, 160, 96),   InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True) ,  #33       # 4.1 Divisible by 32
+            ((2, 1, 17, 41),    InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True) ,  #34       # 4.2 Prime numbers
+            ((2, 1, 89, 3),     InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE, True) ,  #35       # 4.2 Prime numbers
             ]
 
-@pytest.mark.parametrize("input_shape, default_dram_params, prologue", get_input_shapes_prologued())
+@pytest.mark.parametrize("input_shape, input_source_flag, prologue", get_input_shapes_prologued())
 def test_matmul_dram_prologued(
     input_shape,
-    default_dram_params,
+    input_source_flag,
     prologue,
     test_device,
 ):
@@ -455,7 +474,7 @@ def test_matmul_dram_prologued(
         input_shapes.append(tr) 
     input_shapes = tuple(input_shapes)
 
-    input_shape = (1,) + input_shape[1:]
+    input_shape = ShapeUtils.reduce_microbatch_size(input_shape)
 
     architecture = f'test_plan.{model}.BudaMatmulTest({input_shape})'
     model_eval = eval(architecture)
@@ -463,17 +482,12 @@ def test_matmul_dram_prologued(
     # set compiler config file
     compiler_cfg = _get_global_compiler_config()
     compiler_cfg.enable_training = False
-    compiler_cfg.input_queues_on_host = False
-    compiler_cfg.default_dram_parameters = default_dram_params
-    
-    verify_module(
-        model_eval,
+
+    verify(
+        test_device=test_device,
+        model=model_eval,
         input_shapes=input_shapes,
-        verify_cfg=VerifyConfig(
-            test_kind=TestKind.INFERENCE,
-            devtype=test_device.devtype,
-            arch=test_device.arch,
-        ),
+        input_source_flag=input_source_flag,
     )
 
     netlist = NetlistValidation()
@@ -487,9 +501,9 @@ def test_matmul_dram_prologued(
 def get_input_shape(microbatch_size1=1, microbatch_size2=1):
     return (microbatch_size1, microbatch_size2, 11, 37)
 
-verify_input_params=[ 
-                        {"dev_data_format": pybuda.DataFormat.Float16_b},
-                    ]
+dev_data_formats=[ 
+    pybuda.DataFormat.Float16_b,
+]
 
 compiler_math_fidelity = [
                             pybuda.MathFidelity.LoFi,
@@ -499,35 +513,40 @@ compiler_math_fidelity = [
                          ]
 
 @pytest.mark.parametrize("model", [item.split(".")[0] for item in os.listdir(MODELS_TEST_PLAN_PATH) if "model" in item])
+@pytest.mark.parametrize("dev_data_format", dev_data_formats)
 @pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
-def test_matmul_mf_inputs(model, test_device, math_fidelity):
-    test_matmul_according_to_test_plan(model, get_input_shape(), test_device, verify_input_params, math_fidelity);
+def test_matmul_mf_inputs(model, test_device, dev_data_format, math_fidelity):
+    test_matmul_according_to_test_plan(model, get_input_shape(), test_device, dev_data_format, math_fidelity)
 
 
 
-verify_input_params=[
-                        {"dev_data_format": pybuda.DataFormat.Bfp2},
-                        {"dev_data_format": pybuda.DataFormat.Bfp2_b},
-                        {"dev_data_format": pybuda.DataFormat.Bfp4},
-                        {"dev_data_format": pybuda.DataFormat.Bfp4_b},
-                        {"dev_data_format": pybuda.DataFormat.Bfp8},
-                        {"dev_data_format": pybuda.DataFormat.Bfp8_b},
-                        {"dev_data_format": pybuda.DataFormat.Float16},  
-                        {"dev_data_format": pybuda.DataFormat.Float16_b},
-                        {"dev_data_format": pybuda.DataFormat.Float32},
-                        {"dev_data_format": pybuda.DataFormat.Int8},
-                        {"dev_data_format": pybuda.DataFormat.Lf8},
-                        {"dev_data_format": pybuda.DataFormat.RawUInt16},
-                        {"dev_data_format": pybuda.DataFormat.RawUInt32},
-                        {"dev_data_format": pybuda.DataFormat.RawUInt8},
-                        {"dev_data_format": pybuda.DataFormat.UInt16},
-                    ]
-compiler_math_fidelity = pybuda.MathFidelity.HiFi4
+dev_data_formats=[
+    pybuda.DataFormat.Bfp2,
+    pybuda.DataFormat.Bfp2_b,
+    pybuda.DataFormat.Bfp4,
+    pybuda.DataFormat.Bfp4_b,
+    pybuda.DataFormat.Bfp8,
+    pybuda.DataFormat.Bfp8_b,
+    pybuda.DataFormat.Float16,  
+    pybuda.DataFormat.Float16_b,
+    pybuda.DataFormat.Float32,
+    pybuda.DataFormat.Int8,
+    pybuda.DataFormat.Lf8,
+    pybuda.DataFormat.RawUInt16,
+    pybuda.DataFormat.RawUInt32,
+    pybuda.DataFormat.RawUInt8,
+    pybuda.DataFormat.UInt16,
+]
+
+compiler_math_fidelity = [
+    pybuda.MathFidelity.HiFi4,
+]
 
 @pytest.mark.parametrize("model", [item.split(".")[0] for item in os.listdir(MODELS_TEST_PLAN_PATH) if "model" in item])
-@pytest.mark.parametrize("input_params", verify_input_params)
-def test_matmul_df_inputs(model, test_device, input_params):
-    test_matmul_according_to_test_plan(model, get_input_shape(), test_device, input_params, compiler_math_fidelity);
+@pytest.mark.parametrize("dev_data_format", dev_data_formats)
+@pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
+def test_matmul_df_inputs(model, test_device, dev_data_format, math_fidelity):
+    test_matmul_according_to_test_plan(model, get_input_shape(), test_device, dev_data_format, math_fidelity)
 
 
 # from sanity

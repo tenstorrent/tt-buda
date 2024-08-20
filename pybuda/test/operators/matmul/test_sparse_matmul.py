@@ -48,6 +48,8 @@
 
 import pytest
 
+from typing import Dict, List
+
 from pybuda.config import _get_global_compiler_config
 from pybuda import Tensor
 import torch
@@ -60,11 +62,34 @@ from test.common import run
 
 from pybuda.module import PyBudaModule
 
-from pybuda.verify.backend import verify_module
+from pybuda.op_repo import TensorShape
 
+from test.operators.utils import InputSourceFlags, VerifyUtils
 from test.operators.utils import NetlistValidation
 from test.operators.utils import FailingReasons
+from test.conftest import TestDevice
 
+
+def verify(
+    test_device: TestDevice,
+    model: PyBudaModule,
+    input_shapes: List[TensorShape],
+    input_params: List[Dict] = [],
+    input_source_flag: InputSourceFlags = None,
+    dev_data_format: pybuda.DataFormat = None,
+    math_fidelity: pybuda.MathFidelity = None,
+):
+    '''Common verification function for all tests'''
+
+    VerifyUtils.verify(
+        model=model,
+        test_device=test_device,
+        input_shapes=input_shapes,
+        input_params=input_params,
+        input_source_flag=input_source_flag,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
+    )
 
 
 def get_input_shapes(micro_batch_size=1):
@@ -102,12 +127,13 @@ def get_sparse_tensor(shape, const_input = True):
     sparse = pybuda.Tensor.create_from_torch(sparse, constant=const_input)
     return sparse
 
+
 @pytest.mark.parametrize("input_shape_dense, input_shape_sparse", get_input_shapes())
 def test_smm_operand_src_from_host(
     input_shape_dense,
     input_shape_sparse,
     test_device,
-    input_params=[], 
+    dev_data_format=None,
     math_fidelity=None
 ):
     class Model(PyBudaModule):
@@ -123,27 +149,23 @@ def test_smm_operand_src_from_host(
     mod = Model("test_sparse_matmul_operand_src_from_host", input_shape_sparse)
     
     input_shapes = tuple([input_shape_dense])
-    compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.input_queues_on_host = True
-    if (math_fidelity is not None):
-        compiler_cfg.default_math_fidelity = math_fidelity
-    verify_module(
-        mod,
+
+    verify(
+        test_device=test_device,
+        model=mod,
         input_shapes=input_shapes,
-        verify_cfg=VerifyConfig(
-            test_kind=TestKind.INFERENCE,
-            devtype=test_device.devtype,
-            arch=test_device.arch,
-        ),
-        input_params=[input_params],
+        input_source_flag=InputSourceFlags.FROM_HOST,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
     )
+
 
 @pytest.mark.parametrize("input_shape_dense, input_shape_sparse", get_input_shapes())
 def test_smm_operand_src_from_dram(
     input_shape_dense,
     input_shape_sparse,
     test_device,
-    input_params=[], 
+    dev_data_format=None,
     math_fidelity=None
 ):
     class Model(PyBudaModule):
@@ -159,29 +181,26 @@ def test_smm_operand_src_from_dram(
     mod = Model("test_sparse_matmul_operand_src_from_dram", input_shape_sparse)
 
     input_shapes = tuple([input_shape_dense])
-    compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.input_queues_on_host = False
-    if (math_fidelity is not None):
-        compiler_cfg.default_math_fidelity = math_fidelity
-    verify_module(
-        mod,
+
+    verify(
+        test_device=test_device,
+        model=mod,
         input_shapes=input_shapes,
-        verify_cfg=VerifyConfig(
-            test_kind=TestKind.INFERENCE,
-            devtype=test_device.devtype,
-            arch=test_device.arch,
-        ),
-        input_params=[input_params],
+        input_source_flag=InputSourceFlags.FROM_DRAM,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
     )
+
     netlist = NetlistValidation()
     assert netlist.get_value("/queues/dense/loc") == 'dram'
+
 
 @pytest.mark.parametrize("input_shape_dense, input_shape_sparse", get_input_shapes())
 def test_smm_operand_src_from_const_inputs_const_eval(
     input_shape_dense,
     input_shape_sparse,
     test_device,
-    input_params=[], 
+    dev_data_format=None,
     math_fidelity=None
 ):
     class Model(PyBudaModule):
@@ -203,31 +222,28 @@ def test_smm_operand_src_from_const_inputs_const_eval(
 
     input_shape_dense_tr = (input_shape_dense[0],input_shape_dense[1],input_shape_dense[3],input_shape_dense[2])
     input_shapes = tuple([input_shape_dense, input_shape_dense_tr])
-    compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.input_queues_on_host = True
-    if (math_fidelity is not None):
-        compiler_cfg.default_math_fidelity = math_fidelity
-    verify_module(
-        mod,
+
+    verify(
+        test_device=test_device,
+        model=mod,
         input_shapes=input_shapes,
-        verify_cfg=VerifyConfig(
-            test_kind=TestKind.INFERENCE,
-            devtype=test_device.devtype,
-            arch=test_device.arch,
-        ),
-        input_params=[input_params],
+        input_source_flag=InputSourceFlags.FROM_HOST,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
     )
+
     netlist = NetlistValidation()
     d = netlist.get_value("/graphs/fwd_0_0_temporal_epoch_0")
     for key in d.keys():
         assert "Matmul" not in key
+
 
 @pytest.mark.parametrize("input_shape_dense, input_shape_sparse", get_input_shapes())
 def test_smm_operand_src_from_another_op(
     input_shape_dense,
     input_shape_sparse,
     test_device,
-    input_params=[], 
+    dev_data_format=None,
     math_fidelity=None
 ):
     class Model(PyBudaModule):
@@ -244,27 +260,23 @@ def test_smm_operand_src_from_another_op(
     mod = Model("test_sparse_matmul_operand_src_from_another_op", input_shape_sparse)
 
     input_shapes = tuple([input_shape_dense])
-    compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.input_queues_on_host = True
-    if (math_fidelity is not None):
-        compiler_cfg.default_math_fidelity = math_fidelity
-    verify_module(
-        mod,
+
+    verify(
+        test_device=test_device,
+        model=mod,
         input_shapes=input_shapes,
-        verify_cfg=VerifyConfig(
-            test_kind=TestKind.INFERENCE,
-            devtype=test_device.devtype,
-            arch=test_device.arch,
-        ),
-        input_params=[input_params],
+        input_source_flag=InputSourceFlags.FROM_HOST,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
     )
+
 
 @pytest.mark.parametrize("input_shape_dense, input_shape_sparse", get_input_shapes())
 def test_smm_operand_src_from_tm_edge1(
     input_shape_dense,
     input_shape_sparse,
     test_device,
-    input_params=[], 
+    dev_data_format=None,
     math_fidelity=None
 ):
     class Model(PyBudaModule):
@@ -282,27 +294,23 @@ def test_smm_operand_src_from_tm_edge1(
     mod = Model("test_sparse_matmul_operand_src_from_tm_edge1", input_shape_sparse)
 
     input_shapes = tuple([input_shape_dense])
-    compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.input_queues_on_host = True
-    if (math_fidelity is not None):
-        compiler_cfg.default_math_fidelity = math_fidelity
-    verify_module(
-        mod,
+
+    verify(
+        test_device=test_device,
+        model=mod,
         input_shapes=input_shapes,
-        verify_cfg=VerifyConfig(
-            test_kind=TestKind.INFERENCE,
-            devtype=test_device.devtype,
-            arch=test_device.arch,
-        ),
-        input_params=[input_params],
+        input_source_flag=InputSourceFlags.FROM_HOST,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
     )
+
 
 @pytest.mark.parametrize("input_shape_dense, input_shape_sparse", get_input_shapes())
 def test_smm_operand_src_from_tm_edge2(
     input_shape_dense,
     input_shape_sparse,
     test_device,
-    input_params=[], 
+    dev_data_format=None,
     math_fidelity=None
 ):
     class Model(PyBudaModule):
@@ -321,20 +329,16 @@ def test_smm_operand_src_from_tm_edge2(
     mod = Model("test_sparse_matmul_operand_src_from_tm_edge2", input_shape_sparse)
 
     input_shapes = tuple([input_shape_dense])
-    compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.input_queues_on_host = True
-    if (math_fidelity is not None):
-        compiler_cfg.default_math_fidelity = math_fidelity
-    verify_module(
-        mod,
+
+    verify(
+        test_device=test_device,
+        model=mod,
         input_shapes=input_shapes,
-        verify_cfg=VerifyConfig(
-            test_kind=TestKind.INFERENCE,
-            devtype=test_device.devtype,
-            arch=test_device.arch,
-        ),
-        input_params=[input_params],
+        input_source_flag=InputSourceFlags.FROM_HOST,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
     )
+
 
 @pytest.mark.parametrize("input_shape_dense, input_shape_sparse", [
                     pytest.param((1, 64, 3, 4),         (4, 3)),                                                                #1    # 3.1 Full tensor (i.e. full expected shape)),
@@ -361,7 +365,7 @@ def test_smm_operand_src_from_tm_edge3(
     input_shape_dense,
     input_shape_sparse,
     test_device,
-    input_params=[], 
+    dev_data_format=None,
     math_fidelity=None
 ):
     class Model(PyBudaModule):
@@ -379,53 +383,48 @@ def test_smm_operand_src_from_tm_edge3(
     mod = Model("test_sparse_matmul_operand_src_from_tm_edge3", input_shape_sparse)
 
     input_shapes = tuple([input_shape_dense])
-    compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.input_queues_on_host = True
-    if (math_fidelity is not None):
-        compiler_cfg.default_math_fidelity = math_fidelity
-    verify_module(
-        mod,
+
+    verify(
+        test_device=test_device,
+        model=mod,
         input_shapes=input_shapes,
-        verify_cfg=VerifyConfig(
-            test_kind=TestKind.INFERENCE,
-            devtype=test_device.devtype,
-            arch=test_device.arch,
-        ),
-        input_params=[input_params],
+        input_source_flag=InputSourceFlags.FROM_HOST,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
     )
 
 
 def get_input_shapes_prologued():
                                               # Here we cover interesting combinations of input shapes:
     return [
-            ((2, 64, 3, 4),      (4, 3),        True,   False),  #18       # 3.1 Full tensor (i.e. full expected shape)
-            ((2, 64, 3, 4),      (4, 3),        False,  True),  #19       # 3.1 Full tensor (i.e. full expected shape)
-            ((2, 64, 3, 4),      (4, 3),        None,   True) ,  #20       # 3.1 Full tensor (i.e. full expected shape)
-            ((1, 64, 3, 4),      (4, 3),        True,   False),  #21       # 3.1 Full tensor (i.e. full expected shape)
-            ((1, 64, 3, 4),      (4, 3),        False,  True),  #22       # 3.1 Full tensor (i.e. full expected shape)
-            ((1, 64, 3, 4),      (4, 3),        None,   True),   #23       # 3.1 Full tensor (i.e. full expected shape) ! not working as described in docs
-            ((2, 64, 45, 17),    (17, 45),      None,   True) ,  #24       # 3.1 Full tensor (i.e. full expected shape)
-            ((2, 64, 1, 23),     (23, 1),       None,   True) ,  #25       # 3.2 Tensor reduce on one or more dims to 1
-            ((2, 64, 64, 1),     (1, 64),       None,   True) ,  #26       # 3.2 Tensor reduce on one or more dims to 1
-            ((2, 64, 100, 100),  (100, 100),    None,   True) ,  #27       # 4.3 Very large (thousands, 10s of thousands)
+            ((2, 64, 3, 4),      (4, 3),        InputSourceFlags.FROM_DRAM_NOT_PROLOGUED,              False),  #18       # 3.1 Full tensor (i.e. full expected shape)
+            ((2, 64, 3, 4),      (4, 3),        InputSourceFlags.FROM_DRAM_PROLOGUED,                  True),   #19       # 3.1 Full tensor (i.e. full expected shape)
+            ((2, 64, 3, 4),      (4, 3),        InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True) ,  #20       # 3.1 Full tensor (i.e. full expected shape)
+            ((1, 64, 3, 4),      (4, 3),        InputSourceFlags.FROM_DRAM_NOT_PROLOGUED,              False),  #21       # 3.1 Full tensor (i.e. full expected shape)
+            ((1, 64, 3, 4),      (4, 3),        InputSourceFlags.FROM_DRAM_PROLOGUED,                  True),   #22       # 3.1 Full tensor (i.e. full expected shape)
+            ((1, 64, 3, 4),      (4, 3),        InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True),   #23       # 3.1 Full tensor (i.e. full expected shape) ! not working as described in docs
+            ((2, 64, 45, 17),    (17, 45),      InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True) ,  #24       # 3.1 Full tensor (i.e. full expected shape)
+            ((2, 64, 1, 23),     (23, 1),       InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True) ,  #25       # 3.2 Tensor reduce on one or more dims to 1
+            ((2, 64, 64, 1),     (1, 64),       InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True) ,  #26       # 3.2 Tensor reduce on one or more dims to 1
+            ((2, 64, 100, 100),  (100, 100),    InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True) ,  #27       # 4.3 Very large (thousands, 10s of thousands)
             # "Fatal python error - xfail does not work. Error message: Fatal Python error: Segmentation fault; UserWarning: resource_tracker: There appear to be 26 leaked semaphore objects to clean up at shutdown"
-            pytest.param((2, 64, 1000, 100), (100, 1000),   None,   True, marks=pytest.mark.skip(reason=FailingReasons.SEMAPHORE_LEAK)),  # 4.3 Very large (thousands, 10s of thousands)         
-            ((2, 64, 10, 1000),  (1000, 10),    None,   True) ,  #29       # 4.4 Extreme ratios between height/width        
-            ((2, 64, 9920, 1),   (1, 9920),     None,   True) ,  #30       # 4.4 Extreme ratios between height/width 
-            ((2, 64, 10000, 1),  (1, 10000),    None,   True) ,  #31       # 4.4 Extreme ratios between height/width   
-            ((2, 64, 32, 64),    (64, 32),      None,   True) ,  #32       # 4.1 Divisible by 32
-            ((2, 64, 160, 96),   (96, 160),     None,   True) ,  #33       # 4.1 Divisible by 32
-            ((2, 64, 17, 41),    (41, 17),      None,   True) ,  #34       # 4.2 Prime numbers
-            ((2, 64, 89, 3),     (3, 89),       None,   True) ,  #35       # 4.2 Prime numbers
+            pytest.param((2, 64, 1000, 100), (100, 1000),   InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True, marks=pytest.mark.skip(reason=FailingReasons.SEMAPHORE_LEAK)),  # 4.3 Very large (thousands, 10s of thousands)         
+            ((2, 64, 10, 1000),  (1000, 10),    InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True) ,  #29       # 4.4 Extreme ratios between height/width        
+            ((2, 64, 9920, 1),   (1, 9920),     InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True) ,  #30       # 4.4 Extreme ratios between height/width 
+            ((2, 64, 10000, 1),  (1, 10000),    InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True) ,  #31       # 4.4 Extreme ratios between height/width   
+            ((2, 64, 32, 64),    (64, 32),      InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True) ,  #32       # 4.1 Divisible by 32
+            ((2, 64, 160, 96),   (96, 160),     InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True) ,  #33       # 4.1 Divisible by 32
+            ((2, 64, 17, 41),    (41, 17),      InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True) ,  #34       # 4.2 Prime numbers
+            ((2, 64, 89, 3),     (3, 89),       InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True) ,  #35       # 4.2 Prime numbers
             ]
-@pytest.mark.parametrize("input_shape_dense, input_shape_sparse, default_dram_params, prologue", get_input_shapes_prologued())
+@pytest.mark.parametrize("input_shape_dense, input_shape_sparse, input_source_flag, prologue", get_input_shapes_prologued())
 def test_smm_operand_src_from_const_inputs_prologue(
     input_shape_dense,
     input_shape_sparse,
-    default_dram_params,
+    input_source_flag,
     prologue,
     test_device,
-    input_params=[], 
+    dev_data_format=None,
     math_fidelity=None
 ):
     class Model(PyBudaModule):
@@ -441,21 +440,16 @@ def test_smm_operand_src_from_const_inputs_prologue(
     mod = Model("test_sparse_matmul_operand_src_from_const_inputs_prologue", input_shape_sparse)
 
     input_shapes = tuple([input_shape_dense])
-    compiler_cfg = _get_global_compiler_config()
-    compiler_cfg.input_queues_on_host = False
-    compiler_cfg.default_dram_parameters = default_dram_params
-    if (math_fidelity is not None):
-        compiler_cfg.default_math_fidelity = math_fidelity
-    verify_module(
-        mod,
+
+    verify(
+        test_device=test_device,
+        model=mod,
         input_shapes=input_shapes,
-        verify_cfg=VerifyConfig(
-            test_kind=TestKind.INFERENCE,
-            devtype=test_device.devtype,
-            arch=test_device.arch,
-        ),
-        input_params=[input_params],
+        input_source_flag=input_source_flag,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
     )
+
     netlist = NetlistValidation()
     d = netlist.get_value("/programs/0/run_fwd_0/4/execute/queue_settings/lc.input_tensor.smm1.0")
     if prologue:
@@ -477,9 +471,10 @@ def get_input_shape_sparse(micro_batch_size=1):
 def get_input_shape_dense(micro_batch_size=1):
     return (micro_batch_size, 64, 3, 4)
 
-verify_input_params=[ 
-                        {"dev_data_format": pybuda.DataFormat.Float16_b},
-                    ]
+dev_data_formats=[ 
+    pybuda.DataFormat.Float16_b,
+]
+
 compiler_math_fidelity = [
                             pybuda.MathFidelity.LoFi,
                             pybuda.MathFidelity.HiFi2,
@@ -487,76 +482,90 @@ compiler_math_fidelity = [
                             pybuda.MathFidelity.HiFi4,
                          ]
 
+@pytest.mark.parametrize("dev_data_format", dev_data_formats)
 @pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
-def test_smm_mf_inputs_from_host(test_device, math_fidelity):
-    test_smm_operand_src_from_host(get_input_shape_dense(), get_input_shape_sparse(), test_device, verify_input_params, math_fidelity)
+def test_smm_mf_inputs_from_host(test_device, dev_data_format, math_fidelity):
+    test_smm_operand_src_from_host(get_input_shape_dense(), get_input_shape_sparse(), test_device, dev_data_format, math_fidelity)
 
+# @pytest.mark.parametrize("dev_data_format", dev_data_formats)
 # @pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
-# def test_smm_mf_inputs_from_dram(test_device, math_fidelity):
-#     test_smm_operand_src_from_dram(get_input_shape_dense(), get_input_shape_sparse(), test_device, verify_input_params, math_fidelity)
+# def test_smm_mf_inputs_from_dram(test_device, dev_data_format, math_fidelity):
+#     test_smm_operand_src_from_dram(get_input_shape_dense(), get_input_shape_sparse(), test_device, dev_data_format, math_fidelity)
 
+# @pytest.mark.parametrize("dev_data_format", dev_data_formats)
 # @pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
-# def test_smm_mf_inputs_from_const_inputs_const_eval(test_device, math_fidelity):
-#     test_smm_operand_src_from_const_inputs_const_eval(get_input_shape_dense(), get_input_shape_sparse(), test_device, verify_input_params, math_fidelity)
+# def test_smm_mf_inputs_from_const_inputs_const_eval(test_device, dev_data_format, math_fidelity):
+#     test_smm_operand_src_from_const_inputs_const_eval(get_input_shape_dense(), get_input_shape_sparse(), test_device, dev_data_format, math_fidelity)
 
+# @pytest.mark.parametrize("dev_data_format", dev_data_formats)
 # @pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
-# def test_smm_mf_inputs_from_another_op(test_device, math_fidelity):
-#     test_smm_operand_src_from_another_op(get_input_shape_dense(), get_input_shape_sparse(), test_device, verify_input_params, math_fidelity)
+# def test_smm_mf_inputs_from_another_op(test_device, dev_data_format, math_fidelity):
+#     test_smm_operand_src_from_another_op(get_input_shape_dense(), get_input_shape_sparse(), test_device, dev_data_format, math_fidelity)
 
+# @pytest.mark.parametrize("dev_data_format", dev_data_formats)
 # @pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
-# def test_smm_mf_inputs_from_tm_edge1(test_device, math_fidelity):
-#     test_smm_operand_src_from_tm_edge1(get_input_shape_dense(), get_input_shape_sparse(), test_device, verify_input_params, math_fidelity)
+# def test_smm_mf_inputs_from_tm_edge1(test_device, dev_data_format, math_fidelity):
+#     test_smm_operand_src_from_tm_edge1(get_input_shape_dense(), get_input_shape_sparse(), test_device, dev_data_format, math_fidelity)
 
+# @pytest.mark.parametrize("dev_data_format", dev_data_formats)
 # @pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
-# def test_smm_mf_inputs_from_tm_edge2(test_device, math_fidelity):
-#     test_smm_operand_src_from_tm_edge2(get_input_shape_dense(), get_input_shape_sparse(), test_device, verify_input_params, math_fidelity)
+# def test_smm_mf_inputs_from_tm_edge2(test_device, dev_data_format, math_fidelity):
+#     test_smm_operand_src_from_tm_edge2(get_input_shape_dense(), get_input_shape_sparse(), test_device, dev_data_format, math_fidelity)
 
 
 ## 2.
 
-verify_input_params=[
-                        {"dev_data_format": pybuda.DataFormat.Bfp2},
-                        {"dev_data_format": pybuda.DataFormat.Bfp2_b},
-                        {"dev_data_format": pybuda.DataFormat.Bfp4},
-                        {"dev_data_format": pybuda.DataFormat.Bfp4_b},
-                        {"dev_data_format": pybuda.DataFormat.Bfp8},
-                        {"dev_data_format": pybuda.DataFormat.Bfp8_b},
-                        {"dev_data_format": pybuda.DataFormat.Float16},  
-                        {"dev_data_format": pybuda.DataFormat.Float16_b},
-                        {"dev_data_format": pybuda.DataFormat.Float32},
-                        {"dev_data_format": pybuda.DataFormat.Int8},
-                        {"dev_data_format": pybuda.DataFormat.Lf8},
-                        {"dev_data_format": pybuda.DataFormat.RawUInt16},
-                        {"dev_data_format": pybuda.DataFormat.RawUInt32},
-                        {"dev_data_format": pybuda.DataFormat.RawUInt8},
-                        {"dev_data_format": pybuda.DataFormat.UInt16},
-                    ]
+dev_data_formats = [
+    pybuda.DataFormat.Bfp2,
+    pybuda.DataFormat.Bfp2_b,
+    pybuda.DataFormat.Bfp4,
+    pybuda.DataFormat.Bfp4_b,
+    pybuda.DataFormat.Bfp8,
+    pybuda.DataFormat.Bfp8_b,
+    pybuda.DataFormat.Float16,  
+    pybuda.DataFormat.Float16_b,
+    pybuda.DataFormat.Float32,
+    pybuda.DataFormat.Int8,
+    pybuda.DataFormat.Lf8,
+    pybuda.DataFormat.RawUInt16,
+    pybuda.DataFormat.RawUInt32,
+    pybuda.DataFormat.RawUInt8,
+    pybuda.DataFormat.UInt16,
+]
 
-compiler_math_fidelity = pybuda.MathFidelity.HiFi4
+compiler_math_fidelity = [
+    pybuda.MathFidelity.HiFi4,
+]
 
-@pytest.mark.parametrize("input_params", verify_input_params)
-def test_smm_df_inputs_from_host(test_device, input_params):
-    test_smm_operand_src_from_host(get_input_shape_dense(), get_input_shape_sparse(), test_device, input_params, compiler_math_fidelity)
+@pytest.mark.parametrize("dev_data_format", dev_data_formats)
+@pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
+def test_smm_df_inputs_from_host(test_device, dev_data_format, math_fidelity):
+    test_smm_operand_src_from_host(get_input_shape_dense(), get_input_shape_sparse(), test_device, dev_data_format, math_fidelity)
 
-# @pytest.mark.parametrize("input_params", verify_input_params)
-# def test_smm_df_inputs_from_dram(test_device, input_params):
-#     test_smm_operand_src_from_dram(get_input_shape_dense(), get_input_shape_sparse(), test_device, input_params, compiler_math_fidelity)
+# @pytest.mark.parametrize("dev_data_format", dev_data_formats)
+# @pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
+# def test_smm_df_inputs_from_dram(test_device, dev_data_format, math_fidelity):
+#     test_smm_operand_src_from_dram(get_input_shape_dense(), get_input_shape_sparse(), test_device, dev_data_format, math_fidelity)
 
-# @pytest.mark.parametrize("input_params", verify_input_params)
-# def test_smm_df_inputs_from_const_inputs_const_eval(test_device, input_params):
-#     test_smm_operand_src_from_const_inputs_const_eval(get_input_shape_dense(), get_input_shape_sparse(), test_device, input_params, compiler_math_fidelity)
+# @pytest.mark.parametrize("dev_data_format", dev_data_formats)
+# @pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
+# def test_smm_df_inputs_from_const_inputs_const_eval(test_device, dev_data_format, math_fidelity):
+#     test_smm_operand_src_from_const_inputs_const_eval(get_input_shape_dense(), get_input_shape_sparse(), test_device, dev_data_format, math_fidelity)
 
-# @pytest.mark.parametrize("input_params", verify_input_params)
-# def test_smm_df_inputs_from_another_op(test_device, input_params):
-#     test_smm_operand_src_from_another_op(get_input_shape_dense(), get_input_shape_sparse(), test_device, input_params, compiler_math_fidelity)
+# @pytest.mark.parametrize("dev_data_format", dev_data_formats)
+# @pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
+# def test_smm_df_inputs_from_another_op(test_device, dev_data_format, math_fidelity):
+#     test_smm_operand_src_from_another_op(get_input_shape_dense(), get_input_shape_sparse(), test_device, dev_data_format, math_fidelity)
 
-# @pytest.mark.parametrize("input_params", verify_input_params)
-# def test_smm_df_inputs_from_tm_edge1(test_device, input_params):
-#     test_smm_operand_src_from_tm_edge1(get_input_shape_dense(), get_input_shape_sparse(), test_device, input_params, compiler_math_fidelity)
+# @pytest.mark.parametrize("dev_data_format", dev_data_formats)
+# @pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
+# def test_smm_df_inputs_from_tm_edge1(test_device, dev_data_format, math_fidelity):
+#     test_smm_operand_src_from_tm_edge1(get_input_shape_dense(), get_input_shape_sparse(), test_device, dev_data_format, math_fidelity)
 
-# @pytest.mark.parametrize("input_params", verify_input_params)
-# def test_smm_df_inputs_from_tm_edge2(test_device, input_params):
-#     test_smm_operand_src_from_tm_edge2(get_input_shape_dense(), get_input_shape_sparse(), test_device, input_params, compiler_math_fidelity)
+# @pytest.mark.parametrize("dev_data_format", dev_data_formats)
+# @pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
+# def test_smm_df_inputs_from_tm_edge2(test_device, dev_data_format, math_fidelity):
+#     test_smm_operand_src_from_tm_edge2(get_input_shape_dense(), get_input_shape_sparse(), test_device, dev_data_format, math_fidelity)
 
 
 
