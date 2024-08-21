@@ -12,7 +12,7 @@
 
 <h3>
 
-[TT-Buda Docs](https://docs.tenstorrent.com/tenstorrent/v/tt-buda) | [Model Demos](https://github.com/tenstorrent/tt-buda-demos/tree/main/model_demos#models-support-table) 
+[TT-Buda Docs](https://docs.tenstorrent.com/pybuda/latest/index.html) | [Model Demos](https://github.com/tenstorrent/tt-buda-demos/tree/main/model_demos#models-support-table) 
 
 </h3>
 
@@ -36,7 +36,7 @@ https://github.com/tenstorrent/tt-buda-demos
 
 ## Docs
 
-See: [Docs](https://docs.tenstorrent.com/tenstorrent/v/tt-buda)
+See: [Docs](https://docs.tenstorrent.com/pybuda/latest/index.html)
 
 ## Build
 
