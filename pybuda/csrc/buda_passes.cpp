@@ -115,7 +115,6 @@ run_post_initial_graph_passes(graphlib::Graph *graph, py::object compiler_cfg_ob
     passes::fork_quantization_scales(graph);
     passes::remove_quant_dequant(graph);
     reportify::dump_graph(graph->name(), "post_quantize_commute", graph);
-    passes::decompose_nd_reshape_split(graph);
     passes::limit_to_4d_reshape(graph);
     passes::erase_unnecessary_4d_tm_sequence(graph);
     passes::fuse_pad_conv2d(graph);
