@@ -28,6 +28,8 @@ def openpose_osmr_body(training: bool, config: str, microbatch: int, devtype: st
 
     os.environ["PYBUDA_SUPRESS_T_FACTOR_MM"] = "13"
     os.environ["PYBUDA_ENABLE_HOST_INPUT_NOP_BUFFERING"] = "1"
+    if config == "2d" and arch == "wormhole_b0" and data_type == "Fp16" and math_fidelity == "HiFi3":
+        os.environ["PYBUDA_DISABLE_ELU_HANDLE_INF"] = "1"
 
     # Set model parameters based on chosen task and model configuration
     model_name = ""
