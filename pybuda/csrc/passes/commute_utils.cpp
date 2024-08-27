@@ -691,6 +691,9 @@ bool commute_through_reduce(
         
         if (not can_commute)
         {
+            if (env_as<bool>("PYBUDA_DISABLE_SINGLE_REDUCE_COMMUTE", "0")) {
+                return false;
+            }
             // auto can_comm_new_dim = can_commute_through_dim(initial_op, graph, reduce_dim, commute_up);
             auto can_comm_new_dim = can_commute_through_dim(initial_op, graph, reduce_dim, commute_up);
             can_commute = std::get<0>(can_comm_new_dim);

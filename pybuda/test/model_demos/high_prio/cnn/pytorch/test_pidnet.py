@@ -27,6 +27,7 @@ def test_pidnet_pytorch(variant, test_device):
     compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
 
     os.environ["PYBUDA_RIBBON2"] = "1"
+    os.environ["PYBUDA_DISABLE_SINGLE_REDUCE_COMMUTE"] = "1"
 
     # Load and pre-process image
     image_path = "third_party/confidential_customer_models/internal/pidnet/files/samples/road_scenes.png"
