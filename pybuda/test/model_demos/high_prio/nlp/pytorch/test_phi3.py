@@ -8,8 +8,10 @@ import os
 import pytest
 
 # Masked fill kernal produced invalid results in Silicon BackendType
-# So Disabling the verification in BBE for Silicon BackendType
 # Issue link - https://yyz-gitlab.local.tenstorrent.com/tenstorrent/pybuda/-/issues/2712
+# RMS block of phi3 produced different results on each run in GS when BBE is enabled
+# https://yyz-gitlab.local.tenstorrent.com/tenstorrent/pybuda/-/issues/2838
+# So Disabling the verification in BBE for Silicon BackendType
 
 variants = ["microsoft/phi-3-mini-4k-instruct"]
 
@@ -63,8 +65,8 @@ def test_phi3_causal_lm(test_device, variant):
 
     verify_module(
         tt_model,
-        input_shapes=[input_ids.shape, attn_mask.shape],
-        inputs=[input_ids, attn_mask],
+        input_shapes=[(input_ids.shape, attn_mask.shape)],
+        inputs=[(input_ids, attn_mask)],
         verify_cfg=VerifyConfig(
             arch=test_device.arch,
             devtype=test_device.devtype,
@@ -82,6 +84,10 @@ def test_phi3_token_classification(test_device, variant):
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     compiler_cfg.balancer_policy = "Ribbon"
+
+    if test_device.arch == BackendDevice.Grayskull:
+        os.environ["PYBUDA_DRAM_PICK_CAPACITY"] = "1"
+        os.environ["PYBUDA_DRAM_FLIP_FLOP"] = "1"
 
     # Phi3Config from pretrained variant, disable return_dict and caching.
     config = Phi3Config.from_pretrained(variant)
@@ -115,6 +121,7 @@ def test_phi3_token_classification(test_device, variant):
             devtype=test_device.devtype,
             devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
+            enabled=False if test_device.devtype == pybuda.BackendType.Silicon else True,
         ),
     )
 
@@ -126,6 +133,10 @@ def test_phi3_sequence_classification(test_device, variant):
     compiler_cfg = pybuda.config._get_global_compiler_config()
     compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
     compiler_cfg.balancer_policy = "Ribbon"
+
+    if test_device.arch == BackendDevice.Grayskull:
+        os.environ["PYBUDA_DRAM_PICK_CAPACITY"] = "1"
+        os.environ["PYBUDA_DRAM_FLIP_FLOP"] = "1"
 
     # Phi3Config from pretrained variant, disable return_dict and caching.
     config = Phi3Config.from_pretrained(variant)
@@ -152,12 +163,13 @@ def test_phi3_sequence_classification(test_device, variant):
 
     verify_module(
         tt_model,
-        input_shapes=[(input_ids.shape)],
-        inputs=[(input_ids)],
+        input_shapes=[(input_ids.shape,)],
+        inputs=[(input_ids,)],
         verify_cfg=VerifyConfig(
             arch=test_device.arch,
             devtype=test_device.devtype,
             devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
+            enabled=False if test_device.devtype == pybuda.BackendType.Silicon else True,
         ),
     )

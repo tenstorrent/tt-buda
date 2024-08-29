@@ -18,6 +18,10 @@ sys.path = list(
 
 from scripts.model import get_bts_model
 
+# Clip produces invalid results in Silicon BackendType
+# which leads to pcc drop in normalize op in BTS model
+# So Disabling the verification in BBE for Silicon BackendType
+# Issue link - https://yyz-gitlab.local.tenstorrent.com/tenstorrent/pybuda/-/issues/2823
 
 variants = ["densenet161_bts", "densenet121_bts"]
 
