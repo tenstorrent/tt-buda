@@ -112,6 +112,11 @@ def test_phi3_token_classification(test_device, variant):
 
     tt_model = pybuda.PyTorchModule("pt_" + str(variant.split("/")[-1].replace("-", "_")), model)
 
+    enabled = True
+    if test_device.devtype == pybuda.BackendType.Silicon:
+        if test_device.arch == BackendDevice.Grayskull:
+            enabled = False
+
     verify_module(
         tt_model,
         input_shapes=[(input_ids.shape,)],
@@ -121,7 +126,7 @@ def test_phi3_token_classification(test_device, variant):
             devtype=test_device.devtype,
             devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
-            enabled=False if test_device.devtype == pybuda.BackendType.Silicon else True,
+            enabled=enabled
         ),
     )
 
@@ -161,6 +166,11 @@ def test_phi3_sequence_classification(test_device, variant):
 
     tt_model = pybuda.PyTorchModule("pt_" + str(variant.split("/")[-1].replace("-", "_")), model)
 
+    enabled = True
+    if test_device.devtype == pybuda.BackendType.Silicon:
+        if test_device.arch == BackendDevice.Grayskull:
+            enabled = False
+
     verify_module(
         tt_model,
         input_shapes=[(input_ids.shape,)],
@@ -170,6 +180,6 @@ def test_phi3_sequence_classification(test_device, variant):
             devtype=test_device.devtype,
             devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
-            enabled=False if test_device.devtype == pybuda.BackendType.Silicon else True,
+            enabled=enabled,
         ),
     )
