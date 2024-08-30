@@ -46,3 +46,4 @@ tflite==2.10.0
 ultralytics==8.0.145
 keras==2.13.1
 pytorch_forecasting==1.0.0
+patool
