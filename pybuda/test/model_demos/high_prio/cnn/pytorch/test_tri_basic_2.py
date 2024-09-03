@@ -9,9 +9,8 @@ from types import SimpleNamespace
 import cv2
 import os
 import sys
-sys.path = list(set(sys.path + ["third_party/confidential_customer_models/internal/tri_basic_2/"]))
-
-from scripts.semseg import resnet34_semseg
+sys.path.append("third_party/confidential_customer_models/internal/tri_basic_2/scripts")
+from semseg_tri import resnet34_semseg
 
 from pybuda.verify.backend import verify_module
 from pybuda import VerifyConfig
