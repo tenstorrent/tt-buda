@@ -15,13 +15,13 @@ namespace placer
 {
 struct Block
 {
-    std::uint32_t addr, size;
+    std::size_t addr, size;
 };
 struct Blocks
 {
-    std::map<std::uint32_t, Block> free_blocks_start;  // keyed on start addr
-    std::unordered_map<std::uint32_t, Block> free_blocks_end;    // keyed on start+size
-    std::unordered_map<std::uint32_t, Block> allocated_blocks;   // keyed on start
+    std::map<std::size_t, Block> free_blocks_start;  // keyed on start addr
+    std::unordered_map<std::size_t, Block> free_blocks_end;    // keyed on start+size
+    std::unordered_map<std::size_t, Block> allocated_blocks;   // keyed on start
 };
 // Allocate buffers within one channel
 class ChannelAllocator
@@ -29,9 +29,9 @@ class ChannelAllocator
    public:
     ChannelAllocator() {}
     virtual ~ChannelAllocator() = default;
-    virtual bool allocate(std::uint32_t size, std::uint32_t &addr) = 0;  // return true if allocated, and update addr
-    virtual void deallocate(std::uint32_t addr) = 0;
-    virtual std::uint32_t get_capacity() = 0;
+    virtual bool allocate(std::size_t size, std::size_t &addr) = 0;  // return true if allocated, and update addr
+    virtual void deallocate(std::size_t addr) = 0;
+    virtual std::size_t get_capacity() = 0;
     virtual Blocks get_blocks() = 0;
     virtual void clear_allocated_blocks() = 0;
 };
@@ -75,8 +75,8 @@ class DramAllocator
 
     QueueBufferPlacement create_buffer_placement(
         std::uint32_t virtual_channel,
-        std::uint32_t address,
-        std::uint32_t block_size,
+        std::size_t address,
+        std::size_t buffer_size,
         bool allocated_in_p2p_region);
     std::pair<bool, std::vector<QueueBufferPlacement>> allocate_buffers(const QueueDRAMPlacementParameters &parameters);
     void deallocate_buffers(const QueuePlacement& queue_placement, const QueueDRAMPlacementParameters& placement_parameters);
@@ -92,7 +92,7 @@ class DramAllocator
     bool allocate_queues(std::vector<DRAMScheduleData> &scheduled_queue_placements, bool disable_dynamic_dram, int microbatch_size);
     void reset_dram_allocator();
     std::vector<Blocks> get_blocks();
-    std::pair<uint32_t, uint32_t> get_dram_free_space();
+    std::pair<std::size_t, std::size_t> get_dram_free_space();
     std::uint32_t get_num_of_channels() { return channel_allocators.size(); };
 };
 

@@ -16,6 +16,8 @@ from pybuda.utils import as_json
 
 
 class TestKind(Enum):
+    __test__ = False  # Avoid collecting TestKind as a pytest test
+
     INFERENCE = 1
     TRAINING = 2
     TRAINING_RECOMPUTE = 3

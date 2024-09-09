@@ -52,6 +52,12 @@ class TransposeTM(PyTM):
         if self.dim1 >= 0:
             self.dim1 -= tensors[0].shape.len()
 
+        # Buda requires least dim as dim0?
+        if self.dim0 > self.dim1:
+            tmp = self.dim0
+            self.dim0 = self.dim1
+            self.dim1 = tmp
+
         if self.dim0 == -2 and self.dim1 == -1:
             lc.tm(
                 BudaTransposeTM.create(self.dim0, self.dim1, z_dim_slice=self.z_dim_slice),
@@ -81,8 +87,9 @@ class TransposeTM(PyTM):
         orig_shape = inputs[0].shape
         if (
             len(orig_shape) > 2
-            and self.dim0 == -3
-            and self.dim1 == -1
+            and (self.dim0 == -3
+            and self.dim1 == -1 or self.dim0 == -1
+            and self.dim1 == -3)
             and ((len(orig_shape) == 4 and orig_shape[-4] == 1) or len(orig_shape) < 4)
         ):
             # XZ transpose

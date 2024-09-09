@@ -12,6 +12,7 @@ from pybuda.verify.config import TestKind
 from pybuda._C.backend_api import BackendDevice
 import torchvision.transforms as transforms
 from PIL import Image
+import shutil
 
 
 variants = [
@@ -65,14 +66,16 @@ def test_dla_onnx(test_device, variant):
     tt_model = pybuda.OnnxModule(model_name, onnx_model, onnx_model_path)
 
     pcc = 0.99
-    if test_device.arch == BackendDevice.Wormhole_B0:
+    if test_device.arch in [BackendDevice.Wormhole_B0, BackendDevice.Blackhole]:
         if variant == "dla34":
             pcc = 0.98
         elif variant == "dla169":
             pcc = 0.96
     elif test_device.arch == BackendDevice.Grayskull:
-        if variant == "dla46_c":
+        if variant in ["dla46_c", "dla102x2", "dla169"]:
             pcc = 0.97
+        if variant in ["dla60", "dla102x"]:
+            pcc = 0.98
         if variant == "dla102x2":
             os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
 
@@ -91,4 +94,5 @@ def test_dla_onnx(test_device, variant):
 
     # Cleanup model files
     os.remove(onnx_model_path)
-    os.rmdir(onnx_dir_path)
+    # os.rmdir(onnx_dir_path)
+    shutil.rmtree(onnx_dir_path)

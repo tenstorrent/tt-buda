@@ -5,7 +5,8 @@
 
 
 import random
-from typing import Callable, List, Dict
+import signal
+from typing import Callable, Generator, List, Dict
 from dataclasses import asdict
 from loguru import logger
 import re
@@ -18,6 +19,7 @@ from pybuda.op_repo import OperatorParam, OperatorDefinition, OperatorParamNumbe
 
 from .datatypes import TensorShape
 from .datatypes import RandomizerConfig, RandomizerTestContext, RandomizerNode, RandomizerGraph
+from .datatypes import NodeShapeCalculationContext
 
 
 class StrUtils:
@@ -101,16 +103,31 @@ class RandomUtils:
         return {param.name: cls.random_value_for_param(param, rng_params) if param.name not in forward_kwargs else forward_kwargs[param.name] for param in operator.forward_params}
 
     @classmethod
+    def quantize(cls, value: int, quantization: int = 2) -> int:
+        '''Quantize the value to the nearest multiple of quantization
+
+        Args:
+            value (int): value to quantize
+            quantization (int, optional): quantization factor. Defaults to 2.
+
+        Returns:
+            int: quantized value
+        '''
+        # Using max to avoid quantizing to 0
+        return max(round(value / quantization) * quantization, quantization)
+
+    @classmethod
     def random_shape(cls,
                      rng_shape: random.Random,
                      dim_min: int,
                      dim_max: int,
                      op_size_min: int,
                      op_size_max: int,
+                     quantization: int,
                      microbatch_size_min: int,
                      microbatch_size_max: int,
         ) -> TensorShape:
-        shape = [rng_shape.randint(op_size_min, op_size_max) for _ in range(rng_shape.randint(dim_min - 1, dim_max - 1))]
+        shape = [cls.quantize(rng_shape.randint(op_size_min, op_size_max), quantization) for _ in range(rng_shape.randint(dim_min - 1, dim_max - 1))]
         microbatch_size = rng_shape.randint(microbatch_size_min, microbatch_size_max)
         shape.insert(0, microbatch_size)
         shape = tuple(shape)
@@ -121,6 +138,7 @@ class RandomUtils:
     def random_shape_from_config(cls, randomizer_config: RandomizerConfig, rng_shape: random.Random) -> TensorShape:
         op_size_min = randomizer_config.op_size_per_dim_min
         op_size_max = randomizer_config.op_size_per_dim_max
+        op_size_quantization = randomizer_config.op_size_quantization
 
         dim_min = randomizer_config.dim_min
         dim_max = randomizer_config.dim_max
@@ -134,6 +152,7 @@ class RandomUtils:
             dim_max=dim_max,
             op_size_min=op_size_min,
             op_size_max=op_size_max,
+            quantization=op_size_quantization,
             microbatch_size_min=microbatch_size_min,
             microbatch_size_max=microbatch_size_max,
         )
@@ -148,7 +167,7 @@ class GraphUtils:
 
     @classmethod
     def to_ops_str(cls, graph: RandomizerGraph) -> str:
-        ops = [node.get_name() for node in graph.nodes]
+        ops = [node.name for node in graph.nodes]
         ops_str = " -> ".join(ops)
         return ops_str
 
@@ -172,22 +191,55 @@ class NodeUtils:
     def is_previous_node(node: RandomizerNode, previous_node: RandomizerNode) -> bool:
         return node.index == previous_node.index + 1
 
-    @staticmethod
-    def is_open(node: RandomizerNode) -> bool:
-        return (len(node.inputs) if node.inputs else 0)  < node.operator.input_num
+    @classmethod
+    def num_of_open_inputs(cls, node: RandomizerNode) -> int:
+        return node.inputs.count(None)
 
+    @classmethod
+    def num_of_closed_inputs(cls, node: RandomizerNode) -> int:
+        return node.input_num - cls.num_of_open_inputs(node)
+
+    @classmethod
+    def is_open(cls, node: RandomizerNode) -> bool:
+        return cls.num_of_open_inputs(node) > 0
+
+    # TODO replace list with generator
     @classmethod
     def get_open_nodes(cls, nodes: List[RandomizerNode]) -> List[RandomizerNode]:
         return [node for node in nodes if cls.is_open(node)]
 
     @classmethod
-    def get_open_nodes_with_input_shape(cls, nodes: List[RandomizerNode], input_shape: TensorShape) -> List[RandomizerNode]:
-        # TODO support checking not just next operand but all not connected operands
-        return [node for node in nodes if cls.is_open(node) and node.input_shapes[len(node.inputs)] == input_shape]
+    def has_open_input_with_input_shape(cls, node: RandomizerNode, input_shape: TensorShape) -> bool:
+        for i, open_input in enumerate(node.inputs):
+            if open_input is None:
+                if input_shape == node.input_shapes[i]:
+                    return True
+        return False
 
     @classmethod
-    def calc_input_shapes(cls, node: RandomizerNode, rng_shape: random.Random) -> List[TensorShape]:
-        return node.operator.calc_input_shapes(node.operator, node.output_shape, rng_shape)
+    def get_open_input_indices(cls, node: RandomizerNode) -> Generator[int, None, None]:
+        for i, open_input in enumerate(node.inputs):
+            if open_input is None:
+                yield i
+
+    # TODO replace list with generator
+    @classmethod
+    def get_open_nodes_with_input_shape(cls, nodes: List[RandomizerNode], input_shape: TensorShape) -> List[RandomizerNode]:
+        return [node for node in nodes if cls.is_open(node) and cls.has_open_input_with_input_shape(node, input_shape)]
+
+    @classmethod
+    def calc_input_shapes(cls, node: RandomizerNode, shape_calculation_context: NodeShapeCalculationContext) -> List[TensorShape]:
+        return node.operator.calc_input_shapes(shape_calculation_context)
+
+    @classmethod
+    def get_random_input_num(cls, node: RandomizerNode, test_context: RandomizerTestContext) -> int:
+        input_num_range = node.operator.input_num_range
+        return test_context.rng_graph.randint(input_num_range.operands_min, input_num_range.operands_max)
+
+    @classmethod
+    def init_random_inputs(cls, node: RandomizerNode, test_context: RandomizerTestContext) -> None:
+        node.input_num = cls.get_random_input_num(node, test_context)
+        node.init_inputs()
 
 
 class DebugUtils:
@@ -203,3 +255,53 @@ class DebugUtils:
     @classmethod
     def debug_inputs(cls, inputs: List[pybuda.Tensor]):
         logger.info(f"inputs: {cls.format_tensors(inputs)}")
+
+
+class RateLimiter:
+    '''Rate limiter class to limit the number of allowed operations by a rate limit factor'''
+
+    def __init__(self, rng: random.Random, max_limit: int, current_limit: int):
+        self.rng = rng
+        self.max_limit = max_limit
+        self.current_limit = current_limit
+        self.current_value: int = None
+
+    def is_allowed(self) -> bool:
+        '''Check if the operation is allowed by the rate limit factor and current random value'''
+        self.current_value = self.rng.randint(0, self.max_limit)
+        return self.current_value < self.current_limit
+    
+    def limit_info(self) -> str:
+        '''Return the rate limit info for previous operation'''
+        if self.current_value < self.current_limit:
+            return f"{self.current_value} < {self.current_limit}"
+        else:
+            return f"{self.current_value} >= {self.current_limit}"
+
+
+class TimeoutException(Exception):
+    pass
+
+
+# Handler for timeout signal
+def timeout_handler(signum, frame):
+    raise TimeoutException
+
+
+# Decorator for time limiting
+def timeout(seconds):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            # Set signal handler
+            signal.signal(signal.SIGALRM, timeout_handler)
+            # Set alarm
+            signal.alarm(seconds)
+            try:
+                result = func(*args, **kwargs)
+            finally:
+                # Shutdown alarm
+                signal.alarm(0)
+            return result
+        return wrapper
+    return decorator
+

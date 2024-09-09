@@ -74,6 +74,10 @@ def test_pytorch_ssd300_resnet50(test_device):
         compiler_cfg.place_on_new_epoch("conv2d_766.dc.matmul.11")
         os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "45056"
 
+    if test_device.arch == BackendDevice.Blackhole:
+        compiler_cfg.place_on_new_epoch("conv2d_766.dc.matmul.11")
+        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "54000"
+
     # STEP 2 : prepare model
     model = torch.hub.load(
         "NVIDIA/DeepLearningExamples:torchhub", "nvidia_ssd", pretrained=False

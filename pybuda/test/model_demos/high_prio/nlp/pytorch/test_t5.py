@@ -81,12 +81,14 @@ def test_t5_generation(variant, test_device):
     # import os
     # os.environ["PYBUDA_ENABLE_TINY_TILE"] = "1"
     # Add PyBUDA configurations
-    compiler_cfg = pybuda.config._get_global_compiler_config()
-    compiler_cfg.enable_tvm_cpu_fallback = False
-    compiler_cfg.enable_auto_fusing = False  # tenstorrent/pybuda#844
-    compiler_cfg.amp_level = 1
-    compiler_cfg.enable_enumerate_u_kt = False
-    compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
+    if test_device.arch != BackendDevice.Blackhole or variant not in ["t5-base", "google/flan-t5-base"]:
+        compiler_cfg = pybuda.config._get_global_compiler_config()
+        compiler_cfg.enable_tvm_cpu_fallback = False
+        compiler_cfg.enable_auto_fusing = False  # tenstorrent/pybuda#844
+        compiler_cfg.amp_level = 1
+        compiler_cfg.enable_enumerate_u_kt = False
+        compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
+
     if "large" in variant:
         os.environ["PYBUDA_LEGACY_UBLOCK_SHAPE"] = "1"
 

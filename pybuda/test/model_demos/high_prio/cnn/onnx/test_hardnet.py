@@ -28,6 +28,10 @@ def test_hardnet_onnx(variant, test_device):
     if variant == "hardnet85" and test_device.arch == BackendDevice.Grayskull:
         os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
 
+    if test_device.arch == BackendDevice.Blackhole:
+        if variant == "hardnet85":
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{42*1024}"
+
     # Download an example image
     url, filename = (
         "https://github.com/pytorch/hub/raw/master/images/dog.jpg",
@@ -52,7 +56,7 @@ def test_hardnet_onnx(variant, test_device):
     img_tensor = input_tensor.unsqueeze(0)
 
     load_path = (
-        f"third_party/confidential_customer_models/generated/files/{variant}.onnx"
+        f"third_party/confidential_customer_models/internal/hardnet/files/onnx/{variant}.onnx"
     )
     model_name = f"{variant}_onnx"
 

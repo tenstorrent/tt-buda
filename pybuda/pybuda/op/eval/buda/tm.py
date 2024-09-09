@@ -138,13 +138,13 @@ def eval(type, attr, ops):
 
     if type == "broadcast":
 
-        assert len(attr) <= 3, "Broadcast should have two attributes - dim and size"
+        assert len(attr) <= 3, "Broadcast should have two attributes - dim and factor"
         dim = attr[0]
         factor = attr[1]
         assert dim > 0, "Don't support broadcasting on w"
 
         if t_ops[0].is_sparse:
-            return bcast_sparse_picker_matrix(t_ops[0], dim, size)
+            return bcast_sparse_picker_matrix(t_ops[0], dim, factor)
 
         sizes = [1] * len(t_ops[0].shape)
         sizes[dim] = factor
@@ -177,7 +177,8 @@ def eval(type, attr, ops):
         w = weights.shape[0]
         z = weights.shape[1]
         cout = weights.shape[3]
-        output_group = attr[3] // attr[0]
+        groups = attr[0]
+        output_group = attr[3] // groups
         weights = torch.nn.functional.pad(weights, (0, align_up_tile(cout) - cout))
 
         weights = weights.narrow(2, 0, attr[2])
@@ -185,8 +186,9 @@ def eval(type, attr, ops):
 
         weights = weights.reshape(w, z, -1, weights.shape[-1])
         weights_sections = torch.split(weights, output_group, dim=-1)
-        new_weights = torch.zeros(w, z, align_up_tile(attr[0] * cin), align_up_tile(cout))
-        for i, section in enumerate(weights_sections):
+        new_weights = torch.zeros(w, z, align_up_tile(groups * cin), align_up_tile(cout))
+        for i in range(groups):
+            section = weights_sections[i]
             new_weights[
                 :,
                 :,
@@ -201,7 +203,7 @@ def eval(type, attr, ops):
         elif len(attr) == 5:
             weights = weights.transpose(1, 2)
             weights = weights.transpose(2, 3)
-            weights = weights.reshape(w,1, align_up_tile(attr[0] * cin), -1)
+            weights = weights.reshape(w,1, align_up_tile(groups * cin), -1)
         return weights
 
     if type == "conv2d_grouped_weights_bw":

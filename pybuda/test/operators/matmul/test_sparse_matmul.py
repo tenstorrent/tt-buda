@@ -1,7 +1,54 @@
-
-# From sanity
+# GENERAL OP SUPPORT TEST PLAN:
+# 1. Operand type - any supported type
+# 2. Operand source(s):
+# (+)  2.1 From another op
+#       - Operator -> input
+# (+)  2.2 From tm edge
+#       - Combination: operator -> tm -> input
+#       - tm -> input
+# (+)  2.3 From DRAM queue
+#       - input_queue flag = false
+#       - Special case of From host? May it be triggered if the operator is not the first node of the network?
+#       - Can this be triggered from pybuda.Parameter?
+#       - Can this be triggered from big pybuda.Constant?
+# (+)  2.4 From DRAM, but prologued (constant)
+#       - Constants must be small enough to fit into L1
+#       - Verification via netlists that scenario is triggered
+#       - Input are not prologued for microbatch size = 1
+# (+)  2.5 Const Inputs (const eval pass)
+#       - Operator where all inputs are constants. Does it make difference if tensor is big > L1
+#       - Verification via netlists that scenario is triggered???
+# (+)  2.6 From host
+#       - Input tensor as input of network -> Operator is first node in network and input_queue flag = true
+#       - Can this scenario be triggered from pybuda.Parameter?
+#       - Can this be triggered from big pybuda.Constant?
+# 3 Operand shapes type(s):
+# (+)  3.1 Full tensor (i.e. full expected shape)
+#       - Is 3 dims max for all ops? Ex. Conv is 3d max
+# (+)  3.2 Tensor reduce on one or more dims to 1
+#       - Vector
+#       - Only one dim is not equal to 1
+# (/)  3.3 Scalar
+#       - Create tensor of dimension equal to 0 (tensor from scalar) or just to use scalar as simple value
+# 4. Operand / output size of dimensions (few examples of each, 10 values total)
+# (+)  4.1 Divisible by 32
+# (+)  4.2 Prime numbers
+# (+)  4.3 Very large (thousands, 10s of thousands)
+#       - 100x100, 100x1000
+#       - maybe nightly only
+# (+)  4.4 Extreme ratios between height/width
+#      4.5 ...probably many more interesting combinations here
+# 5. Data format - all supported formats
+# (/)  5.1 Output DF
+# (/)  5.2 Intermediate DF
+# (/)  5.3 Accumulation DF
+# (+)  5.4 Operand DFs
+# (+) 6. Math fidelity - LoFi, HiFi2a, Hifi2b, Hifi3, Hifi4
+# (/) 7. Special attributes - if applicable.. like approx_mode for Exp, for example
 
 import pytest
+
+from typing import Dict, List
 
 from pybuda.config import _get_global_compiler_config
 from pybuda import Tensor
@@ -14,6 +61,514 @@ from pybuda.verify.config import TestKind, VerifyConfig
 from test.common import run
 
 from pybuda.module import PyBudaModule
+
+from pybuda.op_repo import TensorShape
+
+from test.operators.utils import InputSourceFlags, VerifyUtils
+from test.operators.utils import NetlistValidation
+from test.operators.utils import FailingReasons
+from test.conftest import TestDevice
+
+
+def verify(
+    test_device: TestDevice,
+    model: PyBudaModule,
+    input_shapes: List[TensorShape],
+    input_params: List[Dict] = [],
+    input_source_flag: InputSourceFlags = None,
+    dev_data_format: pybuda.DataFormat = None,
+    math_fidelity: pybuda.MathFidelity = None,
+):
+    '''Common verification function for all tests'''
+
+    VerifyUtils.verify(
+        model=model,
+        test_device=test_device,
+        input_shapes=input_shapes,
+        input_params=input_params,
+        input_source_flag=input_source_flag,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
+    )
+
+
+def get_input_shapes(micro_batch_size=1):
+                                              # Here we cover interesting combinations of input shapes:
+    return [
+            ((micro_batch_size, 64, 3, 4),         (4, 3)),         #1        # 3.1 Full tensor (i.e. full expected shape)
+            ((micro_batch_size, 64, 45, 17),       (17, 45)),       #2        # 3.1 Full tensor (i.e. full expected shape)
+            ((micro_batch_size, 64, 1, 23),        (23, 1)),        #3        # 3.2 Tensor reduce on one or more dims to 1
+            ((micro_batch_size, 64, 64, 1),        (1, 64)),        #4        # 3.2 Tensor reduce on one or more dims to 1
+            ((micro_batch_size, 64, 100, 100),     (100, 100)),     #5        # 4.3 Very large (thousands, 10s of thousands)
+            ((micro_batch_size, 64, 1000, 100),    (100, 1000)),    #6        # 4.3 Very large (thousands, 10s of thousands)
+            ((micro_batch_size, 64, 10, 1000),     (1000, 10)),     #7        # 4.4 Extreme ratios between height/width          
+            ((micro_batch_size, 64, 9920, 1),      (1, 9920)),      #8        # 4.4 Extreme ratios between height/width
+            ((micro_batch_size, 64, 10000, 1),     (1, 10000)),     #9        # 4.4 Extreme ratios between height/width
+            ((micro_batch_size, 64, 32, 64),       (64, 32)),       #10       # 4.1 Divisible by 32
+            ((micro_batch_size, 64, 160, 96),      (96, 160)),      #11       # 4.1 Divisible by 32
+            ((micro_batch_size, 64, 17, 41),       (41, 17)),       #12       # 4.2 Prime numbers
+            ((micro_batch_size, 64, 89, 3),        (3, 89)),        #13       # 4.2 Prime numbers
+            ]
+
+
+def get_sparse_tensor(shape, const_input = True):
+    row_cnt = shape[0]
+    col_cnt = shape[1]
+    rows = torch.arange(row_cnt).tolist()
+    cols = torch.arange(col_cnt).tolist()
+    min = 0
+    if row_cnt < col_cnt:
+         min = rows
+    else:
+        min = cols
+    sparse = torch.sparse_coo_tensor([min, min], torch.ones(len(min)), shape, dtype=torch.float32)
+    sparse = torch.stack([sparse]*64, -3) 
+    sparse = torch.unsqueeze(sparse, 0) 
+    sparse = pybuda.Tensor.create_from_torch(sparse, constant=const_input)
+    return sparse
+
+
+@pytest.mark.parametrize("input_shape_dense, input_shape_sparse", get_input_shapes())
+def test_smm_operand_src_from_host(
+    input_shape_dense,
+    input_shape_sparse,
+    test_device,
+    dev_data_format=None,
+    math_fidelity=None
+):
+    class Model(PyBudaModule):
+            def __init__(self, name, sparse_shape):
+                super().__init__(name)
+                self.add_constant("sparse")
+                self.set_constant("sparse", get_sparse_tensor(sparse_shape))
+    
+            def forward(self, dense):
+                result = pybuda.op.SparseMatmul("smm1", self.get_constant("sparse"), dense)
+                return result
+            
+    mod = Model("test_sparse_matmul_operand_src_from_host", input_shape_sparse)
+    
+    input_shapes = tuple([input_shape_dense])
+
+    verify(
+        test_device=test_device,
+        model=mod,
+        input_shapes=input_shapes,
+        input_source_flag=InputSourceFlags.FROM_HOST,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
+    )
+
+
+@pytest.mark.parametrize("input_shape_dense, input_shape_sparse", get_input_shapes())
+def test_smm_operand_src_from_dram(
+    input_shape_dense,
+    input_shape_sparse,
+    test_device,
+    dev_data_format=None,
+    math_fidelity=None
+):
+    class Model(PyBudaModule):
+            def __init__(self, name, sparse_shape):
+                super().__init__(name)
+                self.add_constant("sparse")
+                self.set_constant("sparse", get_sparse_tensor(sparse_shape))
+
+            def forward(self, dense):
+                result = pybuda.op.SparseMatmul("smm1", self.get_constant("sparse"), dense)
+                return result
+            
+    mod = Model("test_sparse_matmul_operand_src_from_dram", input_shape_sparse)
+
+    input_shapes = tuple([input_shape_dense])
+
+    verify(
+        test_device=test_device,
+        model=mod,
+        input_shapes=input_shapes,
+        input_source_flag=InputSourceFlags.FROM_DRAM,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
+    )
+
+    netlist = NetlistValidation()
+    assert netlist.get_value("/queues/dense/loc") == 'dram'
+
+
+@pytest.mark.parametrize("input_shape_dense, input_shape_sparse", get_input_shapes())
+def test_smm_operand_src_from_const_inputs_const_eval(
+    input_shape_dense,
+    input_shape_sparse,
+    test_device,
+    dev_data_format=None,
+    math_fidelity=None
+):
+    class Model(PyBudaModule):
+            def __init__(self, name, sparse_shape, dense_shape):
+                super().__init__(name)
+                self.add_constant("sparse")
+                self.set_constant("sparse", get_sparse_tensor(sparse_shape))
+
+                self.add_constant("dense")
+                self.set_constant("dense", pybuda.Tensor.create_from_torch(torch.rand(*dense_shape, requires_grad=False), constant=True))
+
+            def forward(self, x1, x2):
+                smm1 = pybuda.op.SparseMatmul("smm1", self.get_constant("sparse"), self.get_constant("dense"))
+                mm1 = pybuda.op.Matmul("mm1", x2, x1)   
+                add1 = pybuda.op.Add("add1", smm1, mm1)
+                return add1
+            
+    mod = Model("test_sparse_matmul_operand_src_from_const_inputs_const_eval", input_shape_sparse, input_shape_dense)
+
+    input_shape_dense_tr = (input_shape_dense[0],input_shape_dense[1],input_shape_dense[3],input_shape_dense[2])
+    input_shapes = tuple([input_shape_dense, input_shape_dense_tr])
+
+    verify(
+        test_device=test_device,
+        model=mod,
+        input_shapes=input_shapes,
+        input_source_flag=InputSourceFlags.FROM_HOST,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
+    )
+
+    netlist = NetlistValidation()
+    d = netlist.get_value("/graphs/fwd_0_0_temporal_epoch_0")
+    for key in d.keys():
+        assert "Matmul" not in key
+
+
+@pytest.mark.parametrize("input_shape_dense, input_shape_sparse", get_input_shapes())
+def test_smm_operand_src_from_another_op(
+    input_shape_dense,
+    input_shape_sparse,
+    test_device,
+    dev_data_format=None,
+    math_fidelity=None
+):
+    class Model(PyBudaModule):
+            def __init__(self, name, sparse_shape):
+                super().__init__(name)
+                self.add_constant("sparse")
+                self.set_constant("sparse", get_sparse_tensor(sparse_shape))
+                
+            def forward(self, x):
+                add1 = pybuda.op.Add("add1", x, x)
+                result = pybuda.op.SparseMatmul("smm1", self.get_constant("sparse"), add1)
+                return result
+            
+    mod = Model("test_sparse_matmul_operand_src_from_another_op", input_shape_sparse)
+
+    input_shapes = tuple([input_shape_dense])
+
+    verify(
+        test_device=test_device,
+        model=mod,
+        input_shapes=input_shapes,
+        input_source_flag=InputSourceFlags.FROM_HOST,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
+    )
+
+
+@pytest.mark.parametrize("input_shape_dense, input_shape_sparse", get_input_shapes())
+def test_smm_operand_src_from_tm_edge1(
+    input_shape_dense,
+    input_shape_sparse,
+    test_device,
+    dev_data_format=None,
+    math_fidelity=None
+):
+    class Model(PyBudaModule):
+            def __init__(self, name, sparse_shape):
+                super().__init__(name)
+                self.add_constant("sparse")
+                self.set_constant("sparse", get_sparse_tensor(sparse_shape))
+                
+            def forward(self, x):
+                tr1 = pybuda.op.Transpose("tr1", x, -1, -2)
+                tr2 = pybuda.op.Transpose("tr2", tr1, -1, -2)
+                result = pybuda.op.SparseMatmul("smm1", self.get_constant("sparse"), tr2)
+                return result
+            
+    mod = Model("test_sparse_matmul_operand_src_from_tm_edge1", input_shape_sparse)
+
+    input_shapes = tuple([input_shape_dense])
+
+    verify(
+        test_device=test_device,
+        model=mod,
+        input_shapes=input_shapes,
+        input_source_flag=InputSourceFlags.FROM_HOST,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
+    )
+
+
+@pytest.mark.parametrize("input_shape_dense, input_shape_sparse", get_input_shapes())
+def test_smm_operand_src_from_tm_edge2(
+    input_shape_dense,
+    input_shape_sparse,
+    test_device,
+    dev_data_format=None,
+    math_fidelity=None
+):
+    class Model(PyBudaModule):
+            def __init__(self, name, sparse_shape):
+                super().__init__(name)
+                self.add_constant("sparse")
+                self.set_constant("sparse", get_sparse_tensor(sparse_shape))
+                
+            def forward(self, x):
+                add1 = pybuda.op.Add("add1", x, x)
+                tr1 = pybuda.op.Transpose("tr1", add1, -1, -2)
+                tr2 = pybuda.op.Transpose("tr2", tr1, -1, -2)
+                result = pybuda.op.SparseMatmul("smm1",  self.get_constant("sparse"), tr2)
+                return result
+            
+    mod = Model("test_sparse_matmul_operand_src_from_tm_edge2", input_shape_sparse)
+
+    input_shapes = tuple([input_shape_dense])
+
+    verify(
+        test_device=test_device,
+        model=mod,
+        input_shapes=input_shapes,
+        input_source_flag=InputSourceFlags.FROM_HOST,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
+    )
+
+
+@pytest.mark.parametrize("input_shape_dense, input_shape_sparse", [
+                    pytest.param((1, 64, 3, 4),         (4, 3)),                                                                #1    # 3.1 Full tensor (i.e. full expected shape)),
+                    pytest.param((1, 64, 1, 23),        (23, 1)),                                                               #3        # 3.2 Tensor reduce on one or more dims to 1
+                    pytest.param((1, 64, 100, 100),     (100, 100)),                                                            #5        # 4.3 Very large (thousands, 10s of thousands)
+
+                    # Error message: E           AssertionError: Error during inference
+                    pytest.param((1, 64, 45, 17),       (17, 45),    marks=pytest.mark.xfail(reason=FailingReasons.INFERENCE_FAILED)),        #2        # 3.1 Full tensor (i.e. full expected shape)    
+                    pytest.param((1, 64, 64, 1),        (1, 64),     marks=pytest.mark.xfail(reason=FailingReasons.INFERENCE_FAILED)),        #4        # 3.2 Tensor reduce on one or more dims to 1    
+                    pytest.param((1, 64, 1000, 100),    (100, 1000), marks=pytest.mark.xfail(reason=FailingReasons.INFERENCE_FAILED)),        #6        # 4.3 Very large (thousands, 10s of thousands)  
+                    pytest.param((1, 64, 160, 96),      (96, 160),   marks=pytest.mark.xfail(reason=FailingReasons.INFERENCE_FAILED)),        #11       # 4.1 Divisible by 32                           
+                    pytest.param((1, 64, 89, 3),        (3, 89),     marks=pytest.mark.xfail(reason=FailingReasons.INFERENCE_FAILED)),        #13       # 4.2 Prime numbers                             
+            
+                    # "Error message: E           AssertionError: Data mismatch detected"
+                    pytest.param((1, 64, 10, 1000),     (1000, 10),  marks=pytest.mark.xfail(reason=FailingReasons.DATA_MISMATCH)),           #7        # 4.4 Extreme ratios between height/width       
+                    pytest.param((1, 64, 32, 64),       (64, 32),    marks=pytest.mark.xfail(reason=FailingReasons.DATA_MISMATCH)),           #10       # 4.1 Divisible by 32                           
+                    pytest.param((1, 64, 17, 41),       (41, 17),    marks=pytest.mark.xfail(reason=FailingReasons.DATA_MISMATCH)),           #12       # 4.2 Prime numbers                             
+            
+                    # "Fatal python error - xfail does not work; UserWarning: resource_tracker: There appear to be 26 leaked semaphore objects to clean up at shutdown"
+                    pytest.param((1, 64, 9920, 1),      (1, 9920),   marks=pytest.mark.skip(reason=FailingReasons.SEMAPHORE_LEAK)),           #8        # 4.4 Extreme ratios between height/width     
+                    pytest.param((1, 64, 10000, 1),     (1, 10000),  marks=pytest.mark.skip(reason=FailingReasons.SEMAPHORE_LEAK)),           #9        # 4.4 Extreme ratios between height/width     
+        ])
+def test_smm_operand_src_from_tm_edge3(
+    input_shape_dense,
+    input_shape_sparse,
+    test_device,
+    dev_data_format=None,
+    math_fidelity=None
+):
+    class Model(PyBudaModule):
+            def __init__(self, name, sparse_shape):
+                super().__init__(name)
+                self.add_constant("sparse")
+                self.set_constant("sparse", get_sparse_tensor(sparse_shape))
+                
+            def forward(self, x):
+                tr1 = pybuda.op.Transpose("tr1", self.get_constant("sparse"), -1, -2)
+                tr2 = pybuda.op.Transpose("tr2", x, -1, -2)
+                result = pybuda.op.SparseMatmul("smm1", tr1, tr2)
+                return result
+            
+    mod = Model("test_sparse_matmul_operand_src_from_tm_edge3", input_shape_sparse)
+
+    input_shapes = tuple([input_shape_dense])
+
+    verify(
+        test_device=test_device,
+        model=mod,
+        input_shapes=input_shapes,
+        input_source_flag=InputSourceFlags.FROM_HOST,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
+    )
+
+
+def get_input_shapes_prologued():
+                                              # Here we cover interesting combinations of input shapes:
+    return [
+            ((2, 64, 3, 4),      (4, 3),        InputSourceFlags.FROM_DRAM_NOT_PROLOGUED,              False),  #18       # 3.1 Full tensor (i.e. full expected shape)
+            ((2, 64, 3, 4),      (4, 3),        InputSourceFlags.FROM_DRAM_PROLOGUED,                  True),   #19       # 3.1 Full tensor (i.e. full expected shape)
+            ((2, 64, 3, 4),      (4, 3),        InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True) ,  #20       # 3.1 Full tensor (i.e. full expected shape)
+            ((1, 64, 3, 4),      (4, 3),        InputSourceFlags.FROM_DRAM_NOT_PROLOGUED,              False),  #21       # 3.1 Full tensor (i.e. full expected shape)
+            ((1, 64, 3, 4),      (4, 3),        InputSourceFlags.FROM_DRAM_PROLOGUED,                  True),   #22       # 3.1 Full tensor (i.e. full expected shape)
+            ((1, 64, 3, 4),      (4, 3),        InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True),   #23       # 3.1 Full tensor (i.e. full expected shape) ! not working as described in docs
+            ((2, 64, 45, 17),    (17, 45),      InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True) ,  #24       # 3.1 Full tensor (i.e. full expected shape)
+            ((2, 64, 1, 23),     (23, 1),       InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True) ,  #25       # 3.2 Tensor reduce on one or more dims to 1
+            ((2, 64, 64, 1),     (1, 64),       InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True) ,  #26       # 3.2 Tensor reduce on one or more dims to 1
+            ((2, 64, 100, 100),  (100, 100),    InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True) ,  #27       # 4.3 Very large (thousands, 10s of thousands)
+            # "Fatal python error - xfail does not work. Error message: Fatal Python error: Segmentation fault; UserWarning: resource_tracker: There appear to be 26 leaked semaphore objects to clean up at shutdown"
+            pytest.param((2, 64, 1000, 100), (100, 1000),   InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True, marks=pytest.mark.skip(reason=FailingReasons.SEMAPHORE_LEAK)),  # 4.3 Very large (thousands, 10s of thousands)         
+            ((2, 64, 10, 1000),  (1000, 10),    InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True) ,  #29       # 4.4 Extreme ratios between height/width        
+            ((2, 64, 9920, 1),   (1, 9920),     InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True) ,  #30       # 4.4 Extreme ratios between height/width 
+            ((2, 64, 10000, 1),  (1, 10000),    InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True) ,  #31       # 4.4 Extreme ratios between height/width   
+            ((2, 64, 32, 64),    (64, 32),      InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True) ,  #32       # 4.1 Divisible by 32
+            ((2, 64, 160, 96),   (96, 160),     InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True) ,  #33       # 4.1 Divisible by 32
+            ((2, 64, 17, 41),    (41, 17),      InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True) ,  #34       # 4.2 Prime numbers
+            ((2, 64, 89, 3),     (3, 89),       InputSourceFlags.FROM_DRAM_PROLOGUE_MICROBATCH_SIZE,   True) ,  #35       # 4.2 Prime numbers
+            ]
+@pytest.mark.parametrize("input_shape_dense, input_shape_sparse, input_source_flag, prologue", get_input_shapes_prologued())
+def test_smm_operand_src_from_const_inputs_prologue(
+    input_shape_dense,
+    input_shape_sparse,
+    input_source_flag,
+    prologue,
+    test_device,
+    dev_data_format=None,
+    math_fidelity=None
+):
+    class Model(PyBudaModule):
+            def __init__(self, name, sparse_shape):
+                super().__init__(name)
+                self.add_constant("sparse")
+                self.set_constant("sparse", get_sparse_tensor(sparse_shape))
+
+            def forward(self, x):
+                smm1 = pybuda.op.SparseMatmul("smm1", self.get_constant("sparse"), x)
+                return smm1
+            
+    mod = Model("test_sparse_matmul_operand_src_from_const_inputs_prologue", input_shape_sparse)
+
+    input_shapes = tuple([input_shape_dense])
+
+    verify(
+        test_device=test_device,
+        model=mod,
+        input_shapes=input_shapes,
+        input_source_flag=input_source_flag,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
+    )
+
+    netlist = NetlistValidation()
+    d = netlist.get_value("/programs/0/run_fwd_0/4/execute/queue_settings/lc.input_tensor.smm1.0")
+    if prologue:
+        assert d['prologue']
+    else:
+        assert not d['prologue']
+    
+
+# We will not test all combinations of Data Format and Math Fidelity because it would be too much tests. 
+#   1. First we will choose Data Format to be Float16_b and test all Math Fidelity values
+#   2. Then we will set Math Fidelity to HiFi4 and test all Data Formats. 
+
+
+## 1.
+
+def get_input_shape_sparse(micro_batch_size=1):
+    return (4, 3)
+
+def get_input_shape_dense(micro_batch_size=1):
+    return (micro_batch_size, 64, 3, 4)
+
+dev_data_formats=[ 
+    pybuda.DataFormat.Float16_b,
+]
+
+compiler_math_fidelity = [
+                            pybuda.MathFidelity.LoFi,
+                            pybuda.MathFidelity.HiFi2,
+                            pybuda.MathFidelity.HiFi3,
+                            pybuda.MathFidelity.HiFi4,
+                         ]
+
+@pytest.mark.parametrize("dev_data_format", dev_data_formats)
+@pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
+def test_smm_mf_inputs_from_host(test_device, dev_data_format, math_fidelity):
+    test_smm_operand_src_from_host(get_input_shape_dense(), get_input_shape_sparse(), test_device, dev_data_format, math_fidelity)
+
+# @pytest.mark.parametrize("dev_data_format", dev_data_formats)
+# @pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
+# def test_smm_mf_inputs_from_dram(test_device, dev_data_format, math_fidelity):
+#     test_smm_operand_src_from_dram(get_input_shape_dense(), get_input_shape_sparse(), test_device, dev_data_format, math_fidelity)
+
+# @pytest.mark.parametrize("dev_data_format", dev_data_formats)
+# @pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
+# def test_smm_mf_inputs_from_const_inputs_const_eval(test_device, dev_data_format, math_fidelity):
+#     test_smm_operand_src_from_const_inputs_const_eval(get_input_shape_dense(), get_input_shape_sparse(), test_device, dev_data_format, math_fidelity)
+
+# @pytest.mark.parametrize("dev_data_format", dev_data_formats)
+# @pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
+# def test_smm_mf_inputs_from_another_op(test_device, dev_data_format, math_fidelity):
+#     test_smm_operand_src_from_another_op(get_input_shape_dense(), get_input_shape_sparse(), test_device, dev_data_format, math_fidelity)
+
+# @pytest.mark.parametrize("dev_data_format", dev_data_formats)
+# @pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
+# def test_smm_mf_inputs_from_tm_edge1(test_device, dev_data_format, math_fidelity):
+#     test_smm_operand_src_from_tm_edge1(get_input_shape_dense(), get_input_shape_sparse(), test_device, dev_data_format, math_fidelity)
+
+# @pytest.mark.parametrize("dev_data_format", dev_data_formats)
+# @pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
+# def test_smm_mf_inputs_from_tm_edge2(test_device, dev_data_format, math_fidelity):
+#     test_smm_operand_src_from_tm_edge2(get_input_shape_dense(), get_input_shape_sparse(), test_device, dev_data_format, math_fidelity)
+
+
+## 2.
+
+dev_data_formats = [
+    pybuda.DataFormat.Bfp2,
+    pybuda.DataFormat.Bfp2_b,
+    pybuda.DataFormat.Bfp4,
+    pybuda.DataFormat.Bfp4_b,
+    pybuda.DataFormat.Bfp8,
+    pybuda.DataFormat.Bfp8_b,
+    pybuda.DataFormat.Float16,  
+    pybuda.DataFormat.Float16_b,
+    pybuda.DataFormat.Float32,
+    pybuda.DataFormat.Int8,
+    pybuda.DataFormat.Lf8,
+    pybuda.DataFormat.RawUInt16,
+    pybuda.DataFormat.RawUInt32,
+    pybuda.DataFormat.RawUInt8,
+    pybuda.DataFormat.UInt16,
+]
+
+compiler_math_fidelity = [
+    pybuda.MathFidelity.HiFi4,
+]
+
+@pytest.mark.parametrize("dev_data_format", dev_data_formats)
+@pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
+def test_smm_df_inputs_from_host(test_device, dev_data_format, math_fidelity):
+    test_smm_operand_src_from_host(get_input_shape_dense(), get_input_shape_sparse(), test_device, dev_data_format, math_fidelity)
+
+# @pytest.mark.parametrize("dev_data_format", dev_data_formats)
+# @pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
+# def test_smm_df_inputs_from_dram(test_device, dev_data_format, math_fidelity):
+#     test_smm_operand_src_from_dram(get_input_shape_dense(), get_input_shape_sparse(), test_device, dev_data_format, math_fidelity)
+
+# @pytest.mark.parametrize("dev_data_format", dev_data_formats)
+# @pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
+# def test_smm_df_inputs_from_const_inputs_const_eval(test_device, dev_data_format, math_fidelity):
+#     test_smm_operand_src_from_const_inputs_const_eval(get_input_shape_dense(), get_input_shape_sparse(), test_device, dev_data_format, math_fidelity)
+
+# @pytest.mark.parametrize("dev_data_format", dev_data_formats)
+# @pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
+# def test_smm_df_inputs_from_another_op(test_device, dev_data_format, math_fidelity):
+#     test_smm_operand_src_from_another_op(get_input_shape_dense(), get_input_shape_sparse(), test_device, dev_data_format, math_fidelity)
+
+# @pytest.mark.parametrize("dev_data_format", dev_data_formats)
+# @pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
+# def test_smm_df_inputs_from_tm_edge1(test_device, dev_data_format, math_fidelity):
+#     test_smm_operand_src_from_tm_edge1(get_input_shape_dense(), get_input_shape_sparse(), test_device, dev_data_format, math_fidelity)
+
+# @pytest.mark.parametrize("dev_data_format", dev_data_formats)
+# @pytest.mark.parametrize("math_fidelity", compiler_math_fidelity)
+# def test_smm_df_inputs_from_tm_edge2(test_device, dev_data_format, math_fidelity):
+#     test_smm_operand_src_from_tm_edge2(get_input_shape_dense(), get_input_shape_sparse(), test_device, dev_data_format, math_fidelity)
+
+
+
 
 
 
@@ -135,6 +690,7 @@ def test_z_sparse_matmul(test_device):
             self.set_constant("sparse", pybuda.Tensor.create_from_torch(sparse, constant=True))
 
         def forward(self, x):
+            sparse = self.get_constant("sparse")
             out = pybuda.op.SparseMatmul("", self.get_constant("sparse"), x)
             return out
 

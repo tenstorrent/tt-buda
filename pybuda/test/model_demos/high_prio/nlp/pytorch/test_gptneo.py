@@ -46,6 +46,10 @@ def test_gptneo_causal_lm(variant, test_device):
         if variant == "EleutherAI/gpt-neo-1.3B":
             os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "76444"
 
+    elif test_device.arch == BackendDevice.Blackhole:
+        if variant == "EleutherAI/gpt-neo-125M":
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{12*1024}"
+
     # Load tokenizer and model
     # Variants: # EleutherAI/gpt-neo-125M, EleutherAI/gpt-neo-1.3B,
     # EleutherAI/gpt-neo-2.7B

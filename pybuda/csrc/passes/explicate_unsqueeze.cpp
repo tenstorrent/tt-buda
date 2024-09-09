@@ -59,6 +59,7 @@ void explicate_unsqueeze(graphlib::Graph *graph)
                     auto current_edge = graph->get_edges(current_node, eltwise)[0];
                     auto current_tms = graph->get_edge_attributes(current_edge)->get_tms();
                     auto [incoming_edge, outgoing_edge] = insert_node_on_edge(graph, current_edge, change_rank);
+                    change_rank->set_output_df_from_operands(graph);
                     graph->get_edge_attributes(incoming_edge)->set_tms({});
                     graph->get_edge_attributes(outgoing_edge)->set_tms(current_tms);
                     current_node = change_rank;

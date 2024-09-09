@@ -24,7 +24,7 @@ Python Runtime API
 C++ Runtime API
 ******************
 
-The BUDA Backend used by Python Runtime can be optionally used stand-alone to run pre-compiled TTI models. The API reference for stand-alone BUDA Backend Runtime can be found `here <http://yyz-webservice-02.local.tenstorrent.com/docs/budabackend-docs/>`_.
+The BUDA Backend used by Python Runtime can be optionally used stand-alone to run pre-compiled TTI models.
 
 Configuration and Placement
 ***************************

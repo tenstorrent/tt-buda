@@ -11,12 +11,14 @@
 #include "graph_lib/node_types.hpp"
 #include "graph_lib/query.hpp"
 #include "graph_lib/utils.hpp"
+#include "passes/commute_utils.hpp"
 #include "passes/bind_reshape_to_io.hpp"
 #include "passes/constant_folding.hpp"
 #include "passes/dataformat.hpp"
 #include "passes/decomposing_context.hpp"
 #include "passes/erase_consecutive_reshape.hpp"
 #include "passes/erase_inverse_ops.hpp"
+#include "passes/insert_inverse_outside_quantized_region.hpp"
 #include "passes/erase_unnecessary_4d_tm_sequence.hpp"
 #include "passes/explicate_unsqueeze.hpp"
 #include "passes/fork_join.hpp"
@@ -34,7 +36,12 @@
 #include "passes/lower_concat_to_runtime_transform.hpp"
 #include "passes/lower_reinterpret_shape.hpp"
 #include "passes/lowering_context.hpp"
+#include "passes/move_dequantize.hpp"
 #include "passes/move_requantize.hpp"
+#include "passes/remove_quant_dequant.hpp"
+#include "passes/insert_qdq_on_biases.hpp"
+#include "passes/dequant_quant_to_requant.hpp"
+#include "passes/make_quantized_ops.hpp"
 #include "passes/move_select_after_matmul_optional.hpp"
 #include "passes/pad_output_buffer.hpp"
 #include "passes/passes_utils.hpp"
@@ -47,6 +54,7 @@
 #include "passes/set_tile_dim.hpp"
 #include "passes/squeeze_to_reshape.hpp"
 #include "passes/t_stream.hpp"
+#include "passes/fork_quantization_scales.hpp"
 #include "perf_model/perf_model.hpp"
 #include "placer/dram.hpp"
 #include "placer/dram_allocator.hpp"
@@ -92,7 +100,21 @@ run_post_initial_graph_passes(graphlib::Graph *graph, py::object compiler_cfg_ob
 
     passes::print_graph(graph, "INITIAL");
     passes::generate_initial_flops_estimate(graph);
-    passes::decompose_nd_reshape_split(graph);
+    // These passes must be run in a loop as its possible that after
+    // Pushing a dequant through a conv/matmul/etc it can be moved down further
+    bool attempt_update = true;
+    while (attempt_update) {
+        attempt_update = passes::move_dequantize(graph);
+        if (env_as<bool>("PYBUDA_DISABLE_CONV_BIAS_QDQ_INSERTION"))
+            passes::separate_conv2d_bias(graph);
+        attempt_update |= passes::make_quantized_ops(graph);
+        attempt_update |= passes::insert_qdq_on_biases(graph);
+        attempt_update |= passes::dequant_quant_to_requant(graph);
+    }
+    
+    passes::fork_quantization_scales(graph);
+    passes::remove_quant_dequant(graph);
+    reportify::dump_graph(graph->name(), "post_quantize_commute", graph);
     passes::limit_to_4d_reshape(graph);
     passes::erase_unnecessary_4d_tm_sequence(graph);
     passes::fuse_pad_conv2d(graph);
@@ -161,7 +183,16 @@ void run_optimization_graph_passes(graphlib::Graph *graph, const DeviceConfig &d
             passes::bypass_nop_tms(graph);
         }
     }
-    passes::move_tm_through_requantize(graph);
+
+    // Move TMs outside of quantized graph regions
+    attempt_update = true;
+    while(attempt_update) {
+        passes::insert_inverse_outside_quantized_region(graph);
+        attempt_update = passes::erase_inverse_ops(graph);
+        if (not attempt_update)
+            attempt_update = passes::fuse_tm_sequences(graph);
+    }
+
     recalculate_shapes(graph);
 
     passes::hoist_transforms_to_inputs(graph);
@@ -177,7 +208,6 @@ void run_optimization_graph_passes(graphlib::Graph *graph, const DeviceConfig &d
     passes::move_select_after_matmul_optional(graph);
 
     passes::fuse_tm_sequences(graph);
-    reportify::dump_graph(graph->name(), "post_erase_inverse_ops", graph);
 }
 
 std::vector<std::pair<graphlib::NodeId, graphlib::NodeId>> run_post_optimize_decompose_graph_passes(
@@ -382,8 +412,7 @@ std::pair<std::unique_ptr<graphlib::Graph>, placer::PlacerConfigUpdate> run_pre_
     // data parallel - insert nops and epoch breaks
     if (env_as<bool>("PYBUDA_N300_DATA_PARALLEL"))
     {
-        std::vector<std::string> dp_nops_to_epoch_break = insert_dataparallel_nops(lowered_graph.get());
-        op_names_to_epoch_break.push_back(dp_nops_to_epoch_break);
+        insert_dataparallel_nops(lowered_graph.get());
     }
 
     // At this point, there should be no more graph mutations.
@@ -397,7 +426,6 @@ std::pair<std::unique_ptr<graphlib::Graph>, placer::PlacerConfigUpdate> run_pre_
         fracture_chip_id_assignments,
         "" /* nops_remote_devices_postfix */,
         use_interactive_placer);
-
     return std::make_pair(std::move(lowered_graph), placer_config_update);
 }
 

@@ -38,10 +38,20 @@ static bool input_can_consteval(graphlib::Graph *graph, graphlib::InputNode *inp
         return op->op_name() == "broadcast" or op->op_name() == "repeat" or op->op_name() == "repeat_dim";
     };
 
+    // We want to go from weights->quantize->dequantize to quantized_weights->dequantize
+    // without constevaling dequantize, as it would cancel the quantize op
+    auto is_dequantize = [](graphlib::Node *node) {
+        graphlib::OpNode *op = dynamic_cast<graphlib::OpNode *>(node);
+        if (not op)
+            return false;
+
+        return op->op_name() == "dequantize" or op->op_name() == "buda_dequantize";
+    };
+
     TT_ASSERT(graphlib::is_consteval_capable_input_type(input));
     std::vector<graphlib::Node *> users = graph->data_users(input);
-    auto user_can_consteval = [graph, is_broadcast_or_repeat](graphlib::Node *n) {
-        return graphlib::is_consteval_capable_op(graph, n, true /*allow_forks*/) and not is_broadcast_or_repeat(n);
+    auto user_can_consteval = [graph, is_broadcast_or_repeat, is_dequantize](graphlib::Node *n) {
+        return graphlib::is_consteval_capable_op(graph, n, true /*allow_forks*/) and not is_broadcast_or_repeat(n) and not is_dequantize(n);
     };
     return not has_same_fork_destinations(users) and std::all_of(users.begin(), users.end(), user_can_consteval);
     // TODO: nsmith enable this
@@ -106,10 +116,22 @@ static std::vector<graphlib::Node *> consteval_input(graphlib::Graph *graph, gra
     graphlib::Node *user = users[0];
     log_debug(LogConstEval, "Promoting node - Graph: {} - Node: {}", input->name(), user->name());
 
-    std::vector<graphlib::Node *> removed_operands = graph->data_operands(user);
-    auto iter = std::find(removed_operands.begin(), removed_operands.end(), input);
-    TT_ASSERT(iter != removed_operands.end());
-    removed_operands.erase(iter);  // every operand except for `input` is removed in `promote_node`
+    std::vector<graphlib::Node *> user_other_operands = graph->data_operands(user);
+
+    auto iter = std::find(user_other_operands.begin(), user_other_operands.end(), input);
+    TT_ASSERT(iter != user_other_operands.end());
+    user_other_operands.erase(iter);  // every operand except for `input` is removed in `promote_node`
+
+    // The other user operands is essentially cloned if they themselves have multiple users.
+    // One clone will go in the consteval graph of the passed <*input>. And the other
+    // will remain in the main graph. We do not want to include it in removed_operands
+    // if this is the case as it wont have actually been removed from the graph.
+    std::vector<graphlib::Node *> removed_operands;
+    for (graphlib::Node * user_operand : user_other_operands) {
+        if (graph->data_users(user_operand).size() == 1)
+            removed_operands.push_back(user_operand);
+    }
+
 
     graphlib::ConstEvalGraph *consteval_graph = input->get_consteval_graph(graph, true, true);
     consteval_graph->promote_node(graph, user);

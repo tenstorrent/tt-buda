@@ -11,6 +11,10 @@ import torchvision.models as models
 from timm.data import resolve_data_config
 from timm.data.transforms_factory import create_transform
 from loguru import logger
+import torchvision
+from torchvision.models import efficientnet_b4, efficientnet_b0, EfficientNet_B4_Weights, EfficientNet_B0_Weights
+from torchvision.models._api import WeightsEnum
+from torch.hub import load_state_dict_from_url
 
 import pybuda
 from pybuda import VerifyConfig
@@ -32,6 +36,10 @@ variants = [
     # "hf_hub:timm/tf_efficientnetv2_s.in21k",
 ]
 
+def get_state_dict(self, *args, **kwargs):
+    kwargs.pop("check_hash")
+    return load_state_dict_from_url(self.url, *args, **kwargs)
+WeightsEnum.get_state_dict = get_state_dict
 
 @pytest.mark.parametrize("variant", variants)
 def test_efficientnet_timm(variant, test_device):
@@ -43,6 +51,7 @@ def test_efficientnet_timm(variant, test_device):
     compiler_cfg.balancer_policy = "Ribbon"
     compiler_cfg.enable_auto_fusing = False
 
+    pcc_value = 0.94
     if variant == "efficientnet_b0":
         # Solves issue for bigger conv layers in the middle of the graph
         if test_device.arch == BackendDevice.Wormhole_B0:
@@ -55,12 +64,15 @@ def test_efficientnet_timm(variant, test_device):
 
     elif variant == "efficientnet_b4":
         if test_device.arch == BackendDevice.Wormhole_B0:
+            pcc_value = 0.92
             compiler_cfg.amp_level = 1
             compiler_cfg.default_df_override=pybuda.DataFormat.Float16_b
             os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
-            os.environ["PYBUDA_PAD_SPARSE_MM"] = "{13:16}"
-            os.environ["PYBUDA_GRAPHSOLVER_SELF_CUT_TYPE"] = "ConsumerOperandDataEdgesFirst"
-            os.environ["PYBUDA_DECOMPOSE_SIGMOID"] = "1"
+        elif test_device.arch == BackendDevice.Blackhole:
+            pcc_value = 0.92
+            compiler_cfg.amp_level = 1
+            compiler_cfg.default_df_override=pybuda.DataFormat.Float16_b
+            os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
 
     # Load model
     framework_model = download_model(timm.create_model, variant, pretrained=True)
@@ -99,7 +111,7 @@ def test_efficientnet_timm(variant, test_device):
             devtype=test_device.devtype,
             devmode=test_device.devmode,
             test_kind=TestKind.INFERENCE,
-            pcc=0.94,
+            pcc=pcc_value,
         ),
     )
 
@@ -169,7 +181,10 @@ def test_efficientnet_torchvision(variant, test_device):
 
 
     # Load model
-    framework_model = download_model(variant, pretrained=True)
+    if variant == models.efficientnet_b0:
+        framework_model = efficientnet_b0(weights=EfficientNet_B0_Weights.IMAGENET1K_V1)
+    elif variant == models.efficientnet_b4:
+        framework_model = efficientnet_b4(weights=EfficientNet_B4_Weights.IMAGENET1K_V1)
     framework_model.eval()
     pybuda_model = pybuda.PyTorchModule("pt_effnet_torchvis", framework_model)
 

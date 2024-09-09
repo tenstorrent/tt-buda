@@ -8,8 +8,9 @@ from types import SimpleNamespace
 
 import cv2
 import os
-
-from test.model_demos.models.tri_basic_2.model.semseg import resnet34_semseg
+import sys
+sys.path.append("third_party/confidential_customer_models/internal/tri_basic_2/scripts")
+from semseg_tri import resnet34_semseg
 
 from pybuda.verify.backend import verify_module
 from pybuda import VerifyConfig
@@ -33,6 +34,9 @@ def test_tri_basic_2_sematic_segmentation_pytorch(test_device):
     if test_device.arch == pybuda.BackendDevice.Wormhole_B0:
         compiler_cfg.balancer_op_override(
             "add_156", "t_stream_shape", (1, 1)
+        )  # TM error
+        compiler_cfg.balancer_op_override(
+            "add_185", "t_stream_shape", (1, 1)
         )  # TM error
         compiler_cfg.balancer_op_override(
             "add_200", "t_stream_shape", (1, 1)
@@ -60,7 +64,7 @@ def test_tri_basic_2_sematic_segmentation_pytorch(test_device):
     image_w = 800
     image_h = 800
     image = cv2.imread(
-        "third_party/confidential_customer_models/cv_demos/tri_basic_2/images/left.png"
+        "third_party/confidential_customer_models/internal/tri_basic_2/files/samples/left.png"
     )
     image = cv2.resize(image, (image_w, image_h), interpolation=cv2.INTER_LINEAR)
     image_tensor = (
@@ -71,7 +75,7 @@ def test_tri_basic_2_sematic_segmentation_pytorch(test_device):
     hparams = SimpleNamespace(num_classes=24)
     model = resnet34_semseg(hparams)
     state_dict = torch.load(
-        "third_party/confidential_customer_models/cv_demos/tri_basic_2/weights/basic_semseg.ckpt",
+        "third_party/confidential_customer_models/internal/tri_basic_2/files/weights/basic_semseg.ckpt",
         map_location="cpu",
     )
     model.load_state_dict(state_dict)

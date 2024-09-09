@@ -489,16 +489,17 @@ public:
     void copy_parent_op_attributes(PyOpNode *node);
 };
 
-class BudaOpNode : public OpNode {
-
-private:
-    tt::DataFormat accumulate_df_  = tt::DataFormat::Float16_b;
-    tt::DataFormat intermediate_df_  = tt::DataFormat::Float16_b;
-    tt::MathFidelity math_fidelity_  = tt::MathFidelity::HiFi3;
+class BudaOpNode : public OpNode
+{
+   private:
+    tt::DataFormat accumulate_df_ = tt::DataFormat::Float16_b;
+    tt::DataFormat intermediate_df_ = tt::DataFormat::Float16_b;
+    tt::MathFidelity math_fidelity_ = tt::MathFidelity::HiFi3;
     std::shared_ptr<FusedOp> fused_op_ = nullptr;
     bool buffering_op_ = false;
+    bool data_parallel_nop_ = false;
 
-public:
+   public:
     BudaOpNode(const std::string &name, const std::string &op_type) : OpNode(name, op_type, NodeType::kBudaOp) {}
     BudaOpNode(const std::string &name, OpType op_type) : OpNode(name, op_type, NodeType::kBudaOp) {}
 
@@ -514,18 +515,30 @@ public:
     void copy_lowered_op_attributes(PyOpNode *node);
     void copy_parent_op_attributes(BudaOpNode *node);
 
-    virtual std::unique_ptr<Node> clone(std::string const& name = "") override;
+    virtual std::unique_ptr<Node> clone(std::string const &name = "") override;
 
     void set_fused_op(std::shared_ptr<FusedOp> fused_op) { fused_op_ = fused_op; }
     bool is_fused_op() const { return fused_op_ != nullptr; }
-    std::shared_ptr<FusedOp> get_fused_op() const { TT_ASSERT(fused_op_ != nullptr); return fused_op_; }
+    std::shared_ptr<FusedOp> get_fused_op() const
+    {
+        TT_ASSERT(fused_op_ != nullptr);
+        return fused_op_;
+    }
 
     void set_buffering_op(bool buffering_op) { buffering_op_ = buffering_op; }
     bool is_buffering_op() const { return buffering_op_; }
 
-    #ifdef DEBUG
+    void set_data_parallel_nop(bool data_parallel_nop)
+    {
+        TT_ASSERT(!data_parallel_nop || "nop" == op_type().op);
+        data_parallel_nop_ = data_parallel_nop;
+    }
+
+    bool is_data_parallel_nop() const { return data_parallel_nop_; }
+
+#ifdef DEBUG
     std::shared_ptr<balancer::BudaOpNodeLegalizerFailureInfo> leg_debug_info = nullptr;
-    #endif
+#endif
 };
 
 class BudaNaryTMNode : public Node

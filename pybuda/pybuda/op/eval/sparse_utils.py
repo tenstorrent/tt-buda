@@ -324,7 +324,7 @@ def create_conv2d_picker_matrix(y, x, y_shift, x_shift, stride, tile_align=False
 
 
 def create_conv2d_sparse_picker_matrix(
-    y, x, y_shift, x_shift, k_y, k_x, stride, padding, dilation, tile_align=False, pad_x_only=False, sparse_r_pad=0, sparse_c_pad=0
+    y, x, y_shift, x_shift, k_y, k_x, stride, padding, dilation, tile_align=False, pad_x_only=False, sparse_r_pad=0, sparse_c_pad=0, is_convtranspose2d=False, yout_transpose=None, xout_transpose=None
 ):
     cols = torch.arange(start=1, end=y * x + 1).view(y, x)
 
@@ -340,6 +340,9 @@ def create_conv2d_sparse_picker_matrix(
     out_y, out_x = calculate_conv2d_output_dimensions(
         y, x, [k_y, k_x], stride, padding, dilation
     )
+    if is_convtranspose2d:
+        out_y = yout_transpose
+        out_x = xout_transpose
 
     cols = torch.nn.functional.pad(
         cols, (0, out_x - cols.shape[1], 0, out_y - cols.shape[0])
@@ -713,42 +716,19 @@ def create_nearest_neighbor_upsample_picker_matrix(
         )
 
 def create_nearest_neighbor_downsample_picker_matrix(
-    scale_factor, shape, tile_align=False, channel_last=False,
+    scale_factor, shape, tile_align=False,
 ):
-    if channel_last:
-        rows = torch.arange((shape[-3] // scale_factor) * (shape[-2] // scale_factor))
-        rows = scale_factor * (rows // scale_factor)
-        cols = []
-        for i in range(shape[-3]):
-            col = (
-                torch.arange(shape[-2]).repeat_interleave(scale_factor).repeat(scale_factor)
-                + i * align_up_tile(shape[-2])
-            )
-            cols.append(col)
+    cols = torch.arange(shape[-2] // scale_factor)*scale_factor
+    rows = cols // scale_factor
+    sparse_r = cols.shape[0]
+    sparse_c = shape[-2]
+    if tile_align:
+        sparse_r = align_up_tile(sparse_r)
+        sparse_c = align_up_tile(sparse_c)
 
-        cols = torch.concat(cols)
-
-        sparse_r = rows.shape[0]
-        sparse_c = align_up_tile(shape[-2]) * shape[-3]
-        if tile_align:
-            sparse_r = align_up_tile(sparse_r)
-            sparse_c = align_up_tile(sparse_c)
-
-        return torch.sparse_coo_tensor(
-            [rows.tolist(), cols.tolist()], torch.ones(cols.shape[0]), (sparse_r, sparse_c)
-        )
-    else:
-        cols = torch.arange(shape[-2] // scale_factor)*scale_factor
-        rows = cols // scale_factor
-        sparse_r = cols.shape[0]
-        sparse_c = shape[-1]
-        if tile_align:
-            sparse_r = align_up_tile(sparse_r)
-            sparse_c = align_up_tile(sparse_c)
-
-        return torch.sparse_coo_tensor(
-            [rows.tolist(), cols.tolist()], torch.ones(cols.shape[0]), (sparse_r, sparse_c)
-        )
+    return torch.sparse_coo_tensor(
+        [rows.tolist(), cols.tolist()], torch.ones(cols.shape[0]), (sparse_r, sparse_c)
+    )
 
 
 def create_bilinear_upsample_picker_matrix(

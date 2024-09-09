@@ -101,6 +101,9 @@ def test_bert_question_answering_pytorch(test_device):
         test_device, "bert-large-cased-whole-word-masking-finetuned-squad",
     )
 
+    if test_device.arch == BackendDevice.Blackhole:
+        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{42*1024}"
+
     verify_module(
         model,
         input_shapes=[(inputs[0].shape,)],

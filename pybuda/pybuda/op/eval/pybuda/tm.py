@@ -183,8 +183,14 @@ def eval(type, attr, ops):
         tensor = t_ops[0]
         dim = attr[0]
         size = attr[1]
-        while len(tensor.shape) <= ((-dim - 1) if dim < 0 else dim):
-            tensor = tensor.unsqueeze(0)
+
+        if dim < 0:
+            while len(tensor.shape) <= ((-dim - 1)):
+                tensor = tensor.unsqueeze(0)
+        else:
+            while len(tensor.shape) <=  dim:
+                tensor = tensor.unsqueeze(-1)
+        
         target_shape = list(tensor.shape)
         assert dim < len(
             target_shape
@@ -245,14 +251,16 @@ def eval(type, attr, ops):
         z = weights.shape[1]
         cin = weights.shape[2]
         cout = weights.shape[3]
-        output_group = cout // attr[0]
+        groups = attr[0]
+        output_group = cout // groups
 
         weights = torch.nn.functional.pad(weights, (0, align_up_tile(cout) - cout))
         weights = weights.reshape(w, z, -1, weights.shape[-1])
 
         weights_sections = torch.split(weights, output_group, dim=-1)
-        new_weights = torch.zeros(w, z, align_up_tile(attr[0] * cin), align_up_tile(cout))
-        for i, section in enumerate(weights_sections):
+        new_weights = torch.zeros(w, z, align_up_tile(groups * cin), align_up_tile(cout))
+        for i in range(groups):
+            section = weights_sections[i]
             new_weights[
                 :,
                 :,
@@ -269,7 +277,7 @@ def eval(type, attr, ops):
         elif len(attr) == 5:
             weights = weights.transpose(1, 2)
             weights = weights.transpose(2, 3)
-            weights = weights.reshape(w,1, align_up_tile(attr[0] * cin), -1)
+            weights = weights.reshape(w,1, align_up_tile(groups * cin), -1)
         return weights
 
     if type == "conv2d_grouped_weights_bw":

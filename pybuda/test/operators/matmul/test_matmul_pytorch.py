@@ -6,6 +6,8 @@ from loguru import logger
 
 from pybuda.verify import verify_module, VerifyConfig
 
+from test.operators.utils import FailingReasons
+
 
 class Matmul2ModelPyBuda(pybuda.PyBudaModule):
     '''PyBuda model with two matmul operations'''
@@ -83,21 +85,23 @@ class MatmulAddModelPyTorch(torch.nn.Module):
 
     # if fails via PyTorch when operand source for matmul is another matmul and inputs are 3-dimensional tensors
 
+    # 3-dimensional tensors are not working via pytorch if operand source is another matmul ?
     pytest.param(Matmul2ModelPyTorch, [
         (1, 5, 3),
         (1, 3, 2),
         (1, 2, 4),
-    ], marks=pytest.mark.xfail(reason="3-dimensional tensors are not working via pytorch if operand source is another matmul ?")),
+    ], marks=pytest.mark.xfail(reason=FailingReasons.UNSUPPORTED_DIMENSION)),
     # Errors:
     #  - Failed on "ExplicateTranspose" TVM callback
     #  - ValueError: The type checker has not populated the checked_type for this node
 
+    # 3-dimensional tensors are not working via pytorch if operand source is another matmul ?
     # size of shpae dimensions is not important
     pytest.param(Matmul2ModelPyTorch, [
         (1, 64, 32),
         (1, 32, 64),
         (1, 64, 128),
-    ], marks=pytest.mark.xfail(reason="3-dimensional tensors are not working via pytorch if operand source is another matmul ?")),
+    ], marks=pytest.mark.xfail(reason=FailingReasons.UNSUPPORTED_DIMENSION)),
     # Errors:
     #  - Failed on "ExplicateTranspose" TVM callback
     #  - ValueError: The type checker has not populated the checked_type for this node

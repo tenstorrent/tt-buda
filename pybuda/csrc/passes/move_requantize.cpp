@@ -110,7 +110,7 @@ void commute_through_requant(graphlib::Graph *graph, std::vector<graphlib::Node 
                 commute_through_eltwise(op, &commute_shape, &golden_transform);
             }
             else if (is_quantization_ops(op)) {
-                commute_through_quantization(op, &commute_shape, &golden_transform);
+                commute_through_quantization(op, first, false, &commute_shape, &golden_transform);
             }
             else 
             {
@@ -185,7 +185,7 @@ bool move_tm_through_requantize(graphlib::Graph *graph) {
             if (not op)
                 continue;
 
-            if (op->as<graphlib::TaggedNode>()->has_tag("dont_erase"))
+            if (op->as<graphlib::TaggedNode>()->tag_value_or("dont_erase", false))
                 continue;
 
             if (op->op_name() != "reshape" and op->op_name() != "transpose")

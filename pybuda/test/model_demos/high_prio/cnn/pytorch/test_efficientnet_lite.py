@@ -48,7 +48,7 @@ def test_efficientnet_lite_0_pytorch(test_device):
     compiler_cfg = pybuda.config._get_global_compiler_config()  # load global compiler config object
     compiler_cfg.balancer_policy = "CNN"
 
-    if test_device.arch == BackendDevice.Wormhole_B0:
+    if test_device.arch == BackendDevice.Wormhole_B0 or test_device.arch == BackendDevice.Blackhole:
         os.environ["PYBUDA_GRAPHSOLVER_SELF_CUT_TYPE"] = "ConsumerOperandDataEdgesFirst"
     elif test_device.arch == BackendDevice.Grayskull:
         os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"

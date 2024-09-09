@@ -26,6 +26,7 @@ def eval(type, attr, ops):
     t_ops, original_type = cast_for_cpu_eval(t_ops, type)
 
     if type == "matmul":
+        # import pdb; pdb.set_trace()
         result = torch.matmul(t_ops[0], t_ops[1])
         result = result.to(original_type)
         if len(t_ops) > 2:

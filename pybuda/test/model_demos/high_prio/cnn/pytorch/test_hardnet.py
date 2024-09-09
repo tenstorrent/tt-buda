@@ -26,12 +26,25 @@ def test_hardnet_pytorch(test_device, variant):
     if variant == "hardnet85" and test_device.arch == BackendDevice.Wormhole_B0:
         os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
 
+    if variant == "hardnet68ds" and test_device.arch == BackendDevice.Grayskull:
+        os.environ["PYBUDA_FORK_JOIN_BUF_QUEUES"] = "1"
+        os.environ["PYBUDA_FORK_JOIN_EXPAND_OUTPUT_BUFFERS"] = "1"
+        os.environ["PYBUDA_FORK_JOIN_SKIP_EXPANDING_BUFFERS"] = "1"
+
+    if test_device.arch == BackendDevice.Blackhole:
+        if variant == "hardnet68ds":
+            os.environ["PYBUDA_FORK_JOIN_BUF_QUEUES"] = "1"
+            os.environ["PYBUDA_FORK_JOIN_EXPAND_OUTPUT_BUFFERS"] = "1"
+            os.environ["PYBUDA_FORK_JOIN_SKIP_EXPANDING_BUFFERS"] = "1"
+        elif variant == "hardnet85":
+            os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = "48000"
+
     # load only the model architecture without pre-trained weights.
     model = torch.hub.load("PingoLH/Pytorch-HarDNet", variant, pretrained=False)
 
     # load the weights downloaded from https://github.com/PingoLH/Pytorch-HarDNet
     checkpoint_path = (
-        f"third_party/confidential_customer_models/generated/files/{variant}.pth"
+        f"third_party/confidential_customer_models/internal/hardnet/files/weights/{variant}.pth"
     )
 
     # Load weights from the checkpoint file and maps tensors to CPU, ensuring compatibility even without a GPU.

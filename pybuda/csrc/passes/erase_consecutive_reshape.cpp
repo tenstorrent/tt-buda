@@ -139,7 +139,7 @@ static void commute_eltwise_ops(graphlib::Graph *graph, std::vector<graphlib::No
                 auto name = last->name() + "_operand_commute_clone" + std::to_string(another_operand_edge.edge_creation_id);
                 graphlib::Node *clone = graph->add_node(last->clone(name), graph->get_subgraph_id_for_node(last->id()));
                 graphlib::OpNode *added_op = dynamic_cast<graphlib::OpNode *>(clone);
-                added_op->as<graphlib::TaggedNode>()->tag("dont_erase");
+                added_op->as<graphlib::TaggedNode>()->tag("dont_erase", true);
                 log_trace(LogGraphCompiler, "  Operand commute clone: {} -> between {} and {} ", name, added_op->name(), graph->node_by_id(another_operand_edge.producer_node_id)->name());
             
                 update_reshape_attr(added_op, commute_shape);
@@ -211,7 +211,7 @@ bool erase_consecutive_reshape(graphlib::Graph *graph, bool commute_eltwise)
             if (user_edges.size() > 1 or user_edges.empty())
                 continue;
 
-            if (node->as<graphlib::TaggedNode>()->has_tag("dont_erase"))
+            if (node->as<graphlib::TaggedNode>()->tag_value_or("dont_erase", false))
                 continue;
 
             // TODO: relax this, but it causes a lot of edges cases

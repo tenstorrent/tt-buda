@@ -9,16 +9,18 @@ from loguru import logger
 from dataclasses import dataclass
 from jinja2 import Environment, FileSystemLoader
 import os
+import random
 
 from pybuda import PyBudaModule
 from pybuda.verify import verify_module, VerifyConfig
 from pybuda.op_repo import OperatorRepository
+from test.operators.utils import ShapeUtils
 from test.conftest import TestDevice
 from test.utils import Timer
 from .datatypes import RandomizerNode, RandomizerGraph, RandomizerParameters, RandomizerConfig, ExecutionContext
 from .datatypes import RandomizerTestContext
-from .datatypes import TensorShape
 from .utils import StrUtils, GraphUtils
+from .utils import timeout, TimeoutException
 
 
 class GraphBuilder:
@@ -72,14 +74,11 @@ class RandomizerCodeGenerator:
         return StrUtils.kwargs_str(**node.constructor_kwargs)
 
     def forward_args(self, node: RandomizerNode) -> str:
-        args_str = ", ".join([f"inputs[{i}]" for i in range(node.operator.input_num)])
+        args_str = ", ".join([f"inputs[{i}]" for i in range(node.input_num)])
         return args_str
     
     def forward_kwargs(self, node: RandomizerNode) -> str:
         return StrUtils.kwargs_str(**node.forward_kwargs)
-
-    def reduce_microbatch_size(self, shape: TensorShape) -> str:
-        return (1, ) + shape[1:]
 
     def generate_code(self, test_context: RandomizerTestContext, test_format: bool = True) -> str:
         # TODO setup random seed in generated test function
@@ -98,7 +97,7 @@ class RandomizerCodeGenerator:
             constructor_kwargs=self.constructor_kwargs,
             forward_args=self.forward_args,
             forward_kwargs=self.forward_kwargs,
-            reduce_microbatch_size=self.reduce_microbatch_size,
+            reduce_microbatch_size=ShapeUtils.reduce_microbatch_size,
             ExecutionContext=ExecutionContext,
             )
 
@@ -177,6 +176,14 @@ class RandomizerRunner:
 
     def build_graph(self, graph_builder: GraphBuilder) -> None:
         self.test_context.graph = RandomizerGraph()
+
+        # Initialize random number generators for graph building
+        self.test_context.rng_graph = random.Random(self.test_context.parameters.random_seed)
+        # Initialize random number generators for shape generation
+        self.test_context.rng_shape = random.Random(self.test_context.parameters.random_seed)
+        # Initialize random number generators for parameters
+        self.test_context.rng_params = random.Random(self.test_context.parameters.random_seed)
+
         graph_builder.build_graph(self.test_context)
 
     def build_model(self) -> PyBudaModule:
@@ -184,6 +191,20 @@ class RandomizerRunner:
         return model
 
     def verify(self, model: PyBudaModule) -> None:
+
+        verification_timeout = self.test_context.randomizer_config.verification_timeout
+
+        try:
+            @timeout(verification_timeout)
+            def verify_model_timeout() -> None:
+                self.verify_model(model)
+
+            verify_model_timeout()
+        except TimeoutException as e:
+            logger.error(f"Module verification takes too long {e}.")
+            raise e
+
+    def verify_model(self, model: PyBudaModule) -> None:
         """
         Verify the model by building it and performing validation via PyBuda.
         The method is usually implemented once per framework.
@@ -203,8 +224,11 @@ class RandomizerRunner:
         verify_module(model, input_shapes,
                       VerifyConfig(devtype=parameters.test_device.devtype, arch=parameters.test_device.arch))
 
-    def save_test(self, test_code_str: str):
+    def save_test(self, test_code_str: str, failing_test: bool = False):
         test_dir = self.test_context.randomizer_config.test_dir
+        if failing_test:
+            test_dir = f"{test_dir}/failing_tests"
+            test_code_str = test_code_str.replace("# @pytest.mark.xfail", "@pytest.mark.xfail") 
         test_code_file_name = f"{test_dir}/test_gen_model_{StrUtils.test_id(self.test_context)}.py"
 
         if not os.path.exists(test_dir):
@@ -234,7 +258,19 @@ class RandomizerRunner:
         # build random graph for the specified parameters
         logger.trace("Building graph started")
         graph_duration = Timer()
-        self.build_graph(graph_builder)
+        try:
+            self.build_graph(graph_builder)
+        except Exception as e1:
+            # Try to save test source code to file for debugging purposes if an error occurs
+            try:
+                test_code_str = self.generate_code()
+                if randomizer_config.save_tests:
+                    # Saving test source code to file for debugging purposes
+                    self.save_test(test_code_str, failing_test=True)
+            except Exception as e2:
+                logger.error(f"Error while saving test: {e2}")
+            # Re-raise the original exception from graph building
+            raise e1
         logger.trace("Building graph completed")
         graph = self.test_context.graph
         logger.debug(f"Generating graph model {GraphUtils.short_description(graph)}")
@@ -251,9 +287,9 @@ class RandomizerRunner:
 
         if randomizer_config.save_tests:
             # saving test source code to file for debugging purposes
-            self.save_test(test_code_str)
+            self.save_test(test_code_str, failing_test=False)
 
-        logger.debug(f"Graph built in: {graph_duration.get_duration():.4f} seconds")
+        logger.info(f"Graph built in: {graph_duration.get_duration():.4f} seconds")
 
         if randomizer_config.run_test:
             # instantiate PyBuda model
@@ -261,8 +297,14 @@ class RandomizerRunner:
             # perform model validation
             try:
                 verify_duration = Timer()
+                verify_successful = False
                 self.verify(model)
+                verify_successful = True
             finally:
+                if not verify_successful:
+                    if randomizer_config.save_failing_tests:
+                        # saving error test source code to file for debugging purposes
+                        self.save_test(test_code_str, failing_test=True)
                 logger.debug(f"Test verified in: {verify_duration.get_duration():.4f} seconds")
         else:
             logger.info("Skipping test run")
@@ -273,6 +315,7 @@ def process_test(test_name: str, test_index: int, random_seed: int, test_device:
     Process a single randomizer test.
 
     Args:
+        test_name (str): The name of the test used for generating test code, test file name, etc.
         test_index (int): The index of the test.
         random_seed (int): The random seed for the test.
         test_device (TestDevice): The device for the test.

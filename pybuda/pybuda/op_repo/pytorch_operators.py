@@ -6,10 +6,6 @@
 
 from .datatypes import OperatorDefinition, OperatorRepository
 from .datatypes import OperatorParamNumber
-from .shapes import same_input_shapes
-from .shapes import linear_inputs
-from .shapes import conv2d_inputs
-from .shapes import matmul_inputs
 
 
 # TODO describe operand and shapes
@@ -17,19 +13,19 @@ _OPERATORS = [
     OperatorDefinition("linear", "torch.nn.Linear", 1, instantiate=True, constructor_params=[
         OperatorParamNumber("in_features", int, 10, 50),
         OperatorParamNumber("out_features", int, 10, 50),
-    ], calc_input_shapes=linear_inputs),
+    ]),
     OperatorDefinition("conv2d", "torch.nn.Conv2d", 1, instantiate=True, constructor_params=[
         OperatorParamNumber("in_channels", int, 10, 50),
         OperatorParamNumber("out_channels", int, 10, 50),
         OperatorParamNumber("kernel_size", int, 3, 3),
         OperatorParamNumber("stride", int, 1, 1),
         OperatorParamNumber("padding", int, 1, 1),
-    ], calc_input_shapes=conv2d_inputs),
-    OperatorDefinition("relu", "torch.relu", 1, calc_input_shapes=same_input_shapes),
-    OperatorDefinition("sqrt", "torch.sqrt", 1, calc_input_shapes=same_input_shapes),
-    OperatorDefinition("tanh", "torch.tanh", 1, calc_input_shapes=same_input_shapes),
+    ]),
+    OperatorDefinition("relu", "torch.relu", 1),
+    OperatorDefinition("sqrt", "torch.sqrt", 1),
+    OperatorDefinition("tanh", "torch.tanh", 1),
     # OperatorDefinition("add", "torch.add", 1),
-    OperatorDefinition("add", "torch.add", 2, calc_input_shapes=same_input_shapes),
+    OperatorDefinition("add", "torch.add", 2),
 
     # Non-linear activation functions
     # HARDTANH = OperatorDefinition("hardtanh", 1)
@@ -65,8 +61,8 @@ _OPERATORS = [
     # LOCAL_RESPONSE_NORM = OperatorDefinition("local_response_norm", 1)
     # NORMALIZE = OperatorDefinition("normalize", 1)
 
-    OperatorDefinition("matmul", "torch.matmul", 2, calc_input_shapes=matmul_inputs),
-    OperatorDefinition("eltwise", "torch.add", 2, calc_input_shapes=same_input_shapes),
+    OperatorDefinition("matmul", "torch.matmul", 2),
+    OperatorDefinition("eltwise", "torch.add", 2),
 ]
 
 

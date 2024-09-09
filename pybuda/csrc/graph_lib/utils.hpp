@@ -61,6 +61,8 @@ TileDim get_tile_dim_from_height_width(int tile_height, int tile_width);
 std::vector<Node *> topological_sort(
     Graph const &graph, std::function<bool(Node *)> node_filter = default_node_filter, bool unroll_loops = false);
 
+void fork_subgraph(Graph *graph, Node *node);
+
 std::vector<std::vector<Node *>> topological_generations(const Graph &graph);
 
 // Returns vector of all visible nodes in the graph.

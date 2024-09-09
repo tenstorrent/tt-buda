@@ -13,7 +13,6 @@ dill==0.3.5.1
 flatbuffers==23.5.26
 # This is needed to prevent AttributeError: module 'ml_dtypes' has no attribute 'float8_e4m3b11'
 ml-dtypes==0.2.0
-flax==0.6.0
 jax==0.4.13
 jaxlib==0.4.11
 loguru==0.5.3
@@ -26,8 +25,8 @@ multiprocess==0.70.13
 mxnet==1.9.1
 networkx==2.8.5
 numpy==1.23.1
-onnx==1.15.0
-onnxruntime==1.16.3
+onnx==1.16.0
+onnxruntime==1.18.1
 opencv-python-headless==4.6.0.66
 # This is needed to avoid issue https://yyz-gitlab.local.tenstorrent.com/devops/devops/-/issues/95
 pandas==1.5.3
@@ -47,3 +46,4 @@ tflite==2.10.0
 ultralytics==8.0.145
 keras==2.13.1
 pytorch_forecasting==1.0.0
+patool

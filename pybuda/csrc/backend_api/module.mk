@@ -12,6 +12,7 @@ BUDABACKEND_LIB = $(BUDABACKEND_LIBDIR)/libtt.so
 BUDABACKEND_DEVICE = $(BUDABACKEND_LIBDIR)/libdevice.so
 BUDABACKEND_NET2PIPE = third_party/budabackend/build/bin/net2pipe
 BUDABACKEND_PIPEGEN = third_party/budabackend/build/bin/pipegen2
+BUDABACKEND_BLOBGEN = third_party/budabackend/build/bin/blobgen2
 
 PYBUDA_CSRC_BACKENDAPI_LIB = $(LIBDIR)/libbackend_api.a
 PYBUDA_CSRC_BACKENDAPI_SRCS += \
@@ -45,8 +46,9 @@ $(BUDABACKEND_DEVICE): third_party/budabackend ;
 $(BUDABACKEND_LIB):  third_party/budabackend ;
 $(BUDABACKEND_NET2PIPE): third_party/budabackend ;
 $(BUDABACKEND_PIPEGEN): third_party/budabackend ;
+$(BUDABACKEND_BLOBGEN): third_party/budabackend ;
 
-third_party/budabackend/src/net2pipe: $(BUDABACKEND_NET2PIPE) $(BUDABACKEND_PIPEGEN) ;
+third_party/budabackend/src/net2pipe: $(BUDABACKEND_NET2PIPE) $(BUDABACKEND_PIPEGEN) $(BUDABACKEND_BLOBGEN) ;
 
 # Each module has a top level target as the entrypoint which must match the subdir name
 pybuda/csrc/backend_api: $(PYBUDA_CSRC_BACKENDAPI_LIB) $(BUDABACKEND_LIB) $(BUDABACKEND_DEVICE) $(PYBUDA_CSRC_SHARED_UTILS_LIB) ;

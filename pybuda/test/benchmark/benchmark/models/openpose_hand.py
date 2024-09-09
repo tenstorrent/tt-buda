@@ -15,7 +15,7 @@ def openpose_hand(training: bool, config: str, microbatch: int, devtype: str, ar
     from pybuda._C.backend_api import BackendDevice
 
     # Import confidential model implementation
-    sys.path.append(os.path.join(os.path.dirname(__file__), '../../../../../', 'third_party/confidential_customer_models/'))
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../../../../', 'third_party/confidential_customer_models/'))
     from benchmarks.openpose import OpenPoseHandModel, transfer
 
     # Configurations

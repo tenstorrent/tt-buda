@@ -232,11 +232,11 @@ class DirectPusherDeviceConnector(DeviceConnector):
             print(f"Direct push queues have not been set for {self}")
         assert self.direct_push_queues, "Direct push queues have not been set"
         assert self.tile_broadcast_dims is not None
-        data_parallel = os.getenv("PYBUDA_N300_DATA_PARALLEL", 0)
-        assert len(tensors) == len(self.direct_push_queues) or data_parallel and len(tensors) * 2 == len(self.direct_push_queues), (
+        is_data_parallel = int(os.getenv("PYBUDA_N300_DATA_PARALLEL", "0"))
+        assert len(tensors) == len(self.direct_push_queues) or is_data_parallel and len(tensors) * 2 == len(self.direct_push_queues), (
                 f"Incorrect number of tensors provided on input: {len(tensors)} vs {len(self.direct_push_queues)}")
         assert self.runtime_tensor_transforms, "Runtime tensor transforms have not been set"
-        assert len(tensors) == len(self.runtime_tensor_transforms) or data_parallel and len(tensors) * 2 == len(self.runtime_tensor_transforms)
+        assert len(tensors) == len(self.runtime_tensor_transforms) or is_data_parallel and len(tensors) * 2 == len(self.runtime_tensor_transforms)
 
         self.push_to_side_queue(tensors)
 
@@ -250,7 +250,7 @@ class DirectPusherDeviceConnector(DeviceConnector):
             else:
                 tensors[i] = t
 
-        if data_parallel:
+        if is_data_parallel:
             new_tensors = []
             new_tensor_dtypes = []
             for i, t in enumerate(tensors):

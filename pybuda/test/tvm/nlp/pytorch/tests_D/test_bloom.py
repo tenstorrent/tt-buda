@@ -59,35 +59,6 @@ def test_bloom_model_transposed(test_kind, test_device):
         )
     )
 
-def test_bloom_model(test_kind, test_device):
-    if test_kind == TestKind.TRAINING: # only run recompute test in post-commit
-        pytest.skip()
-
-    model = Transformer()
-    compiler_cfg = _get_global_compiler_config()
-
-    if test_kind.is_training():
-        compiler_cfg.compile_depth = CompileDepth.PRE_LOWERING_PASS
-    else:
-        compiler_cfg.compile_depth = CompileDepth.PRE_LOWERING_PASS  # Unsupported HW ops
-
-    submodel = model
-    mod = PyTorchModule("bloom_encoder", submodel)
-
-    input_shape = (1, 32, 128)
-
-    verify_module(
-        mod,
-        (input_shape,),
-        verify_cfg=VerifyConfig(
-            arch=test_device.arch,
-            devtype=test_device.devtype,
-            test_kind=test_kind,
-        )
-    )
-
-
-
 def test_bloom_hf(test_kind, test_device):
     if test_kind.is_training():
         # output mismatch

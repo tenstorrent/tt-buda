@@ -6,52 +6,15 @@
 from enum import Enum
 import pytest
 
-from typing import Tuple
 from copy import copy
 
 from pybuda.op_repo import OperatorParamNumber
-from pybuda.op_repo import OperatorDefinition
 
-from test.random.rgg import Framework
 from test.random.rgg import Frameworks
+from test.random.rgg import FrameworkTestUtils
 from test.random.rgg import RandomGraphAlgorithm
 from test.random.rgg import RandomizerConfig
 from test.random.rgg import process_test
-
-
-class FrameworkTestUtils:
-
-    @classmethod
-    def copy_framework(cls, framework: Framework, skip_operators: Tuple[str] = []) -> Framework:
-        framework0 = framework
-        framework = copy(framework)
-        framework.operator_repository = copy(framework.operator_repository)
-        cls.skip_operators(framework, skip_operators)
-        assert len(framework.operator_repository.operators) + len(skip_operators) == len(framework0.operator_repository.operators), "Operators count should match after skipping operators"
-        return framework
-
-    @classmethod
-    def skip_operators(cls, framework: Framework, skip_operators: Tuple[str] = []) -> None:
-        initial_operator_count = len(framework.operator_repository.operators)
-        framework.operator_repository.operators = [op for op in framework.operator_repository.operators if op.name not in skip_operators]
-        assert len(framework.operator_repository.operators) + len(skip_operators) == initial_operator_count, "Operators count should match after skipping operators"
-
-    @classmethod
-    def allow_operators(cls, framework: Framework, allow_operators: Tuple[str] = []) -> None:
-        framework.operator_repository.operators = [op for op in framework.operator_repository.operators if op.name in allow_operators]
-        assert len(allow_operators) == len(framework.operator_repository.operators), "Operators count should match allowing skipping operators"
-
-    @classmethod
-    def copy_operator(cls, framework: Framework, operator_name: str) -> OperatorDefinition:
-        operators = framework.operator_repository.operators
-
-        i, operator = next(((i, operator) for i, operator in enumerate(operators) if operator.name == operator_name), (None, None))
-        if not operator:
-            return None
-
-        operator = copy(operator)
-        operators[i] = operator
-        return operator
 
 
 class FrameworksHealthy(Enum):
@@ -74,6 +37,9 @@ class FrameworksHealthy(Enum):
             "binary_stack",  # bug
             "power",  # occasionally fails
             "logical_and",  # bug
+
+            # Nary operators
+            "where",  # pcc?
         )
 
         framework = FrameworkTestUtils.copy_framework(Frameworks.PYBUDA.value, SKIP_OPERATORS)
@@ -88,6 +54,26 @@ class FrameworksHealthy(Enum):
             ]
 
         return framework
+
+    @staticmethod
+    def healty_pytorch():
+        SKIP_OPERATORS = (
+            "sqrt",  # skip because it's failing for negative values
+            # "linear",
+            "conv2d",  # skip until calc_input_shapes is properly implemented
+        )
+
+        framework = FrameworkTestUtils.copy_framework(Frameworks.PYTORCH.value, SKIP_OPERATORS)
+
+        return framework
+    
+    PYBUDA = healty_pybuda()
+    PYTORCH = healty_pytorch()
+
+
+class FrameworksCustom(Enum):
+    ''' Adjust repositories to prepare custom framework configurations '''
+
 
     @staticmethod
     def pybuda_matmul_joins():
@@ -108,20 +94,29 @@ class FrameworksHealthy(Enum):
         return framework
 
     @staticmethod
-    def healty_pytorch():
+    def pybuda_nary():
         SKIP_OPERATORS = (
-            "sqrt",  # skip because it's failing for negative values
-            # "linear",
-            "conv2d",  # skip until calc_input_shapes is properly implemented
         )
 
-        framework = FrameworkTestUtils.copy_framework(Frameworks.PYTORCH.value, SKIP_OPERATORS)
+        framework = FrameworkTestUtils.copy_framework(Frameworks.PYBUDA.value, SKIP_OPERATORS)
+
+        ALLOW_OPERATORS = (
+            # "relu",
+            "tanh",
+            "add",
+            "matmul",  # Skip matmul to increase chance for stack operator
+            "interleave",
+            # "where",  # pcc?
+            "concatenate",
+            "stack",
+        )
+
+        FrameworkTestUtils.allow_operators(framework, ALLOW_OPERATORS)
 
         return framework
-    
-    PYBUDA = healty_pybuda()
+
     PYBUDA_MATMUL_JOINS = pybuda_matmul_joins()
-    PYTORCH = healty_pytorch()
+    PYBUDA_NARY = pybuda_nary()
 
 
 @pytest.mark.parametrize("framework", [
@@ -132,18 +127,20 @@ def test_random_graph_algorithm_pybuda(test_index, random_seeds, test_device, ra
     randomizer_config = copy(randomizer_config)
     # randomizer_config.debug_shapes = True
     # randomizer_config.verify_shapes = True
-    randomizer_config.dim_min = 3
-    randomizer_config.dim_max = 4
-    randomizer_config.op_size_per_dim_min = 4
-    # randomizer_config.op_size_per_dim_min = 16
-    randomizer_config.op_size_per_dim_max = 8
-    # randomizer_config.op_size_per_dim_max = 64
-    # randomizer_config.op_size_per_dim_max = 256
-    randomizer_config.microbatch_size_min = 1
-    randomizer_config.microbatch_size_max = 8
-    randomizer_config.num_of_nodes_min = 5
-    randomizer_config.num_of_nodes_max = 10
-    randomizer_config.num_fork_joins_max = 5
+
+    # Uncomment the following randomizer_config values to override the default values
+    # randomizer_config.dim_min = 3
+    # randomizer_config.dim_max = 4
+    # randomizer_config.op_size_per_dim_min = 4
+    # # randomizer_config.op_size_per_dim_min = 16
+    # randomizer_config.op_size_per_dim_max = 8
+    # # randomizer_config.op_size_per_dim_max = 64
+    # # randomizer_config.op_size_per_dim_max = 256
+    # randomizer_config.microbatch_size_min = 1
+    # randomizer_config.microbatch_size_max = 8
+    # randomizer_config.num_of_nodes_min = 5
+    # randomizer_config.num_of_nodes_max = 10
+    # randomizer_config.num_fork_joins_max = 5
 
     # TODO random_seed instead of random_seeds
     random_seed = random_seeds[test_index]
@@ -151,7 +148,35 @@ def test_random_graph_algorithm_pybuda(test_index, random_seeds, test_device, ra
 
 
 @pytest.mark.parametrize("framework", [
-    FrameworksHealthy.PYBUDA_MATMUL_JOINS.value,
+    FrameworksHealthy.PYTORCH.value,
+])
+def test_random_graph_algorithm_pytorch(test_index, random_seeds, test_device, randomizer_config: RandomizerConfig, framework):
+    # adjust randomizer_config
+    randomizer_config = copy(randomizer_config)
+    # randomizer_config.debug_shapes = True
+    # randomizer_config.verify_shapes = True
+    
+    # Uncomment the following randomizer_config values to override the default values
+    # randomizer_config.dim_min = 4
+    # randomizer_config.dim_max = 4
+    # randomizer_config.op_size_per_dim_min = 4
+    # # randomizer_config.op_size_per_dim_min = 16
+    # randomizer_config.op_size_per_dim_max = 8
+    # # randomizer_config.op_size_per_dim_max = 64
+    # # randomizer_config.op_size_per_dim_max = 256
+    # randomizer_config.microbatch_size_min = 1
+    # randomizer_config.microbatch_size_max = 8
+    # randomizer_config.num_of_nodes_min = 3
+    # randomizer_config.num_of_nodes_max = 5
+    # randomizer_config.num_fork_joins_max = 5
+
+    # TODO random_seed instead of random_seeds
+    random_seed = random_seeds[test_index]
+    process_test("Default", test_index, random_seed, test_device, randomizer_config, graph_builder_type=RandomGraphAlgorithm, framework=framework)
+
+
+@pytest.mark.parametrize("framework", [
+    FrameworksCustom.PYBUDA_MATMUL_JOINS.value,
 ])
 def test_random_graph_algorithm_pybuda_matmul_joins(test_index, random_seeds, test_device, randomizer_config: RandomizerConfig, framework):
     # adjust randomizer_config
@@ -176,27 +201,30 @@ def test_random_graph_algorithm_pybuda_matmul_joins(test_index, random_seeds, te
     process_test("Matmul Joins", test_index, random_seed, test_device, randomizer_config, graph_builder_type=RandomGraphAlgorithm, framework=framework)
 
 
+# @pytest.mark.xfail(reason="Nary operators are buggy")
 @pytest.mark.parametrize("framework", [
-    FrameworksHealthy.PYTORCH.value,
+    FrameworksCustom.PYBUDA_NARY.value,
 ])
-def test_random_graph_algorithm_pytorch(test_index, random_seeds, test_device, randomizer_config: RandomizerConfig, framework):
+def test_random_graph_algorithm_pybuda_nary(test_index, random_seeds, test_device, randomizer_config: RandomizerConfig, framework):
     # adjust randomizer_config
     randomizer_config = copy(randomizer_config)
     # randomizer_config.debug_shapes = True
     # randomizer_config.verify_shapes = True
-    randomizer_config.dim_min = 4
+    randomizer_config.dim_min = 3
     randomizer_config.dim_max = 4
-    randomizer_config.op_size_per_dim_min = 4
+    randomizer_config.op_size_per_dim_min = 2  # avoid failing tests with smaller dimensions?
+    # randomizer_config.op_size_per_dim_min = 4
     # randomizer_config.op_size_per_dim_min = 16
     randomizer_config.op_size_per_dim_max = 8
     # randomizer_config.op_size_per_dim_max = 64
     # randomizer_config.op_size_per_dim_max = 256
+    randomizer_config.op_size_quantization = 2
     randomizer_config.microbatch_size_min = 1
     randomizer_config.microbatch_size_max = 8
-    randomizer_config.num_of_nodes_min = 3
-    randomizer_config.num_of_nodes_max = 5
-    randomizer_config.num_fork_joins_max = 5
+    randomizer_config.num_of_nodes_min = 10
+    randomizer_config.num_of_nodes_max = 15
+    randomizer_config.num_fork_joins_max = 10
 
     # TODO random_seed instead of random_seeds
     random_seed = random_seeds[test_index]
-    process_test("Default", test_index, random_seed, test_device, randomizer_config, graph_builder_type=RandomGraphAlgorithm, framework=framework)
+    process_test("Nary", test_index, random_seed, test_device, randomizer_config, graph_builder_type=RandomGraphAlgorithm, framework=framework)

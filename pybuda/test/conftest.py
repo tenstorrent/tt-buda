@@ -179,6 +179,8 @@ DEVICE_CONFIG_TO_BACKEND_DEVICE_TYPE = {
 
 @dataclass
 class TestDevice:
+    __test__ = False  # Avoid collecting TestDevice as a pytest test
+
     devtype: BackendType
     arch: BackendDevice
     devmode: DeviceMode

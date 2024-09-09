@@ -25,11 +25,13 @@ def download_model(download_func, *args, num_retries=3, timeout=180, **kwargs):
     
 
 class Timer:
+    '''Timer class to measure the duration of a code block'''
 
     def __init__(self):
         self.start_time = time.perf_counter()
 
     def get_duration(self):
+        '''Calculate the duration of the code block in seconds'''
         end_time = time.perf_counter()
         duration = end_time - self.start_time
         return duration

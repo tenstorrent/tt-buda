@@ -32,7 +32,7 @@ void add_inverse_to_input_edges(
         auto name = initial_op->name() + "_input_commute_clone" + std::to_string(edge.edge_creation_id);
         auto *clone_0 = graph->add_node(initial_op->clone(name), graph->get_subgraph_id_for_node(initial_op->id()));
         graphlib::OpNode *clone_0_op = dynamic_cast<graphlib::OpNode *>(clone_0);
-        clone_0_op->as<graphlib::TaggedNode>()->tag("dont_erase");
+        clone_0_op->as<graphlib::TaggedNode>()->tag("dont_erase", true);
         update_reshape_attr(clone_0_op, frist_reshape);
         clone_0->set_shape(frist_reshape);
         log_trace(LogGraphCompiler, "  Input commute clone 0: {} set to shape: {}", name, frist_reshape);
@@ -65,7 +65,8 @@ void add_inverse_to_input_edges(
         {
             if (clone_0_op->op_name() == "reshape")
                 try_consteval_op(graph, clone_0_op, true);
-            else if (clone_1_op->op_name() == "transpose" and not graph->enable_training() and not input->requires_grad())
+            // if training is enabled then only consteval if the input does not require grad
+            else if (clone_1_op->op_name() == "transpose" and (not graph->enable_training() or not input->requires_grad()))
                 try_consteval_op(graph, clone_0_op, true);
         }
     }
@@ -95,7 +96,7 @@ void add_inverse_to_output_edge(
     name = initial_op->name() + "_output_commute_clone" + std::to_string(outgoing_edge.edge_creation_id);
     auto *clone_1 = graph->add_node(initial_op->clone(name), graph->get_subgraph_id_for_node(initial_op->id()));
     graphlib::OpNode *clone_1_op = dynamic_cast<graphlib::OpNode *>(clone_1);
-    clone_1_op->as<graphlib::TaggedNode>()->tag("dont_erase");
+    clone_1_op->as<graphlib::TaggedNode>()->tag("dont_erase", true);
     update_reshape_attr(clone_1_op, clone_shape);
     clone_1->set_shape(clone_shape);
     log_trace(LogGraphCompiler, "  Output commute clone 1: {}", name);
@@ -369,7 +370,7 @@ bool insert_inverse_on_inputs(graphlib::Graph *graph)
             if (not op)
                 continue;
 
-            if (op->as<graphlib::TaggedNode>()->has_tag("dont_erase"))
+            if (op->as<graphlib::TaggedNode>()->tag_value_or("dont_erase", false))
                 continue;
 
             if (op->op_name() != "reshape" and op->op_name() != "transpose")
@@ -402,7 +403,7 @@ bool insert_inverse_on_outputs(graphlib::Graph *graph)
             if (not op)
                 continue;
 
-            if (op->as<graphlib::TaggedNode>()->has_tag("dont_erase"))
+            if (op->as<graphlib::TaggedNode>()->tag_value_or("dont_erase", false))
                 continue;
 
             if (op->op_name() != "reshape" and op->op_name() != "transpose")
@@ -429,7 +430,7 @@ bool insert_inverse_on_downstream_tms(graphlib::Graph *graph) {
         if (not op)
             continue;
 
-        if (op->as<graphlib::TaggedNode>()->has_tag("dont_erase"))
+        if (op->as<graphlib::TaggedNode>()->tag_value_or("dont_erase", false))
             continue;
 
         if (op->op_name() != "reshape")

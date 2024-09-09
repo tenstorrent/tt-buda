@@ -2,20 +2,23 @@
 # SPDX-FileCopyrightText: © 2024 Tenstorrent AI ULC
 
 # SPDX-License-Identifier: Apache-2.0
+from typing import Optional, List, Tuple
+import shutil
 import pybuda
 import pybuda.backend
 import torch
 import os
-import pybuda
 import inspect
 from pybuda.pybudaglobal import pybuda_reset
 import numpy as np
 from pybuda.tools.tti_data_parallel import (
-    run_tti_data_parallel, 
     RunMode,
-    RunResult, 
-    ForwardRunInputs,
-    GenerativeRunInputs
+    RunResult,
+    ForwardInputs,
+    GenerativeInputs,
+    MultiCardRunner,
+    split_tensor_batch,
+    initialize_multicard_runner,
 )
 import sys
 sys.path.insert(1, "pybuda")
@@ -67,14 +70,68 @@ def get_generative_params(other):
         
     return compile_inputs, num_tokens_to_generate, first_current_index, pad_token_id, write_index
 
-if __name__ == "__main__":
+def compile_and_save_tti(
+    module,
+    arch: pybuda.BackendDevice,
+    tti_output_path: str,
+    sample_inputs,
+    chip_ids: Optional[List[int]] = None,
+    num_chips: Optional[int] = None,
+):
+    tt0 = pybuda.TTDevice(
+        "tt0", 
+        module=module,
+        chip_ids=chip_ids,
+        num_chips=num_chips,
+        arch=arch
+    )
+    tt0.compile_to_image(
+        img_path=tti_output_path,
+        training=False,
+        sample_inputs=sample_inputs,
+    )
+    pybuda_reset()
+
+def get_model_config(base_kwargs, model, config):
+    models = get_models()
+    kwargs = base_kwargs.copy()
+    func = models[model]["func"]
+    available_parameters = inspect.signature(func).parameters
+    for p in available_parameters:
+        if p == "config":
+            kwargs["config"] = config
+        elif p == "force_num_layers":
+            kwargs["force_num_layers"] = 0
+
+    return func(**kwargs)
+
+
+def generate_random_inputs(sample_inputs, count):
+    input_shapes = [t.shape for t in sample_inputs]
+    all_inputs = []
+    for _ in range(count):
+        inputs = []
+        for shape in input_shapes:
+            inputs.append(torch.randn(*shape))
+        
+        all_inputs.append(inputs)
+        
+    return all_inputs
+
+def test_tti_mmio_dp_sanity():
+    clean_env = os.environ.copy()
     device_list = pybuda.detect_available_devices()
-    if not device_list:
-        raise RuntimeError("No devices available")
+    assert device_list, "No devices available"
+    
+    mmio_device_ids = [[i] for i in range(len(device_list))]
+    arch = device_list[0]
+    num_loops = 2
+    num_inputs_per_loop = 2
+    total_microbatch_size = 128
     
     base_kwargs = {
         "training": False, 
-        "microbatch": 128, 
+        "microbatch": total_microbatch_size, 
         "data_type": 'Fp16_b',
         "math_fidelity": 'HiFi3',
         "arch": "wormhole_b0",
@@ -84,51 +141,55 @@ if __name__ == "__main__":
     model_to_config = {
         "resnet": "resnet50", 
         "bert": "base", 
-        "mobilenet_v2": "224"
     }
-    
-    mmio_device_ids = list(range(len(device_list)))
-    arch = device_list[0]
-    
-    output_dir="device_images/"
+
+    output_dir = "device_images_multi_mmio/"
     os.makedirs(output_dir, exist_ok=True)
-    
-    
-    num_loops = 16
-    total_microbatch_size = 128
-    
-    models = get_models()
-    os.environ["PYBUDA_FORCE_THREADS"] = "1"
-    clean_env = os.environ.copy()
-    
     for model, config in model_to_config.items():
-        kwargs = base_kwargs.copy()
-        func = models[model]["func"]
-        available_parameters = inspect.signature(func).parameters
-        for p in available_parameters:
-            if p == "config":
-                kwargs["config"] = config
-            elif p == "force_num_layers":
-                kwargs["force_num_layers"] = 0
-        
-        model_config = func(**kwargs)
-    
+        model_config = get_model_config(base_kwargs, model, config)
         duts, inputs, targets, other = model_config
+        multi_inputs = [inputs] * num_inputs_per_loop
         module = duts['tt']
-        run_result: RunResult = run_tti_data_parallel(
+        image_path = os.path.join(output_dir, f"{model}.tti")
+        
+        single_device_inputs = split_tensor_batch(inputs, len(mmio_device_ids))[0]
+        compile_and_save_tti(
             module=module,
-            run_mode=RunMode.FORWARD,
-            inputs=ForwardRunInputs(inputs=inputs),
             arch=arch,
-            device_ids=mmio_device_ids,
-            num_loops=num_loops,
-            output_dir=output_dir,
-            sync_at_run_start=True
+            num_chips=1,
+            tti_output_path=image_path,
+            sample_inputs=single_device_inputs,
         )
-        outputs = run_result.outputs
-        cpu_outputs = [module.cpu_eval_forward(*inputs)] * num_loops
+
+        # Generate device outputs
+        runner = initialize_multicard_runner(
+            arch=pybuda.BackendDevice.Wormhole_B0,
+            device_ids=mmio_device_ids,
+            run_mode=RunMode.FORWARD,
+            compile_inputs=inputs,
+            precompiled_tti_path=image_path,
+            output_dir=output_dir
+        )
         
-        check_outputs(cpu_outputs, outputs)
+        all_outputs = []
+        for _ in range(num_loops):
+            run_result: RunResult = runner.run(ForwardInputs(run_inputs=multi_inputs))
+            all_outputs.append(run_result.outputs)
+            
+        runner.shutdown()
         
+        # Generate cpu outputs
+        all_cpu_outputs = []
+        for single_inputs in multi_inputs:
+            all_cpu_outputs.append(module.cpu_eval_forward(*single_inputs))
+            
+        all_cpu_outputs = [all_cpu_outputs] * num_loops
+        
+        # Compare outputs, check PCC
+        check_outputs(all_outputs, all_cpu_outputs)
+            
         pybuda_reset()
         os.environ = clean_env
+    
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
