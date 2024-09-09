@@ -4,17 +4,15 @@
 # Generic test model randomizer
 
 
-from typing import Dict, List, Optional, Final, Tuple
+from typing import Dict, List, Optional, Final
 from dataclasses import dataclass, field
 import random
 import torch
 
+from pybuda.op_repo import TensorShape
 from pybuda.op_repo import OperatorDefinition
+from pybuda.op_repo import ShapeCalculationContext
 from test.conftest import TestDevice
-
-
-# Defining a type for tensor shape
-TensorShape = Tuple[int, ...]
 
 
 @dataclass
@@ -37,6 +35,7 @@ class RandomizerNode:
     index: Optional[int] = None
     out_value: Optional[str] = None
     operator: Optional[OperatorDefinition] = None
+    input_num: int = field(init=False)
     inputs: List['RandomizerNode'] = field(init=False)
     constructor_kwargs: Dict[str, object] = field(default_factory=dict)
     forward_kwargs: Dict[str, object] = field(default_factory=dict)
@@ -46,7 +45,11 @@ class RandomizerNode:
     def __post_init__(self):
         # List of input nodes is initialized with None values for each input
         # Inputs will be set later during graph construction
-        self.inputs = [None for _ in range(self.operator.input_num)]
+        self.input_num = self.operator.input_num_range.operands_min
+        self.init_inputs()
+
+    def init_inputs(self):
+        self.inputs = [None for _ in range(self.input_num)]
 
     @property
     def operator_name(self):
@@ -67,6 +70,37 @@ class RandomizerNode:
     @property
     def node_info(self):
         return f"{self.node_name} {self.name}"
+
+
+class NodeShapeCalculationContext(ShapeCalculationContext):
+
+    def __init__(self, node: RandomizerNode, test_context: 'RandomizerTestContext'):
+        self.node = node
+        self.test_context = test_context
+
+    @property
+    def operator(self) -> OperatorDefinition:
+        return self.node.operator
+    
+    @property
+    def input_num(self) -> int:
+        return self.node.input_num
+
+    @property
+    def constructor_kwargs(self) -> Dict[str, object]:
+        return self.node.constructor_kwargs
+
+    @property
+    def forward_kwargs(self) -> Dict[str, object]:
+        return self.node.forward_kwargs
+
+    @property
+    def output_shape(self) -> TensorShape:
+        return self.node.output_shape
+
+    @property
+    def rng_shape(self) -> random.Random:
+        return self.test_context.rng_shape
 
 
 @dataclass
@@ -107,10 +141,12 @@ class RandomizerConfig:
     # build_model_from_code: bool = False  # TODO remove obsoleted
     debug_shapes: bool = False,
     verify_shapes: bool = False,
+    verification_timeout: int = 60
     dim_min: int = 3
     dim_max: int = 4
     op_size_per_dim_min: int = 16
     op_size_per_dim_max: int = 512
+    op_size_quantization: int = 1
     microbatch_size_min: int = 1
     microbatch_size_max: int = 8
     num_of_nodes_min: int = 5
@@ -135,3 +171,9 @@ class RandomizerTestContext:
     rng_shape: Optional[random.Random] = None
     # random number generators for parameters
     rng_params: Optional[random.Random] = None
+
+
+class InvalidShape(Exception):
+
+    def __init__(self, message):
+        super().__init__(message)

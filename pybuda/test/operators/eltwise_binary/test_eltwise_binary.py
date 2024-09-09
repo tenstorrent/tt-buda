@@ -70,8 +70,10 @@ import pybuda.op
 
 from pybuda import PyBudaModule
 from pybuda.op_repo import TensorShape
-from test.operators.utils import netlist_utils, InputSourceFlags, CompilerUtils, VerifyUtils
+from test.operators.utils import InputSourceFlags, VerifyUtils
 from test.operators.utils import ShapeUtils
+from test.operators.utils import NetlistValidation
+from test.operators.utils import FailingReasons
 from test.conftest import TestDevice
 
 from pybuda import TTDevice, pybuda_compile, VerifyConfig, CompilerConfig
@@ -84,18 +86,19 @@ class ModelFromAnotherOp(PyBudaModule):
 
     model_name = "model_op_src_from_another_op"
 
-    def __init__(self, operator, opname, shape):
-        super().__init__("Element-wise binary operator " + opname + " test _ op src from another op")
-        self.testname = "Element-wise binary operator " + opname + " test _ op src from another op"
+    def __init__(self, operator, opname, shape, kwargs):
+        super().__init__("Element_wise_binary_operator_" + opname + "_test_op_src_from_another_op")
+        self.testname = "Element_wise_binary_operator_" + opname + "_test_op_src_from_another_op"
         self.operator = operator
         self.opname = opname
         self.shape = shape
+        self.kwargs = kwargs
 
     def forward(self, x, y):
         # we use Add and Subtract operators to create two operands which are inputs for the binary operator
         xx = pybuda.op.Add("Add0", x, y)
         yy = pybuda.op.Subtract("Subtract0", x, y)
-        output = self.operator(self.opname + "1", xx, yy)
+        output = self.operator(self.opname + "1", xx, yy, **self.kwargs)
         return output
 
 
@@ -103,15 +106,16 @@ class ModelFromHost(PyBudaModule):
 
     model_name = "model_op_src_from_host"
 
-    def __init__(self, operator, opname, shape):
-        super().__init__("Element-wise binary operator " + opname + " test _ op src from host")
-        self.testname = "Element-wise binary operator " + opname + " test _ op src from host"
+    def __init__(self, operator, opname, shape, kwargs):
+        super().__init__("Element_wise_binary_operator_" + opname + "_test_op_src_from_host")
+        self.testname = "Element_wise_binary_operator_" + opname + "_test_op_src_from_host"
         self.operator = operator
         self.opname = opname
         self.shape = shape
+        self.kwargs = kwargs
 
     def forward(self, x, y):
-        output = self.operator(self.opname + "0", x, y)
+        output = self.operator(self.opname + "0", x, y, **self.kwargs)
         return output
 
 
@@ -119,15 +123,16 @@ class ModelFromDramQueue(PyBudaModule):
 
     model_name = "model_op_src_from_dram_queue"
 
-    def __init__(self, operator, opname, shape):
-        super().__init__("Element-wise binary operator " + opname + " test _ op src from dram queue")
-        self.testname = "Element-wise binary operator " + opname + " test _ op src from dram queue"
+    def __init__(self, operator, opname, shape, kwargs):
+        super().__init__("Element_wise_binary_operator_" + opname + "_test_op_src_from_dram_queue")
+        self.testname = "Element_wise_binary_operator_" + opname + "_test_op_src_from_dram_queue"
         self.operator = operator
         self.opname = opname
         self.shape = shape
+        self.kwargs = kwargs
 
     def forward(self, x, y):
-        output = self.operator(self.opname + "0", x, y)
+        output = self.operator(self.opname + "0", x, y, **self.kwargs)
         return output
 
 
@@ -135,12 +140,13 @@ class ModelFromDramQueuePrologued(PyBudaModule):
 
     model_name = "model_op_src_from_dram_queue_prologued"
 
-    def __init__(self, operator, opname, shape):
-        super().__init__("Element-wise binary operator " + opname + " test _ op src from dram queue prologued")
-        self.testname = "Element-wise binary operator " + opname + " test _ op src from dram queue prologued"
+    def __init__(self, operator, opname, shape, kwargs):
+        super().__init__("Element_wise_binary_operator_" + opname + "_test_op_src_from_dram_queue_prologued")
+        self.testname = "Element_wise_binary_operator_" + opname + "_test_op_src_from_dram_queue_prologued"
         self.operator = operator
         self.opname = opname
         self.shape = shape
+        self.kwargs = kwargs
 
         def my_rand(*shape, requires_grad=False):
             return (torch.rand(*shape, requires_grad=requires_grad) - 0.5).detach()
@@ -151,7 +157,7 @@ class ModelFromDramQueuePrologued(PyBudaModule):
         self.set_constant("c", pybuda.Tensor.create_from_torch(my_rand(*self.shape_input), constant=True))
 
     def forward(self, x):
-        output = self.operator(self.opname + "0", self.get_constant("c"), x)
+        output = self.operator(self.opname + "0", self.get_constant("c"), x, **self.kwargs)
         return output
 
 
@@ -159,12 +165,13 @@ class ModelConstEvalPass(PyBudaModule):
 
     model_name = "model_op_src_const_eval_pass"
 
-    def __init__(self, operator, opname, shape):
-        super().__init__("Element-wise binary operator " + opname + " test _ op src const eval pass")
-        self.testname = "Element-wise binary operator " + opname + " test _ op src const eval pass"
+    def __init__(self, operator, opname, shape, kwargs):
+        super().__init__("Element_wise_binary_operator_" + opname + "_test_op_src_const_eval_pass")
+        self.testname = "Element_wise_binary_operator_" + opname + "_test_op_src_const_eval_pass"
         self.operator = operator
         self.opname = opname
         self.shape = shape
+        self.kwargs = kwargs
 
         def my_rand(*shape, requires_grad=False):
             return (torch.rand(*shape, requires_grad=requires_grad) - 0.5).detach()
@@ -182,7 +189,7 @@ class ModelConstEvalPass(PyBudaModule):
         ]
 
     def forward(self, x, y):
-        v1 = self.operator(self.opname + "0", self.get_constant("c1"), self.get_constant("c2"))
+        v1 = self.operator(self.opname + "0", self.get_constant("c1"), self.get_constant("c2"), **self.kwargs)
         # v2 and v3 consume inputs
         v2 = pybuda.op.Add("Add1", x, y)
         v3 = pybuda.op.Add("Add2", v1, v2)
@@ -193,17 +200,18 @@ class ModelOpSrcFromTmEdge1(PyBudaModule):
 
     model_name = "model_op_src_from_tm_edge1"
 
-    def __init__(self, operator, opname, shape):
-        super().__init__("Element-wise binary operator " + opname + " test _ op src from tm edge1")
-        self.testname = "Element-wise binary operator " + opname + " test _ op src from tm edge1"
+    def __init__(self, operator, opname, shape, kwargs):
+        super().__init__("Element_wise_binary_operator_" + opname + "_test_op_src_from_tm_edge1")
+        self.testname = "Element_wise_binary_operator_" + opname + "_test_op_src_from_tm_edge1"
         self.operator = operator
         self.opname = opname
         self.shape = shape
+        self.kwargs = kwargs
 
     def forward(self, x, y):
         xx = pybuda.op.Add("Add0", x, y)
         yy = pybuda.op.tm.Transpose("Transpose0", xx, -1, -2)
-        output = self.operator(self.opname + "1", yy, yy)
+        output = self.operator(self.opname + "1", yy, yy, **self.kwargs)
         return output
 
 
@@ -211,18 +219,18 @@ class ModelOpSrcFromTmEdge2(PyBudaModule):
 
     model_name = "model_op_src_from_tm_edge2"
 
-    def __init__(self, operator, opname, shape):
-        super().__init__("Element-wise binary operator " + opname + " test _ op src from tm edge2")
-        self.testname = "Element-wise binary operator " + opname + " test _ op src from tm edge2"
+    def __init__(self, operator, opname, shape, kwargs):
+        super().__init__("Element_wise_binary_operator_" + opname + "_test_op_src_from_tm_edge2")
+        self.testname = "Element_wise_binary_operator_" + opname + "_test_op_src_from_tm_edge2"
         self.operator = operator
         self.opname = opname
         self.shape = shape
+        self.kwargs = kwargs
 
     def forward(self, x, y):
-        # 
         xx = pybuda.op.tm.Transpose("Transpose0", x, -1, -2)
         yy = pybuda.op.tm.Transpose("Transpose1", y, -1, -2)
-        output = self.operator(self.opname + "2", xx, yy)
+        output = self.operator(self.opname + "2", xx, yy, **self.kwargs)
         return output
 
 
@@ -232,6 +240,7 @@ def verify(
     input_operator: str,
     input_shape: TensorShape,
     number_of_operands: int,
+    kwargs: Dict = {},
     input_params: List[Dict] = [],
     input_source_flag: InputSourceFlags = None,
     dev_data_format: pybuda.DataFormat = None,
@@ -240,21 +249,21 @@ def verify(
     '''Common verification function for all tests'''
 
     operator = getattr(pybuda.op, input_operator)
-    model = model_type(operator=operator, opname=input_operator, shape=input_shape)
+
+    model = model_type(operator=operator, opname=input_operator, shape=input_shape, kwargs=kwargs)
 
     input_shapes = tuple([input_shape for _ in range(number_of_operands)])
     logger.trace(f"***input_shapes: {input_shapes}")
 
-    if input_source_flag:
-        CompilerUtils.set_input_source(input_source_flag.value)
-
-    if math_fidelity:
-        CompilerUtils.set_math_fidelity(math_fidelity)
-
-    if dev_data_format:
-        input_params.append({"dev_data_format": dev_data_format})
-
-    VerifyUtils.verify(model, test_device, input_shapes, input_params)
+    VerifyUtils.verify(
+        model=model,
+        test_device=test_device,
+        input_shapes=input_shapes,
+        input_params=input_params,
+        input_source_flag=input_source_flag,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
+    )
 
 
 MODEL_TYPES = [
@@ -283,6 +292,8 @@ def get_eltwise_binary_ops():
         "LessEqual",        #10
         "Equal",            #11
         "NotEqual",         #12
+        "Divide",           #13
+        "BinaryStack",      #14
     ]
 
 def get_input_shapes():
@@ -304,30 +315,31 @@ def get_input_shapes():
             
             # 2-dimensional shape, microbatch_size > 1:
             # All shapes fails for all operators
+            # Skip shapes where microbatchsize > 1
             pytest.param((3, 4),        #13      # 3.1 Full tensor (i.e. full expected shape)
-                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+                         marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
             pytest.param((45, 17),      #14      # 3.1 Full tensor (i.e. full expected shape)
-                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+                         marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
             pytest.param((64, 1),       #15      # 3.2 Tensor reduce on one or more dims to 1
-                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+                         marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
             pytest.param((100, 100),    #16      # 4.3 Very large (thousands, 10s of thousands)
-                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+                         marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
             pytest.param((1000, 100),   #17      # 4.3 Very large (thousands, 10s of thousands)
-                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+                         marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
             pytest.param((10, 1000),    #18      # 4.4 Extreme ratios between height/width
-                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+                         marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
             pytest.param((9920, 1),     #19      # 4.4 Extreme ratios between height/width  
-                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+                         marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
             pytest.param((10000, 1),    #20      # 4.4 Extreme ratios between height/width 
-                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+                         marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
             pytest.param((32, 64),      #21      # 4.1 Divisible by 32
-                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+                         marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
             pytest.param((160, 96),     #22      # 4.1 Divisible by 32
-                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+                         marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
             pytest.param((17, 41),      #23      # 4.2 Prime numbers
-                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+                         marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
             pytest.param((89, 3),       #24      # 4.2 Prime numbers
-                         marks=pytest.mark.xfail(reason="Skip shapes where microbatchsize > 1")),
+                         marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
 
             # 3-dimensional shape, microbatch_size = 1:
             (1, 3, 4),                  #25     # 3.1 Full tensor (i.e. full expected shape)
@@ -383,8 +395,9 @@ def get_input_shapes():
             (9, 1, 9920, 1),                  #69     # 4.4 Extreme ratios between height/width
             (10, 10, 10000, 1),               #70     # 4.4 Extreme ratios between height/width
             (11, 32, 32, 64),                 #71     # 4.1 Divisible by 32
+            # RuntimeError: Fatal Python error: Segmentation fault
             pytest.param((12, 64, 160, 96),   #72     # 4.1 Divisible by 32
-                         marks=pytest.mark.skip(reason="RuntimeError: Fatal Python error: Segmentation fault")),
+                         marks=pytest.mark.skip(reason=FailingReasons.SEG_FAULT)),
             (13, 11, 17, 41),                 #73     # 4.2 Prime numbers
             (14, 13, 89, 3),                  #74     # 4.2 Prime numbers
     ]
@@ -406,12 +419,27 @@ def test_eltwise_binary_ops_per_test_plan(
     # Observed Bugs: --------------------------------------------------------------------------------------------------------------------
     # 1. input_shape in ((1, 1000, 100), (10, 1000, 100)):
     if model_type == ModelOpSrcFromTmEdge1 and input_operator == "Heaviside" and input_shape in (s[30], s[43]):
-        pytest.xfail(reason="RuntimeError: TT_ASSERT @ pybuda/csrc/balancer/policies/policy_utils.cpp:2221: " + 
-                            "graph ->get_edges( graph->get_node_by_name(nopInsertInst->src), " +
-                            "graph->get_node_by_name(nopInsertInst->dest)) .size() == 1")
+        # Error Message: "RuntimeError: TT_ASSERT @ pybuda/csrc/balancer/policies/policy_utils.cpp:2221: " + 
+        #                "graph ->get_edges( graph->get_node_by_name(nopInsertInst->src), " +
+        #                "graph->get_node_by_name(nopInsertInst->dest)) .size() == 1"
+        pytest.xfail(reason=FailingReasons.BUGGY_SHAPE)
     # 2. input_shape in ((1, 9920, 1), (1, 1, 9920, 1), (9, 1, 9920, 1)):
     if model_type == ModelFromAnotherOp and input_operator in ["Equal", "NotEqual"] and input_shape in (s[32], s[56], s[69]):
-        pytest.xfail(reason="RuntimeError: Fatal balancer error: Could not reconcile constraints: path[Add0 -> _fused_op_0]")
+        # Error Mesage: "RuntimeError: Fatal balancer error: Could not reconcile constraints: path[Add0 -> _fused_op_0]"
+        pytest.xfail(reason=FailingReasons.BUGGY_SHAPE)
+    # 3. BinaryStack bugs:
+    if input_operator == "BinaryStack":
+        if len(input_shape) in (2, 3):
+            # input_shapes are 2-dimensional and 3-dimensional:
+            # BinaryStack operator is not working for 2D and 3D shapes
+            pytest.xfail(reason=FailingReasons.UNSUPPORTED_DIMENSION)
+        elif model_type == ModelConstEvalPass:
+            # model_type is ModelConstEvalPass:
+            pytest.xfail(reason=FailingReasons.UNSUPPORTED_INPUT_SOURCE)
+        elif input_shape in (s[55], s[56], s[57], s[68], s[69], s[70]):
+            # input_shapes are all with extreme ratios between height/width:
+            # BinaryStack operator is not working for shapes that have extreme ratios between height/width
+            pytest.xfail(reason=FailingReasons.BUGGY_SHAPE)
     # ------------------------------------------------------------------------------------------------------------------------------------
 
 
@@ -419,12 +447,17 @@ def test_eltwise_binary_ops_per_test_plan(
     if model_type == ModelFromDramQueue:
         input_source_flag = InputSourceFlags.FROM_DRAM
 
+    kwargs={}
+    if input_operator == "BinaryStack":
+        kwargs['dim'] = -1
+
     verify(
         test_device=test_device,
         model_type=model_type,
         input_operator=input_operator,
         input_shape=input_shape,
         number_of_operands=2,
+        kwargs=kwargs,
         input_source_flag=input_source_flag,
         dev_data_format=dev_data_format,
         math_fidelity=input_math_fidelity,
@@ -432,15 +465,15 @@ def test_eltwise_binary_ops_per_test_plan(
 
     # netlist validations:
 
-    file_path = VerifyUtils.get_netlist_filename()
+    netlist = NetlistValidation()
 
     if model_type == ModelFromDramQueue:
-        assert netlist_utils.read_netlist_value(file_path, "/queues/x/loc") == 'dram'
-        assert netlist_utils.read_netlist_value(file_path, "/queues/y/loc") == 'dram'
+        assert netlist.get_value("/queues/x/loc") == 'dram'
+        assert netlist.get_value("/queues/y/loc") == 'dram'
 
     if model_type == ModelConstEvalPass:
         # Here we check there is no key with operator name in the netlist in graphs section
-        d = netlist_utils.read_netlist_value(file_path, "/graphs/fwd_0_0_temporal_epoch_0")
+        d = netlist.get_value("/graphs/fwd_0_0_temporal_epoch_0")
         for key in d.keys():
             assert input_operator not in key
 
@@ -450,8 +483,9 @@ def get_eltwise_binary_ops_prologued():
         pytest.param("Add"),              #00
         pytest.param("Max"),              #01
         pytest.param("Min"),              #02
+        # Validation error caused by pcc threshold
         pytest.param("Power",             #03
-                     marks=pytest.mark.xfail(reason="AssertionError: Data mismatch detected")),
+                     marks=pytest.mark.xfail(reason=FailingReasons.DATA_MISMATCH)),
         pytest.param("Subtract"),         #04
         pytest.param("Multiply"),         #05
         pytest.param("Heaviside"),        #06
@@ -461,6 +495,8 @@ def get_eltwise_binary_ops_prologued():
         pytest.param("LessEqual"),        #10
         pytest.param("Equal"),            #11
         pytest.param("NotEqual"),         #12
+        pytest.param("Divide"),           #13
+        pytest.param("BinaryStack"),      #14
     ]
 
 def get_input_shapes_prologued():
@@ -471,10 +507,11 @@ def get_input_shapes_prologued():
             ((1, 17),        InputSourceFlags.FROM_DRAM_NOT_PROLOGUED, False),             #01        # 3.1 Full tensor (i.e. full expected shape)
             
             # 2-dimensional shape, microbatch_size > 1:
+            # "Doesn't work for microbatchsize > 1 and two dimensions.
             pytest.param((4, 16), InputSourceFlags.FROM_DRAM_PROLOGUED, True,              #02        # 3.1 Full tensor (i.e. full expected shape)
-                    marks=pytest.mark.xfail(reason="Doesn't work for microbatchsize > 1 and two dimensions.")),
+                    marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
             pytest.param((3, 17), InputSourceFlags.FROM_DRAM_NOT_PROLOGUED, False,         #03        # 3.1 Full tensor (i.e. full expected shape)
-                    marks=pytest.mark.xfail(reason="Doesn't work for microbatchsize > 1 and two dimensions.")),
+                    marks=pytest.mark.xfail(reason=FailingReasons.MICROBATCHING_UNSUPPORTED)),
             
             # 3-dimensional shape:
             ((2, 3, 3),      InputSourceFlags.FROM_DRAM_NOT_PROLOGUED, False),             #04        # 3.1 Full tensor (i.e. full expected shape)
@@ -518,20 +555,37 @@ def test_eltwise_binary_ops_per_test_plan_dram_prologued(
     input_math_fidelity=None
 ):
 
+    # Observed Bugs: --------------------------------------------------------------------------------------------------------------------
+    # 1. BinaryStack bugs:
+    if input_operator == "BinaryStack" and len(input_shape) in (2, 3):
+        # input_shapes are 2-dimensional and 3-dimensional:
+        # BinaryStack operator is not working for 2D and 3D shapes.
+        pytest.xfail(reason=FailingReasons.UNSUPPORTED_DIMENSION)
+    # -----------------------------------------------------------------------------------------------------------------------------------
+
+    # Divide behaves differently from another operators for this shape
+    if input_operator == "Divide" and input_shape == (2, 100, 1000):
+        should_prolog = True
+
+    kwargs = {}
+    if input_operator == "BinaryStack":
+        kwargs['dim'] = -1
+
     verify(
         test_device=test_device,
         model_type=model_type,
         input_operator=input_operator,
         input_shape=input_shape,
         number_of_operands=1,
+        kwargs=kwargs,
         input_source_flag=input_source_flag,
         dev_data_format=dev_data_format,
         math_fidelity=input_math_fidelity,
     )
 
     # netlist validation:
-    file_path = VerifyUtils.get_netlist_filename()
-    d = netlist_utils.read_netlist_value(file_path, "/programs/0/run_fwd_0/4/execute/queue_settings/input_0_" + input_operator + "0")
+    netlist = NetlistValidation()
+    d = netlist.get_value("/programs/0/run_fwd_0/4/execute/queue_settings/input_0_" + input_operator + "0")
     if should_prolog:
         assert d['prologue']
     else:
@@ -623,6 +677,76 @@ def test_df_eltwise_binary_ops_per_test_plan(input_operator, model_type, test_de
         dev_data_format,
         math_fidelity,
     )
+
+
+# LogicalAnd operator:
+# Compile is failing, looks like it is not supported by the compiler yet.
+# Error Message: "Compile error: 'logical_and'"
+# ...
+# Error Message: "KeyError: 'logical_and'"
+@pytest.mark.xfail(reason=FailingReasons.NOT_IMPLEMENTED)
+def test_eltwise_binary_logicaland_operator(test_device):
+
+    verify(
+        test_device=test_device,
+        model_type=ModelFromHost,
+        input_operator="LogicalAnd",
+        input_shape=[1, 3, 3],
+        number_of_operands=2,
+    )
+
+
+# It is not clear what the operator should do, because the documentation is missing - it is copied from Max operator.
+# Case with dim=-1 is covered with other operators in test "test_eltwise_binary_ops_per_test_plan".
+# This test covers all other values for dim parameter.
+# Operator is not working for dim parameter different than -1.
+@pytest.mark.xfail(reason=FailingReasons.UNSUPORTED_AXIS)
+@pytest.mark.parametrize("shape", [(1, 3, 3, 3)])
+@pytest.mark.parametrize("dim", [-2, 0, 1, 2])
+@pytest.mark.parametrize("model", [ModelFromHost, ModelFromAnotherOp])
+def test_eltwise_binary_binarystack_operator(test_device, shape, dim, model):
+
+    kwargs={}
+    kwargs['dim'] = dim
+
+    verify(
+        test_device=test_device,
+        model_type=model,
+        input_operator="BinaryStack",
+        input_shape=shape,
+        number_of_operands=2,
+        kwargs=kwargs,
+    )
+
+
+# Test function for running single operator test with specific parameters
+# with all models except prologued
+@pytest.mark.skip
+def test_eltwise_binary_ops_per_test_plan_single(
+        bin_op,
+        bin_model,
+        bin_shape,
+        test_device
+):
+
+    model = eval(bin_model)
+    shape = eval(bin_shape) if type(bin_shape) is str else bin_shape
+    
+    test_eltwise_binary_ops_per_test_plan(bin_op, model, shape, test_device)
+
+
+# Test function for running single operator test with specific parameters
+# with prologued model
+@pytest.mark.skip
+def test_eltwise_binary_ops_per_test_plan_single_prologued(
+        bin_op,
+        bin_shape_prologued,
+        test_device
+):
+    model = ModelFromDramQueuePrologued
+    shape, source_flag, should_prolog = eval(bin_shape_prologued)
+
+    test_eltwise_binary_ops_per_test_plan_dram_prologued(bin_op, model, shape, source_flag, should_prolog, test_device)
 
 
 # ------------------------------------------------------------------------------------------------------------

@@ -1001,6 +1001,7 @@ py::object consteval_input(
                 input_value = narrow_buda_tensor_to_pytorch(input_value, node->shape().as_vector());
             }
             node_outputs.insert({node->id(), {input_value}});
+            output = input_value;
             continue;
         }
 

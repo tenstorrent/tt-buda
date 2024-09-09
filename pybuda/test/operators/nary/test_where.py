@@ -16,7 +16,11 @@ import pybuda.tensor
 from pybuda import PyBudaModule, VerifyConfig
 from pybuda.verify import TestKind, verify_module
 
-@pytest.mark.skip(reason="This test is failing due to not supporting 'BoolTensor' for a condition")
+from test.operators.utils import FailingReasons
+
+
+# This test is failing due to not supporting 'BoolTensor' for a condition
+@pytest.mark.xfail(reason=FailingReasons.UNSUPPORTED_TYPE_FOR_VALIDATION)
 def test_cond_bool_tensor_manual_inputs(test_device):
     class Model(PyBudaModule):
         def __init__(self, name):
@@ -56,7 +60,8 @@ def test_cond_bool_tensor_manual_inputs(test_device):
         inputs=[(condition_tensor, x_tensor, y_tensor)],
     )
 
-@pytest.mark.skip(reason="This test is failing when condition_tensor elements have values <> 0.0 or 1.0")
+# This test is failing when condition_tensor elements have values <> 0.0 or 1.0
+@pytest.mark.xfail(reason=FailingReasons.DATA_MISMATCH)
 def test_cond_non_bool_tensor_manual_inputs(test_device):
     class Model(PyBudaModule):
         def __init__(self, name):
@@ -94,7 +99,8 @@ def test_cond_non_bool_tensor_manual_inputs(test_device):
         inputs=[(condition_tensor, x_tensor, y_tensor)],
     )
 
-@pytest.mark.skip(reason="This test is failing due assertion error - data mismatch detected")
+# This test is failing due assertion error - data mismatch detected
+@pytest.mark.xfail(reason=FailingReasons.DATA_MISMATCH)
 @pytest.mark.parametrize("input_shape", [(1, 3, 3)])
 def test_where_input_shapes(test_device, input_shape):
     class Model(PyBudaModule):
@@ -130,8 +136,11 @@ cond_values_2 = [[[0.2, 0.],
                   [1., 0.],
                   [1., 0.]]]
 
-@pytest.mark.skip(reason="This test is failing due to verify_module calculates wrong pcc")
-@pytest.mark.parametrize("cond_values", [cond_values_1, cond_values_2])
+# This test is failing due to verify_module calculates wrong pcc
+@pytest.mark.parametrize("cond_values", [
+    pytest.param(cond_values_1),
+    pytest.param(cond_values_2, marks=pytest.mark.xfail(reason=FailingReasons.DATA_MISMATCH)),
+])
 def test_where_verify_module(test_device, cond_values):
     class Model(PyBudaModule):
         def __init__(self, name):

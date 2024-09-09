@@ -122,10 +122,10 @@ def test_yolo_v6_pytorch(variant, test_device):
                 (2, 1),
             )
 
-        if test_device.arch == BackendDevice.Wormhole_B0 and variant == "yolov6l":
+        if test_device.arch in [BackendDevice.Wormhole_B0, BackendDevice.Blackhole] and variant == "yolov6l":
             os.environ["PYBUDA_FORCE_CONV_MULTI_OP_FRACTURE"] = "1"
 
-        if test_device.arch == BackendDevice.Grayskull and variant == "yolov6l":
+        if test_device.arch in [BackendDevice.Grayskull] and variant == "yolov6l":
             compiler_cfg.balancer_op_override(
                 "conv2d_484.dc.reshape.0.dc.sparse_matmul.4.lc2", "grid_shape", (1, 1)
             )

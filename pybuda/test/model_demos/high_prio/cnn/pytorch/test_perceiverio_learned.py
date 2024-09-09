@@ -58,6 +58,13 @@ def test_perceiverio_learned_imgcls_pytorch(test_device):
         if test_device.devtype == pybuda.BackendType.Silicon:
             verify_enabled = False
 
+    elif test_device.arch == pybuda.BackendDevice.Blackhole:
+        os.environ["PYBUDA_DISABLE_PADDING_PASS"] = "1"
+        compiler_cfg.enable_auto_fusing = False
+        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{101*1024}"
+        if test_device.devtype == pybuda.BackendType.Silicon:
+            pcc_value = 0.92
+
     # Sample Image
     pixel_values = get_sample_data(variant)
 

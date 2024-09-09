@@ -64,6 +64,8 @@ from pybuda import PyBudaModule, VerifyConfig
 from pybuda.config import _get_global_compiler_config
 from pybuda.verify import TestKind, verify_module
 
+from test.operators.utils import FailingReasons
+
 # IndexCopy operator in PyBuda works in case of index is vector of one element
 def test_index_copy_torch_and_buda_1():
 
@@ -94,7 +96,8 @@ def test_index_copy_torch_and_buda_1():
 
 # Case of IndexCopy operator is not working
 # In PyTorch, index can be tensor of any shape, but in PyBuda, it can be only vector of one element
-@pytest.mark.xfail(reason="IndexCopy operator does not work")
+# IndexCopy operator does not work
+@pytest.mark.xfail(reason=FailingReasons.NOT_IMPLEMENTED)
 def test_index_copy_torch_and_buda_2():
 
     zeros_torch = torch.zeros(6, 3)
@@ -132,7 +135,8 @@ def test_index_copy_torch_and_buda_2():
 #  ...
 # "
 @pytest.mark.parametrize("input_shape", [(2, 3, 3)])
-@pytest.mark.xfail(reason="IndexCopy operator does not work on any device.")
+# IndexCopy operator does not work on any device.
+@pytest.mark.xfail(reason=FailingReasons.NOT_IMPLEMENTED)
 def test_index_copy_via_model(test_device, input_shape, input_params=[], math_fidelity=None):
 
     class Model(PyBudaModule):

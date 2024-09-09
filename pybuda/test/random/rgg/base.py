@@ -20,6 +20,7 @@ from test.utils import Timer
 from .datatypes import RandomizerNode, RandomizerGraph, RandomizerParameters, RandomizerConfig, ExecutionContext
 from .datatypes import RandomizerTestContext
 from .utils import StrUtils, GraphUtils
+from .utils import timeout, TimeoutException
 
 
 class GraphBuilder:
@@ -73,7 +74,7 @@ class RandomizerCodeGenerator:
         return StrUtils.kwargs_str(**node.constructor_kwargs)
 
     def forward_args(self, node: RandomizerNode) -> str:
-        args_str = ", ".join([f"inputs[{i}]" for i in range(node.operator.input_num)])
+        args_str = ", ".join([f"inputs[{i}]" for i in range(node.input_num)])
         return args_str
     
     def forward_kwargs(self, node: RandomizerNode) -> str:
@@ -190,6 +191,20 @@ class RandomizerRunner:
         return model
 
     def verify(self, model: PyBudaModule) -> None:
+
+        verification_timeout = self.test_context.randomizer_config.verification_timeout
+
+        try:
+            @timeout(verification_timeout)
+            def verify_model_timeout() -> None:
+                self.verify_model(model)
+
+            verify_model_timeout()
+        except TimeoutException as e:
+            logger.error(f"Module verification takes too long {e}.")
+            raise e
+
+    def verify_model(self, model: PyBudaModule) -> None:
         """
         Verify the model by building it and performing validation via PyBuda.
         The method is usually implemented once per framework.

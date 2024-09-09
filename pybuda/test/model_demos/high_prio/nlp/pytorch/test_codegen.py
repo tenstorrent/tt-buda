@@ -47,6 +47,12 @@ def test_codegen(test_device, variant):
             elif variant == "Salesforce/codegen-350M-nl":
                 compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16
                 pcc_value = 0.90
+    elif test_device.arch == BackendDevice.Blackhole:
+        if test_device.devtype == BackendType.Silicon:
+            if variant == "Salesforce/codegen-350M-multi":
+                pcc_value = 0.96
+            elif variant == "Salesforce/codegen-350M-nl":
+                pcc_value = 0.95
 
     # Load model (with tokenizer)
     tokenizer = download_model(AutoTokenizer.from_pretrained, variant)

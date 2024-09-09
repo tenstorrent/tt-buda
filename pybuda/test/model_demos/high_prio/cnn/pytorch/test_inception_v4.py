@@ -102,6 +102,13 @@ def test_inception_v4_osmr_pytorch(test_device):
         test_device, "inceptionv4",
     )
 
+    if test_device.arch == BackendDevice.Blackhole:
+        compiler_cfg = pybuda.config._get_global_compiler_config()
+        compiler_cfg.balancer_policy = "Ribbon"
+        compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
+        compiler_cfg.enable_auto_fusing = False
+        compiler_cfg.place_on_new_epoch("multiply_35")
+
     verify_module(
         model,
         input_shapes=[(inputs[0].shape,)],
@@ -153,6 +160,13 @@ def test_inception_v4_timm_pytorch(test_device):
     model, inputs, _ = generate_model_inceptionV4_imgcls_timm_pytorch(
         test_device, 'inception_v4',
     )
+
+    if test_device.arch == BackendDevice.Blackhole:
+        compiler_cfg = pybuda.config._get_global_compiler_config()
+        compiler_cfg.balancer_policy = "Ribbon"
+        compiler_cfg.default_df_override = pybuda._C.DataFormat.Float16_b
+        compiler_cfg.enable_auto_fusing = False
+        compiler_cfg.place_on_new_epoch("multiply_35")
 
     verify_module(
         model,

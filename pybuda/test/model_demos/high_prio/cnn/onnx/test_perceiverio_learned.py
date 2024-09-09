@@ -47,6 +47,12 @@ def test_perceiverio_learned_imgcls_onnx(test_device):
         if test_device.devtype == pybuda.BackendType.Silicon:
             verify_enabled = False
 
+    elif test_device.arch == pybuda.BackendDevice.Blackhole:
+        os.environ["TT_BACKEND_OVERLAY_MAX_EXTRA_BLOB_SIZE"] = f"{140*1024}"
+        compiler_cfg.balancer_op_override("add_63", "t_stream_shape", (1, 2))
+        if test_device.devtype == pybuda.BackendType.Silicon:
+            pcc_value = 0.91
+
     onnx_model_path = (
         "third_party/confidential_customer_models/internal/perceiverio/files/onnx/"
         + str(model_name).split("/")[-1].replace("-", "_")

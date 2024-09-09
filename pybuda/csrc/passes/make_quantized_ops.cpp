@@ -6,6 +6,7 @@
 
 #include "graph_lib/node_types.hpp"
 #include "graph_lib/utils.hpp"
+#include "passes/commute_utils.hpp"
 #include "utils/logger.hpp"
 #include "python_bindings_common.hpp"
 #include "graph_lib/node.hpp"
@@ -70,7 +71,7 @@ bool is_quantizeable_conv2d(graphlib::Graph *graph, graphlib::Node *conv2d) {
     if (not conv_op)
         return false;
 
-    if (conv_op->op_type().op != "conv2d")
+    if (conv_op->op_type().op != "conv2d" and conv_op->op_type().op != "conv2d_transpose")
         return false;
 
     // All inputs must be dequantize nodes
@@ -82,6 +83,10 @@ bool is_quantizeable_conv2d(graphlib::Graph *graph, graphlib::Node *conv2d) {
         if (operand_op->op_type().op != "dequantize")
             return false;
     }
+    
+    // If three is no bias then it is quantizeable, since we already know the act and weight are dequantize ops
+    if (graph->data_operands(conv2d).size() == 2)
+        return true;
 
     // The scale of the bias dequant must be equal to the product of the scales of the act and weight
     graphlib::OpNode *deq_act = dynamic_cast<graphlib::OpNode *>(graph->data_operands(conv2d)[0]);
@@ -191,9 +196,11 @@ void make_quantized_add(graphlib::Graph *graph, graphlib::OpNode *add) {
     graphlib::Node *scale = graph->data_operands(deq0)[1];
 
     int new_deq_axis = std::get<int>(deq1->op_attrs()[1]);
-    if (new_deq_axis >= 0)
-        new_deq_axis = new_deq_axis - deq1->shape().size() + add->shape().size();
-
+    // Find matching dim for axis
+    for (uint32_t i = 0; i < add->shape().size(); i++) {
+        if (add->shape()[i] == scale->shape()[0])
+            new_deq_axis = (int)i;
+    }
     
     std::vector<graphlib::OpType::Attr> dequant_attrs{0.0f, new_deq_axis};
     for (graphlib::Edge consumer_edge : graph->user_data_edges(add)) {
@@ -222,16 +229,20 @@ void make_quantized_add(graphlib::Graph *graph, graphlib::OpNode *add) {
 
 void make_quantized_conv2d(graphlib::Graph *graph, graphlib::OpNode *conv2d) {
     TT_ASSERT(conv2d, "Null OpNode pointer given.");
-    TT_ASSERT(conv2d->op_type().op == "conv2d", "OpNode is not conv2d");
+    TT_ASSERT(conv2d->op_type().op == "conv2d" or conv2d->op_type().op == "conv2d_transpose", "OpNode is not conv2d or conv2d_transpose");
     TT_ASSERT(is_quantizeable_conv2d(graph, conv2d), "conv2d is not quantizeable.");
 
     graphlib::OpNode *deq_act = dynamic_cast<graphlib::OpNode *>(graph->data_operands(conv2d)[0]);
     graphlib::OpNode *deq_weight = dynamic_cast<graphlib::OpNode *>(graph->data_operands(conv2d)[1]);
-    graphlib::OpNode *deq_bias = dynamic_cast<graphlib::OpNode *>(graph->data_operands(conv2d)[2]);
+    graphlib::OpNode *deq_bias = nullptr;
+    if (graph->data_operands(conv2d).size() == 3)
+        deq_bias = dynamic_cast<graphlib::OpNode *>(graph->data_operands(conv2d)[2]);
 
     graphlib::Node *deq_act_scale = graph->data_operands(deq_act)[1];
     graphlib::Node *deq_weight_scale = graph->data_operands(deq_weight)[1];
-    graphlib::Node *deq_bias_scale = graph->data_operands(deq_bias)[1];
+    graphlib::Node *deq_bias_scale = nullptr;
+    if (graph->data_operands(conv2d).size() == 3)
+        deq_bias_scale = graph->data_operands(deq_bias)[1];
 
     // We convert the dequant axis to to a negative index because the conv
     // shape size might be larger than the shape of deq1 
@@ -288,25 +299,85 @@ void make_quantized_conv2d(graphlib::Graph *graph, graphlib::OpNode *conv2d) {
         dequant->set_shape(conv2d->shape());
         insert_node_on_edge(graph, consumer_edge, dequant);
         graph->add_edge(scale_multiply, dequant);
+        dequant->set_output_df(DataFormat::Float32);
     }
 
     // Remove scale edges so that bypass node works (it requires that the node has one operand)
     graphlib::Edge old_deq_act_scale_edge = retrieve_between_edge(graph, deq_act_scale, deq_act);
     graphlib::Edge old_deq_weight_scale_edge = retrieve_between_edge(graph, deq_weight_scale, deq_weight);
-    graphlib::Edge old_deq_bias_scale_edge = retrieve_between_edge(graph, deq_bias_scale, deq_bias);
     graph->remove_edge(old_deq_act_scale_edge);
     graph->remove_edge(old_deq_weight_scale_edge);
-    graph->remove_edge(old_deq_bias_scale_edge);
-
+    if (deq_bias) {
+        graphlib::Edge old_deq_bias_scale_edge = retrieve_between_edge(graph, deq_bias_scale, deq_bias);
+        graph->remove_edge(old_deq_bias_scale_edge);
+    }
     bypass_node(graph, deq_act, true);
     bypass_node(graph, deq_weight, true);
-    bypass_node(graph, deq_bias, true);
+    if (deq_bias)
+        bypass_node(graph, deq_bias, true);
     conv2d->set_output_df(DataFormat::Int32);
 }
 
-const std::array<std::string, 3> quantizeable_ops{
+
+void separate_conv2d_bias(graphlib::Graph *graph) {
+    bool attempt_update = true;
+    while (attempt_update) {
+        attempt_update = false;
+        for (tt::graphlib::Node *node : graphlib::topological_sort(*graph)) {
+            graphlib::OpNode *op_node = dynamic_cast<graphlib::OpNode *>(node);
+            if (not op_node)
+                continue;
+            if (op_node->op_name() != "conv2d" and op_node->op_name() != "conv2d_transpose")
+                continue;
+
+            if (graph->data_operands(op_node).size() < 3)
+                continue;
+
+            graphlib::Node *bias = graph->data_operands(op_node)[2];
+            graphlib::Edge bias_edge = graph->operand_data_edges(op_node)[2];
+            
+
+            uint32_t out_channels = bias->shape()[0];
+            uint32_t r_bcast = op_node->shape()[-2];
+            uint32_t c_bcast = op_node->shape()[-1];
+            std::vector<graphlib::OpType> tms;
+            if (r_bcast > 1) {
+                tms.push_back(graphlib::OpType("broadcast", {(int)-2, (int)r_bcast, true}));
+            }
+
+            if (c_bcast > 1) {
+                tms.push_back(graphlib::OpType("broadcast", {(int)-1, (int)c_bcast, true}));
+            }
+
+            graphlib::Shape new_bias_shape = graphlib::Shape::create({1, out_channels, 1, 1});
+
+            std::string reshape_name = op_node->name() + "_separate_bias_rank_match" + std::to_string(bias_edge.edge_creation_id);
+            graphlib::OpNode *reshape = graph->add_node<graphlib::OpNode>(graphlib::create_node<graphlib::PyOpNode>(reshape_name, "reshape"), graph->get_subgraph_id_for_node(node->id()));
+            update_reshape_attr(reshape, new_bias_shape);
+            reshape->set_shape(new_bias_shape);
+            graph->add_edge(bias, reshape);
+
+            for (graphlib::Edge user_edge : graph->user_data_edges(op_node)) {
+                std::string add_name = op_node->name() + "_separate_bias_add" + std::to_string(user_edge.edge_creation_id);
+                graphlib::OpNode *add = graph->add_node<graphlib::OpNode>(graphlib::create_node<graphlib::PyOpNode>(add_name, "add"), graph->get_subgraph_id_for_node(node->id()));
+                graph->add_edge(reshape, add);
+                graphlib::Edge new_edge = graph->operand_data_edges(add)[0];
+                graph->get_edge_attributes(new_edge)->set_tms(tms);
+                add->set_shape(op_node->shape());
+                insert_node_on_edge(graph, user_edge, add);
+                add->set_output_df(bias->output_df());
+            }
+            graph->remove_edge(bias_edge);
+            attempt_update = true;
+
+        }
+    }   
+}
+
+const std::array<std::string, 4> quantizeable_ops{
     "matmul",
     "conv2d",
+    "conv2d_transpose",
     "add"
 };
 bool make_quantized_ops(graphlib::Graph *graph) {

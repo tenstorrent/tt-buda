@@ -68,7 +68,8 @@ def pytest_generate_tests(metafunc):
 
 	option_shape = metafunc.config.option.un_shape
 	if 'un_shape' in metafunc.fixturenames and option_shape is not None:
-		metafunc.parametrize("un_shape", [option_shape])
+		shape = eval(option_shape) if type(option_shape) == str else option_shape
+		metafunc.parametrize("un_shape", [shape])
 
 	option_op = metafunc.config.option.un_op
 	if 'un_op' in metafunc.fixturenames and option_op is not None:

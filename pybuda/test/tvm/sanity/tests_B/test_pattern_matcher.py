@@ -247,3 +247,43 @@ def test_repeat_interleave_pytorch(test_device, input_shape, repeat_dims, num_re
         ),
     )
 
+
+@pytest.mark.parametrize("alpha_val", (1.0, 0.367, 4.675, -8.0, -0.6743, 16.296))
+def test_elu_pytorch(test_device, alpha_val):
+
+    # Set PyBuda configuration parameters
+    compiler_cfg = pybuda.config._get_global_compiler_config()
+    compiler_cfg.balancer_policy = "Ribbon"
+    compiler_cfg.default_df_override = pybuda.DataFormat.Float16_b
+
+    class elu_model(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.elu = torch.nn.ELU(alpha=alpha_val)
+        def forward(self, input_tensor):
+            return self.elu(input_tensor)
+
+    model = elu_model()
+    model.eval()
+
+    # Create PyBuda module from PyTorch model
+    tt_model = pybuda.PyTorchModule(
+        "pt_elu", model
+    )
+
+    input_sample = torch.randint(-200, 200, (1, 3, 512, 512)).to(torch.float32)
+
+    # Run inference on Tenstorrent device
+    verify_module(
+        tt_model,
+        input_shapes=[(input_sample.shape,)],
+        inputs=[(input_sample,)],
+        verify_cfg=VerifyConfig(
+            arch=test_device.arch,
+            devtype=test_device.devtype,
+            devmode=test_device.devmode,
+            test_kind=TestKind.INFERENCE,
+            verify_pybuda_codegen_vs_framework=True,
+            verify_tvm_compile=True,
+        ),
+    )

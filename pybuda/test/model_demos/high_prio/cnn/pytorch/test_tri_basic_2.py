@@ -8,8 +8,9 @@ from types import SimpleNamespace
 
 import cv2
 import os
-
-from test.model_demos.models.tri_basic_2.model.semseg import resnet34_semseg
+import sys
+sys.path.append("third_party/confidential_customer_models/internal/tri_basic_2/scripts")
+from semseg_tri import resnet34_semseg
 
 from pybuda.verify.backend import verify_module
 from pybuda import VerifyConfig

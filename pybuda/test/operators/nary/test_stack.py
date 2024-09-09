@@ -66,9 +66,10 @@ from loguru import logger
 
 from pybuda import PyBudaModule
 from pybuda.op_repo import TensorShape
-from test.operators.utils import InputSourceFlags, CompilerUtils, VerifyUtils
+from test.operators.utils import InputSourceFlags, VerifyUtils
 from test.operators.utils import ShapeUtils
 from test.operators.utils import NetlistValidation
+from test.operators.utils import FailingReasons
 from test.conftest import TestDevice
 
 
@@ -78,16 +79,15 @@ def verify(model: PyBudaModule, test_device: TestDevice, input_shape: TensorShap
     input_shapes = tuple([input_shape for _ in range(number_of_operands)])
     logger.trace(f"***input_shapes: {input_shapes}")
 
-    if input_source_flag:
-        CompilerUtils.set_input_source(input_source_flag.value)
-
-    if math_fidelity:
-        CompilerUtils.set_math_fidelity(math_fidelity)
-
-    if dev_data_format:
-        input_params.append({"dev_data_format": dev_data_format})
-
-    VerifyUtils.verify(model, test_device, input_shapes, input_params)
+    VerifyUtils.verify(
+        model=model,
+        test_device=test_device,
+        input_shapes=input_shapes,
+        input_params=input_params,
+        input_source_flag=input_source_flag,
+        dev_data_format=dev_data_format,
+        math_fidelity=math_fidelity,
+    )
 
 
 # Currently, verify_module for the Stack operator and Stack operator by it self
@@ -101,9 +101,10 @@ def verify(model: PyBudaModule, test_device: TestDevice, input_shape: TensorShap
 #      [Golden-input_shape0-0] - pybuda._C.UnsupportedHWOpsError: Splice op can only operate on dims 1, 2, or 3
 #      [Golden-input_shape0-2] - RuntimeError: TT_ASSERT @ pybuda/csrc/graph_lib/shape.cpp:114: (i >= 0) && (i < (int)dims_.size())
 #      ..."
+# Bug: Stack operator doesn't work for axis values different of 1.
 axises = [-3, -2, -1, 0, 1, 2]
 input_shapes = [(1, 3, 3)]
-@pytest.mark.skip("Bug: Stack operator doesn't work for axis values different of 1.")
+@pytest.mark.skip(reason=FailingReasons.UNSUPORTED_AXIS)
 @pytest.mark.parametrize("axis", axises)
 @pytest.mark.parametrize("input_shape", input_shapes)
 def test_stack_invalid_axis(test_device, axis, input_shape):
@@ -129,8 +130,9 @@ def test_stack_invalid_axis(test_device, axis, input_shape):
 
 # Stack operator works in PyTorch and PyBuda well for all axises except
 # that PyBuda doesn't work for axis = -2 and axis = -1.
+# Stack operator doesn't work for axis values equal to -2 or -1.
 axises = [-3, -2, -1, 0, 1, 2]
-@pytest.mark.skip("Stack operator doesn't work for axis values equal to -2 or -1.")
+@pytest.mark.skip(reason=FailingReasons.UNSUPORTED_AXIS)
 @pytest.mark.parametrize("axis", axises)
 def test_stack_torch_and_buda(axis):
 
@@ -170,11 +172,12 @@ def test_stack_torch_and_buda(axis):
 #      [Golden-input_shape2-1] - AssertionError
 #      ============================================== 11 failed, 1 passed in 2.40s ===========================================
 #      ..." 
+# Stack operator doesn't work when the input is not 2-dimensional tensor.
 axises = [-2 , -1, 0, 1]
 input_shapes = [(1, 3),       # vector, always fails
                 (1, 1, 3),    # should be reduced to vector, unexpectedly works
                 (1, 3, 3, 3)] # 3-dimensional tensor, always fails
-@pytest.mark.skip("Stack operator doesn't work when the input is not 2-dimensional tensor.")
+@pytest.mark.skip(reason=FailingReasons.UNSUPORTED_AXIS)
 @pytest.mark.parametrize("axis", axises)
 @pytest.mark.parametrize("input_shape", input_shapes)
 def test_stack_invalid_shape(test_device, axis, input_shape):

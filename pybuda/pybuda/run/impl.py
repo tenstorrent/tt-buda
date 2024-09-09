@@ -1233,8 +1233,8 @@ def _compile_devices(
 
     devices = get_devices()
     microbatch_size, inputs = _get_device_zero_inputs(sample_inputs)
-    data_parallel = os.getenv("PYBUDA_N300_DATA_PARALLEL", 0)
-    if data_parallel:
+    is_data_parallel = int(os.getenv("PYBUDA_N300_DATA_PARALLEL", "0"))
+    if is_data_parallel:
         assert microbatch_size > 1, "microbatch size is expected to be >= 1 for data parallel"
         microbatch_size = int(microbatch_size / 2)
 

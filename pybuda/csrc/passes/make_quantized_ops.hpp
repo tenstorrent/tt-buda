@@ -11,4 +11,5 @@ class Graph;
 namespace tt::passes
 {
 bool make_quantized_ops(graphlib::Graph *graph);
+void separate_conv2d_bias(graphlib::Graph *graph);
 }

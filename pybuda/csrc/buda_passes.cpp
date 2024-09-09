@@ -11,6 +11,7 @@
 #include "graph_lib/node_types.hpp"
 #include "graph_lib/query.hpp"
 #include "graph_lib/utils.hpp"
+#include "passes/commute_utils.hpp"
 #include "passes/bind_reshape_to_io.hpp"
 #include "passes/constant_folding.hpp"
 #include "passes/dataformat.hpp"
@@ -53,6 +54,7 @@
 #include "passes/set_tile_dim.hpp"
 #include "passes/squeeze_to_reshape.hpp"
 #include "passes/t_stream.hpp"
+#include "passes/fork_quantization_scales.hpp"
 #include "perf_model/perf_model.hpp"
 #include "placer/dram.hpp"
 #include "placer/dram_allocator.hpp"
@@ -103,14 +105,16 @@ run_post_initial_graph_passes(graphlib::Graph *graph, py::object compiler_cfg_ob
     bool attempt_update = true;
     while (attempt_update) {
         attempt_update = passes::move_dequantize(graph);
+        if (env_as<bool>("PYBUDA_DISABLE_CONV_BIAS_QDQ_INSERTION"))
+            passes::separate_conv2d_bias(graph);
         attempt_update |= passes::make_quantized_ops(graph);
         attempt_update |= passes::insert_qdq_on_biases(graph);
         attempt_update |= passes::dequant_quant_to_requant(graph);
     }
     
+    passes::fork_quantization_scales(graph);
     passes::remove_quant_dequant(graph);
     reportify::dump_graph(graph->name(), "post_quantize_commute", graph);
-    passes::decompose_nd_reshape_split(graph);
     passes::limit_to_4d_reshape(graph);
     passes::erase_unnecessary_4d_tm_sequence(graph);
     passes::fuse_pad_conv2d(graph);
@@ -181,14 +185,14 @@ void run_optimization_graph_passes(graphlib::Graph *graph, const DeviceConfig &d
     }
 
     // Move TMs outside of quantized graph regions
-    // attempt_update = true;
-    // while(attempt_update) {
-    //     passes::insert_inverse_outside_quantized_region(graph);
-    //     attempt_update = passes::erase_inverse_ops(graph);
-    // }
-    
+    attempt_update = true;
+    while(attempt_update) {
+        passes::insert_inverse_outside_quantized_region(graph);
+        attempt_update = passes::erase_inverse_ops(graph);
+        if (not attempt_update)
+            attempt_update = passes::fuse_tm_sequences(graph);
+    }
 
-    passes::move_tm_through_requantize(graph);
     recalculate_shapes(graph);
 
     passes::hoist_transforms_to_inputs(graph);
