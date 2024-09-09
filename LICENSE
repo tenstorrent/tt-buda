@@ -161,8 +161,9 @@
 
 Third-Party Dependencies:
 
-The following dependencies are utilized by this project and are included
-in a distributed build of a Python Wheel:
+The following separate and independent dependencies are utilized by this
+project and are included in a distributed build of a Python Wheel and
+are subject to their own license terms listed as follows:
 
 - sfpi-gcc - https://github.com/tenstorrent-metal/sfpi-rel/blob/master/LICENSE https://github.com/tenstorrent-metal/sfpi-rel/blob/master/compiler/LICENSE
 
