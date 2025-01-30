@@ -24,10 +24,4 @@ For a quick start, follow :doc:`installation<installation>` steps, and then look
    backend/op
    developer
 
-Index
-=====
-
-* :ref:`genindex`
-
-
 .. |tm|   unicode:: U+02122 .. TM SIGN
