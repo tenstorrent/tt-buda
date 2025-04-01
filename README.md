@@ -1,12 +1,13 @@
 <div align="center">
 
 <h1>
-   
-[Buy hardware](https://tenstorrent.com/cards/) | [Discord](https://discord.gg/tenstorrent)
-
+Visit <a href="https://github.com/tenstorrent/tt-forge">TT-Forge</a> for our latest compiler product.
 </h1>
+
    
 <img src="./docs/public/images/tt_buda_w_logo.png" alt="tt logo" height="250"/>
+
+**TT-Buda** is no longer in active development see our new MLIR based compiler <a href="https://github.com/tenstorrent/tt-forge">TT-Forge here</a>
 
 **TT-Buda** is a software stack that can compile AI/ML models from several different frameworks, and execute them on Tenstorrent hardware.
 
