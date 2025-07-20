@@ -45,7 +45,7 @@ See: [TT-Buda Installation](https://github.com/tenstorrent/tt-buda-demos/blob/ma
 
 ## Env setup
 
-Set `LD_LIBRARY_PATH` to the location of `third_party/budabackend/build/lib` - preferrably the absolute path to allow scripts to find them from anywhere.
+Set `LD_LIBRARY_PATH` to the location of `third_party/budabackend/build/lib` - preferably the absolute path to allow scripts to find them from anywhere.
 
 ## Silicon
 
