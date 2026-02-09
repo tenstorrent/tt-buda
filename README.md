@@ -1,13 +1,18 @@
 <div align="center">
 
-<h1>
-Visit <a href="https://github.com/tenstorrent/tt-forge">TT-Forge</a> for our latest compiler product.
-</h1>
+   # ARCHIVED
+   
+   **TT-Buda** is no longer in active development see our new MLIR based compiler <a href="https://github.com/tenstorrent/tt-forge">TT-Forge here</a>
 
+   This project is now Archived.  No further updates should be expected.
+
+</div>
+
+<hr/>
+
+<div align="center">
    
 <img src="./docs/public/images/tt_buda_w_logo.png" alt="tt logo" height="250"/>
-
-**TT-Buda** is no longer in active development see our new MLIR based compiler <a href="https://github.com/tenstorrent/tt-forge">TT-Forge here</a>
 
 **TT-Buda** is a software stack that can compile AI/ML models from several different frameworks, and execute them on Tenstorrent hardware.
 
